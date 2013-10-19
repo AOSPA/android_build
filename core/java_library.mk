@@ -71,7 +71,7 @@ $(common_javalib.jar) : $(full_classes_proguard_jar)
 else
 $(common_javalib.jar) : $(full_classes_jar)
 endif
-	@echo "target Static Jar: $(PRIVATE_MODULE) ($@)"
+	@echo -e ${PRT_TGT}"target Static Jar:"${CL_RST}" $(PRIVATE_MODULE) ($@)"
 	$(copy-file-to-target)
 ifneq ($(extra_jar_args),)
 	$(add-java-resources-to-package)
@@ -84,7 +84,7 @@ else # !LOCAL_IS_STATIC_JAVA_LIBRARY
 
 $(common_javalib.jar): PRIVATE_DEX_FILE := $(built_dex)
 $(common_javalib.jar) : $(built_dex) $(java_resource_sources)
-	@echo "target Jar: $(PRIVATE_MODULE) ($@)"
+	@echo -e ${PRT_TGT}"target Jar:"${CL_RST}" $(PRIVATE_MODULE) ($@)"
 	$(create-empty-package)
 	$(add-dex-to-package)
 	$(add-carried-java-resources)
@@ -111,7 +111,7 @@ $(built_odex): PRIVATE_MODULE := $(LOCAL_MODULE)
 # Make sure the boot jars get dex-preopt-ed first
 $(built_odex) : $(DEXPREOPT_BOOT_ODEXS)
 $(built_odex) : $(common_javalib.jar) | $(DEXPREOPT) $(DEXOPT)
-	@echo "Dexpreopt Jar: $(PRIVATE_MODULE) ($@)"
+	@echo -e ${PRT_TGT}"Dexpreopt Jar:"${CL_RST}" $(PRIVATE_MODULE) ($@)"
 	$(hide) rm -f $@
 	@mkdir -p $(dir $@)
 	$(call dexpreopt-one-file,$<,$@)

@@ -97,16 +97,16 @@ $(full_classes_compiled_jar): $(java_sources) $(java_resource_sources) $(full_ja
 ifneq ($(strip $(LOCAL_JARJAR_RULES)),)
 $(full_classes_jarjar_jar): PRIVATE_JARJAR_RULES := $(LOCAL_JARJAR_RULES)
 $(full_classes_jarjar_jar): $(full_classes_compiled_jar) $(LOCAL_JARJAR_RULES) | $(JARJAR)
-	@echo JarJar: $@
+	@echo -e ${PRT_HST}"JarJar:"${CL_RST}" $@"
 	$(hide) java -jar $(JARJAR) process $(PRIVATE_JARJAR_RULES) $< $@
 else
 $(full_classes_jarjar_jar): $(full_classes_compiled_jar) | $(ACP)
-	@echo Copying: $@
+	@echo -e ${PRT_HST}"Copying:"${CL_RST}" $@"
 	$(hide) $(ACP) -fp $< $@
 endif
 
 $(full_classes_jar): $(full_classes_jarjar_jar) | $(ACP)
-	@echo Copying: $@
+	@echo -e ${PRT_HST}"Copying:"${CL_RST}" $@"
 	$(hide) $(ACP) -fp $< $@
 
 $(built_dex): PRIVATE_INTERMEDIATES_DIR := $(intermediates.COMMON)
@@ -116,7 +116,7 @@ $(built_dex): $(full_classes_jar) $(DX)
 
 $(LOCAL_BUILT_MODULE): PRIVATE_DEX_FILE := $(built_dex)
 $(LOCAL_BUILT_MODULE): $(built_dex) $(java_resource_sources)
-	@echo "Host Jar: $(PRIVATE_MODULE) ($@)"
+	@echo -e ${PRT_HST}"Host Jar:"${CL_RST}" $(PRIVATE_MODULE) ($@)"
 	$(create-empty-package)
 	$(add-dex-to-package)
 	$(add-carried-java-resources)
