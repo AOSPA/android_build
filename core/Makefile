@@ -19,10 +19,6 @@ is_tests_build := $(filter tests,$(MAKECMDGOALS))
 # The filter part means "only eval the copy-one-file rule if this
 # src:dest pair is the first one to match the same dest"
 #$(1): the src:dest pair
-define check-product-copy-files
-$(if $(filter %.apk, $(1)),$(error \
-    Prebuilt apk found in PRODUCT_COPY_FILES: $(1), use BUILD_PREBUILT instead!))
-endef
 # filter out the duplicate <source file>:<dest file> pairs.
 unique_product_copy_files_pairs :=
 $(foreach cf,$(PRODUCT_COPY_FILES), \
@@ -1300,7 +1296,7 @@ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
 	   -k $(KEY_CERT_PAIR) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
 
-.PHONY: otapackage
+.PHONY: otapackage bacon
 otapackage: $(INTERNAL_OTA_PACKAGE_TARGET)
 
 # -----------------------------------------------------------------
@@ -1327,6 +1323,10 @@ $(INTERNAL_UPDATE_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
 	   -s $(extensions) \
 	   -p $(HOST_OUT) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
+        ifneq ($(TARGET_CUSTOM_RELEASETOOL),)
+            @echo "Running releasetool"
+            $(hide) $(TARGET_CUSTOM_RELEASETOOL)
+        endif
 
 .PHONY: updatepackage
 updatepackage: $(INTERNAL_UPDATE_PACKAGE_TARGET)
