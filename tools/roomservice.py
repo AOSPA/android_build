@@ -193,12 +193,11 @@ def add_to_manifest(repositories, fallback_branch = None, is_dependency = False)
 
             print ('Adding dependecy: %s -> %s' % (repo_full, repo_target))
 
-        if is_dependency:
             project = ElementTree.Element("project", attrib = { "path": repo_target,
             "remote": repo_remote, "name": repo_full, "revision": repo_revision })
         else:
-       		project = ElementTree.Element("project", attrib = { "path": repo_target,
-            "remote": "github", "name": "AOSPA/%s" % repo_name })
+       	    project = ElementTree.Element("project", attrib = { "path": repo_target,
+            "remote": "github", "name": "AOSPA/%s" % repo_name, "revision": "kitkat" })
 
         if 'branch' in repository:
             project.set('revision',repository['branch'])
