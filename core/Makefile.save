@@ -1,0 +1,626 @@
+# Put some miscellaneous rules here
+
+# Build system colors
+
+ifneq ($(BUILD_WITH_COLORS),0)
+# Define colors
+  CL_RST="\033[0m"
+  CL_BLK="\033[30m"
+  CL_RED="\033[31m"
+  CL_GRN="\033[32m"
+  CL_YLW="\033[33m"
+  CL_BLU="\033[34m"
+  CL_MAG="\033[35m"
+  CL_CYN="\033[36m"
+  CL_WHT="\033[37m"
+  CL_BLD_BLK="\033[1m\033[30m"
+  CL_BLD_RED="\033[1m\033[31m"
+  CL_BLD_GRN="\033[1m\033[32m"
+  CL_BLD_YLW="\033[1m\033[33m"
+  CL_BLD_BLU="\033[1m\033[34m"
+  CL_BLD_MAG="\033[1m\033[35m"
+  CL_BLD_CYN="\033[1m\033[36m"
+  CL_BLD_WHT="\033[1m\033[37m"
+# Map colors
+  # host
+  PRT_HST := $(CL_YLW)
+  # target
+  PRT_TGT := $(CL_CYN)
+  # install/copy
+  PRT_INS := $(CL_GRN)
+  # FS/images
+  PRT_IMG := $(CL_GRN)
+  # import/export/includes/notice
+  PRT_IMP := $(CL_GRN)
+  # delete
+  PRT_DEL := $(CL_RED)
+  # complete msg
+  PRT_CPL := $(CL_BLD_GRN)
+endif
+
+# Pick a reasonable string to use to identify files.
+ifneq "" "$(filter eng.%,$(BUILD_NUMBER))"
+  # BUILD_NUMBER has a timestamp in it, which means that
+  # it will change every time.  Pick a stable value.
+  FILE_NAME_TAG := eng.$(USER)
+else
+  FILE_NAME_TAG := $(BUILD_NUMBER)
+endif
+
+is_tests_build := $(filter tests,$(MAKECMDGOALS))
+
+# -----------------------------------------------------------------
+# Define rules to copy PRODUCT_COPY_FILES defined by the product.
+# PRODUCT_COPY_FILES contains words like <source file>:<dest file>[:<owner>].
+# <dest file> is relative to $(PRODUCT_OUT), so it should look like,
+# e.g., "system/etc/file.xml".
+# The filter part means "only eval the copy-one-file rule if this
+# src:dest pair is the first one to match the same dest"
+#$(1): the src:dest pair
+# filter out the duplicate <source file>:<dest file> pairs.
+unique_product_copy_files_pairs :=
+$(foreach cf,$(PRODUCT_COPY_FILES), \
+    $(if $(filter $(unique_product_copy_files_pairs),$(cf)),,\
+        $(eval unique_product_copy_files_pairs += $(cf))))
+unique_product_copy_files_destinations :=
+$(foreach cf,$(unique_product_copy_files_pairs), \
+    $(eval _src := $(call word-colon,1,$(cf))) \
+    $(eval _dest := $(call word-colon,2,$(cf))) \
+    $(call check-product-copy-files,$(cf)) \
+    $(if $(filter $(unique_product_copy_files_destinations),$(_dest)), \
+        $(info PRODUCT_COPY_FILES $(cf) ignored.), \
+        $(eval _fulldest := $(call append-path,$(PRODUCT_OUT),$(_dest))) \
+        $(if $(filter %.xml,$(_dest)),\
+            $(eval $(call copy-xml-file-checked,$(_src),$(_fulldest))),\
+            $(eval $(call copy-one-file,$(_src),$(_fulldest)))) \
+        $(eval ALL_DEFAULT_INSTALLED_MODULES += $(_fulldest)) \
+        $(eval unique_product_copy_files_destinations += $(_dest))))
+unique_product_copy_files_pairs :=
+unique_product_copy_files_destinations :=
+
+# -----------------------------------------------------------------
+# docs/index.html
+ifeq (,$(TARGET_BUILD_APPS))
+gen := $(OUT_DOCS)/index.html
+ALL_DOCS += $(gen)
+$(gen): frameworks/base/docs/docs-redirect-index.html
+	@mkdir -p $(dir $@)
+	@cp -f $< $@
+endif
+
+# -----------------------------------------------------------------
+# default.prop
+INSTALLED_DEFAULT_PROP_TARGET := $(TARGET_ROOT_OUT)/default.prop
+ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_DEFAULT_PROP_TARGET)
+ADDITIONAL_DEFAULT_PROPERTIES := \
+    $(call collapse-pairs, $(ADDITIONAL_DEFAULT_PROPERTIES))
+ADDITIONAL_DEFAULT_PROPERTIES += \
+    $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
+ADDITIONAL_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
+    $(ADDITIONAL_DEFAULT_PROPERTIES),=)
+
+$(INSTALLED_DEFAULT_PROP_TARGET):
+	@echo Target buildinfo: $@
+	@mkdir -p $(dir $@)
+	$(hide) echo "#" > $@; \
+	        echo "# ADDITIONAL_DEFAULT_PROPERTIES" >> $@; \
+	        echo "#" >> $@;
+	$(hide) $(foreach line,$(ADDITIONAL_DEFAULT_PROPERTIES), \
+		echo "$(line)" >> $@;)
+	build/tools/post_process_props.py $@
+
+# -----------------------------------------------------------------
+# build.prop
+INSTALLED_BUILD_PROP_TARGET := $(TARGET_OUT)/build.prop
+ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_BUILD_PROP_TARGET)
+ADDITIONAL_BUILD_PROPERTIES := \
+    $(call collapse-pairs, $(ADDITIONAL_BUILD_PROPERTIES))
+ADDITIONAL_BUILD_PROPERTIES := $(call uniq-pairs-by-first-component, \
+    $(ADDITIONAL_BUILD_PROPERTIES),=)
+
+# A list of arbitrary tags describing the build configuration.
+# Force ":=" so we can use +=
+BUILD_VERSION_TAGS := $(BUILD_VERSION_TAGS)
+ifeq ($(TARGET_BUILD_TYPE),debug)
+  BUILD_VERSION_TAGS += debug
+endif
+# The "test-keys" tag marks builds signed with the old test keys,
+# which are available in the SDK.  "dev-keys" marks builds signed with
+# non-default dev keys (usually private keys from a vendor directory).
+# Both of these tags will be removed and replaced with "release-keys"
+# when the target-files is signed in a post-build step.
+ifeq ($(DEFAULT_SYSTEM_DEV_CERTIFICATE),build/target/product/security/testkey)
+BUILD_KEYS := test-keys
+else
+BUILD_KEYS := dev-keys
+endif
+BUILD_VERSION_TAGS += $(BUILD_KEYS)
+BUILD_VERSION_TAGS := $(subst $(space),$(comma),$(sort $(BUILD_VERSION_TAGS)))
+
+# A human-readable string that descibes this build in detail.
+build_desc := $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT) $(PLATFORM_VERSION) $(BUILD_ID) $(BUILD_NUMBER) $(BUILD_VERSION_TAGS)
+$(INSTALLED_BUILD_PROP_TARGET): PRIVATE_BUILD_DESC := $(build_desc)
+
+# The string used to uniquely identify this build;  used by the OTA server.
+ifeq (,$(strip $(BUILD_FINGERPRINT)))
+  BUILD_FINGERPRINT := $(PRODUCT_BRAND)/$(TARGET_PRODUCT)/$(TARGET_DEVICE):$(PLATFORM_VERSION)/$(BUILD_ID)/$(BUILD_NUMBER):$(TARGET_BUILD_VARIANT)/$(BUILD_VERSION_TAGS)
+endif
+ifneq ($(words $(BUILD_FINGERPRINT)),1)
+  $(error BUILD_FINGERPRINT cannot contain spaces: "$(BUILD_FINGERPRINT)")
+endif
+
+# Display parameters shown under Settings -> About Phone
+ifeq ($(TARGET_BUILD_VARIANT),user)
+  # User builds should show:
+  # release build number or branch.buld_number non-release builds
+
+  # Dev. branches should have DISPLAY_BUILD_NUMBER set
+  ifeq "true" "$(DISPLAY_BUILD_NUMBER)"
+    BUILD_DISPLAY_ID := $(BUILD_ID).$(BUILD_NUMBER) $(BUILD_KEYS)
+  else
+    BUILD_DISPLAY_ID := $(BUILD_ID) $(BUILD_KEYS)
+  endif
+else
+  # Non-user builds should show detailed build information
+  BUILD_DISPLAY_ID := $(build_desc)
+endif
+
+# Whether there is default locale set in PRODUCT_PROPERTY_OVERRIDES
+product_property_override_locale_language := $(strip \
+    $(patsubst ro.product.locale.language=%,%,\
+    $(filter ro.product.locale.language=%,$(PRODUCT_PROPERTY_OVERRIDES))))
+product_property_overrides_locale_region := $(strip \
+    $(patsubst ro.product.locale.region=%,%,\
+    $(filter ro.product.locale.region=%,$(PRODUCT_PROPERTY_OVERRIDES))))
+
+# Selects the first locale in the list given as the argument,
+# and splits it into language and region, which each may be
+# empty.
+define default-locale
+$(subst _, , $(firstword $(1)))
+endef
+
+# Selects the first locale in the list given as the argument
+# and returns the language (or the region), if it's not set in PRODUCT_PROPERTY_OVERRIDES;
+# Return empty string if it's already set in PRODUCT_PROPERTY_OVERRIDES.
+define default-locale-language
+$(if $(product_property_override_locale_language),,$(word 1, $(call default-locale, $(1))))
+endef
+define default-locale-region
+$(if $(product_property_overrides_locale_region),,$(word 2, $(call default-locale, $(1))))
+endef
+
+BUILDINFO_SH := build/tools/buildinfo.sh
+
+ifdef TARGET_SYSTEM_PROP
+system_prop_file := $(TARGET_SYSTEM_PROP)
+else
+system_prop_file := $(wildcard $(TARGET_DEVICE_DIR)/system.prop)
+endif
+
+$(INSTALLED_BUILD_PROP_TARGET): $(BUILDINFO_SH) $(INTERNAL_BUILD_ID_MAKEFILE) $(BUILD_SYSTEM)/version_defaults.mk $(system_prop_file)
+	@echo Target buildinfo: $@
+	@mkdir -p $(dir $@)
+	$(hide) TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
+			TARGET_DEVICE="$(TARGET_DEVICE)" \
+			PRODUCT_NAME="$(TARGET_PRODUCT)" \
+			PRODUCT_BRAND="$(PRODUCT_BRAND)" \
+			PRODUCT_DEFAULT_LANGUAGE="$(call default-locale-language,$(PRODUCT_LOCALES))" \
+			PRODUCT_DEFAULT_REGION="$(call default-locale-region,$(PRODUCT_LOCALES))" \
+			PRODUCT_DEFAULT_WIFI_CHANNELS="$(PRODUCT_DEFAULT_WIFI_CHANNELS)" \
+			PRODUCT_MODEL="$(PRODUCT_MODEL)" \
+			PRODUCT_MANUFACTURER="$(PRODUCT_MANUFACTURER)" \
+			PRIVATE_BUILD_DESC="$(PRIVATE_BUILD_DESC)" \
+			BUILD_ID="$(BUILD_ID)" \
+			BUILD_DISPLAY_ID="$(BUILD_DISPLAY_ID)" \
+			BUILD_NUMBER="$(BUILD_NUMBER)" \
+			PLATFORM_VERSION="$(PLATFORM_VERSION)" \
+			PLATFORM_SDK_VERSION="$(PLATFORM_SDK_VERSION)" \
+			PLATFORM_VERSION_CODENAME="$(PLATFORM_VERSION_CODENAME)" \
+			BUILD_VERSION_TAGS="$(BUILD_VERSION_TAGS)" \
+			TARGET_BOOTLOADER_BOARD_NAME="$(TARGET_BOOTLOADER_BOARD_NAME)" \
+			BUILD_FINGERPRINT="$(BUILD_FINGERPRINT)" \
+			TARGET_BOARD_PLATFORM="$(TARGET_BOARD_PLATFORM)" \
+			TARGET_CPU_ABI="$(TARGET_CPU_ABI)" \
+			TARGET_CPU_ABI2="$(TARGET_CPU_ABI2)" \
+			TARGET_AAPT_CHARACTERISTICS="$(TARGET_AAPT_CHARACTERISTICS)" \
+	        bash $(BUILDINFO_SH) > $@
+	$(hide) $(foreach file,$(system_prop_file), \
+		if [ -f "$(file)" ]; then \
+			echo "#" >> $@; \
+			echo Target buildinfo from: "$(file)"; \
+			echo "# from $(file)" >> $@; \
+			echo "#" >> $@; \
+			cat $(file) >> $@; \
+		fi;)
+	$(if $(ADDITIONAL_BUILD_PROPERTIES), \
+		$(hide) echo >> $@; \
+		        echo "#" >> $@; \
+		        echo "# ADDITIONAL_BUILD_PROPERTIES" >> $@; \
+		        echo "#" >> $@; )
+	$(hide) $(foreach line,$(ADDITIONAL_BUILD_PROPERTIES), \
+		echo "$(line)" >> $@;)
+	$(hide) build/tools/post_process_props.py $@
+
+build_desc :=
+
+# -----------------------------------------------------------------
+# sdk-build.prop
+#
+# There are certain things in build.prop that we don't want to
+# ship with the sdk; remove them.
+
+# This must be a list of entire property keys followed by
+# "=" characters, without any internal spaces.
+sdk_build_prop_remove := \
+	ro.build.user= \
+	ro.build.host= \
+	ro.product.brand= \
+	ro.product.manufacturer= \
+	ro.product.device=
+# TODO: Remove this soon-to-be obsolete property
+sdk_build_prop_remove += ro.build.product=
+INSTALLED_SDK_BUILD_PROP_TARGET := $(PRODUCT_OUT)/sdk/sdk-build.prop
+$(INSTALLED_SDK_BUILD_PROP_TARGET): $(INSTALLED_BUILD_PROP_TARGET)
+	@echo SDK buildinfo: $@
+	@mkdir -p $(dir $@)
+	$(hide) grep -v "$(subst $(space),\|,$(strip \
+				$(sdk_build_prop_remove)))" $< > $@.tmp
+	$(hide) for x in $(sdk_build_prop_remove); do \
+				echo "$$x"generic >> $@.tmp; done
+	$(hide) mv $@.tmp $@
+
+# -----------------------------------------------------------------
+# package stats
+PACKAGE_STATS_FILE := $(PRODUCT_OUT)/package-stats.txt
+PACKAGES_TO_STAT := \
+    $(sort $(filter $(TARGET_OUT)/% $(TARGET_OUT_DATA)/%, \
+	$(filter %.jar %.apk, $(ALL_DEFAULT_INSTALLED_MODULES))))
+$(PACKAGE_STATS_FILE): $(PACKAGES_TO_STAT)
+	@echo Package stats: $@
+	@mkdir -p $(dir $@)
+	$(hide) rm -f $@
+	$(hide) build/tools/dump-package-stats $^ > $@
+
+.PHONY: package-stats
+package-stats: $(PACKAGE_STATS_FILE)
+
+# -----------------------------------------------------------------
+# Cert-to-package mapping.  Used by the post-build signing tools.
+# Use a macro to add newline to each echo command
+define _apkcerts_echo_with_newline
+$(hide) echo $(1)
+
+endef
+
+name := $(TARGET_PRODUCT)
+ifeq ($(TARGET_BUILD_TYPE),debug)
+  name := $(name)_debug
+endif
+name := $(name)-apkcerts-$(FILE_NAME_TAG)
+intermediates := \
+	$(call intermediates-dir-for,PACKAGING,apkcerts)
+APKCERTS_FILE := $(intermediates)/$(name).txt
+# We don't need to really build all the modules.
+# TODO: rebuild APKCERTS_FILE if any app change its cert.
+$(APKCERTS_FILE):
+	@echo APK certs list: $@
+	@mkdir -p $(dir $@)
+	@rm -f $@
+	$(foreach p,$(PACKAGES),\
+	  $(if $(PACKAGES.$(p).EXTERNAL_KEY),\
+	    $(call _apkcerts_echo_with_newline,\
+	      'name="$(p).apk" certificate="EXTERNAL" \
+	      private_key=""' >> $@),\
+	    $(call _apkcerts_echo_with_newline,\
+	      'name="$(p).apk" certificate="$(PACKAGES.$(p).CERTIFICATE)" \
+	      private_key="$(PACKAGES.$(p).PRIVATE_KEY)"' >> $@)))
+	# In case value of PACKAGES is empty.
+	$(hide) touch $@
+
+.PHONY: apkcerts-list
+apkcerts-list: $(APKCERTS_FILE)
+
+ifneq (,$(TARGET_BUILD_APPS))
+  $(call dist-for-goals, apps_only, $(APKCERTS_FILE):apkcerts.txt)
+endif
+
+# -----------------------------------------------------------------
+# module info file
+ifdef CREATE_MODULE_INFO_FILE
+  MODULE_INFO_FILE := $(PRODUCT_OUT)/module-info.txt
+  $(info Generating $(MODULE_INFO_FILE)...)
+  $(shell rm -f $(MODULE_INFO_FILE))
+  $(foreach m,$(ALL_MODULES), \
+    $(shell echo "NAME=\"$(m)\"" \
+	"PATH=\"$(strip $(ALL_MODULES.$(m).PATH))\"" \
+	"TAGS=\"$(strip $(filter-out _%,$(ALL_MODULES.$(m).TAGS)))\"" \
+	"BUILT=\"$(strip $(ALL_MODULES.$(m).BUILT))\"" \
+	"INSTALLED=\"$(strip $(ALL_MODULES.$(m).INSTALLED))\"" >> $(MODULE_INFO_FILE)))
+endif
+
+# -----------------------------------------------------------------
+
+# The dev key is used to sign this package, and as the key required
+# for future OTA packages installed by this system.  Actual product
+# deliverables will be re-signed by hand.  We expect this file to
+# exist with the suffixes ".x509.pem" and ".pk8".
+DEFAULT_KEY_CERT_PAIR := $(DEFAULT_SYSTEM_DEV_CERTIFICATE)
+
+
+# Rules that need to be present for the all targets, even
+# if they don't do anything.
+.PHONY: systemimage
+systemimage:
+
+# -----------------------------------------------------------------
+
+.PHONY: event-log-tags
+
+# Produce an event logs tag file for everything we know about, in order
+# to properly allocate numbers.  Then produce a file that's filtered
+# for what's going to be installed.
+
+all_event_log_tags_file := $(TARGET_OUT_COMMON_INTERMEDIATES)/all-event-log-tags.txt
+
+event_log_tags_file := $(TARGET_OUT)/etc/event-log-tags
+
+# Include tags from all packages that we know about
+all_event_log_tags_src := \
+    $(sort $(foreach m, $(ALL_MODULES), $(ALL_MODULES.$(m).EVENT_LOG_TAGS)))
+
+# PDK builds will already have a full list of tags that needs to get merged
+# in with the ones from source
+pdk_fusion_log_tags_file := $(patsubst $(PRODUCT_OUT)/%,$(_pdk_fusion_intermediates)/%,$(filter $(event_log_tags_file),$(ALL_PDK_FUSION_FILES)))
+
+$(all_event_log_tags_file): PRIVATE_SRC_FILES := $(all_event_log_tags_src) $(pdk_fusion_log_tags_file)
+$(all_event_log_tags_file): $(all_event_log_tags_src) $(pdk_fusion_log_tags_file)
+	$(hide) mkdir -p $(dir $@)
+	$(hide) build/tools/merge-event-log-tags.py -o $@ $(PRIVATE_SRC_FILES)
+
+# Include tags from all packages included in this product, plus all
+# tags that are part of the system (ie, not in a vendor/ or device/
+# directory).
+event_log_tags_src := \
+    $(sort $(foreach m,\
+      $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES) \
+      $(call module-names-for-tag-list,user), \
+      $(ALL_MODULES.$(m).EVENT_LOG_TAGS)) \
+      $(filter-out vendor/% device/% out/%,$(all_event_log_tags_src)))
+
+$(event_log_tags_file): PRIVATE_SRC_FILES := $(event_log_tags_src) $(pdk_fusion_log_tags_file)
+$(event_log_tags_file): PRIVATE_MERGED_FILE := $(all_event_log_tags_file)
+$(event_log_tags_file): $(event_log_tags_src) $(all_event_log_tags_file) $(pdk_fusion_log_tags_file)
+	$(hide) mkdir -p $(dir $@)
+	$(hide) build/tools/merge-event-log-tags.py -o $@ -m $(PRIVATE_MERGED_FILE) $(PRIVATE_SRC_FILES)
+
+event-log-tags: $(event_log_tags_file)
+
+ALL_DEFAULT_INSTALLED_MODULES += $(event_log_tags_file)
+
+
+# #################################################################
+# Targets for boot/OS images
+# #################################################################
+
+# -----------------------------------------------------------------
+# the ramdisk
+INTERNAL_RAMDISK_FILES := $(filter $(TARGET_ROOT_OUT)/%, \
+	$(ALL_PREBUILT) \
+	$(ALL_COPIED_HEADERS) \
+	$(ALL_GENERATED_SOURCES) \
+	$(ALL_DEFAULT_INSTALLED_MODULES))
+
+BUILT_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk.img
+
+# We just build this directly to the install location.
+INSTALLED_RAMDISK_TARGET := $(BUILT_RAMDISK_TARGET)
+$(INSTALLED_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_RAMDISK_FILES) | $(MINIGZIP)
+	$(call pretty,"Target ram disk: $@")
+	$(hide) $(MKBOOTFS) $(TARGET_ROOT_OUT) | $(MINIGZIP) > $@
+
+.PHONY: ramdisk-nodeps
+ramdisk-nodeps: $(MKBOOTFS) | $(MINIGZIP)
+	@echo "make $@: ignoring dependencies"
+	$(hide) $(MKBOOTFS) $(TARGET_ROOT_OUT) | $(MINIGZIP) > $(INSTALLED_RAMDISK_TARGET)
+
+ifneq ($(strip $(TARGET_NO_KERNEL)),true)
+
+# -----------------------------------------------------------------
+# the boot image, which is a collection of other images.
+INTERNAL_BOOTIMAGE_ARGS := \
+	$(addprefix --second ,$(INSTALLED_2NDBOOTLOADER_TARGET)) \
+	--kernel $(INSTALLED_KERNEL_TARGET) \
+	--ramdisk $(INSTALLED_RAMDISK_TARGET)
+
+INTERNAL_BOOTIMAGE_FILES := $(filter-out --%,$(INTERNAL_BOOTIMAGE_ARGS))
+
+BOARD_KERNEL_CMDLINE := $(strip $(BOARD_KERNEL_CMDLINE))
+ifdef BOARD_KERNEL_CMDLINE
+  INTERNAL_BOOTIMAGE_ARGS += --cmdline "$(BOARD_KERNEL_CMDLINE)"
+endif
+
+BOARD_KERNEL_BASE := $(strip $(BOARD_KERNEL_BASE))
+ifdef BOARD_KERNEL_BASE
+  INTERNAL_BOOTIMAGE_ARGS += --base $(BOARD_KERNEL_BASE)
+endif
+
+BOARD_KERNEL_PAGESIZE := $(strip $(BOARD_KERNEL_PAGESIZE))
+ifdef BOARD_KERNEL_PAGESIZE
+  INTERNAL_BOOTIMAGE_ARGS += --pagesize $(BOARD_KERNEL_PAGESIZE)
+endif
+
+INSTALLED_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot.img
+
+ifeq ($(TARGET_BOOTIMAGE_USE_EXT2),true)
+tmp_dir_for_image := $(call intermediates-dir-for,EXECUTABLES,boot_img)/bootimg
+INTERNAL_BOOTIMAGE_ARGS += --tmpdir $(tmp_dir_for_image)
+INTERNAL_BOOTIMAGE_ARGS += --genext2fs $(MKEXT2IMG)
+$(INSTALLED_BOOTIMAGE_TARGET): $(MKEXT2IMG) $(INTERNAL_BOOTIMAGE_FILES)
+	$(call pretty,"Target boot image: $@")
+	$(hide) $(MKEXT2BOOTIMG) $(INTERNAL_BOOTIMAGE_ARGS) --output $@
+
+.PHONY: bootimage-nodeps
+bootimage-nodeps: $(MKEXT2IMG)
+	@echo "make $@: ignoring dependencies"
+	$(hide) $(MKEXT2BOOTIMG) $(INTERNAL_BOOTIMAGE_ARGS) --output $(INSTALLED_BOOTIMAGE_TARGET)
+
+else # TARGET_BOOTIMAGE_USE_EXT2 != true
+
+$(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_FILES)
+	$(call pretty,"Target boot image: $@")
+	$(hide) $(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $@
+	$(hide) $(call assert-max-image-size,$@,$(BOARD_BOOTIMAGE_PARTITION_SIZE),raw)
+
+.PHONY: bootimage-nodeps
+bootimage-nodeps: $(MKBOOTIMG)
+	@echo "make $@: ignoring dependencies"
+	$(hide) $(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $(INSTALLED_BOOTIMAGE_TARGET)
+	$(hide) $(call assert-max-image-size,$(INSTALLED_BOOTIMAGE_TARGET),$(BOARD_BOOTIMAGE_PARTITION_SIZE),raw)
+
+endif # TARGET_BOOTIMAGE_USE_EXT2
+
+else	# TARGET_NO_KERNEL
+# HACK: The top-level targets depend on the bootimage.  Not all targets
+# can produce a bootimage, though, and emulator targets need the ramdisk
+# instead.  Fake it out by calling the ramdisk the bootimage.
+# TODO: make the emulator use bootimages, and make mkbootimg accept
+#       kernel-less inputs.
+INSTALLED_BOOTIMAGE_TARGET := $(INSTALLED_RAMDISK_TARGET)
+endif
+
+# -----------------------------------------------------------------
+# NOTICE files
+#
+# We are required to publish the licenses for all code under BSD, GPL and
+# Apache licenses (and possibly other more exotic ones as well). We err on the
+# side of caution, so the licenses for other third-party code are included here
+# too.
+#
+# This needs to be before the systemimage rules, because it adds to
+# ALL_DEFAULT_INSTALLED_MODULES, which those use to pick which files
+# go into the systemimage.
+
+.PHONY: notice_files
+
+# Create the rule to combine the files into text and html forms
+# $(1) - Plain text output file
+# $(2) - HTML output file
+# $(3) - File title
+# $(4) - Directory to use.  Notice files are all $(4)/src.  Other
+#		 directories in there will be used for scratch
+# $(5) - Dependencies for the output files
+#
+# The algorithm here is that we go collect a hash for each of the notice
+# files and write the names of the files that match that hash.  Then
+# to generate the real files, we go print out all of the files and their
+# hashes.
+#
+# These rules are fairly complex, so they depend on this makefile so if
+# it changes, they'll run again.
+#
+# TODO: We could clean this up so that we just record the locations of the
+# original notice files instead of making rules to copy them somwehere.
+# Then we could traverse that without quite as much bash drama.
+define combine-notice-files
+$(1) $(2): PRIVATE_MESSAGE := $(3)
+$(1) $(2): PRIVATE_DIR := $(4)
+$(1) : $(2)
+$(2) : $(5) $(BUILD_SYSTEM)/Makefile build/tools/generate-notice-files.py
+	build/tools/generate-notice-files.py $(1) $(2) $$(PRIVATE_MESSAGE) $$(PRIVATE_DIR)/src
+notice_files: $(1) $(2)
+endef
+
+# TODO These intermediate NOTICE.txt/NOTICE.html files should go into
+# TARGET_OUT_NOTICE_FILES now that the notice files are gathered from
+# the src subdirectory.
+
+target_notice_file_txt := $(TARGET_OUT_INTERMEDIATES)/NOTICE.txt
+target_notice_file_html := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html
+target_notice_file_html_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html.gz
+tools_notice_file_txt := $(HOST_OUT_INTERMEDIATES)/NOTICE.txt
+tools_notice_file_html := $(HOST_OUT_INTERMEDIATES)/NOTICE.html
+
+ifndef TARGET_BUILD_APPS
+kernel_notice_file := $(TARGET_OUT_NOTICE_FILES)/src/kernel.txt
+pdk_fusion_notice_files := $(filter $(TARGET_OUT_NOTICE_FILES)/%, $(ALL_PDK_FUSION_FILES))
+
+$(eval $(call combine-notice-files, \
+			$(target_notice_file_txt), \
+			$(target_notice_file_html), \
+			"Notices for files contained in the filesystem images in this directory:", \
+			$(TARGET_OUT_NOTICE_FILES), \
+			$(ALL_DEFAULT_INSTALLED_MODULES) $(kernel_notice_file) $(pdk_fusion_notice_files)))
+
+$(eval $(call combine-notice-files, \
+			$(tools_notice_file_txt), \
+			$(tools_notice_file_html), \
+			"Notices for files contained in the tools directory:", \
+			$(HOST_OUT_NOTICE_FILES), \
+			$(ALL_DEFAULT_INSTALLED_MODULES)))
+
+# Install the html file at /system/etc/NOTICE.html.gz.
+# This is not ideal, but this is very late in the game, after a lot of
+# the module processing has already been done -- in fact, we used the
+# fact that all that has been done to get the list of modules that we
+# need notice files for.
+$(target_notice_file_html_gz): $(target_notice_file_html) | $(MINIGZIP)
+	$(hide) $(MINIGZIP) -9 < $< > $@
+installed_notice_html_gz := $(TARGET_OUT)/etc/NOTICE.html.gz
+$(installed_notice_html_gz): $(target_notice_file_html_gz) | $(ACP)
+	$(copy-file-to-target)
+
+# if we've been run my mm, mmm, etc, don't reinstall this every time
+ifeq ($(ONE_SHOT_MAKEFILE),)
+ALL_DEFAULT_INSTALLED_MODULES += $(installed_notice_html_gz)
+endif
+endif  # TARGET_BUILD_APPS
+
+# The kernel isn't really a module, so to get its module file in there, we
+# make the target NOTICE files depend on this particular file too, which will
+# then be in the right directory for the find in combine-notice-files to work.
+$(kernel_notice_file): \
+	    prebuilts/qemu-kernel/arm/LINUX_KERNEL_COPYING \
+	    | $(ACP)
+	@echo -e ${PRT_INS}"Copying:"${CL_RST}" $@"
+	$(hide) mkdir -p $(dir $@)
+	$(hide) $(ACP) $< $@
+
+
+# -----------------------------------------------------------------
+# Build a keystore with the authorized keys in it, used to verify the
+# authenticity of downloaded OTA packages.
+#
+# This rule adds to ALL_DEFAULT_INSTALLED_MODULES, so it needs to come
+# before the rules that use that variable to build the image.
+ALL_DEFAULT_INSTALLED_MODULES += $(TARGET_OUT_ETC)/security/otacerts.zip
+$(TARGET_OUT_ETC)/security/otacerts.zip: KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
+$(TARGET_OUT_ETC)/security/otacerts.zip: $(addsuffix .x509.pem,$(DEFAULT_KEY_CERT_PAIR))
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@)
+	$(hide) zip -qj $@ $<
+
+.PHONY: otacerts
+otacerts: $(TARGET_OUT_ETC)/security/otacerts.zip
+
+
+# #################################################################
+# Targets for user images
+# #################################################################
+
+INTERNAL_USERIMAGES_EXT_VARIANT :=
+ifeq ($(TARGET_USERIMAGES_USE_EXT2),true)
+INTERNAL_USERIMAGES_USE_EXT := true
+INTERNAL_USERIMAGES_EXT_VARIANT := ext2
+else
+ifeq ($(TARGET_USERIMAGES_USE_EXT3),true)
+INTERNAL_USERIMAGES_USE_EXT := true
+INTERNAL_USERIMAGES_EXT_VARIANT := ext3
+else
+ifeq ($(TARGET_USERIMAGES_USE_EXT4),true)
+INTERNAL_USERIMAGES_USE_EXT := true
+INTERNAL_USERIMAGES_EXT_VARIANT := ext4
+endif
+endif
+endif
+
