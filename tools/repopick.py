@@ -42,7 +42,7 @@ except ImportError:
 # Parse the command line
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=textwrap.dedent('''\
     repopick.py is a utility to simplify the process of cherry picking
-    patches from CyanogenMod's Gerrit instance.
+    patches from ParanoidAndroid's Gerrit instance.
 
     Given a list of change numbers, repopick will cd into the project path
     and cherry pick the latest patch available.
@@ -57,6 +57,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpForm
     branch in all repos first before performing any cherry picks.'''))
 parser.add_argument('change_number', nargs='+', help='change number to cherry pick')
 parser.add_argument('-i', '--ignore-missing', action='store_true', help='do not error out if a patch applies to a missing directory')
+parser.add_argument('-c', '--checkout', action='store_true', help='checkout instead of cherry pick')
 parser.add_argument('-s', '--start-branch', nargs=1, help='start the specified branch before cherry picking')
 parser.add_argument('-a', '--abandon-first', action='store_true', help='before cherry picking, abandon the branch specified in --start-branch')
 parser.add_argument('-b', '--auto-branch', action='store_true', help='shortcut to "--start-branch auto --abandon-first --ignore-missing"')
@@ -92,22 +93,23 @@ def which(program):
             exe_file = os.path.join(path, program)
             if is_exe(exe_file):
                 return exe_file
-
-    return None
+    sys.stderr.write('ERROR: Could not find the %s program in $PATH\n' % program)
+    sys.exit(1)
 
 # Simple wrapper for os.system() that:
 #   - exits on error
 #   - prints out the command if --verbose
 #   - suppresses all output if --quiet
-def execute_cmd(cmd):
+def execute_cmd(cmd, exit_on_fail=True):
     if args.verbose:
         print('Executing: %s' % cmd)
     if args.quiet:
         cmd = cmd.replace(' && ', ' &> /dev/null && ')
         cmd = cmd + " &> /dev/null"
-    if os.system(cmd):
+    ret = os.system(cmd)
+    if ret and exit_on_fail:
         if not args.verbose:
-            print('\nCommand that failed:\n%s' % cmd)
+            sys.stderr.write('\nERROR: Command that failed:\n%s' % cmd)
         sys.exit(1)
 
 # Verifies whether pathA is a subdirectory (or the same) as pathB
@@ -189,7 +191,7 @@ for change in args.change_number:
     # gerrit returns two lines, a magic string and then valid JSON:
     #   )]}'
     #   [ ... valid JSON ... ]
-    url = 'http://review.cyanogenmod.org/changes/?q=%s&o=CURRENT_REVISION&o=CURRENT_COMMIT&pp=0' % change
+    url = 'https://gerrit.paranoidandroid.co/changes/?q=%s&o=CURRENT_REVISION&o=CURRENT_COMMIT&pp=0' % change
     if args.verbose:
         print('Fetching from: %s\n' % url)
     f = urllib.request.urlopen(url)
@@ -271,14 +273,15 @@ for change in args.change_number:
     # Check if it worked
     FETCH_HEAD = '%s/.git/FETCH_HEAD' % project_path
     if os.stat(FETCH_HEAD).st_size == 0:
-        # That didn't work, fetch from Gerrit instead
-        if args.verbose:
-          print('Fetching from GitHub didn\'t work, trying to fetch the change from Gerrit')
-        cmd = 'cd %s && git fetch %s %s' % (project_path, fetch_url, fetch_ref)
-        execute_cmd(cmd)
-    # Perform the cherry-pick
-    cmd = 'cd %s && git cherry-pick FETCH_HEAD' % (project_path)
+        # That didn't work, print error and exit
+        sys.stderr.write('ERROR: Fetching change from Gerrit failed. Exiting...')
+        sys.exit(1);
+    # Perform the cherry-pick or checkout
+    if args.checkout:
+        cmd = 'cd %s && git checkout FETCH_HEAD' % (project_path)
+    else:
+        cmd = 'cd %s && git cherry-pick FETCH_HEAD' % (project_path)
+
     execute_cmd(cmd)
     if not args.quiet:
         print('')
-
