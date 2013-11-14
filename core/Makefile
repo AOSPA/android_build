@@ -1059,7 +1059,7 @@ userdatatarball-nodeps: $(FS_GET_STATS)
 
 # -----------------------------------------------------------------
 # cache partition image
-ifneq ($(skip_cache.img),true)
+ifeq ($(BOARD_GENERATE_CACHEIMAGE),true)
 ifdef BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE
 INTERNAL_CACHEIMAGE_FILES := \
     $(filter $(TARGET_OUT_CACHE)/%,$(ALL_DEFAULT_INSTALLED_MODULES))
@@ -1328,7 +1328,7 @@ INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name)-$(ROM_VERSION).zip
 
 $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
 
-ifneq ($(skip_cache.img),true)
+ifeq ($(BOARD_GENERATE_CACHEIMAGE),true)
 
 CACHE_IMAGE_ZIP := $(name)-cache-$(ROM_VERSION).zip
 CACHE_SIZE := 500M
@@ -1356,7 +1356,7 @@ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
 	   -k $(KEY_CERT_PAIR) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
 
-endif # skip_cache.img
+endif # BOARD_GENERATE_CACHEIMAGE
 
 .PHONY: otapackage bacon
 otapackage: $(INTERNAL_OTA_PACKAGE_TARGET)
