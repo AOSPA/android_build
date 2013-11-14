@@ -1059,7 +1059,7 @@ userdatatarball-nodeps: $(FS_GET_STATS)
 
 # -----------------------------------------------------------------
 # cache partition image
-ifeq ($(BOARD_GENERATE_CACHEIMAGE),true)
+ifneq ($(skip_cache.img),true)
 ifdef BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE
 INTERNAL_CACHEIMAGE_FILES := \
     $(filter $(TARGET_OUT_CACHE)/%,$(ALL_DEFAULT_INSTALLED_MODULES))
