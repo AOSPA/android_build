@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2008 The Android Open Source Project
+# Copyright (C) 2013 The ParanoidAndroid Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# BUILD_ID is usually used to specify the branch name
-# (like "MAIN") or a branch name and a release candidate
-# (like "CRB01").  It must be a single word, and is
-# capitalized by convention.
 
-export BUILD_ID=KOT49E
+# Sign with the PA keys
+# Will not work unless you have the keys
+
+$(TARGET_DIST_PACKAGE) := out/dist/$(TARGET_PRODUCT)-target_files-eng.$(shell whoami).zip
+
+
+
+.PHONY: signed
+signed: dist
+	build/tools/releasetools/sign_target_files_apks -d $(KEYS_DIR) -e $(EXCLUDE_APKS)= out/dist/$(CUSTOM_TARGET_PACKAGE) 
