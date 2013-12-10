@@ -39,7 +39,7 @@ default_rem = "github"
 default_rev = "kitkat"
 # set this to the remote that you use for projects from your team repos
 # example fetch="https://github.com/omnirom"
-default_team_rem = "aospa"
+default_team_rem = "github"
 # this shouldn't change unless google makes changes
 local_manifest_dir = ".repo/local_manifests"
 # change this to your name on github (or equivalent hosting)
@@ -261,7 +261,7 @@ def fetch_device(device):
         print("WARNING: Trying to fetch a device that's already there")
         return
     git_data = search_github_for_device(device)
-    device_url = get_device_url(git_data)
+    device_url = android_team+"/"+get_device_url(git_data)
     device_dir = parse_device_directory(device_url)
     project = create_manifest_project(device_url,
                                       device_dir,
