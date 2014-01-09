@@ -1324,31 +1324,11 @@ name := $(TARGET_PRODUCT)
 ifeq ($(TARGET_BUILD_TYPE),debug)
   name := $(name)_debug
 endif
+name := $(name)-ota-$(FILE_NAME_TAG)
 
-INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name)-$(ROM_VERSION).zip
+INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name).zip
 
 $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
-
-ifeq ($(BOARD_GENERATE_CACHEIMAGE),true)
-
-CACHE_IMAGE_ZIP := $(name)-cache-$(ROM_VERSION).zip
-CACHE_SIZE := 500M
-
-ifneq ($(BOARD_CACHEIMAGE_SIZE),)
-CACHE_SIZE := $(BOARD_CACHEIMAGE_SIZE)
-endif
-
-$(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
-	@echo -e ${PRT_HST}"Package OTA: $@"${CL_RST}
-	./build/tools/releasetools/ota_from_target_files -v \
-	   -p $(HOST_OUT) \
-	   -k $(KEY_CERT_PAIR) \
-	   $(BUILT_TARGET_FILES_PACKAGE) $@
-	$(hide) @echo -e ${PRT_IMG}"----- Making cache installer image ------"${CL_RST}
-	./build/tools/gapps.sh $(INTERNAL_OTA_PACKAGE_TARGET) $(CACHE_IMAGE_ZIP) $(PRODUCT_OUT) $(CACHE_SIZE) $(HOST_OUT_EXECUTABLES)/mkuserimg.sh
-	@echo -e ${PRT_IMG}"----- Made cache installer image: $(CACHE_IMAGE_ZIP) --------" ${CL_RST}
-
-else
 
 $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
 	@echo -e ${PRT_HST}"Package OTA: $@"${CL_RST}
@@ -1357,12 +1337,13 @@ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
 	   -k $(KEY_CERT_PAIR) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
 
-endif # BOARD_GENERATE_CACHEIMAGE
+CUSTOM_TARGET_PACKAGE := $(PRODUCT_OUT)/$(TARGET_PRODUCT)-$(ROM_VERSION).zip
 
 .PHONY: otapackage bacon
 otapackage: $(INTERNAL_OTA_PACKAGE_TARGET)
 bacon: otapackage
 	$(hide) ln -f $(INTERNAL_OTA_PACKAGE_TARGET) $(CUSTOM_TARGET_PACKAGE)
+	$(hide) $(MD5SUM) $(CUSTOM_TARGET_PACKAGE) > $(CUSTOM_TARGET_PACKAGE).md5sum
 	@echo -e ${PRT_CPL}"Package complete: $(CUSTOM_TARGET_PACKAGE)"${CL_RST}
 
 # -----------------------------------------------------------------
