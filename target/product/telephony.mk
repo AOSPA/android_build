@@ -22,6 +22,7 @@ PRODUCT_PACKAGES := \
     Mms \
     Stk \
     rild \
+    InCallUI \
     CellBroadcastReceiver
 
 PRODUCT_COPY_FILES := \
