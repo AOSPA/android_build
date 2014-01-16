@@ -25,7 +25,6 @@ PRODUCT_PACKAGES := \
     libWnnEngDic \
     libWnnJpnDic \
     libwnndict \
-    VideoEditor \
     WAPPushManager
 
 PRODUCT_PACKAGES += \
