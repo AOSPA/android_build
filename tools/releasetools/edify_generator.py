@@ -91,12 +91,13 @@ class EdifyGenerator(object):
          ) % (timestamp, timestamp_text))
 
   def AssertDevice(self, device):
-    """Assert that the device identifier is the given string."""
-    cmd = ('getprop("ro.product.device") == "%s" || '
-           'abort("This package is for \\"%s\\" devices; '
+    cmd = ('assert(' +
+           ' || \0'.join(['getprop("ro.product.device") == "%s" || getprop("ro.build.product") == "%s"'
+                         % (i, i) for i in device.split(",")]) +
+           ' || abort("This package is for \\"%s\\" devices; '
            'this is a \\"" + getprop("ro.product.device") + "\\".");'
-           ) % (device, device)
-    self.script.append(cmd)
+           ');') % device
+    self.script.append(self._WordWrap(cmd))
 
   def AssertSomeBootloader(self, *bootloaders):
     """Asert that the bootloader version is one of *bootloaders."""
