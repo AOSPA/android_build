@@ -39,7 +39,7 @@ possible_dtb_dirs = $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/dts/ $(KERNEL_OUT)/ar
 dtb_dir = $(firstword $(wildcard $(possible_dtb_dirs)))
 
 define build-dtimage-target
-    $(call pretty,"Target dt image: $(INSTALLED_DTIMAGE_TARGET)")
+    $(call pretty,"Target DT image: $(INSTALLED_DTIMAGE_TARGET)")
     $(hide) $(DTBTOOL) -o $@ -s $(BOARD_KERNEL_PAGESIZE) -p $(KERNEL_OUT)/scripts/dtc/ $(dtb_dir)
     $(hide) chmod a+r $@
 endef
@@ -49,6 +49,34 @@ $(INSTALLED_DTIMAGE_TARGET): $(DTBTOOL) $(INSTALLED_KERNEL_TARGET)
 
 ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_DTIMAGE_TARGET)
 ALL_MODULES.$(LOCAL_MODULE).INSTALLED += $(INSTALLED_DTIMAGE_TARGET)
+endif
+
+#----------------------------------------------------------------------
+# Generate extra userdata images (for variants with multiple MMC sizes)
+#----------------------------------------------------------------------
+ifneq ($(BOARD_USERDATAEXTRAIMAGE_PARTITION_SIZE),)
+
+ifndef BOARD_USERDATAEXTRAIMAGE_PARTITION_NAME
+  BOARD_USERDATAEXTRAIMAGE_PARTITION_NAME := extra
+endif
+
+BUILT_USERDATAEXTRAIMAGE_TARGET := $(PRODUCT_OUT)/userdata_$(BOARD_USERDATAEXTRAIMAGE_PARTITION_NAME).img
+
+define build-userdataextraimage-target
+    $(call pretty,"Target extra userdata image: $(INSTALLED_USERDATAEXTRAIMAGE_TARGET)")
+    @mkdir -p $(TARGET_OUT_DATA)
+    $(hide) $(MKEXTUSERIMG) -s $(TARGET_OUT_DATA) $@ ext4 data $(BOARD_USERDATAEXTRAIMAGE_PARTITION_SIZE)
+    $(hide) chmod a+r $@
+    $(hide) $(call assert-max-image-size,$@,$(BOARD_USERDATAEXTRAIMAGE_PARTITION_SIZE),yaffs)
+endef
+
+INSTALLED_USERDATAEXTRAIMAGE_TARGET := $(BUILT_USERDATAEXTRAIMAGE_TARGET)
+$(INSTALLED_USERDATAEXTRAIMAGE_TARGET): $(INSTALLED_USERDATAIMAGE_TARGET)
+	$(build-userdataextraimage-target)
+
+ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_USERDATAEXTRAIMAGE_TARGET)
+ALL_MODULES.$(LOCAL_MODULE).INSTALLED += $(INSTALLED_USERDATAEXTRAIMAGE_TARGET)
+
 endif
 
 .PHONY: aboot
