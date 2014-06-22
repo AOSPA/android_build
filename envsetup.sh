@@ -556,6 +556,7 @@ function brunch()
 function breakfast()
 {
     target=$1
+    local variant=$2
     unset LUNCH_MENU_CHOICES
     add_lunch_combo full-eng
     for f in `/bin/ls vendor/pa/vendorsetup.sh 2> /dev/null`
@@ -575,7 +576,10 @@ function breakfast()
             lunch $target
         else
             # This is probably just the PA model name
-            lunch pa_$target-userdebug
+            if [ -z "$variant" ]; then
+                variant="userdebug"
+            fi
+            lunch pa_$target-$variant
         fi
     fi
     return $?
