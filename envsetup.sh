@@ -1357,13 +1357,19 @@ function chromium_prebuilt() {
     T=$(gettop)
     export TARGET_DEVICE=$(get_build_var TARGET_DEVICE)
     hash=$T/prebuilts/chromium/$TARGET_DEVICE/hash.txt
+    libsCheck=$T/prebuilts/chromium/$TARGET_DEVICE/lib/libwebviewchromium.so	
+    frameworksCheck=$T/prebuilts/chromium/$TARGET_DEVICE/framework/webview/paks
+    device_target=$T/prebuilts/chromium/$TARGET_DEVICE/
 
     if [ -r $hash ] && [ $(git --git-dir=$T/external/chromium/.git --work-tree=$T/external/chromium rev-parse --verify HEAD) == $(cat $hash) ]; then
         export PRODUCT_PREBUILT_WEBVIEWCHROMIUM=yes
         echo "** Prebuilt Chromium is up-to-date; Will be used for build **"
-    else
+    elif [ ! -f $libsCheck ] && [ ! -d $frameworksCheck ]; then
         export PRODUCT_PREBUILT_WEBVIEWCHROMIUM=no
+        rm -rfv $device_target
         echo "** Prebuilt Chromium out-of-date/not found; Will build from source **"
+    else 
+        echo "** Prebuilt Chromium Error, Please check prebuilts/chromium directory **"
     fi
 }
 
