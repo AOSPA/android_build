@@ -49,7 +49,7 @@ PRODUCT_LOCALES := en_US
 PRODUCT_AAPT_CONFIG := normal
 
 # Get some sounds
-$(call inherit-product-if-exists, frameworks/base/data/sounds/AllAudio.mk)
+$(call inherit-product-if-exists, frameworks/base/data/sounds/AudioPackage13_48.mk)
 
 # Get the TTS language packs
 $(call inherit-product-if-exists, external/svox/pico/lang/all_pico_languages.mk)
