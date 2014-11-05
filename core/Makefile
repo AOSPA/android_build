@@ -816,7 +816,7 @@ else
 recovery_fstab := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery.fstab))
 endif
 # Named '.dat' so we don't attempt to use imgdiff for patching it.
-RECOVERY_RESOURCE_ZIP := $(TARGET_OUT)/etc/recovery-resource.dat
+#RECOVERY_RESOURCE_ZIP := $(TARGET_OUT)/etc/recovery-resource.dat
 
 ifeq ($(recovery_resources_private),)
   $(info No private recovery resources for TARGET_DEVICE $(TARGET_DEVICE))
