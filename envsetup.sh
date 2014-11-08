@@ -582,6 +582,18 @@ function lunch()
     check_variant $variant
     if [ $? -ne 0 ]
     then
+        # if we can't find a product, try to grab it off github
+        T=$(gettop)
+        pushd $T > /dev/null
+        build/tools/roomservice.py $product
+        popd > /dev/null
+        check_product $product
+    else
+        build/tools/roomservice.py $product true
+    fi
+
+    if [ $? -ne 0 ]
+    then
         echo
         echo "** Invalid variant: '$variant'"
         echo "** Must be one of ${VARIANT_CHOICES[@]}"
