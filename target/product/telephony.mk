@@ -20,6 +20,11 @@
 PRODUCT_PACKAGES := \
     Dialer \
     Mms \
-    rild
+    Stk \
+    rild \
+    CellBroadcastReceiver \
+    Telecom \
+    TeleService \
+    MmsService
 
 PRODUCT_COPY_FILES := \

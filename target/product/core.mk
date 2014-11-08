@@ -39,19 +39,15 @@ PRODUCT_PACKAGES += \
     KeyChain \
     Keyguard \
     LatinIME \
-    Launcher2 \
+    Launcher3 \
     ManagedProvisioning \
     PicoTts \
     PacProcessor \
     libpac \
     PrintSpooler \
     ProxyHandler \
-    QuickSearchBox \
     Settings \
     SharedStorageBackup \
-    Telecom \
-    TeleService \
     VpnDialogs \
-    MmsService
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_base.mk)
