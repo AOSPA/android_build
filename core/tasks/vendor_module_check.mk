@@ -72,47 +72,6 @@ $(foreach m, $(filter-out $(_vendor_exception_modules), $(product_MODULES)), \
         $(m)))))
 
 _vendor_module_owner_info :=
-# Restrict owners
-ifneq (,$(filter true owner all, $(_restrictions)))
-
-_vendor_package_overlays := $(filter-out $(_vendor_exception_path_prefix),\
-    $(filter vendor/%, $(PRODUCT_PACKAGE_OVERLAYS) $(DEVICE_PACKAGE_OVERLAYS)))
-ifneq (,$(_vendor_package_overlays))
-$(error Error: Product "$(TARGET_PRODUCT)" cannot have overlay in vendor tree: $(_vendor_package_overlays))
-endif
-_vendor_package_overlays :=
-
-_vendor_check_copy_files := $(filter-out $(_vendor_exception_path_prefix),\
-    $(filter vendor/%, $(PRODUCT_COPY_FILES)))
-ifneq (,$(_vendor_check_copy_files))
-$(foreach c, $(_vendor_check_copy_files), \
-  $(if $(filter $(_vendor_owner_whitelist), $(call word-colon,3,$(c))),,\
-    $(error Error: vendor PRODUCT_COPY_FILES file "$(c)" has unknown owner))\
-  $(eval _vendor_module_owner_info += $(call word-colon,2,$(c)):$(call word-colon,3,$(c))))
-endif
-_vendor_check_copy_files :=
-
-$(foreach m, $(_vendor_check_modules), \
-  $(if $(filter $(_vendor_owner_whitelist), $(ALL_MODULES.$(m).OWNER)),,\
-    $(error Error: vendor module "$(m)" in $(ALL_MODULES.$(m).PATH) with unknown owner \
-      "$(ALL_MODULES.$(m).OWNER)" in product "$(TARGET_PRODUCT)"))\
-  $(if $(ALL_MODULES.$(m).INSTALLED),\
-    $(eval _vendor_module_owner_info += $(patsubst $(PRODUCT_OUT)/%,%,$(ALL_MODULES.$(m).INSTALLED)):$(ALL_MODULES.$(m).OWNER))))
-
-endif
-
-
-# Restrict paths
-ifneq (,$(filter path all, $(_restrictions)))
-
-$(foreach m, $(_vendor_check_modules), \
-  $(if $(filter-out ,$(ALL_MODULES.$(m).INSTALLED)),\
-    $(if $(filter $(TARGET_OUT_VENDOR)/% $(TARGET_OUT_ODM)/% $(HOST_OUT)/%, $(ALL_MODULES.$(m).INSTALLED)),,\
-      $(error Error: vendor module "$(m)" in $(ALL_MODULES.$(m).PATH) \
-        in product "$(TARGET_PRODUCT)" being installed to \
-        $(ALL_MODULES.$(m).INSTALLED) which is not in the vendor tree or odm tree))))
-
-endif
 
 _vendor_module_owner_info_txt := $(call intermediates-dir-for,PACKAGING,vendor_owner_info)/vendor_owner_info.txt
 $(_vendor_module_owner_info_txt): PRIVATE_INFO := $(_vendor_module_owner_info)
