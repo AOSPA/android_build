@@ -16,6 +16,7 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
 - jgrep:   Greps on all local Java files.
 - resgrep: Greps on all local res/*.xml files.
 - sgrep:   Greps on all local source files.
+- repopick: Utility to fetch changes from Gerrit.
 - godir:   Go to the directory containing a file.
 
 Look at the source to view more functions. The complete list is:
@@ -1664,6 +1665,11 @@ function godir () {
         pathname=${lines[0]}
     fi
     \cd $T/$pathname
+}
+
+function repopick() {
+    T=$(gettop)
+    $T/build/tools/repopick.py $@
 }
 
 function fixup_common_out_dir() {
