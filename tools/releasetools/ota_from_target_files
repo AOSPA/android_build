@@ -550,6 +550,7 @@ def WriteFullOTAPackage(input_zip, output_zip):
   else if get_stage("%(bcb_dev)s") == "3/3" then
   """ % bcb_dev)
 
+  script.AppendExtra("ifelse(is_mounted(\"/system\"), unmount(\"/system\"));")
   device_specific.FullOTA_InstallBegin()
 
   system_progress = 0.75
