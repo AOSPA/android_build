@@ -49,7 +49,7 @@ KERNEL_CFLAGS := KCFLAGS=-mno-android
 endif
 
 ifeq ($(HOST_OS),darwin)
-    MAKE_FLAGS += C_INCLUDE_PATH=$(ANDROID_BUILD_TOP)/external/elfutils/0.153/libelf/
+    MAKE_FLAGS += C_INCLUDE_PATH=$(ANDROID_BUILD_TOP)/external/elfutils/src/libelf/
 endif
 
 ifneq ($(USE_CCACHE),)
