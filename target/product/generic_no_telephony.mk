@@ -21,6 +21,8 @@ PRODUCT_PACKAGES := \
     Bluetooth \
     Camera2 \
     Gallery2 \
+    Email \
+    Exchange2 \
     MusicFX \
     OneTimeInitializer \
     Provision \
