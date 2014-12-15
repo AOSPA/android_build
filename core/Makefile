@@ -1498,6 +1498,8 @@ ifneq ($(TARGET_CUSTOM_RELEASETOOL),)
 	$(hide) \
 	$(TARGET_CUSTOM_RELEASETOOL)
 endif
+	$(hide) ln -f $(INTERNAL_OTA_PACKAGE_TARGET) $(PA_TARGET_PACKAGE)
+	$(hide) $(MD5SUM) $(PA_TARGET_PACKAGE) > $(PA_TARGET_PACKAGE).md5sum
 
 	@echo -e ${CL_CYN}"Package Complete: $(PA_TARGET_PACKAGE)"${CL_RST}
 
