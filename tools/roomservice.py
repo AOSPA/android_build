@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 # Copyright (C) 2013 Cybojenix <anthonydking@gmail.com>
 # Copyright (C) 2013 The OmniROM Project
@@ -20,7 +20,6 @@ from __future__ import print_function
 import json
 import sys
 import os
-import re
 from xml.etree import ElementTree as ES
 # Use the urllib importer from the Cyanogenmod roomservice
 try:
@@ -55,9 +54,8 @@ def check_repo_exists(git_data):
 
 # Note that this can only be done 5 times per minute
 def search_github_for_device(device):
-    git_device = '+'.join(re.findall('[a-z]+|[\d]+',  device))
     git_search_url = "https://api.github.com/search/repositories" \
-                     "?q=%40{}+android_device+{}+fork:true".format(android_team, git_device)
+                     "?q=fork%3Atrue+%40{}+android_device+{}".format(android_team, device)
     git_req = urllib.request.Request(git_search_url)
     try:
         response = urllib.request.urlopen(git_req)
@@ -90,12 +88,10 @@ def get_device_url(git_data):
                     "roomservice".format(device, android_team))
 
 
-def parse_device_directory(device_url,device):
+def parse_device_directory(device_url):
     to_strip = "android_device"
     repo_name = device_url[device_url.index(to_strip) + len(to_strip):]
-    repo_name = repo_name[:repo_name.index(device)]
     repo_dir = repo_name.replace("_", "/")
-    repo_dir = repo_dir + device
     return "device{}".format(repo_dir)
 
 
@@ -261,7 +257,7 @@ def create_dependency_manifest(dependencies):
             write_to_manifest(manifest)
             projects.append(target_path)
     if len(projects) > 0:
-        os.system("repo sync -f --no-clone-bundle %s" % " ".join(projects))
+        os.system("repo sync %s" % " ".join(projects))
 
 
 def fetch_dependencies(device):
@@ -286,7 +282,7 @@ def fetch_device(device):
         return
     git_data = search_github_for_device(device)
     device_url = android_team+"/"+get_device_url(git_data)
-    device_dir = parse_device_directory(device_url,device)
+    device_dir = parse_device_directory(device_url)
     project = create_manifest_project(device_url,
                                       device_dir,
                                       remote=default_team_rem)
@@ -294,7 +290,7 @@ def fetch_device(device):
         manifest = append_to_manifest(project)
         write_to_manifest(manifest)
         print("syncing the device config")
-        os.system('repo sync -f --no-clone-bundle %s' % device_dir)
+        os.system('repo sync %s' % device_dir)
 
 
 if __name__ == '__main__':
