@@ -1475,7 +1475,7 @@ ifeq ($(TARGET_BUILD_TYPE),debug)
 endif
 #name := $(name)-ota-$(FILE_NAME_TAG)
 
-INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name)-$(ROM_VERSION).zip
+INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name).zip
 
 $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
 
@@ -1503,15 +1503,14 @@ ifneq ($(INTERNAL_OTA_PACKAGE_TARGET),$(PA_TARGET_PACKAGE))
 	$(hide) ln -f $(INTERNAL_OTA_PACKAGE_TARGET) $(PA_TARGET_PACKAGE)
 endif
 	$(hide) $(MD5SUM) $(PA_TARGET_PACKAGE) > $(PA_TARGET_PACKAGE).md5sum
-
-	@echo -e ${CL_CYN}"Package Complete: $(PA_TARGET_PACKAGE)"${CL_RST}
-
 ifeq ($(USE_PREBUILT_CHROMIUM),1)
 ifneq ($(PRODUCT_PREBUILT_WEBVIEWCHROMIUM),yes)
 	@echo -e ${CL_GRN}"Running Chromium prebuilt setup script..."${CL_RST}
 	$(hide) . $(TOPDIR)vendor/pa/utils/chromium_prebuilt.sh $(TOP)
 endif
 endif
+	@echo -e ${CL_CYN}"Package Complete: $(PA_TARGET_PACKAGE)"${CL_RST}
+
 
 endif    # recovery_fstab is defined
 endif    # TARGET_NO_KERNEL != true
