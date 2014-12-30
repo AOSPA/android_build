@@ -220,7 +220,7 @@ def parse_device_from_folder(device):
     elif len(search) == 1:
         location = search[0]
     else:
-        print("you device can't be found in device sources..")
+        print("your device can't be found in device sources...")
         location = parse_device_from_manifest(device)
     return location
 
