@@ -460,6 +460,14 @@ function add_lunch_combo()
     LUNCH_MENU_CHOICES=(${LUNCH_MENU_CHOICES[@]} $new_combo)
 }
 
+# add the default one here
+add_lunch_combo aosp_arm-eng
+add_lunch_combo aosp_arm64-eng
+add_lunch_combo aosp_mips-eng
+add_lunch_combo aosp_mips64-eng
+add_lunch_combo aosp_x86-eng
+add_lunch_combo aosp_x86_64-eng
+
 function print_lunch_menu()
 {
     local uname=$(uname)
@@ -518,24 +526,27 @@ function lunch()
 
     local product=$(echo -n $selection | sed -e "s/-.*$//")
     check_product $product
-    if [ $? -ne 0 ]
+    if [[ $product != *"aosp"* ]]
     then
-        # if we can't find a product, try to grab it off the CM github
-        T=$(gettop)
-        pushd $T > /dev/null
-        build/tools/roomservice.py $product
-        popd > /dev/null
-        check_product $product
-    else
-        build/tools/roomservice.py $product true
-    fi
+        if [ $? -ne 0 ]
+        then
+            # if we can't find a product, try to grab it off the CM github
+            T=$(gettop)
+            pushd $T > /dev/null
+            build/tools/roomservice.py $product
+            popd > /dev/null
+            check_product $product
+        else
+            build/tools/roomservice.py $product true
+        fi
 
-    if [ $? -ne 0 ]
-    then
-        echo
-        echo "** Don't have a product spec for: '$product'"
-        echo "** Do you have the right repo manifest?"
-        product=
+        if [ $? -ne 0 ]
+        then
+            echo
+            echo "** Don't have a product spec for: '$product'"
+            echo "** Do you have the right repo manifest?"
+            product=
+        fi
     fi
 
     local variant=$(echo -n $selection | sed -e "s/^[^\-]*-//")
