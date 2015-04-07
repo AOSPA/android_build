@@ -2824,7 +2824,7 @@ endef
 # $(2): the classes.dex file.
 define create-dex-jar
 find $(dir $(2)) -maxdepth 1 -name "classes*.dex" | sort > $(1).lst
-$(SOONG_ZIP) -o $(1) -C $(dir $(2)) -l $(1).lst
+$(SOONG_ZIP) -L 0 -o $(1) -C $(dir $(2)) -l $(1).lst
 endef
 
 # Add java resources added by the current module to an existing package.
