@@ -282,6 +282,10 @@ function setpaths()
 
     export ALLOW_MISSING_DEPENDENCIES=true
 
+    if [ -n "$ANDROID_CCACHE_DIR" ]; then
+        export CCACHE_DIR=$ANDROID_CCACHE_DIR
+    fi
+
     # needed for building linux on MacOS
     # TODO: fix the path
     #export HOST_EXTRACFLAGS="-I "$T/system/kernel_headers/host_include
