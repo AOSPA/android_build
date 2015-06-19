@@ -526,9 +526,10 @@ function lunch()
 
     local product=$(echo -n $selection | sed -e "s/-.*$//")
     check_product $product
+    local exit_status=$?
     if [[ $product != *"aosp"* ]]
     then
-        if [ $? -ne 0 ]
+        if [ $exit_status -ne 0 ]
         then
             # if we can't find a product, try to grab it off the CM github
             T=$(gettop)
