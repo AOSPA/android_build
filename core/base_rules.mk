@@ -116,6 +116,8 @@ ifeq ($(my_module_path),)
     partition_tag := _VENDOR
   else ifeq (true,$(LOCAL_OEM_MODULE))
     partition_tag := _OEM
+  else ifeq (true,$(LOCAL_ODM_MODULE))
+    partition_tag := _ODM
   else
     # The definition of should-install-to-system will be different depending
     # on which goal (e.g., sdk or just droid) is being built.
@@ -644,14 +646,6 @@ INSTALLABLE_FILES.$(LOCAL_INSTALLED_MODULE).MODULE := $(my_register_name)
 
 # Keep track of all the tags we've seen.
 ALL_MODULE_TAGS := $(sort $(ALL_MODULE_TAGS) $(my_module_tags))
-
-# Add this module to the tag list of each specified tag.
-# Don't use "+=". If the variable hasn't been set with ":=",
-# it will default to recursive expansion.
-$(foreach tag,$(my_module_tags),\
-    $(eval ALL_MODULE_TAGS.$(tag) := \
-        $(ALL_MODULE_TAGS.$(tag)) \
-        $(LOCAL_INSTALLED_MODULE)))
 
 # Add this module name to the tag list of each specified tag.
 $(foreach tag,$(my_module_tags),\

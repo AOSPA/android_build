@@ -2965,8 +2965,7 @@ div.design-announce p {
 a.notice-developers-video,
 a.notice-developers,
 a.notice-designers-video,
-a.notice-designers,
-a.notice-designers-material {
+a.notice-designers {
   float:right;
   clear:right;
   width:238px;
@@ -2977,15 +2976,13 @@ a.notice-designers-material {
 a.notice-developers-video.wide,
 a.notice-developers.wide,
 a.notice-designers-video.wide,
-a.notice-designers.wide,
-a.notice-designers-material.wide {
+a.notice-designers.wide {
   width:278px;
 }
 a.notice-developers-video div,
 a.notice-developers div,
 a.notice-designers-video div,
-a.notice-designers div,
-a.notice-designers-material div {
+a.notice-designers div {
   min-height:40px;
   background:url('../images/styles/notice-developers@2x.png') no-repeat 10px 10px;
   background-size:40px 40px;
@@ -3003,22 +3000,16 @@ a.notice-developers-video div {
   background:url('../images/styles/notice-developers-video@2x.png') no-repeat 10px 10px;
   background-size:40px 40px;
 }
-a.notice-designers-material div {
-  background:url('../images/styles/notice-designers-material@2x.png') no-repeat 10px 10px;
-  background-size:40px 40px;
-}
 a.notice-developers-video:hover,
 a.notice-developers:hover,
 a.notice-designers-video:hover,
-a.notice-designers:hover,
-a.notice-designers-material:hover {
+a.notice-designers:hover {
   background:#eee;
 }
 a.notice-developers-video h3,
 a.notice-developers h3,
 a.notice-designers-video h3,
-a.notice-designers h3,
-a.notice-designers-material h3 {
+a.notice-designers h3 {
   font-size:13px;
   line-height:18px;
   font-weight:bold;
@@ -3029,16 +3020,14 @@ a.notice-designers-material h3 {
 a.notice-developers-video p,
 a.notice-developers p,
 a.notice-designers-video p,
-a.notice-designers p,
-a.notice-designers-material p {
+a.notice-designers p {
   margin:0;
   line-height:14px;
 }
 a.notice-developers-video.left,
 a.notice-developers.left,
 a.notice-designers-video.left,
-a.notice-designers.left,
-a.notice-designers-material.left {
+a.notice-designers.left {
   margin-left:0;
   float:left;
 }
