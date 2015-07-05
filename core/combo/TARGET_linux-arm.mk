@@ -43,6 +43,12 @@ else
 $(combo_2nd_arch_prefix)TARGET_GCC_VERSION := $(TARGET_GCC_VERSION_EXP)
 endif
 
+# Default to ROM GCC version if TARGET_KERNEL_GCC_VERSION is not set.
+ifndef TARGET_KERNEL_GCC_VERSION
+TARGET_KERNEL_GCC_VERSION := $($(combo_2nd_arch_prefix)TARGET_GCC_VERSION)
+endif
+
+
 TARGET_ARCH_SPECIFIC_MAKEFILE := $(BUILD_COMBOS)/arch/$(TARGET_$(combo_2nd_arch_prefix)ARCH)/$(TARGET_$(combo_2nd_arch_prefix)ARCH_VARIANT).mk
 ifeq ($(strip $(wildcard $(TARGET_ARCH_SPECIFIC_MAKEFILE))),)
 $(error Unknown ARM architecture version: $(TARGET_$(combo_2nd_arch_prefix)ARCH_VARIANT))
