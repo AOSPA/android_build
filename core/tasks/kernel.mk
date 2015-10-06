@@ -120,6 +120,10 @@ mpath=`dirname $$mdpath`; rm -rf $$mpath;\
 fi
 endef
 
+ifeq ($(HOST_OS),darwin)
+  MAKE_FLAGS += C_INCLUDE_PATH=$(ANDROID_BUILD_TOP)/build/core/combo/include/arch/darwin-x86/
+endif
+
 $(KERNEL_OUT):
 	mkdir -p $(KERNEL_OUT)
 
