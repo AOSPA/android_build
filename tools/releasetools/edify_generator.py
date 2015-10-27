@@ -115,13 +115,13 @@ class EdifyGenerator(object):
          'build (" + getprop("ro.build.date") + ").");') % (timestamp,
                                                             timestamp_text))
 
-  def AssertDevice(self, device):
-    """Assert that the device identifier is the given string."""
-    cmd = ('get_device_compatible("%s") == "OK" || '
-           'abort("This package is for \\"%s\\" devices; '
-           'this is a \\"" + getprop("ro.product.device") + "\\".");') % (
-               device, device)
-    self.script.append(cmd)
+#  def AssertDevice(self, device):
+#    """Assert that the device identifier is the given string."""
+#    cmd = ('get_device_compatible("%s") == "OK" || '
+#           'abort("This package is for \\"%s\\" devices; '
+#           'this is a \\"" + getprop("ro.product.device") + "\\".");') % (
+#               device, device)
+#    self.script.append(cmd)
 
   def AssertSomeBootloader(self, *bootloaders):
     """Asert that the bootloader version is one of *bootloaders."""
