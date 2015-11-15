@@ -1,8 +1,9 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
-# Copyright (C) 2015 The Paranoid Android Project
+# roomservice: Android device repository management utility.
 # Copyright (C) 2013 Cybojenix <anthonydking@gmail.com>
 # Copyright (C) 2013 The OmniROM Project
+# Copyright (C) 2015 ParanoidAndroid Project
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,212 +18,157 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import print_function
 import json
-import sys
 import os
-import re
-from xml.etree import ElementTree as ES
-# Use the urllib importer from the Cyanogenmod roomservice
-try:
-    # For python3
-    import urllib.request
-except ImportError:
-    # For python2
-    import imp
-    import urllib2
-    urllib = imp.new_module('urllib')
-    urllib.request = urllib2
+import sys
+from xml.etree import ElementTree as ET
 
-# Default remote to use in repo
-default_rem = "aospa"
-# Default revision to use (branch/tag name)
-default_rev = "marshmallow"
+upstream_manifest_path = '.repo/manifest.xml'
+local_manifests_dir = '.repo/local_manifests'
+roomservice_manifest_path = local_manifests_dir + '/roomservice.xml'
+dependencies_json_path = 'vendor/pa/products/%s/pa.dependencies'
 
-# Default local manifest location
-local_manifest_dir = ".repo/local_manifests"
-# Default dependencies location
-dependencies_dir = "vendor/pa/products"
-
-# Contribution by RaYmAn
-def iterate_manifests(check_all):
-    files = []
-    if check_all:
-        for file in os.listdir(local_manifest_dir):
-            files.append(os.path.join(local_manifest_dir, file))
-    files.append('.repo/manifest.xml')
-    for file in files:
-        try:
-            man = ES.parse(file)
-            man = man.getroot()
-        except IOError, ES.ParseError:
-            print("WARNING: Error while parsing %s" % file)
-        else:
-            for project in man.findall("project"):
-                yield project
-
-
-def check_project_exists(url):
-    for project in iterate_manifests(True):
-        if project.get("name") == url:
-            return True
-    return False
-
-
-def check_dup_path(directory):
-    for project in iterate_manifests(False):
-        if project.get("path") == directory:
-            print ("Duplicate path %s found! Removing" % directory)
-            return project.get("name")
-    return None
-
-
-# Use the indent function from http://stackoverflow.com/a/4590052
+# Indenting code from https://stackoverflow.com/a/4590052
 def indent(elem, level=0):
-    i = ''.join(["\n", level*"  "])
+    i = "\n" + level * "  "
     if len(elem):
         if not elem.text or not elem.text.strip():
-            elem.text = ''.join([i, "  "])
+            elem.text = i + "  "
         if not elem.tail or not elem.tail.strip():
             elem.tail = i
         for elem in elem:
-            indent(elem, level+1)
+            indent(elem, level + 1)
         if not elem.tail or not elem.tail.strip():
             elem.tail = i
     else:
         if level and (not elem.tail or not elem.tail.strip()):
             elem.tail = i
 
-
-def create_manifest_project(url, directory,
-                            remote=default_rem,
-                            revision=default_rev):
-    project_exists = check_project_exists(url)
-
-    if project_exists:
-        return None
-
-    dup_path = check_dup_path(directory)
-    if not dup_path is None:
-            write_to_manifest(
-                append_to_manifest(
-                    create_manifest_remove(dup_path)))
-
-    project = ES.Element("project",
-                         attrib={
-                             "path": directory,
-                             "name": url,
-                             "remote": remote,
-                             "revision": revision
-                         })
-    return project
-
-
-def create_manifest_remove(url):
-    remove = ES.Element("remove-project", attrib={"name": url})
-    return remove
-
-
-def append_to_manifest(project):
-    try:
-        lm = ES.parse('/'.join([local_manifest_dir, "roomservice.xml"]))
-        lm = lm.getroot()
-    except IOError, ES.ParseError:
-        lm = ES.Element("manifest")
-    lm.append(project)
-    return lm
-
-
-def write_to_manifest(manifest):
-    indent(manifest)
-    raw_xml = ES.tostring(manifest).decode()
-    raw_xml = ''.join(['<?xml version="1.0" encoding="UTF-8"?>\n'
-                       '<!--Please do not manually edit this file-->\n',
-                       raw_xml])
-
-    with open('/'.join([local_manifest_dir, "roomservice.xml"]), 'w') as f:
-        f.write(raw_xml)
-    print("Wrote the new roomservice manifest")
-
-
-def parse_device_from_manifest(device):
-    for project in iterate_manifests(True):
-        name = project.get('name')
-        if name.startswith("android_device_") and name.endswith(device):
-            return project.get('path')
-    return None
-
-
-def parse_device_from_folder(device):
-    search = []
-    for sub_folder in os.listdir("device"):
-        if os.path.isdir("device/%s/%s" % (sub_folder, device)):
-            search.append("device/%s/%s" % (sub_folder, device))
-    if len(search) > 1:
-        print("multiple devices under the name %s. "
-              "defaulting to checking the manifest" % device)
-        location = parse_device_from_manifest(device)
-    elif len(search) == 1:
-        location = search[0]
-    else:
-        print("your device can't be found in device sources...")
-        location = parse_device_from_manifest(device)
-    return location
-
-
-def parse_dependency_file(device):
-    dep_location = dependencies_dir + '/{}/pa.dependencies'.format(device)
-    if not os.path.isfile(dep_location):
-        print("WARNING: %s file not found" % dep_location)
-        sys.exit()
-    try:
-        with open(dep_location, 'r') as f:
-            dependencies = json.loads(f.read())
-    except ValueError:
-        raise Exception("ERROR: Malformed dependency file")
-    return dependencies
-
-
-def create_dependency_manifest(dependencies):
-    projects = []
-    for dependency in dependencies:
-        repository = dependency.get("repository")
-        target_path = dependency.get("target_path")
-        revision = dependency.get("revision", default_rev)
-        remote = dependency.get("remote", default_rem)
-
-        project = create_manifest_project(repository,
-                                          target_path,
-                                          remote=remote,
-                                          revision=revision)
-        if not project is None:
-            manifest = append_to_manifest(project)
-            write_to_manifest(manifest)
-            projects.append(target_path)
-    if len(projects) > 0:
-        os.system("repo sync --force-sync --no-clone-bundle %s" % " ".join(projects))
-
-
-def fetch_dependencies(device):
-    dependencies = parse_dependency_file(device)
-    create_dependency_manifest(dependencies)
-
-
-def check_device_exists(device):
-    location = parse_device_from_folder(device)
-    if location is None:
-        return False
-    return os.path.isdir(location)
-
-
 if __name__ == '__main__':
-    if not os.path.isdir(local_manifest_dir):
-        os.mkdir(local_manifest_dir)
+    if not os.path.isdir(local_manifests_dir):
+        os.mkdir(local_manifests_dir)
 
+    if len(sys.argv) <= 1:
+        raise ValueError('The first argument must be the product.')
     product = sys.argv[1]
+
     try:
-        device = product[product.index("_") + 1:]
+        device = product[product.index('_') + 1:]
     except ValueError:
         device = product
 
-    fetch_dependencies(device)
+    dependencies_json_path %= device
+    if not os.path.isfile(dependencies_json_path):
+        raise ValueError('No dependencies file could be found for the device (%s).' % device)
+    dependencies = json.loads(open(dependencies_json_path, 'r').read())
+
+    try:
+        upstream_manifest = ET.parse(upstream_manifest_path).getroot()
+    except (IOError, ET.ParseError):
+        upstream_manifest = ET.Element('manifest')
+
+    try:
+        roomservice_manifest = ET.parse(roomservice_manifest_path).getroot()
+    except (IOError, ET.ParseError):
+        roomservice_manifest = ET.Element('manifest')
+
+    syncable_projects = []
+
+    # Clean up all the <remove-project> elements.
+    for removable_project in roomservice_manifest.findall('remove-project'):
+        name = removable_project.get('name')
+
+        path = None
+        for project in upstream_manifest.findall('project'):
+            if project.get('name') == name:
+                path = project.get('path')
+                break
+
+        if path is None:
+            # The upstream manifest doesn't know this project, so drop it.
+            roomservice_manifest.remove(removable_project)
+            continue
+
+        found_in_dependencies = False
+        for dependency in dependencies:
+            if dependency.get('target_path') == path:
+                found_in_dependencies = True
+                break
+
+        if not found_in_dependencies:
+            # We don't need special dependencies for this project, so drop it and sync it up.
+            roomservice_manifest.remove(removable_project)
+            syncable_projects.append(path)
+            for project in roomservice_manifest.findall('project'):
+                if project.get('path') == path:
+                    roomservice_manifest.remove(project)
+                    break
+
+    # Make sure our <project> elements are set.
+    for dependency in dependencies:
+        path = dependency.get('target_path')
+        name = dependency.get('repository')
+        remote = dependency.get('remote')
+        revision = dependency.get('revision')
+
+        modified_project = False
+        found_in_roomservice = False
+
+        # In case the project was already added, update it.
+        for project in roomservice_manifest.findall('project'):
+            if project.get('name') == name:
+                found_in_roomservice = True
+                if project.get('path') != path:
+                    modified_project = True
+                    project.set('path', path)
+                if project.get('remote') != remote:
+                    modified_project = True
+                    project.set('remote', remote)
+                if project.get('revision') != revision:
+                    modified_project = True
+                    project.set('revision', revision)
+                break
+
+        # In case the project was not already added, create it.
+        if not found_in_roomservice:
+            found_in_roomservice = True
+            modified_project = True
+            roomservice_manifest.append(ET.Element('project', attrib = {
+                'path': path,
+                'name': name,
+                'remote': remote,
+                'revision': revision
+            }))
+
+        # In case the project also exists in the main manifest, instruct Repo to ignore that one.
+        for project in upstream_manifest.findall('project'):
+            if project.get('path') == path:
+                upstream_name = project.get('name')
+                found_remove_element = False
+                for removable_project in roomservice_manifest.findall('remove-project'):
+                    if removable_project.get('name') == upstream_name:
+                        found_remove_element = True
+                        break
+                if not found_remove_element:
+                    modified_project = True
+                    roomservice_manifest.insert(0, ET.Element('remove-project', attrib = {
+                        'name': upstream_name
+                    }))
+
+        # In case anything has changed, set the project as syncable.
+        if modified_project:
+            syncable_projects.append(path)
+
+    # Output our manifest.
+    indent(roomservice_manifest)
+    open(roomservice_manifest_path, 'w').write('\n'.join([
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<!-- You should probably let Roomservice deal with this unless you know what you are doing. -->',
+        ET.tostring(roomservice_manifest).decode()
+    ]))
+
+    # Sync the project that have changed and should be synced.
+    if len(syncable_projects) > 0:
+        print('Syncing the dependencies.')
+        if os.system('repo sync --force-broken --quiet --no-clone-bundle %s' % ' '.join(syncable_projects)) != 0:
+            raise ValueError('Got an unexpected exit status from the sync process.')
