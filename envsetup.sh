@@ -566,16 +566,21 @@ function lunch()
     export TARGET_BUILD_APPS=
 
     local product=$(echo -n $selection | sed -e "s/-.*$//")
-    check_product $product
-    if [ $? -ne 0 ]
+    if [[ $product == pa_* ]]
     then
-        T=$(gettop)
-        pushd $T > /dev/null
+        pushd $(gettop) > /dev/null
         build/tools/roomservice.py $product
-        popd > /dev/null
-        check_product $product
+        if [ $? -ne 0 ]
+        then
+            echo
+            echo "** Roomservice failure for: '$product'"
+            popd > /dev/null
+            return 1
+        else
+            popd > /dev/null
+        fi
     fi
-
+    check_product $product
     if [ $? -ne 0 ]
     then
         echo
