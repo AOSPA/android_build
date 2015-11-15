@@ -652,13 +652,19 @@ function lunch()
         fi
     fi
 
-    if [ -z "$product" ]
+    if [[ $product == pa_* ]]
     then
-        T=$(gettop)
-        pushd $T > /dev/null
+        pushd $(gettop) > /dev/null
         build/tools/roomservice.py $product
-        popd > /dev/null
-        check_product $product
+        if [ $? -ne 0 ]
+        then
+            echo
+            echo "** Roomservice failure for: '$product'"
+            popd > /dev/null
+            return 1
+        else
+            popd > /dev/null
+        fi
     fi
 
     if [ $? -ne 0 ]
