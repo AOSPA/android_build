@@ -170,5 +170,5 @@ if __name__ == '__main__':
     # Sync the project that have changed and should be synced.
     if len(syncable_projects) > 0:
         print('Syncing the dependencies.')
-        if os.system('repo sync --force-broken --quiet --no-clone-bundle %s' % ' '.join(syncable_projects)) != 0:
+        if os.system('repo sync --force-sync --force-broken --quiet --no-clone-bundle %s' % ' '.join(syncable_projects)) != 0:
             raise ValueError('Got an unexpected exit status from the sync process.')
