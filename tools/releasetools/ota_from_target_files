@@ -626,6 +626,11 @@ reboot_now("%(bcb_dev)s", "recovery");
 else if get_stage("%(bcb_dev)s") == "3/3" then
 """ % bcb_dev)
 
+  script.Print(" ")
+  script.Print("**************************")
+  script.Print("Paranoid Android installer")
+  script.Print("**************************")
+
   # Dump fingerprints
   script.Print("Target: %s" % CalculateFingerprint(
       oem_props, oem_dict, OPTIONS.info_dict))
@@ -638,18 +643,12 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   script.SetPermissionsRecursive("/tmp/install", 0, 0, 0755, 0644, None, None)
   script.SetPermissionsRecursive("/tmp/install/bin", 0, 0, 0755, 0755, None, None)
 
+  script.ShowProgress(0.1, 10 if OPTIONS.backuptool else 0)
   if OPTIONS.backuptool:
     script.Print("- Backing up installed apps")
     script.Mount("/system")
     script.RunBackup("backup")
     script.Unmount("/system")
-
-  system_progress = 0.75
-
-  if OPTIONS.wipe_user_data:
-    system_progress -= 0.1
-  if HasVendorPartition(input_zip):
-    system_progress -= 0.1
 
   # Place a copy of file_contexts.bin into the OTA package which will be used
   # by the recovery program.
@@ -659,8 +658,8 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   recovery_mount_options = OPTIONS.info_dict.get("recovery_mount_options")
 
   system_items = ItemSet("system", "META/filesystem_config.txt")
-  script.ShowProgress(system_progress, 0)
 
+  script.ShowProgress(0.6 if not HasVendorPartition(input_zip) else 0.3, 20)
   if block_based:
     # Full OTA is done as an "incremental" against an empty source
     # image.  This has the effect of writing new data from the package
@@ -695,8 +694,8 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
     system_items.Get("system").SetPermissions(script)
 
   if HasVendorPartition(input_zip):
+    script.ShowProgress(0.3, 20)
     vendor_items = ItemSet("vendor", "META/vendor_filesystem_config.txt")
-    script.ShowProgress(0.1, 0)
 
     if block_based:
       vendor_tgt = GetImage("vendor", OPTIONS.input_tmp, OPTIONS.info_dict)
@@ -717,18 +716,19 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
 
+  script.ShowProgress(0.1, 10 if OPTIONS.backuptool else 0)
   if OPTIONS.backuptool:
-    script.ShowProgress(0.02, 10)
     if block_based:
       script.Mount("/system")
     script.Print("- Restoring installed apps from backup")
     script.RunBackup("restore")
     if block_based:
       script.Unmount("/system")
+
   script.ShowProgress(0.05, 5)
   script.WriteRawImage("/boot", "boot.img")
 
-  script.ShowProgress(0.2, 10)
+  script.ShowProgress(0.05, 10)
   device_specific.FullOTA_InstallEnd()
 
   if OPTIONS.extra_script is not None:
@@ -736,8 +736,8 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 
   script.UnmountAll()
 
+  script.ShowProgress(0.1, 10 if OPTIONS.wipe_user_data else 0)
   if OPTIONS.wipe_user_data:
-    script.ShowProgress(0.1, 10)
     script.FormatPartition("/data")
 
   if OPTIONS.two_step:
@@ -753,6 +753,7 @@ endif;
 endif;
 """ % bcb_dev)
 
+  script.Print("- Done")
   script.SetProgress(1)
   script.AddToZip(input_zip, output_zip, input_path=OPTIONS.updater_binary)
   metadata["ota-required-cache"] = str(script.required_cache)
@@ -974,6 +975,11 @@ reboot_now("%(bcb_dev)s", "recovery");
 else if get_stage("%(bcb_dev)s") != "3/3" then
 """ % bcb_dev)
 
+  script.Print(" ")
+  script.Print("**************************")
+  script.Print("Paranoid Android installer")
+  script.Print("**************************")
+
   # Dump fingerprints
   script.Print("Source: %s" % CalculateFingerprint(
       oem_props, oem_dict, OPTIONS.source_info_dict))
@@ -1105,6 +1111,7 @@ endif;
 endif;
 """ % bcb_dev)
 
+  script.Print("- Done")
   script.SetProgress(1)
   # For downgrade OTAs, we prefer to use the update-binary in the source
   # build that is actually newer than the one in the target build.
@@ -1616,6 +1623,11 @@ reboot_now("%(bcb_dev)s", "recovery");
 else if get_stage("%(bcb_dev)s") != "3/3" then
 """ % bcb_dev)
 
+  script.Print(" ")
+  script.Print("**************************")
+  script.Print("Paranoid Android installer")
+  script.Print("**************************")
+
   # Dump fingerprints
   script.Print("Source: %s" % (source_fp,))
   script.Print("Target: %s" % (target_fp,))
@@ -1866,6 +1878,9 @@ endif;
     script.Unmount("/vendor")
     script.Mount("/vendor", recovery_mount_options)
     vendor_diff.EmitExplicitTargetVerification(script)
+
+  script.Print("- Done")
+  script.SetProgress(1)
 
   # For downgrade OTAs, we prefer to use the update-binary in the source
   # build that is actually newer than the one in the target build.
