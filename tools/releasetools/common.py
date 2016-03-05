@@ -1397,15 +1397,13 @@ class BlockDifference(object):
   def required_cache(self):
     return self._required_cache
 
-  def WriteScript(self, script, output_zip, progress=None):
+  def WriteScript(self, script, output_zip):
     if not self.src:
       # write the output unconditionally
       script.Print("- Patching %s image unconditionally" % (self.partition,))
     else:
       script.Print("- Patching %s image after verification" % (self.partition,))
 
-    if progress:
-      script.ShowProgress(progress, 0)
     self._WriteUpdate(script, output_zip)
     if OPTIONS.verify:
       self._WritePostInstallVerifyScript(script)
