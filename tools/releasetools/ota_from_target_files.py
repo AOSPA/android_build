@@ -689,8 +689,8 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
 
-  script.ShowProgress(0.1, 10 if OPTIONS.backuptool else 0)
   if OPTIONS.backuptool:
+    script.ShowProgress(0.1, 10)
     if block_based:
       script.Mount("/system")
     script.Print("- Restoring installed apps from backup")
@@ -698,10 +698,10 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
     if block_based:
       script.Unmount("/system")
 
-  script.ShowProgress(0.05, 5)
+  script.ShowProgress(0.2 if OPTIONS.backuptool else 0.3, 20 if OPTIONS.wipe_user_data else 10)
+
   script.WriteRawImage("/boot", "boot.img")
 
-  script.ShowProgress(0.05, 10)
   device_specific.FullOTA_InstallEnd()
 
   if OPTIONS.extra_script is not None:
@@ -709,7 +709,6 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 
   script.UnmountAll()
 
-  script.ShowProgress(0.1, 10 if OPTIONS.wipe_user_data else 0)
   if OPTIONS.wipe_user_data:
     script.FormatPartition("/data")
 
@@ -982,10 +981,11 @@ else
 
   device_specific.IncrementalOTA_InstallBegin()
 
-  system_diff.WriteScript(script, output_zip,
-                          progress=0.8 if vendor_diff else 0.9)
+  script.ShowProgress(0.8 if vendor_diff else 0.9, 20)
+  system_diff.WriteScript(script, output_zip)
   if vendor_diff:
-    vendor_diff.WriteScript(script, output_zip, progress=0.1)
+    script.ShowProgress(0.1, 20)
+    vendor_diff.WriteScript(script, output_zip)
 
   if OPTIONS.two_step:
     common.ZipWriteStr(output_zip, "boot.img", target_boot.data)
