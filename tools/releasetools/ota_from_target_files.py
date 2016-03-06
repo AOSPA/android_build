@@ -575,6 +575,7 @@ def WriteFullOTAPackage(input_zip, output_zip):
 
   has_recovery_patch = HasRecoveryPatch(input_zip)
   block_based = OPTIONS.block_based and has_recovery_patch
+  has_vendor_partition = "/vendor" in OPTIONS.info_dict["fstab"]
 
   metadata["ota-type"] = "BLOCK" if block_based else "FILE"
 
@@ -647,8 +648,12 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   if OPTIONS.backuptool:
     script.Print("- Backing up installed apps")
     script.Mount("/system")
+    if has_vendor_partition:
+      script.Mount("/vendor")
     script.RunBackup("backup")
     script.Unmount("/system")
+    if has_vendor_partition:
+      script.Unmount("/vendor")
 
   # Place a copy of file_contexts.bin into the OTA package which will be used
   # by the recovery program.
@@ -718,12 +723,14 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 
   if OPTIONS.backuptool:
     script.ShowProgress(0.1, 10)
-    if block_based:
-      script.Mount("/system")
+    script.Mount("/system")
+    if has_vendor_partition:
+      script.Mount("/vendor")
     script.Print("- Restoring installed apps from backup")
     script.RunBackup("restore")
-    if block_based:
-      script.Unmount("/system")
+    script.Unmount("/system")
+    if has_vendor_partition:
+      script.Unmount("/vendor")
 
   script.ShowProgress(0.2 if OPTIONS.backuptool else 0.3, 20 if OPTIONS.wipe_user_data else 10)
 
