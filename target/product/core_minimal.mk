@@ -98,6 +98,7 @@ PRODUCT_BOOT_JARS := \
 
 # The order of PRODUCT_SYSTEM_SERVER_JARS matters.
 PRODUCT_SYSTEM_SERVER_JARS := \
+    cm.theme.platform \
     services \
     ethernet-service \
     wifi-service
