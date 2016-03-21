@@ -25,8 +25,9 @@ import sys
 PROP_NAME_MAX = 31
 PROP_VALUE_MAX = 91
 
-# Put the modifications that you need to make into the /system/build.prop into this
-# function. The prop object has get(name) and put(name,value) methods.
+# Put the modifications that you need to make into the /system/build.prop and
+# /vendor/build.prop into this function. The prop object has get(name) and
+# put(name,value) methods.
 def mangle_build_prop(prop):
   pass
 
