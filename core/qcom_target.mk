@@ -69,7 +69,7 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
         endif
     endif
 
-# HACK: check to see if build uses standard QC HAL paths by checking for CM path structure
+# HACK: check to see if build uses standard QC HAL paths by checking for PA path structure
 AOSP_VARIANT_MAKEFILE := $(wildcard hardware/qcom/audio/default/Android.mk)
 ifeq ("$(AOSP_VARIANT_MAKEFILE)","")
 $(call project-set-path,qcom-audio,hardware/qcom/audio)
@@ -82,7 +82,7 @@ $(call set-device-specific-path,LOC_API,loc-api,vendor/qcom/opensource/location)
 $(call set-device-specific-path,DATASERVICES,dataservices,vendor/qcom/opensource/dataservices)
 $(call project-set-path,ril,hardware/ril)
 $(call project-set-path,wlan,hardware/qcom/wlan)
-$(call project-set-path,bt,hardware/qcom/bt)
+$(call project-set-path,bt-vendor,hardware/qcom/bt)
 else
 $(call project-set-path,qcom-audio,hardware/qcom/audio-caf/$(QCOM_HARDWARE_VARIANT))
 
