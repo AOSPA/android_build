@@ -480,6 +480,9 @@ function print_lunch_menu()
 
 function brunch()
 {
+    CWD=$(pwd)
+    croot
+
     breakfast $*
     if [ $? -eq 0 ]; then
         mka bacon
@@ -487,6 +490,8 @@ function brunch()
         echo "No such item in brunch menu. Try 'breakfast'"
         return 1
     fi
+
+    cd "$CWD"
     return $?
 }
 
@@ -919,18 +924,18 @@ function qpid() {
         append='$'
         shift
     elif [ "$1" = "--help" -o "$1" = "-h" ]; then
-		echo "usage: qpid [[--exact] <process name|pid>"
-		return 255
-	fi
+        echo "usage: qpid [[--exact] <process name|pid>"
+        return 255
+    fi
 
     local EXE="$1"
     if [ "$EXE" ] ; then
-		qpid | \grep "$prepend$EXE$append"
-	else
-		adb shell ps \
-			| tr -d '\r' \
-			| sed -e 1d -e 's/^[^ ]* *\([0-9]*\).* \([^ ]*\)$/\1 \2/'
-	fi
+        qpid | \grep "$prepend$EXE$append"
+    else
+        adb shell ps \
+            | tr -d '\r' \
+            | sed -e 1d -e 's/^[^ ]* *\([0-9]*\).* \([^ ]*\)$/\1 \2/'
+    fi
 }
 
 function pid()
@@ -951,7 +956,7 @@ function pid()
         echo "$PID"
     else
         echo "usage: pid [--exact] <process name>"
-		return 255
+        return 255
     fi
 }
 
@@ -964,25 +969,25 @@ function pid()
 
 function coredump_setup()
 {
-	echo "Getting root...";
-	adb root;
-	adb wait-for-device;
+    echo "Getting root...";
+    adb root;
+    adb wait-for-device;
 
-	echo "Remounting root parition read-write...";
-	adb shell mount -w -o remount -t rootfs rootfs;
-	sleep 1;
-	adb wait-for-device;
-	adb shell mkdir -p /cores;
-	adb shell mount -t tmpfs tmpfs /cores;
-	adb shell chmod 0777 /cores;
+    echo "Remounting root parition read-write...";
+    adb shell mount -w -o remount -t rootfs rootfs;
+    sleep 1;
+    adb wait-for-device;
+    adb shell mkdir -p /cores;
+    adb shell mount -t tmpfs tmpfs /cores;
+    adb shell chmod 0777 /cores;
 
-	echo "Granting SELinux permission to dump in /cores...";
-	adb shell restorecon -R /cores;
+    echo "Granting SELinux permission to dump in /cores...";
+    adb shell restorecon -R /cores;
 
-	echo "Set core pattern.";
-	adb shell 'echo /cores/core.%p > /proc/sys/kernel/core_pattern';
+    echo "Set core pattern.";
+    adb shell 'echo /cores/core.%p > /proc/sys/kernel/core_pattern';
 
-	echo "Done."
+    echo "Done."
 }
 
 # coredump_enable - enable core dumps for the specified process
@@ -993,13 +998,13 @@ function coredump_setup()
 
 function coredump_enable()
 {
-	local PID=$1;
-	if [ -z "$PID" ]; then
-		printf "Expecting a PID!\n";
-		return;
-	fi;
-	echo "Setting core limit for $PID to infinite...";
-	adb shell prlimit $PID 4 -1 -1
+    local PID=$1;
+    if [ -z "$PID" ]; then
+        printf "Expecting a PID!\n";
+        return;
+    fi;
+    echo "Setting core limit for $PID to infinite...";
+    adb shell prlimit $PID 4 -1 -1
 }
 
 # core - send SIGV and pull the core for process
@@ -1010,28 +1015,28 @@ function coredump_enable()
 
 function core()
 {
-	local PID=$1;
+    local PID=$1;
 
-	if [ -z "$PID" ]; then
-		printf "Expecting a PID!\n";
-		return;
-	fi;
+    if [ -z "$PID" ]; then
+        printf "Expecting a PID!\n";
+        return;
+    fi;
 
-	local CORENAME=core.$PID;
-	local COREPATH=/cores/$CORENAME;
-	local SIG=SEGV;
+    local CORENAME=core.$PID;
+    local COREPATH=/cores/$CORENAME;
+    local SIG=SEGV;
 
-	coredump_enable $1;
+    coredump_enable $1;
 
-	local done=0;
-	while [ $(adb shell "[ -d /proc/$PID ] && echo -n yes") ]; do
-		printf "\tSending SIG%s to %d...\n" $SIG $PID;
-		adb shell kill -$SIG $PID;
-		sleep 1;
-	done;
+    local done=0;
+    while [ $(adb shell "[ -d /proc/$PID ] && echo -n yes") ]; do
+        printf "\tSending SIG%s to %d...\n" $SIG $PID;
+        adb shell kill -$SIG $PID;
+        sleep 1;
+    done;
 
-	adb shell "while [ ! -f $COREPATH ] ; do echo waiting for $COREPATH to be generated; sleep 1; done"
-	echo "Done: core is under $COREPATH on device.";
+    adb shell "while [ ! -f $COREPATH ] ; do echo waiting for $COREPATH to be generated; sleep 1; done"
+    echo "Done: core is under $COREPATH on device.";
 }
 
 # systemstack - dump the current stack trace of all threads in the system process
@@ -1448,6 +1453,9 @@ function godir () {
 }
 
 function mka() {
+    CROOTD=$(pwd)
+    croot
+
     case `uname -s` in
         Darwin)
             make -j `sysctl hw.ncpu|cut -d" " -f2` "$@"
@@ -1456,6 +1464,8 @@ function mka() {
             schedtool -B -n 1 -e ionice -n 1 make -j$(cat /proc/cpuinfo | grep "^processor" | wc -l) "$@"
             ;;
     esac
+
+    cd "$CROOTD"
 }
 
 # Force JAVA_HOME to point to java 1.7 if it isn't already set.
