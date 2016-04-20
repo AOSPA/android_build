@@ -542,6 +542,9 @@ function print_lunch_menu()
 
 function brunch()
 {
+    CWD=$(pwd)
+    croot
+
     breakfast $*
     if [ $? -eq 0 ]; then
         mka bacon
@@ -549,6 +552,8 @@ function brunch()
         echo "No such item in brunch menu. Try 'breakfast'"
         return 1
     fi
+
+    cd "$CWD"
     return $?
 }
 
@@ -1541,6 +1546,9 @@ function godir () {
 }
 
 function mka() {
+    CROOTD=$(pwd)
+    croot
+
     case `uname -s` in
         Darwin)
             make -j `sysctl hw.ncpu|cut -d" " -f2` "$@"
@@ -1549,6 +1557,8 @@ function mka() {
             schedtool -B -n 1 -e ionice -n 1 make -j$(cat /proc/cpuinfo | grep "^processor" | wc -l) "$@"
             ;;
     esac
+
+    cd "$CROOTD"
 }
 
 # Force JAVA_HOME to point to java 1.7/1.8 if it isn't already set.
