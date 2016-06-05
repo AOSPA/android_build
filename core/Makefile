@@ -69,71 +69,38 @@ $(gen): frameworks/base/docs/docs-redirect-index.html
 endif
 
 # -----------------------------------------------------------------
-# default.prop
-INSTALLED_DEFAULT_PROP_TARGET := $(TARGET_ROOT_OUT)/default.prop
-ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_DEFAULT_PROP_TARGET)
-ADDITIONAL_DEFAULT_PROPERTIES := \
-    $(call collapse-pairs, $(ADDITIONAL_DEFAULT_PROPERTIES))
-ADDITIONAL_DEFAULT_PROPERTIES += \
-    $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
-ADDITIONAL_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
-    $(ADDITIONAL_DEFAULT_PROPERTIES),=)
+# common properties file
+BUILDINFO_TOOL := build/tools/buildinfo.sh
+POSTINFO_TOOL := build/tools/post_process_props.py
 
-intermediate_system_build_prop := $(call intermediates-dir-for,ETC,system_build_prop)/build.prop
-
-$(INSTALLED_DEFAULT_PROP_TARGET): $(intermediate_system_build_prop)
-	@echo Target buildinfo: $@
-	@mkdir -p $(dir $@)
-	$(hide) echo "#" > $@; \
-	        echo "# ADDITIONAL_DEFAULT_PROPERTIES" >> $@; \
-	        echo "#" >> $@;
-	$(hide) $(foreach line,$(ADDITIONAL_DEFAULT_PROPERTIES), \
-		echo "$(line)" >> $@;)
-	$(hide) echo "#" >> $@; \
-	        echo "# BOOTIMAGE_BUILD_PROPERTIES" >> $@; \
-	        echo "#" >> $@;
-	$(hide) echo ro.bootimage.build.date=`date`>>$@
-	$(hide) echo ro.bootimage.build.date.utc=`date +%s`>>$@
-	$(hide) echo ro.bootimage.build.fingerprint="$(BUILD_FINGERPRINT)">>$@
-	$(hide) build/tools/post_process_props.py $@
-
-# -----------------------------------------------------------------
-# build.prop
-INSTALLED_BUILD_PROP_TARGET := $(TARGET_OUT)/build.prop
-ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_BUILD_PROP_TARGET)
-ADDITIONAL_BUILD_PROPERTIES := \
-    $(call collapse-pairs, $(ADDITIONAL_BUILD_PROPERTIES))
-ADDITIONAL_BUILD_PROPERTIES := $(call uniq-pairs-by-first-component, \
-    $(ADDITIONAL_BUILD_PROPERTIES),=)
-
-# A list of arbitrary tags describing the build configuration.
-# Force ":=" so we can use +=
+# List all the arbitrary tags describing the build configuration.
+# ":=" must be enforced to use "+=" later on.
 BUILD_VERSION_TAGS := $(BUILD_VERSION_TAGS)
 ifeq ($(TARGET_BUILD_TYPE),debug)
   BUILD_VERSION_TAGS += debug
 endif
-# The "test-keys" tag marks builds signed with the old test keys,
-# which are available in the SDK.  "dev-keys" marks builds signed with
-# non-default dev keys (usually private keys from a vendor directory).
+# The "test-keys" tag is for builds signed with the old test keys bundled with the SDK.
+# The "dev-keys" tag is for builds signed with non-default keys, usually private from vendor.
 # Both of these tags will be removed and replaced with "release-keys"
-# when the target-files is signed in a post-build step.
+#   when the target-files is signed in a post-build step.
 ifeq ($(DEFAULT_SYSTEM_DEV_CERTIFICATE),build/target/product/security/testkey)
-BUILD_KEYS := test-keys
+  BUILD_KEYS := test-keys
 else
-BUILD_KEYS := dev-keys
+  BUILD_KEYS := dev-keys
 endif
 BUILD_VERSION_TAGS += $(BUILD_KEYS)
 BUILD_VERSION_TAGS := $(subst $(space),$(comma),$(sort $(BUILD_VERSION_TAGS)))
 
-# A human-readable string that descibes this build in detail.
+# Produce a human-readable string describing this build in detail.
 build_desc := $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT) $(PLATFORM_VERSION) $(BUILD_ID) $(BUILD_NUMBER) $(BUILD_VERSION_TAGS)
+intermediate_system_build_prop := $(call intermediates-dir-for,ETC,system_build_prop)/build.prop
 $(intermediate_system_build_prop): PRIVATE_BUILD_DESC := $(build_desc)
 
-# The string used to uniquely identify the combined build and product; used by the OTA server.
+# The fingerprint uniquely identifies the build and product combination; used by the OTA server.
 ifeq (,$(strip $(BUILD_FINGERPRINT)))
   ifneq ($(filter eng.%,$(BUILD_NUMBER)),)
-    # Trim down BUILD_FINGERPRINT: the default BUILD_NUMBER makes it easily exceed
-    # the Android system property length limit (PROPERTY_VALUE_MAX=92).
+    # Trim the build number for the fingerprint as the default BUILD_NUMBER easily exceeds
+    # Android system property length limitations (PROPERTY_VALUE_MAX=92).
     BF_BUILD_NUMBER := $(USER)$(shell date +%m%d%H%M)
   else
     BF_BUILD_NUMBER := $(BUILD_NUMBER)
@@ -144,8 +111,7 @@ ifneq ($(words $(BUILD_FINGERPRINT)),1)
   $(error BUILD_FINGERPRINT cannot contain spaces: "$(BUILD_FINGERPRINT)")
 endif
 
-# The string used to uniquely identify the system build; used by the OTA server.
-# This purposefully excludes any product-specific variables.
+# The thumbprint uniquely identifies the build without the product; used by the OTA server.
 ifeq (,$(strip $(BUILD_THUMBPRINT)))
   BUILD_THUMBPRINT := $(PLATFORM_VERSION)/$(BUILD_ID)/$(BUILD_NUMBER):$(TARGET_BUILD_VARIANT)/$(BUILD_VERSION_TAGS)
 endif
@@ -157,103 +123,127 @@ KNOWN_OEM_THUMBPRINT_PROPERTIES := \
     ro.product.brand \
     ro.product.name \
     ro.product.device
-OEM_THUMBPRINT_PROPERTIES := $(filter $(KNOWN_OEM_THUMBPRINT_PROPERTIES),\
+OEM_THUMBPRINT_PROPERTIES := $(filter $(KNOWN_OEM_THUMBPRINT_PROPERTIES), \
     $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OEM_PROPERTIES))
 
-# Display parameters shown under Settings -> About Phone
+# Set the displayable build ID inside the Settings app (About Phone)
 ifeq ($(TARGET_BUILD_VARIANT),user)
-  # User builds should show:
-  # release build number or branch.buld_number non-release builds
-
-  # Dev. branches should have DISPLAY_BUILD_NUMBER set
+  # User builds should follow AOSP guidelines
   ifeq "true" "$(DISPLAY_BUILD_NUMBER)"
     BUILD_DISPLAY_ID := $(BUILD_ID).$(BUILD_NUMBER) $(BUILD_KEYS)
   else
     BUILD_DISPLAY_ID := $(BUILD_ID) $(BUILD_KEYS)
   endif
 else
-  # Non-user builds should show detailed build information
+  # Non-user builds should show everything that is known
   BUILD_DISPLAY_ID := $(build_desc)
 endif
 
-# Accepts a whitespace separated list of product locales such as
-# (en_US en_AU en_GB...) and returns the first locale in the list with
-# underscores replaced with hyphens. In the example above, this will
-# return "en-US".
+# Clean up the intermediate variable
+build_desc :=
+
+# Accept a whitespace separated list of product locales such as "en_US en_AU en_GB"
+# and return the first locale in the list with underscores replaced with hyphens.
+# In the provided example, "en-US".
 define get-default-product-locale
-$(strip $(subst _,-, $(firstword $(1))))
+  $(strip $(subst _,-, $(firstword $(1))))
 endef
 
-BUILDINFO_SH := build/tools/buildinfo.sh
+# List the environment variables that will be set for generating the properties files
+OVERRIDEN_PRODUCT_BUILD_PROP := \
+		BUILD_DISPLAY_ID="$(BUILD_DISPLAY_ID)" \
+		BUILD_FINGERPRINT="$(BUILD_FINGERPRINT)" \
+		BUILD_ID="$(BUILD_ID)" \
+		BUILD_NUMBER="$(BUILD_NUMBER)" \
+		BUILD_VERSION_TAGS="$(BUILD_VERSION_TAGS)" \
+		PLATFORM_BASE_OS="$(PLATFORM_BASE_OS)" \
+		PLATFORM_PREVIEW_SDK_VERSION="$(PLATFORM_PREVIEW_SDK_VERSION)" \
+		PLATFORM_SECURITY_PATCH="$(PLATFORM_SECURITY_PATCH)" \
+		PLATFORM_SDK_VERSION="$(PLATFORM_SDK_VERSION)" \
+		PLATFORM_VERSION="$(PLATFORM_VERSION)" \
+		PLATFORM_VERSION_CODENAME="$(PLATFORM_VERSION_CODENAME)" \
+		PLATFORM_VERSION_ALL_CODENAMES="$(PLATFORM_VERSION_ALL_CODENAMES)" \
+		PRIVATE_BUILD_DESC="$(PRIVATE_BUILD_DESC)" \
+		PRODUCT_BRAND="$(PRODUCT_BRAND)" \
+		PRODUCT_DEFAULT_LOCALE="$(call get-default-product-locale,$(PRODUCT_LOCALES))" \
+		PRODUCT_DEFAULT_WIFI_CHANNELS="$(PRODUCT_DEFAULT_WIFI_CHANNELS)" \
+		PRODUCT_MANUFACTURER="$(PRODUCT_MANUFACTURER)" \
+		PRODUCT_MODEL="$(PRODUCT_MODEL)" \
+		PRODUCT_NAME="$(TARGET_PRODUCT)" \
+		TARGET_AAPT_CHARACTERISTICS="$(TARGET_AAPT_CHARACTERISTICS)" \
+		TARGET_BOARD_PLATFORM="$(TARGET_BOARD_PLATFORM)" \
+		TARGET_BOOTLOADER_BOARD_NAME="$(TARGET_BOOTLOADER_BOARD_NAME)" \
+		TARGET_BUILD_FLAVOR="$(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)" \
+		TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
+		TARGET_CPU_ABI="$(TARGET_CPU_ABI)" \
+		TARGET_CPU_ABI2="$(TARGET_CPU_ABI2)" \
+		TARGET_CPU_ABI_LIST="$(TARGET_CPU_ABI_LIST)" \
+		TARGET_CPU_ABI_LIST_32_BIT="$(TARGET_CPU_ABI_LIST_32_BIT)" \
+		TARGET_CPU_ABI_LIST_64_BIT="$(TARGET_CPU_ABI_LIST_64_BIT)" \
+		TARGET_DEVICE="$(TARGET_DEVICE)" \
+		$(if $(OEM_THUMBPRINT_PROPERTIES),BUILD_THUMBPRINT="$(BUILD_THUMBPRINT)") \
+		$(PRODUCT_BUILD_PROP_OVERRIDES)
+
+# -----------------------------------------------------------------
+# default.prop
+INSTALLED_DEFAULT_PROP_TARGET := $(TARGET_ROOT_OUT)/default.prop
+ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_DEFAULT_PROP_TARGET)
+ADDITIONAL_DEFAULT_PROPERTIES := \
+    $(call collapse-pairs, $(ADDITIONAL_DEFAULT_PROPERTIES))
+ADDITIONAL_DEFAULT_PROPERTIES += \
+    $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
+ADDITIONAL_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
+    $(ADDITIONAL_DEFAULT_PROPERTIES),=)
+
+$(INSTALLED_DEFAULT_PROP_TARGET): $(BUILDINFO_TOOL) $(POSTINFO_TOOL) $(intermediate_system_build_prop)
+	@echo Target buildinfo: $@
+	@mkdir -p $(dir $@)
+	$(hide) echo > $@
+	$(hide) echo "# begin additional build properties" >> $@
+	$(hide) $(foreach line,$(ADDITIONAL_DEFAULT_PROPERTIES), \
+		echo "$(line)" >> $@;)
+	$(hide) echo "# end additional build properties" >> $@
+	$(hide) $(OVERRIDEN_PRODUCT_BUILD_PROP) bash $(BUILDINFO_TOOL) default >> $@
+	$(hide) $(POSTINFO_TOOL) $@
+
+# -----------------------------------------------------------------
+# build.prop
+INSTALLED_BUILD_PROP_TARGET := $(TARGET_OUT)/build.prop
+ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_BUILD_PROP_TARGET)
+ADDITIONAL_BUILD_PROPERTIES := \
+    $(call collapse-pairs, $(ADDITIONAL_BUILD_PROPERTIES))
+ADDITIONAL_BUILD_PROPERTIES := $(call uniq-pairs-by-first-component, \
+    $(ADDITIONAL_BUILD_PROPERTIES),=)
 
 ifdef TARGET_SYSTEM_PROP
 system_prop_file := $(TARGET_SYSTEM_PROP)
 else
 system_prop_file := $(wildcard $(TARGET_DEVICE_DIR)/system.prop)
 endif
-$(intermediate_system_build_prop): $(BUILDINFO_SH) $(INTERNAL_BUILD_ID_MAKEFILE) $(BUILD_SYSTEM)/version_defaults.mk $(system_prop_file) $(INSTALLED_ANDROID_INFO_TXT_TARGET)
+$(intermediate_system_build_prop): $(BUILDINFO_TOOL) $(POSTINFO_TOOL) $(INTERNAL_BUILD_ID_MAKEFILE) $(BUILD_SYSTEM)/version_defaults.mk $(system_prop_file) $(INSTALLED_ANDROID_INFO_TXT_TARGET)
 	@echo Target buildinfo: $@
 	@mkdir -p $(dir $@)
 	$(hide) echo > $@
 ifneq ($(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OEM_PROPERTIES),)
-	$(hide) echo "#" >> $@; \
-	        echo "# PRODUCT_OEM_PROPERTIES" >> $@; \
-	        echo "#" >> $@;
+	$(hide) echo "# begin OEM properties" >> $@
 	$(hide) $(foreach prop,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OEM_PROPERTIES), \
 		echo "import /oem/oem.prop $(prop)" >> $@;)
+	$(hide) echo "# end OEM properties" >> $@
 endif
-	$(hide) TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
-			TARGET_BUILD_FLAVOR="$(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)" \
-			TARGET_DEVICE="$(TARGET_DEVICE)" \
-			PRODUCT_NAME="$(TARGET_PRODUCT)" \
-			PRODUCT_BRAND="$(PRODUCT_BRAND)" \
-			PRODUCT_DEFAULT_LOCALE="$(call get-default-product-locale,$(PRODUCT_LOCALES))" \
-			PRODUCT_DEFAULT_WIFI_CHANNELS="$(PRODUCT_DEFAULT_WIFI_CHANNELS)" \
-			PRODUCT_MODEL="$(PRODUCT_MODEL)" \
-			PRODUCT_MANUFACTURER="$(PRODUCT_MANUFACTURER)" \
-			PRIVATE_BUILD_DESC="$(PRIVATE_BUILD_DESC)" \
-			BUILD_ID="$(BUILD_ID)" \
-			BUILD_DISPLAY_ID="$(BUILD_DISPLAY_ID)" \
-			BUILD_NUMBER="$(BUILD_NUMBER)" \
-			PLATFORM_VERSION="$(PLATFORM_VERSION)" \
-			PLATFORM_SECURITY_PATCH="$(PLATFORM_SECURITY_PATCH)" \
-			PLATFORM_BASE_OS="$(PLATFORM_BASE_OS)" \
-			PLATFORM_SDK_VERSION="$(PLATFORM_SDK_VERSION)" \
-			PLATFORM_PREVIEW_SDK_VERSION="$(PLATFORM_PREVIEW_SDK_VERSION)" \
-			PLATFORM_VERSION_CODENAME="$(PLATFORM_VERSION_CODENAME)" \
-			PLATFORM_VERSION_ALL_CODENAMES="$(PLATFORM_VERSION_ALL_CODENAMES)" \
-			BUILD_VERSION_TAGS="$(BUILD_VERSION_TAGS)" \
-			TARGET_BOOTLOADER_BOARD_NAME="$(TARGET_BOOTLOADER_BOARD_NAME)" \
-			BUILD_FINGERPRINT="$(BUILD_FINGERPRINT)" \
-			$(if $(OEM_THUMBPRINT_PROPERTIES),BUILD_THUMBPRINT="$(BUILD_THUMBPRINT)") \
-			TARGET_BOARD_PLATFORM="$(TARGET_BOARD_PLATFORM)" \
-			TARGET_CPU_ABI_LIST="$(TARGET_CPU_ABI_LIST)" \
-			TARGET_CPU_ABI_LIST_32_BIT="$(TARGET_CPU_ABI_LIST_32_BIT)" \
-			TARGET_CPU_ABI_LIST_64_BIT="$(TARGET_CPU_ABI_LIST_64_BIT)" \
-			TARGET_CPU_ABI="$(TARGET_CPU_ABI)" \
-			TARGET_CPU_ABI2="$(TARGET_CPU_ABI2)" \
-			TARGET_AAPT_CHARACTERISTICS="$(TARGET_AAPT_CHARACTERISTICS)" \
-			$(PRODUCT_BUILD_PROP_OVERRIDES) \
-	        bash $(BUILDINFO_SH) >> $@
+	$(hide) $(OVERRIDEN_PRODUCT_BUILD_PROP) bash $(BUILDINFO_TOOL) system >> $@
 	$(hide) $(foreach file,$(system_prop_file), \
 		if [ -f "$(file)" ]; then \
-			echo "#" >> $@; \
 			echo Target buildinfo from: "$(file)"; \
-			echo "# from $(file)" >> $@; \
-			echo "#" >> $@; \
+			echo "# begin properties from $(file)" >> $@; \
 			cat $(file) >> $@; \
+			echo "# end properties from $(file)" >> $@; \
 		fi;)
-	$(if $(ADDITIONAL_BUILD_PROPERTIES), \
-		$(hide) echo >> $@; \
-		        echo "#" >> $@; \
-		        echo "# ADDITIONAL_BUILD_PROPERTIES" >> $@; \
-		        echo "#" >> $@; )
+	$(hide) echo "# begin additional build properties" >> $@
 	$(hide) $(foreach line,$(ADDITIONAL_BUILD_PROPERTIES), \
 		echo "$(line)" >> $@;)
 	$(hide) cat $(INSTALLED_ANDROID_INFO_TXT_TARGET) | grep 'require version-' | sed -e 's/require version-/ro.build.expect./g' >> $@
-	$(hide) build/tools/post_process_props.py $@ $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_PROPERTY_BLACKLIST)
-
-build_desc :=
+	$(hide) echo "# end additional build properties" >> $@
+	$(hide) $(POSTINFO_TOOL) $@ $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_PROPERTY_BLACKLIST)
 
 ifeq (,$(filter true, $(TARGET_NO_KERNEL) $(TARGET_NO_RECOVERY)))
 INSTALLED_RECOVERYIMAGE_TARGET := $(PRODUCT_OUT)/recovery.img
@@ -275,13 +265,12 @@ endif
 ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
 INSTALLED_VENDOR_BUILD_PROP_TARGET := $(TARGET_OUT_VENDOR)/build.prop
 ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_VENDOR_BUILD_PROP_TARGET)
-$(INSTALLED_VENDOR_BUILD_PROP_TARGET): $(INSTALLED_BUILD_PROP_TARGET)
+$(INSTALLED_VENDOR_BUILD_PROP_TARGET): $(BUILDINFO_TOOL) $(POSTINFO_TOOL) $(INSTALLED_BUILD_PROP_TARGET)
 	@echo Target vendor buildinfo: $@
 	@mkdir -p $(dir $@)
 	$(hide) echo > $@
-	$(hide) echo ro.vendor.build.date=`date`>>$@
-	$(hide) echo ro.vendor.build.date.utc=`date +%s`>>$@
-	$(hide) echo ro.vendor.build.fingerprint="$(BUILD_FINGERPRINT)">>$@
+	$(hide) $(OVERRIDEN_PRODUCT_BUILD_PROP) bash $(BUILDINFO_TOOL) vendor >> $@
+	$(hide) $(POSTINFO_TOOL) $@
 endif
 
 # ----------------------------------------------------------------

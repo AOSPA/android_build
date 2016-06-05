@@ -111,23 +111,37 @@ if __name__ == '__main__':
         remote = dependency.get('remote')
         revision = dependency.get('revision')
 
+        # Make sure the required remote exists in the upstream manifest.
+        found_remote = False
+        for known_remote in upstream_manifest.findall('remote'):
+            if known_remote.get('name') == remote:
+                found_remote = True
+                break
+        if not found_remote:
+            raise ValueError('No remote declaration could be found for the %s project. (%s)' % (name, remote))
+
         modified_project = False
         found_in_roomservice = False
 
         # In case the project was already added, update it.
         for project in roomservice_manifest.findall('project'):
-            if project.get('name') == name:
-                found_in_roomservice = True
-                if project.get('path') != path:
-                    modified_project = True
-                    project.set('path', path)
-                if project.get('remote') != remote:
-                    modified_project = True
-                    project.set('remote', remote)
-                if project.get('revision') != revision:
-                    modified_project = True
-                    project.set('revision', revision)
-                break
+            if project.get('name') == name or project.get('path') == path:
+                if found_in_roomservice:
+                    roomservice_manifest.remove(project)
+                else:
+                    found_in_roomservice = True
+                    if project.get('path') != path:
+                        modified_project = True
+                        project.set('path', path)
+                    if project.get('name') != name:
+                        modified_project = True
+                        project.set('name', name)
+                    if project.get('remote') != remote:
+                        modified_project = True
+                        project.set('remote', remote)
+                    if project.get('revision') != revision:
+                        modified_project = True
+                        project.set('revision', revision)
 
         # In case the project was not already added, create it.
         if not found_in_roomservice:
