@@ -34,7 +34,7 @@ endif
 endif
 
 ifeq ($(KERNEL_ARCH),arm64)
-KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/aarch64/aarch64-$(HOST_OS)-android-4.9/bin/aarch64-$(HOST_OS)-android-
+KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
 else ifeq ($(KERNEL_ARCH),arm)
 KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/arm/arm-eabi-4.8/bin/arm-eabi-
 else
