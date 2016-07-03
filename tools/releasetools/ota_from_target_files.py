@@ -1651,7 +1651,7 @@ def main(argv):
                                  "verify",
                                  "no_fallback_to_full",
                                  "stash_threshold=",
-                                 "override_prop=",
+                                 "override_prop="
                              ], extra_option_handler=option_handler)
 
   if len(args) != 2:
