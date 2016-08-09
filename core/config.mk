@@ -619,6 +619,12 @@ $(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_CPU_VARIANT := $(TARGET_2ND_CPU_VARI
 $(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES := default
 endif
 
+# enable ART debugs if we use dexpreopt
+ifeq ($(WITH_DEXPREOPT),true)
+ART_BUILD_TARGET_DEBUG := true
+ART_BUILD_HOST_DEBUG := true
+endif
+
 # define clang/llvm tools and global flags
 include $(BUILD_SYSTEM)/clang/config.mk
 
