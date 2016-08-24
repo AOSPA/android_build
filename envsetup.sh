@@ -643,21 +643,19 @@ function lunch()
     if [ $? -ne 0 ]
     then
         echo
-        echo "** Invalid variant: '$variant'"
-        echo "** Must be one of ${VARIANT_CHOICES[@]}"
-        variant=
-    fi
-
-    local product=$(echo -n $selection | sed -e "s/-.*$//")
-    TARGET_PRODUCT=$product \
-    TARGET_BUILD_VARIANT=$variant \
-    build_build_var_cache
-    if [ $? -ne 0 ]
-    then
-        echo
         echo "** Don't have a product spec for: '$product'"
         echo "** Do you have the right repo manifest?"
         product=
+    fi
+
+    local variant=$(echo -n $selection | sed -e "s/^[^\-]*-//")
+    check_variant $variant
+    if [ $? -ne 0 ]
+    then
+        echo
+        echo "** Invalid variant: '$variant'"
+        echo "** Must be one of ${VARIANT_CHOICES[@]}"
+        variant=
     fi
 
     if [ -z "$product" -o -z "$variant" ]
