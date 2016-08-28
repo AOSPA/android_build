@@ -23,6 +23,7 @@ import os
 import sys
 from xml.etree import ElementTree as ET
 
+extra_manifests_dir = '.repo/manifests/'
 upstream_manifest_path = '.repo/manifest.xml'
 local_manifests_dir = '.repo/local_manifests'
 roomservice_manifest_path = local_manifests_dir + '/roomservice.xml'
@@ -66,6 +67,13 @@ if __name__ == '__main__':
         upstream_manifest = ET.parse(upstream_manifest_path).getroot()
     except (IOError, ET.ParseError):
         upstream_manifest = ET.Element('manifest')
+
+    manifest_includes = upstream_manifest.findall('include')
+    if manifest_includes is not None:
+        for file in manifest_includes:
+            extra_manifest = ET.parse(extra_manifests_dir + file.get('name')).getroot()
+            for project in extra_manifest:
+                upstream_manifest.append(project)
 
     try:
         roomservice_manifest = ET.parse(roomservice_manifest_path).getroot()
@@ -160,6 +168,10 @@ if __name__ == '__main__':
                 upstream_name = project.get('name')
                 found_remove_element = False
                 for removable_project in roomservice_manifest.findall('remove-project'):
+                    if removable_project.get('name') == upstream_name:
+                        found_remove_element = True
+                        break
+                for removable_project in upstream_manifest.findall('remove-project'):
                     if removable_project.get('name') == upstream_name:
                         found_remove_element = True
                         break
