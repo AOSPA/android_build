@@ -20,6 +20,7 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
 - sepgrep:   Greps on all local sepolicy files.
 - sgrep:     Greps on all local source files.
 - godir:     Go to the directory containing a file.
+- mka:     Builds using SCHED_BATCH on all processors
 
 Environment options:
 - SANITIZE_HOST: Set to 'true' to use ASAN for all host modules. Note that
@@ -526,7 +527,6 @@ function print_lunch_menu()
     local uname=$(uname)
     echo
     echo "You're building on" $uname
-    echo
     echo "Lunch menu... pick a combo:"
 
     local i=1
@@ -539,6 +539,53 @@ function print_lunch_menu()
 
     echo
 }
+
+function brunch()
+{
+    CWD=$(pwd)
+    croot
+
+    breakfast $*
+    if [ $? -eq 0 ]; then
+        mka bacon
+    else
+        echo "No such item in brunch menu. Try 'breakfast'"
+        return 1
+    fi
+
+    cd "$CWD"
+    return $?
+}
+
+function breakfast()
+{
+    target=$1
+    unset LUNCH_MENU_CHOICES
+    add_lunch_combo full-eng
+    for f in `/bin/ls vendor/pa/vendorsetup.sh 2> /dev/null`
+        do
+            echo "including $f"
+            . $f
+        done
+    unset f
+
+    if [ $# -eq 0 ]; then
+        # No arguments, so let's have the full menu
+        lunch
+    else
+        echo "z$target" | grep -q "-"
+        if [ $? -eq 0 ]; then
+            # A buildtype was specified, assume a full device name
+            lunch $target
+        else
+            # This is probably just the PA model name
+            lunch pa_$target-userdebug
+        fi
+    fi
+    return $?
+}
+
+alias bib=breakfast
 
 function lunch()
 {
@@ -577,6 +624,30 @@ function lunch()
 
     export TARGET_BUILD_APPS=
 
+    local product=$(echo -n $selection | sed -e "s/-.*$//")
+    if [[ $product == pa_* ]]
+    then
+        pushd $(gettop) > /dev/null
+        build/tools/roomservice.py $product
+        if [ $? -ne 0 ]
+        then
+            echo
+            echo "** Roomservice failure for: '$product'"
+            popd > /dev/null
+            return 1
+        else
+            popd > /dev/null
+        fi
+    fi
+    check_product $product
+    if [ $? -ne 0 ]
+    then
+        echo
+        echo "** Don't have a product spec for: '$product'"
+        echo "** Do you have the right repo manifest?"
+        product=
+    fi
+
     local variant=$(echo -n $selection | sed -e "s/^[^\-]*-//")
     check_variant $variant
     if [ $? -ne 0 ]
@@ -585,18 +656,6 @@ function lunch()
         echo "** Invalid variant: '$variant'"
         echo "** Must be one of ${VARIANT_CHOICES[@]}"
         variant=
-    fi
-
-    local product=$(echo -n $selection | sed -e "s/-.*$//")
-    TARGET_PRODUCT=$product \
-    TARGET_BUILD_VARIANT=$variant \
-    build_build_var_cache
-    if [ $? -ne 0 ]
-    then
-        echo
-        echo "** Don't have a product spec for: '$product'"
-        echo "** Do you have the right repo manifest?"
-        product=
     fi
 
     if [ -z "$product" -o -z "$variant" ]
@@ -1484,6 +1543,22 @@ function godir () {
     \cd $T/$pathname
 }
 
+function mka() {
+    CROOTD=$(pwd)
+    croot
+
+    case `uname -s` in
+        Darwin)
+            make -j `sysctl hw.ncpu|cut -d" " -f2` "$@"
+            ;;
+        *)
+            schedtool -B -n 1 -e ionice -n 1 make -j$(cat /proc/cpuinfo | grep "^processor" | wc -l) "$@"
+            ;;
+    esac
+
+    cd "$CROOTD"
+}
+
 # Force JAVA_HOME to point to java 1.7/1.8 if it isn't already set.
 function set_java_home() {
     # Clear the existing JAVA_HOME value if we set it ourselves, so that
@@ -1613,8 +1688,10 @@ if [ "x$SHELL" != "x/bin/bash" ]; then
     case `ps -o command -p $$` in
         *bash*)
             ;;
+        *zsh*)
+            ;;
         *)
-            echo "WARNING: Only bash is supported, use of other shell would lead to erroneous results"
+            echo "WARNING: Only bash and zsh are supported, use of other shell may lead to erroneous results"
             ;;
     esac
 fi
