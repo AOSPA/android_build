@@ -82,8 +82,3 @@ PRODUCT_MAKEFILES += \
     $(LOCAL_DIR)/module_x86_64.mk \
     $(LOCAL_DIR)/module_x86_64only.mk \
 
-COMMON_LUNCH_CHOICES := \
-    aosp_arm64-trunk_staging-eng \
-    aosp_arm-trunk_staging-eng \
-    aosp_x86_64-trunk_staging-eng \
-    aosp_x86-trunk_staging-eng \
