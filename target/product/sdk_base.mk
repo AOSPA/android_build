@@ -34,7 +34,6 @@ PRODUCT_PACKAGES := \
 	libWnnJpnDic \
 	LiveWallpapersPicker \
 	Mms \
-	Music \
 	OpenWnn \
 	Protips \
 	rild \
@@ -45,7 +44,11 @@ PRODUCT_PACKAGES := \
 	sqlite3 \
 	SystemUI \
 	EasterEgg \
-	WidgetPreview
+	WidgetPreview \
+	SnapdragonCamera \
+	SnapdragonGallery \
+	SnapdragonLauncher \
+	SnapdragonMusic
 
 # Define the host tools and libs that are parts of the SDK.
 -include sdk/build/product_sdk.mk
