@@ -55,5 +55,9 @@ arch_variant_cflags += \
 ifneq (,$(filter cortex-a7 cortex-a15 krait denver,$(TARGET_$(combo_2nd_arch_prefix)CPU_VARIANT)))
 	arch_variant_cflags += -mfpu=neon-vfpv4
 else
+ifneq (,$(filter cortex-a53 denver,$(TARGET_$(combo_2nd_arch_prefix)CPU_VARIANT)))
+        arch_variant_cflags += -mfpu=neon-fp-armv8
+else
 	arch_variant_cflags += -mfpu=neon
+endif
 endif
