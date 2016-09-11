@@ -42,8 +42,8 @@ ifeq ($(HOST_OS),linux)
     # and still allows a simple workflow: building in frameworks/base and syncing.
     WITH_DEXPREOPT_BOOT_IMG_AND_SYSTEM_SERVER_ONLY ?= true
   endif
-  # Add mini-debug-info to the boot classpath unless explicitly asked not to.
-  ifneq (false,$(WITH_DEXPREOPT_DEBUG_INFO))
+  # Add mini-debug-info to the boot classpath if explicitly asked to do so.
+  ifeq (true,$(WITH_DEXPREOPT_DEBUG_INFO))
     PRODUCT_DEX_PREOPT_BOOT_FLAGS += --generate-mini-debug-info
   endif
 
