@@ -89,6 +89,7 @@ TARGET_PREBUILT_KERNEL := $(TARGET_PREBUILT_INT_KERNEL)
 $(info TARGET_PREBUILT_KERNEL is $(TARGET_PREBUILT_KERNEL))
 
 define mv-modules
+`mkdir -p $(KERNEL_MODULES_OUT)`; \
 mdpath=`find $(KERNEL_MODULES_OUT) -type f -name modules.dep`;\
 if [ "$$mdpath" != "" ];then\
 mpath=`dirname $$mdpath`;\
