@@ -34,7 +34,7 @@ $(combo_var_prefix)AR := $(AR)
 $(combo_var_prefix)STRIP := $(STRIP)
 
 $(combo_var_prefix)GLOBAL_CFLAGS := -fno-exceptions -Wno-multichar
-$(combo_var_prefix)RELEASE_CFLAGS := -O2 -g -fno-strict-aliasing
+$(combo_var_prefix)RELEASE_CFLAGS := -O3 -g -fno-strict-aliasing
 $(combo_var_prefix)GLOBAL_CPPFLAGS :=
 $(combo_var_prefix)GLOBAL_LDFLAGS :=
 $(combo_var_prefix)GLOBAL_ARFLAGS := crsPD
