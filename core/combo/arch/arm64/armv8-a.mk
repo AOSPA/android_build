@@ -16,3 +16,6 @@ else
 	arch_variant_ldflags := -Wl,--no-fix-cortex-a53-843419
 endif
 
+ifeq ($(LOCAL_SDCLANG_LTO), true)
+	arch_variant_ldflags += -march=aarch64
+endif
