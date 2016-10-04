@@ -1,4 +1,4 @@
-#Android makefile to build kernel as a part of Android Build
+#Android makefile to build kernel as a part of Android eco-system
 PERL		= perl
 
 KERNEL_TARGET := $(strip $(INSTALLED_KERNEL_TARGET))
@@ -33,12 +33,18 @@ KERNEL_CONFIG_OVERRIDE := CONFIG_ANDROID_BINDER_IPC_32BIT=y
 endif
 endif
 
-ifeq ($(KERNEL_ARCH),arm64)
+# Query for an external definition of the toolchain
+BOARD_KERNEL_TOOLCHAIN := $(strip $(BOARD_KERNEL_TOOLCHAIN))
+ifneq ($(BOARD_KERNEL_TOOLCHAIN),)
+KERNEL_CROSS_COMPILE := $(BOARD_KERNEL_TOOLCHAIN)
+$(warning The default toolchain was overridden to '$(BOARD_KERNEL_TOOLCHAIN)')
+else ifeq ($(KERNEL_ARCH),arm64)
 KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-androidkernel-
 else ifeq ($(KERNEL_ARCH),arm)
 KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-
 else
-$(error Unsupported Kernel Architecture)
+$(error '$(KERNEL_ARCH)' is not a supported kernel architecture)
+endif
 endif
 
 ifeq ($(TARGET_PREBUILT_KERNEL),)
