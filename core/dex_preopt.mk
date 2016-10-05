@@ -3,6 +3,15 @@
 #
 ####################################
 
+# Filter out duplicates
+define unique
+  $(eval seen :=)
+  $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += $_)))
+  ${seen}
+endef
+
+PRODUCT_BOOT_JARS := $(call unique,$(subst $(space), ,$(strip $(PRODUCT_BOOT_JARS))))
+
 # list of boot classpath jars for dexpreopt
 DEXPREOPT_BOOT_JARS := $(subst $(space),:,$(PRODUCT_BOOT_JARS))
 DEXPREOPT_BOOT_JARS_MODULES := $(PRODUCT_BOOT_JARS)
