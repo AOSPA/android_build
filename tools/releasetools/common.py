@@ -230,6 +230,8 @@ def LoadInfoDict(input_file, input_dir=None):
             vendor_base_fs_file,)
         del d["vendor_base_fs_file"]
 
+  if "device_type" not in d:
+    d["device_type"] = "MMC"
   try:
     data = read_helper("META/imagesizes.txt")
     for line in data.split("\n"):
@@ -263,7 +265,7 @@ def LoadInfoDict(input_file, input_dir=None):
     d["fstab"] = None
   else:
     d["fstab"] = LoadRecoveryFSTab(read_helper, d["fstab_version"],
-                                   d.get("system_root_image", False))
+                                   d.get("system_root_image", d["device_type"], False))
   d["build.prop"] = LoadBuildProp(read_helper)
   return d
 
@@ -286,7 +288,7 @@ def LoadDictionaryFromLines(lines):
       d[name] = value
   return d
 
-def LoadRecoveryFSTab(read_helper, fstab_version, system_root_image=False):
+def LoadRecoveryFSTab(read_helper, fstab_version, type, system_root_image=False):
   class Partition(object):
     def __init__(self, mount_point, fs_type, device, length, device2, context):
       self.mount_point = mount_point
@@ -468,10 +470,10 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
    cmd.append("--tags_offset")
    cmd.append(open(fn).read().rstrip("\n"))
 
-  fn = os.path.join(sourcedir, "dt_args")
+  fn = os.path.join(sourcedir, "dt")
   if os.access(fn, os.F_OK):
    cmd.append("--dt")
-   cmd.append(open(fn).read().rstrip("\n"))
+   cmd.append(fn)
 
   fn = os.path.join(sourcedir, "pagesize")
   if os.access(fn, os.F_OK):

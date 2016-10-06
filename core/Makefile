@@ -520,7 +520,6 @@ INTERNAL_MKBOOTIMG_VERSION_ARGS := \
     --os_patch_level $(PLATFORM_SECURITY_PATCH)
 
 INSTALLED_DTIMAGE_TARGET := $(PRODUCT_OUT)/dt.img
-
 ifeq ($(strip $(BOARD_KERNEL_SEPARATED_DT)),true)
   INTERNAL_BOOTIMAGE_ARGS += --dt $(INSTALLED_DTIMAGE_TARGET)
   BOOTIMAGE_EXTRA_DEPS    := $(INSTALLED_DTIMAGE_TARGET)
@@ -1005,7 +1004,7 @@ endif
 ifeq (true,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VBOOT))
 $(INSTALLED_BOOTIMAGE_TARGET) : $(VBOOT_SIGNER)
 endif
-$(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
+$(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) $(RECOVERYIMAGE_EXTRA_DEPS) \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INTERNAL_RECOVERYIMAGE_FILES) \
 		$(recovery_initrc) $(recovery_sepolicy) $(recovery_kernel) \
@@ -1018,7 +1017,7 @@ $(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 endif
 
 ifndef BOARD_CUSTOM_BOOTIMG_MK
-$(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
+$(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) $(RECOVERYIMAGE_EXTRA_DEPS) \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INSTALLED_BOOTIMAGE_TARGET) \
 		$(INTERNAL_RECOVERYIMAGE_FILES) \
@@ -1028,7 +1027,6 @@ $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 		$(recovery_fstab) \
 		$(RECOVERY_INSTALL_OTA_KEYS)
 		$(call build-recoveryimage-target, $@)
-
 endif # BOARD_CUSTOM_BOOTIMG_MK
 
 ifdef RECOVERY_RESOURCE_ZIP
@@ -1698,7 +1696,7 @@ ifdef BOARD_TAGS_OFFSET
 	$(hide) echo "$(BOARD_TAGS_OFFSET)" > $(zip_root)/RECOVERY/tags_offset
 endif
 ifeq ($(strip $(BOARD_KERNEL_SEPARATED_DT)),true)
-	$(hide) echo "$(INSTALLED_DTIMAGE_TARGET)" > $(zip_root)/RECOVERY/dt_args
+	$(hide) $(ACP) $(INSTALLED_DTIMAGE_TARGET) $(zip_root)/RECOVERY/dt
 endif
 endif # INSTALLED_RECOVERYIMAGE_TARGET defined or BOARD_USES_RECOVERY_AS_BOOT is true
 	@# Components of the boot image
@@ -1739,10 +1737,10 @@ endif
 ifdef BOARD_TAGS_OFFSET
 	$(hide) echo "$(BOARD_TAGS_OFFSET)" > $(zip_root)/BOOT/tags_offset
 endif
-
 ifeq ($(strip $(BOARD_KERNEL_SEPARATED_DT)),true)
-	$(hide) echo "$(INSTALLED_DTIMAGE_TARGET)" > $(zip_root)/BOOT/dt_args
+	$(hide) $(ACP) $(INSTALLED_DTIMAGE_TARGET) $(zip_root)/BOOT/dt
 endif
+
 endif # BOARD_USES_RECOVERY_AS_BOOT
 	$(hide) $(foreach t,$(INSTALLED_RADIOIMAGE_TARGET),\
 	            mkdir -p $(zip_root)/RADIO; \
@@ -1753,6 +1751,12 @@ endif # BOARD_USES_RECOVERY_AS_BOOT
 	@# Contents of the data image
 	$(hide) $(call package_files-copy-root, \
 		$(TARGET_OUT_DATA),$(zip_root)/DATA)
+ifdef BOARD_CUSTOM_BOOTIMG
+	@# Prebuilt boot images
+	$(hide) mkdir -p $(zip_root)/BOOTABLE_IMAGES
+	$(hide) $(ACP) $(INSTALLED_BOOTIMAGE_TARGET) $(zip_root)/BOOTABLE_IMAGES/
+	$(hide) $(ACP) $(INSTALLED_RECOVERYIMAGE_TARGET) $(zip_root)/BOOTABLE_IMAGES/
+endif
 ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
 	@# Contents of the vendor image
 	$(hide) $(call package_files-copy-root, \
