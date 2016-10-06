@@ -123,10 +123,16 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_OUT) $(KERNEL_HEADERS_INSTALL)
 	$(hide) echo "Building kernel..."
 	$(hide) rm -rf $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/dts
 	$(CCACHE) $(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_CFLAGS)
-	-$(CCACHE) $(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_CFLAGS) modules
-	-$(CCACHE) $(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) INSTALL_MOD_PATH=../../$(KERNEL_MODULES_INSTALL) INSTALL_MOD_STRIP=1 ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) modules_install
-	$(mv-modules)
-	$(clean-module-folder)
+	$(hide) if grep -q 'CONFIG_MODULES=y' $(KERNEL_CONFIG) ; \
+		then \
+			echo "Building Kernel Modules" ; \
+			$(CCACHE) $(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_CFLAGS) modules && \
+			$(CCACHE) $(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) INSTALL_MOD_PATH=../../$(KERNEL_MODULES_INSTALL) INSTALL_MOD_STRIP=1 ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) modules_install && \
+			$(mv-modules) && \
+			$(clean-module-folder) ; \
+		else \
+			echo "Kernel Modules not enabled" ; \
+		fi ;
 
 $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT)
 	$(hide) if [ ! -z "$(KERNEL_HEADER_DEFCONFIG)" ]; then \
