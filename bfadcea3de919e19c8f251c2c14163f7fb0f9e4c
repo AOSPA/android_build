@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da7095c5_73b6a0de",
+        "filename": "core/Makefile",
+        "patchSetId": 4
+      },
+      "lineNbr": 964,
+      "author": {
+        "id": 1000009
+      },
+      "writtenOn": "2016-10-07T21:56:31Z",
+      "side": 1,
+      "message": "Shitty colors, I\u0027m gonna kill you.",
+      "revId": "bfadcea3de919e19c8f251c2c14163f7fb0f9e4c",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad",
+      "unresolved": false
+    }
+  ]
+}
