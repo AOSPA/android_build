@@ -1,4 +1,4 @@
-#Android makefile to build kernel as a part of Android Build
+# Android makefile to build the Kernel as a part of the Android build-system
 PERL		= perl
 
 KERNEL_TARGET := $(strip $(INSTALLED_KERNEL_TARGET))
@@ -37,7 +37,7 @@ KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/aarch6
 else ifeq ($(KERNEL_ARCH),arm)
 KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-
 else
-$(error Unsupported Kernel Architecture)
+$(error The target Kernel architecture is not supported)
 endif
 
 ifeq ($(TARGET_PREBUILT_KERNEL),)
@@ -51,21 +51,37 @@ ifeq ($(HOST_OS),darwin)
     MAKE_FLAGS += C_INCLUDE_PATH=$(ANDROID_BUILD_TOP)/external/elfutils/src/libelf/
 endif
 
-ifneq ($(USE_CCACHE),)
-    CCACHE := $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache
-    # Check that the executable is here.
-    CCACHE := $(strip $(wildcard $(CCACHE)))
+# Initialize CCACHE as an empty argument.
+CCACHE :=
+
+# Fill the CCACHE argument if USE_CCACHE is not set to false.
+ifneq ($(filter-out false,$(USE_CCACHE)),)
+    # Detect if the system already has ccache installed.
+    CCACHE := $(shell which ccache)
+
+    # Use the prebuilt one if host doesn't have ccache installed.
+    ifeq ($(CCACHE),)
+        CCACHE := $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache
+        # Check that the executable is here.
+        CCACHE := $(strip $(wildcard $(CCACHE)))
+    endif
+
+    # Print which ccache is going to be used to build the Kernel.
+    $(info Using '$(CCACHE)' binary)
+else
+# Warn the developer if ccache is set to false.
+$(info The usage of ccache is set to '$(USE_CCACHE)')
 endif
 
 KERNEL_OUT := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
 KERNEL_CONFIG := $(KERNEL_OUT)/.config
 
 ifeq ($(TARGET_KERNEL_CONFIG)$(wildcard $(KERNEL_CONFIG)),)
-$(error Kernel configuration not defined, cannot build kernel)
+$(error A target Kernel configuration was not defined)
 else
 
 ifeq ($(TARGET_USES_UNCOMPRESSED_KERNEL),true)
-$(info Using uncompressed kernel)
+$(info Using uncompressed Kernel image)
 TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/Image
 else
 ifeq ($(KERNEL_ARCH),arm64)
@@ -76,7 +92,7 @@ endif
 endif
 
 ifeq ($(TARGET_KERNEL_APPEND_DTB), true)
-$(info Using appended DTB)
+$(info Using Kernel with appended DTB image)
 TARGET_PREBUILT_INT_KERNEL := $(TARGET_PREBUILT_INT_KERNEL)-dtb
 endif
 
@@ -114,23 +130,23 @@ $(KERNEL_OUT):
 $(KERNEL_CONFIG): $(KERNEL_OUT)
 	$(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(TARGET_KERNEL_CONFIG)
 	$(hide) if [ ! -z "$(KERNEL_CONFIG_OVERRIDE)" ]; then \
-			echo "Overriding kernel config with '$(KERNEL_CONFIG_OVERRIDE)'"; \
+			echo "Overriding Kernel configuration with '$(KERNEL_CONFIG_OVERRIDE)'"; \
 			echo $(KERNEL_CONFIG_OVERRIDE) >> $(KERNEL_OUT)/.config; \
 			$(MAKE) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) oldconfig; fi
 
 $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_OUT) $(KERNEL_HEADERS_INSTALL) $(KERNEL_CONFIG)
-	$(hide) echo "Building kernel..."
+	$(hide) echo "Building Kernel..."
 	$(hide) rm -rf $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/dts
 	$(CCACHE) $(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_CFLAGS)
 	$(hide) if grep -q 'CONFIG_MODULES=y' $(KERNEL_CONFIG) ; \
 		then \
-			echo "Building Kernel Modules" ; \
+			echo "Building Kernel modules..." ; \
 			$(CCACHE) $(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_CFLAGS) modules && \
 			$(CCACHE) $(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) INSTALL_MOD_PATH=../../$(KERNEL_MODULES_INSTALL) INSTALL_MOD_STRIP=1 ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) modules_install && \
 			$(mv-modules) && \
 			$(clean-module-folder) ; \
 		else \
-			echo "Kernel Modules not enabled" ; \
+			echo "The target Kernel configuration has modules disabled" ; \
 		fi ;
 
 $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT) $(KERNEL_CONFIG)
@@ -139,11 +155,11 @@ $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT) $(KERNEL_CONFIG)
 			$(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_HEADER_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_HEADER_DEFCONFIG); \
 			$(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_HEADER_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) headers_install; fi
 	$(hide) if [ "$(KERNEL_HEADER_DEFCONFIG)" != "$(TARGET_KERNEL_CONFIG)" ]; then \
-			echo "Used a different defconfig for header generation"; \
+			echo "Using a different configuration for header generation"; \
 			rm -f ../$(KERNEL_CONFIG); \
 			$(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(TARGET_KERNEL_CONFIG); fi
 	$(hide) if [ ! -z "$(KERNEL_CONFIG_OVERRIDE)" ]; then \
-			echo "Overriding kernel config with '$(KERNEL_CONFIG_OVERRIDE)'"; \
+			echo "Overriding Kernel configuration with '$(KERNEL_CONFIG_OVERRIDE)'"; \
 			echo $(KERNEL_CONFIG_OVERRIDE) >> $(KERNEL_OUT)/.config; \
 			$(MAKE) $(MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=../../../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) oldconfig; fi
 
