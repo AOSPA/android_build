@@ -308,10 +308,14 @@ my_fdo_build :=
 ifneq ($(filter true always, $(LOCAL_FDO_SUPPORT)),)
   ifeq ($(BUILD_FDO_INSTRUMENT),true)
     my_cflags += $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_FDO_INSTRUMENT_CFLAGS)
+    my_cppflags += $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_FDO_INSTRUMENT_CFLAGS)
+    my_conlyflags += $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_FDO_INSTRUMENT_CFLAGS)
     my_ldflags += $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_FDO_INSTRUMENT_LDFLAGS)
     my_fdo_build := true
   else ifneq ($(filter true,$(BUILD_FDO_OPTIMIZE))$(filter always,$(LOCAL_FDO_SUPPORT)),)
     my_cflags += $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_FDO_OPTIMIZE_CFLAGS)
+    my_cppflags += $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_FDO_OPTIMIZE_CFLAGS)
+    my_conlyflags += $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_FDO_OPTIMIZE_CFLAGS)
     my_fdo_build := true
   endif
   # Disable ccache (or other compiler wrapper) except gomacc, which
@@ -352,7 +356,7 @@ my_target_global_ldflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)CLANG_TARGET_GLOBAL_LD
         ifeq ($(LOCAL_SDCLANG_LTO), true)
         ifneq ($(LOCAL_MODULE_CLASS), STATIC_LIBRARIES)
             SDCLANG_PRECONFIGURED_FLAGS += -flto
-            my_target_global_ldflags += -fuse-ld=qcld -flto
+            my_target_global_ldflags += -fuse-ld=qcld -flto $(LOCAL_SDCLANG_LTO_LDFLAGS)
         endif
         endif
         my_target_global_cflags += $(SDCLANG_COMMON_FLAGS) $(SDCLANG_PRECONFIGURED_FLAGS)
@@ -1411,8 +1415,12 @@ endif
 
 ifeq ($(my_fdo_build), true)
   my_cflags := $(patsubst -Os,-O2,$(my_cflags))
+  my_cppflags := $(patsubst -Os,-O2,$(my_cppflags))
+  my_conlyflags := $(patsubst -Os,-O2,$(my_conlyflags))
   fdo_incompatible_flags := -fno-early-inlining -finline-limit=%
   my_cflags := $(filter-out $(fdo_incompatible_flags),$(my_cflags))
+  my_cppflags := $(filter-out $(fdo_incompatible_flags),$(my_cppflags))
+  my_conlyflags := $(filter-out $(fdo_incompatible_flags),$(my_conlyflags))
 endif
 
 # No one should ever use this flag. On GCC it's mere presence will disable all
