@@ -2500,7 +2500,7 @@ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
 	   ./build/tools/releasetools/ota_from_target_files -v \
 	   --block \
 	   --extracted_input_target_files $(patsubst %.zip,%,$(BUILT_TARGET_FILES_PACKAGE)) \
-	   -no_prereq \
+	   --no_prereq \
 	   -p $(HOST_OUT) \
 	   -k $(KEY_CERT_PAIR) \
 	   --override_device=$(override_device) \
