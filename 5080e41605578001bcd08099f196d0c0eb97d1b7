@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da7095c5_22376fe5",
+        "filename": "core/binary.mk",
+        "patchSetId": 2
+      },
+      "lineNbr": 360,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2016-10-14T00:19:25Z",
+      "side": 1,
+      "message": "Why not used preconfigured flags here?",
+      "revId": "5080e41605578001bcd08099f196d0c0eb97d1b7",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad",
+      "unresolved": false
+    }
+  ]
+}
