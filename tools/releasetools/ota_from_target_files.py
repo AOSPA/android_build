@@ -117,6 +117,9 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
   --override_device <device>
       Override device-specific asserts. Can be a comma-separated list.
 
+  --with-backuptool
+      Build in backuptool support.
+
 """
 
 import sys
@@ -165,7 +168,7 @@ OPTIONS.stash_threshold = 0.8
 OPTIONS.gen_verify = False
 OPTIONS.log_diff = None
 OPTIONS.override_device = 'auto'
-OPTIONS.backuptool = True
+OPTIONS.backuptool = False
 
 def MostPopularKey(d, default):
   """Given a dict, return the key corresponding to the largest
@@ -1945,6 +1948,8 @@ def main(argv):
       OPTIONS.log_diff = a
     elif o in ("--override_device"):
       OPTIONS.override_device = a
+    elif o == "--with-backuptool":
+      OPTIONS.backuptool = True
     else:
       return False
     return True
@@ -1974,7 +1979,8 @@ def main(argv):
                                  "stash_threshold=",
                                  "gen_verify",
                                  "log_diff=",
-                                 "override_device="
+                                 "override_device=",
+                                 "with-backuptool"
                              ], extra_option_handler=option_handler)
 
   if len(args) != 2:
