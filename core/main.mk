@@ -1197,6 +1197,10 @@ else # TARGET_BUILD_APPS
   $(foreach f,$(INSTALLED_RADIOIMAGE_TARGET), \
     $(call dist-for-goals, droidcore, $(f)))
 
+  # Put a copy of the firmware/bootloader files in the dist dir.
+  $(foreach f,$(INSTALLED_FIRMWAREIMAGE_TARGET), \
+    $(call dist-for-goals, droidcore, $(f)))
+
   ifneq ($(ANDROID_BUILD_EMBEDDED),true)
   ifneq ($(TARGET_BUILD_PDK),true)
     $(call dist-for-goals, droidcore, \
