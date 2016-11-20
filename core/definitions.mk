@@ -2924,6 +2924,37 @@ $$(PRODUCT_OUT)/$(2) : $$(LOCAL_PATH)/$(1)
 	$$(transform-prebuilt-to-target)
 endef
 
+###########################################################
+## Define device-specific firmware files
+###########################################################
+INSTALLED_FIRMWAREIMAGE_TARGET :=
+
+# Copy a firmware image file to the output location, and add it to
+# INSTALLED_FIRMWAREIMAGE_TARGET.
+# $(1): filename
+define add-firmware-file
+  $(eval $(call add-firmware-file-internal,$(1),$(notdir $(1))))
+endef
+define add-firmware-file-internal
+INSTALLED_FIRMWAREIMAGE_TARGET += $$(PRODUCT_OUT)/firmware/$(2)
+$$(PRODUCT_OUT)/firmware/$(2) : $(1) | $$(ACP)
+	$$(transform-prebuilt-to-target)
+endef
+
+# Version of add-firmware-file that also arranges for the version of the
+# file to be checked against the contents of
+# $(TARGET_BOARD_INFO_FILE).
+# $(1): filename
+# $(2): name of version variable in board-info (eg, "version-baseband")
+define add-firmware-file-checked
+  $(eval $(call add-firmware-file-checked-internal,$(1),$(notdir $(1)),$(2)))
+endef
+define add-firmware-file-checked-internal
+INSTALLED_FIRMWAREIMAGE_TARGET += $$(PRODUCT_OUT)/firmware/$(2)
+BOARD_INFO_CHECK += $(3):$(1)
+$$(PRODUCT_OUT)/firmware/$(2) : $(1) | $$(ACP)
+	$$(transform-prebuilt-to-target)
+endef
 
 ###########################################################
 # Override the package defined in $(1), setting the
