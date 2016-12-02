@@ -1497,9 +1497,21 @@ ifeq ($(LOCAL_SDK_VERSION)$(LOCAL_USE_VNDK),)
   my_c_includes += $(JNI_H_INCLUDE)
 endif
 
+# Find $1 in the exception project list.
+define find_in_cincludes_exception_projects
+$(subst $(space),, \
+  $(foreach project,$(TARGET_CINCLUDES_EXCEPTION_PROJECTS), \
+    $(if $(filter $(project)%,$(1)),$(project)) \
+  ) \
+)
+endef
+
 my_outside_includes := $(filter-out $(OUT_DIR)/%,$(filter /%,$(my_c_includes)))
 ifneq ($(my_outside_includes),)
-$(error $(LOCAL_MODULE_MAKEFILE): $(LOCAL_MODULE): C_INCLUDES must be under the source or output directories: $(my_outside_includes))
+# Further filter out optional exceptions
+  ifeq ($(call find_in_cincludes_exception_projects,$(LOCAL_MODULE_MAKEFILE)),)
+    $(error $(LOCAL_MODULE_MAKEFILE): $(LOCAL_MODULE): C_INCLUDES must be under the source or output directories: $(my_outside_includes))
+  endif
 endif
 
 # all_objects includes gen_o_objects which were part of LOCAL_GENERATED_SOURCES;
