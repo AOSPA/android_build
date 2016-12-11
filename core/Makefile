@@ -1439,7 +1439,11 @@ endif # BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE
 
 # -----------------------------------------------------------------
 # vendor partition image
-ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
+ifdef BOARD_PREBUILT_VENDORIMAGE
+INSTALLED_VENDORIMAGE_TARGET := $(PRODUCT_OUT)/vendor.img
+$(eval $(call copy-one-file,$(BOARD_PREBUILT_VENDORIMAGE),$(INSTALLED_VENDORIMAGE_TARGET)))
+
+else ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
 INTERNAL_VENDORIMAGE_FILES := \
     $(filter $(TARGET_OUT_VENDOR)/%,\
       $(ALL_DEFAULT_INSTALLED_MODULES)\
@@ -1478,10 +1482,6 @@ $(INSTALLED_VENDORIMAGE_TARGET): $(INTERNAL_USERIMAGES_DEPS) $(INTERNAL_VENDORIM
 .PHONY: vendorimage-nodeps
 vendorimage-nodeps: | $(INTERNAL_USERIMAGES_DEPS)
 	$(build-vendorimage-target)
-
-else ifdef BOARD_PREBUILT_VENDORIMAGE
-INSTALLED_VENDORIMAGE_TARGET := $(PRODUCT_OUT)/vendor.img
-$(eval $(call copy-one-file,$(BOARD_PREBUILT_VENDORIMAGE),$(INSTALLED_VENDORIMAGE_TARGET)))
 endif
 
 # -----------------------------------------------------------------
