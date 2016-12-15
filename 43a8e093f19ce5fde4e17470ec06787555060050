@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9adffdf1_584dd171",
+        "filename": "core/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 1448,
+      "author": {
+        "id": 1000009
+      },
+      "writtenOn": "2016-12-15T16:02:26Z",
+      "side": 1,
+      "message": "TARGET_OUT_VENDOR will be used in line 1771 to push the contents of vendor/ to the actual zip, I think you need add the filter for TARGET_OUT_VENDOR in the BOARD_PREBUILT_VENDORIMAGE as well in that case. Or maybe remove the global \u0027else\u0027 at line 1446 and rework the prebuilt ifdef. Just my two cents, sorry if I\u0027m proposing nonsense, that can be possible.",
+      "revId": "43a8e093f19ce5fde4e17470ec06787555060050",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad",
+      "unresolved": false
+    }
+  ]
+}
