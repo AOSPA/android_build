@@ -23,6 +23,7 @@ PRODUCT_PACKAGES := \
     CallLogBackup \
     CellBroadcastReceiver \
     EmergencyInfo \
+    Mms \
     rild
 
 PRODUCT_COPY_FILES := \
