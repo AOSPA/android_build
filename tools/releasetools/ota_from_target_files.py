@@ -659,6 +659,20 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 
   system_progress = 0.75
 
+  builddate = time.strftime("%x");
+  product = GetBuildProp("ro.pa.device", OPTIONS.info_dict);
+  b = "Build date: %s"%(builddate);
+  b2 = b.center(32, ' ');
+  d = "Device: %s"%(product);
+  d2 = d.center(32, ' ');
+
+  script.Print("**********************************");
+  script.Print("*              AOSPA             *");
+  script.Print("*                                *");
+  script.Print("*" + b2 + "*");
+  script.Print("*" + d2 + "*");
+  script.Print("**********************************");
+
   if OPTIONS.wipe_user_data:
     system_progress -= 0.1
   if HasVendorPartition(input_zip):
