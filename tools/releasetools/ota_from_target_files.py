@@ -125,9 +125,6 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
   --payload_signer_args <args>
       Specify the arguments needed for payload signer.
 
-  --override_device <device>
-      Override device-specific asserts. Can be a comma-separated list.
-
 """
 
 import sys
@@ -2057,8 +2054,6 @@ def main(argv):
       OPTIONS.payload_signer = a
     elif o == "--payload_signer_args":
       OPTIONS.payload_signer_args = shlex.split(a)
-    elif o in ("--override_device"):
-      OPTIONS.override_device = a
     else:
       return False
     return True
@@ -2089,8 +2084,7 @@ def main(argv):
                                  "gen_verify",
                                  "log_diff=",
                                  "payload_signer=",
-                                 "payload_signer_args=",
-                                 "override_device="
+                                 "payload_signer_args="
                              ], extra_option_handler=option_handler)
 
   if len(args) != 2:
@@ -2114,6 +2108,12 @@ def main(argv):
   input_zip = zipfile.ZipFile(args[0], "r")
   OPTIONS.info_dict = common.LoadInfoDict(input_zip)
   common.ZipClose(input_zip)
+
+  if "ota_override_device" in OPTIONS.info_dict:
+    OPTIONS.override_device = OPTIONS.info_dict.get("ota_override_device")
+  if "ota_override_prop" in OPTIONS.info_dict:
+    OPTIONS.override_prop = OPTIONS.info_dict.get("ota_override_prop") == "true"
+
 
   ab_update = OPTIONS.info_dict.get("ab_update") == "true"
 
