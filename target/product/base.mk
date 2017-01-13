@@ -40,6 +40,9 @@ PRODUCT_PACKAGES += \
     fsck_msdos \
     hid \
     ime \
+    incidentd \
+    incident \
+    incident_report \
     input \
     input.evdev.default \
     inputflinger \
@@ -103,10 +106,12 @@ PRODUCT_PACKAGES += \
     libmediandk \
     libvulkan \
     libwifi-service \
+    locksettings \
     media \
     media_cmd \
     mediadrmserver \
     mediaserver \
+    mediaanalytics \
     mediacodec \
     mediaextractor \
     monkey \

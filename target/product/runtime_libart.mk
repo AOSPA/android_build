@@ -28,7 +28,7 @@ PRODUCT_PACKAGES += \
 
 # Additional mixins to the boot classpath.
 PRODUCT_PACKAGES += \
-    core-junit \
+    legacy-test \
 
 # Why are we pulling in ext, which is frameworks/base, depending on tagsoup and nist-sip?
 PRODUCT_PACKAGES += \
@@ -64,18 +64,12 @@ PRODUCT_PACKAGES += \
     ahat \
     dexdump \
     dexlist \
+    hprof-conv \
     oatdump \
 
 # Certificates.
 PRODUCT_PACKAGES += \
     cacerts \
-
-# SDK dependencies. WHY ARE THEY HERE?!?!
-PRODUCT_PACKAGES += \
-    hprof-conv \
-    dexdeps \
-    dmtracedump \
-    dx \
 
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
     dalvik.vm.image-dex2oat-Xms=64m \

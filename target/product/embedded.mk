@@ -20,6 +20,8 @@
 PRODUCT_PACKAGES += \
     adb \
     adbd \
+    android.hidl.memory@1.0-service \
+    android.hidl.memory@1.0-impl \
     atrace \
     bootanimation \
     bootstat \
@@ -73,6 +75,7 @@ PRODUCT_PACKAGES += \
     service \
     servicemanager \
     sh \
+    storaged \
     surfaceflinger \
     toolbox \
     toybox \
@@ -80,13 +83,25 @@ PRODUCT_PACKAGES += \
 
 # SELinux packages
 PRODUCT_PACKAGES += \
-    sepolicy \
     file_contexts.bin \
-    seapp_contexts \
+    nonplat_file_contexts \
+    nonplat_mac_permissions.xml \
+    nonplat_seapp_contexts \
+    plat_file_contexts \
+    plat_mac_permissions.xml \
+    plat_seapp_contexts \
     property_contexts \
-    mac_permissions.xml \
     selinux_version \
+    sepolicy \
     service_contexts
+
+# AID Generation for
+# <pwd.h> and <grp.h>
+PRODUCT_PACKAGES += \
+    passwd \
+    group \
+    fs_config_files \
+    fs_config_dirs
 
 # Ensure that this property is always defined so that bionic_systrace.cpp
 # can rely on it being initially set by init.

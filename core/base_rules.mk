@@ -65,6 +65,8 @@ else
   my_host_cross :=
 endif
 
+include $(BUILD_SYSTEM)/local_vndk.mk
+
 my_module_tags := $(LOCAL_MODULE_TAGS)
 ifeq ($(my_host_cross),true)
   my_module_tags :=
@@ -159,6 +161,7 @@ my_module_path := $(my_multilib_module_path)
 else
 my_module_path := $(strip $(LOCAL_MODULE_PATH))
 endif
+my_module_path := $(patsubst %/,%,$(my_module_path))
 my_module_relative_path := $(strip $(LOCAL_MODULE_RELATIVE_PATH))
 ifeq ($(my_module_path),)
   ifdef LOCAL_IS_HOST_MODULE
@@ -458,6 +461,33 @@ $(my_all_targets) : $(my_compat_files)
 endif  # LOCAL_COMPATIBILITY_SUITE
 
 ###########################################################
+## Test Data
+###########################################################
+my_test_data_pairs :=
+my_installed_test_data :=
+
+ifneq ($(filter NATIVE_TESTS,$(LOCAL_MODULE_CLASS)),)
+ifneq ($(strip $(LOCAL_TEST_DATA)),)
+ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
+
+my_test_data_pairs := $(strip $(foreach td,$(LOCAL_TEST_DATA), \
+    $(eval _file := $(call word-colon,2,$(td))) \
+    $(if $(_file), \
+      $(eval _base := $(call word-colon,1,$(td))), \
+      $(eval _base := $(LOCAL_PATH)) \
+        $(eval _file := $(call word-colon,1,$(td)))) \
+    $(if $(findstring ..,$(_file)),$(error $(LOCAL_MODULE_MAKEFILE): LOCAL_TEST_DATA may not include '..': $(_file))) \
+    $(if $(filter /%,$(_base) $(_file)),$(error $(LOCAL_MODULE_MAKEFILE): LOCAL_TEST_DATA may not include absolute paths: $(_base) $(_file))) \
+    $(call append-path,$(_base),$(_file)):$(call append-path,$(my_module_path),$(_file))))
+
+my_installed_test_data := $(call copy-many-files,$(my_test_data_pairs))
+$(LOCAL_INSTALLED_MODULE): $(my_installed_test_data)
+
+endif
+endif
+endif
+
+###########################################################
 ## Register with ALL_MODULES
 ###########################################################
 
@@ -478,11 +508,12 @@ ALL_MODULES.$(my_register_name).BUILT := \
 ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
 ALL_MODULES.$(my_register_name).INSTALLED := \
     $(strip $(ALL_MODULES.$(my_register_name).INSTALLED) \
-    $(LOCAL_INSTALLED_MODULE) $(my_init_rc_installed) $(my_installed_symlinks))
+    $(LOCAL_INSTALLED_MODULE) $(my_init_rc_installed) $(my_installed_symlinks) \
+    $(my_installed_test_data))
 ALL_MODULES.$(my_register_name).BUILT_INSTALLED := \
     $(strip $(ALL_MODULES.$(my_register_name).BUILT_INSTALLED) \
     $(LOCAL_BUILT_MODULE):$(LOCAL_INSTALLED_MODULE) \
-    $(my_init_rc_pairs))
+    $(my_init_rc_pairs) $(my_test_data_pairs))
 endif
 ifdef LOCAL_PICKUP_FILES
 # Files or directories ready to pick up by the build system
@@ -551,16 +582,26 @@ endif
 endif
 ifdef LOCAL_IS_HOST_MODULE
 h_or_t := host
+ifeq ($(my_host_cross),true)
+h_or_hc_or_t := host-cross
 else
+h_or_hc_or_t := host
+endif
+else
+h_or_hc_or_t := target
 h_or_t := target
 endif
+
 
 ifdef j_or_n
 $(j_or_n) $(h_or_t) $(j_or_n)-$(h_or_t) : $(my_checked_module)
 ifneq (,$(filter $(my_module_tags),tests))
 $(j_or_n)-$(h_or_t)-tests $(j_or_n)-tests $(h_or_t)-tests : $(my_checked_module)
 endif
-$(LOCAL_MODULE)-$(h_or_t) : $(my_all_targets)
+$(LOCAL_MODULE)-$(h_or_hc_or_t) : $(my_all_targets)
+ifeq ($(j_or_n),native)
+$(LOCAL_MODULE)-$(h_or_hc_or_t)$(my_32_64_bit_suffix) : $(my_all_targets)
+endif
 endif
 
 ###########################################################

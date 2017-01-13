@@ -37,6 +37,8 @@ $(SOONG_VARIABLES): FORCE
 	echo '    "DevicePrefer32BitExecutables": $(if $(filter true,$(TARGET_PREFER_32_BIT_EXECUTABLES)),true,false),'; \
 	echo '    "UseGoma": $(if $(filter-out false,$(USE_GOMA)),true,false),'; \
 	echo '    "Debuggable": $(if $(filter userdebug eng,$(TARGET_BUILD_VARIANT)),true,false),'; \
+	echo '    "Eng": $(if $(filter eng,$(TARGET_BUILD_VARIANT)),true,false),'; \
+	echo '    "VendorPath": "$(TARGET_COPY_OUT_VENDOR)",'; \
 	echo ''; \
 	echo '    "ClangTidy": $(if $(filter 1 true,$(WITH_TIDY)),true,false),'; \
 	echo '    "TidyChecks": "$(WITH_TIDY_CHECKS)",'; \
@@ -47,6 +49,7 @@ $(SOONG_VARIABLES): FORCE
 	echo '    "DeviceCpuVariant": "$(TARGET_CPU_VARIANT)",'; \
 	echo '    "DeviceAbi": ["$(TARGET_CPU_ABI)", "$(TARGET_CPU_ABI2)"],'; \
 	echo '    "DeviceUsesClang": $(if $(USE_CLANG_PLATFORM_BUILD),$(USE_CLANG_PLATFORM_BUILD),false),'; \
+	echo '    "DeviceVndkVersion": "$(BOARD_VNDK_VERSION)",'; \
 	echo ''; \
 	echo '    "DeviceSecondaryArch": "$(TARGET_2ND_ARCH)",'; \
 	echo '    "DeviceSecondaryArchVariant": "$(TARGET_2ND_ARCH_VARIANT)",'; \
@@ -59,7 +62,9 @@ $(SOONG_VARIABLES): FORCE
 	echo '    "CrossHost": "$(HOST_CROSS_OS)",'; \
 	echo '    "CrossHostArch": "$(HOST_CROSS_ARCH)",'; \
 	echo '    "CrossHostSecondaryArch": "$(HOST_CROSS_2ND_ARCH)",'; \
-	echo '    "Safestack": $(if $(filter true,$(USE_SAFESTACK)),true,false)'; \
+	echo '    "Safestack": $(if $(filter true,$(USE_SAFESTACK)),true,false),'; \
+	echo ''; \
+	echo '    "ArtUseReadBarrier": $(if $(filter true,$(PRODUCT_ART_USE_READ_BARRIER)),true,false)'; \
 	echo '}') > $(SOONG_VARIABLES_TMP); \
 	if ! cmp -s $(SOONG_VARIABLES_TMP) $(SOONG_VARIABLES); then \
 	  mv $(SOONG_VARIABLES_TMP) $(SOONG_VARIABLES); \

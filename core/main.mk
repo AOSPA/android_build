@@ -50,6 +50,8 @@ endif
 
 include $(SOONG_MAKEVARS_MK)
 
+include $(BUILD_SYSTEM)/clang/config.mk
+
 # Write the build number to a file so it can be read back in
 # without changing the command line every time.  Avoids rebuilds
 # when using ninja.
@@ -507,9 +509,6 @@ endif # PDK_FUSION_PLATFORM_ZIP
 endif # dont_bother
 
 endif # ONE_SHOT_MAKEFILE
-
-# Now with all Android.mks loaded we can do post cleaning steps.
-include $(BUILD_SYSTEM)/post_clean.mk
 
 # -------------------------------------------------------------------
 # All module makefiles have been included at this point.

@@ -31,7 +31,6 @@ PRODUCT_PACKAGES += \
 
 PRODUCT_PACKAGES += \
     audio.primary.default \
-    audio_policy.default \
     local_time.default \
     power.default
 
@@ -60,6 +59,7 @@ PRODUCT_PACKAGES += \
     keystore \
     keystore.default \
     ld.mc \
+    liboboe \
     libOpenMAXAL \
     libOpenSLES \
     libdownmix \
@@ -89,7 +89,7 @@ PRODUCT_BOOT_JARS := \
     core-libart \
     conscrypt \
     okhttp \
-    core-junit \
+    legacy-test \
     bouncycastle \
     ext \
     framework \

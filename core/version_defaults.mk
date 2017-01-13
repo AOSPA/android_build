@@ -81,7 +81,7 @@ ifeq "" "$(PLATFORM_JACK_MIN_SDK_VERSION)"
   # PLATFORM_SDK_VERSION. During development, this number may be incremented
   # before PLATFORM_SDK_VERSION if the plateform starts to add new java
   # language supports.
-  PLATFORM_JACK_MIN_SDK_VERSION := 25
+  PLATFORM_JACK_MIN_SDK_VERSION := o-b1
 endif
 
 ifeq "" "$(PLATFORM_VERSION_CODENAME)"
@@ -131,7 +131,7 @@ ifeq "" "$(PLATFORM_SECURITY_PATCH)"
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-      PLATFORM_SECURITY_PATCH := 2017-01-05
+      PLATFORM_SECURITY_PATCH := 2017-02-05
 endif
 
 ifeq "" "$(PLATFORM_BASE_OS)"

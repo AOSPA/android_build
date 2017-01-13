@@ -59,7 +59,7 @@ PRODUCT_PACKAGES += \
     keystore \
     keystore.default \
     ld.mc \
-    libbcc \
+    liboboe \
     libOpenMAXAL \
     libOpenSLES \
     libdownmix \
@@ -95,7 +95,7 @@ PRODUCT_BOOT_JARS := \
     core-libart \
     conscrypt \
     okhttp \
-    core-junit \
+    legacy-test \
     bouncycastle \
     ext \
     framework \
