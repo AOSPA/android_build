@@ -37,6 +37,7 @@ PRODUCT_PACKAGES += \
     dnsmasq \
     dpm \
     framework \
+    framework-sysconfig.xml \
     fsck_msdos \
     hid \
     ime \
@@ -111,7 +112,7 @@ PRODUCT_PACKAGES += \
     media_cmd \
     mediadrmserver \
     mediaserver \
-    mediaanalytics \
+    mediametrics \
     mediacodec \
     mediaextractor \
     monkey \

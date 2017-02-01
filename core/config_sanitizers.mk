@@ -3,6 +3,7 @@
 ##############################################
 
 my_sanitize := $(strip $(LOCAL_SANITIZE))
+my_sanitize_diag := $(strip $(LOCAL_SANITIZE_DIAG))
 
 # SANITIZE_HOST is only in effect if the module is already using clang (host
 # modules that haven't set `LOCAL_CLANG := false` and device modules that
@@ -59,6 +60,12 @@ endif
 # Never always wins.
 ifeq ($(LOCAL_SANITIZE),never)
   my_sanitize :=
+endif
+
+# If CFI is disabled globally, remove it from my_sanitize.
+ifeq ($(strip $(ENABLE_CFI)),)
+  my_sanitize := $(filter-out cfi,$(my_sanitize))
+  my_sanitize_diag := $(filter-out cfi,$(my_sanitize_diag))
 endif
 
 my_nosanitize = $(strip $(LOCAL_NOSANITIZE))
@@ -136,8 +143,13 @@ ifneq ($(my_sanitize),)
 endif
 
 ifneq ($(filter cfi,$(my_sanitize)),)
+  # __cfi_check needs to be built as Thumb (see the code in linker_cfi.cpp).
+  # LLVM is not set up to do this on a function basis, so force Thumb on the
+  # entire module.
+  LOCAL_ARM_MODE := thumb
   my_cflags += -flto -fsanitize-cfi-cross-dso -fvisibility=default
   my_ldflags += -flto -fsanitize-cfi-cross-dso -fsanitize=cfi -Wl,-plugin-opt,O1 -Wl,-export-dynamic-symbol=__cfi_check
+  my_arflags += --plugin $(LLVM_PREBUILTS_PATH)/../lib64/LLVMgold.so
 endif
 
 # If local or global modules need ASAN, add linker flags.
@@ -195,8 +207,8 @@ ifneq ($(strip $(LOCAL_SANITIZE_RECOVER)),)
   my_cflags += -fsanitize-recover=$(recover_arg)
 endif
 
-ifneq ($(strip $(LOCAL_SANITIZE_DIAG)),)
-  notrap_arg := $(subst $(space),$(comma),$(LOCAL_SANITIZE_DIAG)),
+ifneq ($(my_sanitize_diag),)
+  notrap_arg := $(subst $(space),$(comma),$(my_sanitize_diag)),
   my_cflags += -fno-sanitize-trap=$(notrap_arg)
   # Diagnostic requires a runtime library, unless ASan or TSan are also enabled.
   ifeq ($(filter address thread,$(my_sanitize)),)

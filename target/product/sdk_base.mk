@@ -38,6 +38,7 @@ PRODUCT_PACKAGES := \
 	OpenWnn \
 	Protips \
 	rild \
+	screenrecord \
 	SdkSetup \
 	SmokeTest \
 	SmokeTestApp \
@@ -54,7 +55,31 @@ PRODUCT_PACKAGES := \
 # audio libraries.
 PRODUCT_PACKAGES += \
 	audio.primary.goldfish \
+	audio.r_submix.default \
 	local_time.default
+
+# CDD mandates following codecs
+PRODUCT_PACKAGES += \
+    libstagefright_soft_aacdec \
+    libstagefright_soft_aacenc \
+    libstagefright_soft_amrdec \
+    libstagefright_soft_amrnbenc \
+    libstagefright_soft_amrwbenc \
+    libstagefright_soft_avcdec \
+    libstagefright_soft_avcenc \
+    libstagefright_soft_flacenc \
+    libstagefright_soft_g711dec \
+    libstagefright_soft_gsmdec \
+    libstagefright_soft_hevcdec \
+    libstagefright_soft_mp3dec \
+    libstagefright_soft_mpeg2dec \
+    libstagefright_soft_mpeg4dec \
+    libstagefright_soft_mpeg4enc \
+    libstagefright_soft_opusdec \
+    libstagefright_soft_rawdec \
+    libstagefright_soft_vorbisdec \
+    libstagefright_soft_vpxdec \
+    libstagefright_soft_vpxenc
 
 PRODUCT_PACKAGE_OVERLAYS := development/sdk_overlay
 
@@ -68,14 +93,14 @@ PRODUCT_COPY_FILES := \
 	device/generic/goldfish/camera/media_profiles.xml:system/etc/media_profiles.xml \
 	frameworks/av/media/libstagefright/data/media_codecs_google_audio.xml:system/etc/media_codecs_google_audio.xml \
 	frameworks/av/media/libstagefright/data/media_codecs_google_telephony.xml:system/etc/media_codecs_google_telephony.xml \
-	frameworks/av/media/libstagefright/data/media_codecs_google_video.xml:system/etc/media_codecs_google_video.xml \
+	device/generic/goldfish/camera/media_codecs_google_video.xml:system/etc/media_codecs_google_video.xml \
 	device/generic/goldfish/camera/media_codecs.xml:system/etc/media_codecs.xml \
 	device/generic/goldfish/camera/media_codecs_performance.xml:system/etc/media_codecs_performance.xml \
 	frameworks/native/data/etc/android.hardware.touchscreen.multitouch.jazzhand.xml:system/etc/permissions/android.hardware.touchscreen.multitouch.jazzhand.xml \
 	frameworks/native/data/etc/android.hardware.camera.xml:system/etc/permissions/android.hardware.camera.xml \
 	frameworks/native/data/etc/android.hardware.fingerprint.xml:system/etc/permissions/android.hardware.fingerprint.xml \
 	frameworks/av/media/libeffects/data/audio_effects.conf:system/etc/audio_effects.conf \
-	hardware/libhardware_legacy/audio/audio_policy.conf:system/etc/audio_policy.conf
+	device/generic/goldfish/audio_policy.conf:system/etc/audio_policy.conf
 
 include $(SRC_TARGET_DIR)/product/emulator.mk
 
