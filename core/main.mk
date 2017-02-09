@@ -9,6 +9,25 @@ else
 SHELL := /bin/bash
 endif
 
+ifndef KATI
+USE_SOONG_UI ?= false
+endif
+ifeq ($(USE_SOONG_UI),true)
+
+host_prebuilts := linux-x86
+ifeq ($(shell uname),Darwin)
+host_prebuilts := darwin-x86
+endif
+
+.PHONY: run_soong_ui
+run_soong_ui:
+	+@prebuilts/build-tools/$(host_prebuilts)/bin/makeparallel --ninja build/soong/soong_ui.bash --make-mode $(MAKECMDGOALS)
+
+.PHONY: $(MAKECMDGOALS)
+$(MAKECMDGOALS) : run_soong_ui
+
+else # USE_SOONG_UI
+
 # Absolute path of the present working direcotry.
 # This overrides the shell variable $PWD, which does not necessarily points to
 # the top of the source tree, for example when "make -C" is used in m/mm/mmm.
@@ -251,9 +270,15 @@ ifdef PRODUCT_SHIPPING_API_LEVEL
 ADDITIONAL_BUILD_PROPERTIES += \
   ro.product.first_api_level=$(PRODUCT_SHIPPING_API_LEVEL)
 endif
-ADDITIONAL_BUILD_PROPERTIES := \
-  $(ADDITIONAL_BUILD_PROPERTIES) \
-  $(PRODUCT_PROPERTY_OVERRIDES)
+
+ifneq ($(ENABLE_TREBLE), true)
+  ADDITIONAL_BUILD_PROPERTIES += $(PRODUCT_PROPERTY_OVERRIDES)
+else
+  ifndef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
+    ADDITIONAL_BUILD_PROPERTIES += $(PRODUCT_PROPERTY_OVERRIDES)
+  endif
+endif
+
 
 # Bring in standard build system definitions.
 include $(BUILD_SYSTEM)/definitions.mk
@@ -1122,3 +1147,4 @@ ndk: $(SOONG_OUT_DIR)/ndk.timestamp
 all_link_types:
 
 endif # KATI
+endif # USE_SOONG_UI
