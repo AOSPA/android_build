@@ -24,6 +24,7 @@ PRODUCT_NAME := core
 
 PRODUCT_PACKAGES += \
     BackupRestoreConfirmation \
+    CompanionDeviceManager \
     CtsShimPrebuilt \
     CtsShimPrivPrebuilt \
     DownloadProvider \
@@ -59,7 +60,7 @@ PRODUCT_PACKAGES += \
     keystore \
     keystore.default \
     ld.mc \
-    liboboe \
+    libaaudio \
     libOpenMAXAL \
     libOpenSLES \
     libdownmix \

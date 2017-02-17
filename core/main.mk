@@ -24,7 +24,8 @@ run_soong_ui:
 	+@prebuilts/build-tools/$(host_prebuilts)/bin/makeparallel --ninja build/soong/soong_ui.bash --make-mode $(MAKECMDGOALS)
 
 .PHONY: $(MAKECMDGOALS)
-$(MAKECMDGOALS) : run_soong_ui
+$(sort $(MAKECMDGOALS)) : run_soong_ui
+	@#empty
 
 else # USE_SOONG_UI
 
@@ -1082,15 +1083,6 @@ tests : host-tests target-tests
 
 # Phony target to run all java compilations that use javac instead of jack.
 .PHONY: javac-check
-
-# To catch more build breakage, check build tests modules in eng and userdebug builds.
-ifneq ($(ANDROID_NO_TEST_CHECK),true)
-ifneq ($(TARGET_BUILD_PDK),true)
-ifneq ($(filter eng userdebug,$(TARGET_BUILD_VARIANT)),)
-droidcore : target-tests host-tests
-endif
-endif
-endif
 
 ifneq (,$(filter samplecode, $(MAKECMDGOALS)))
 .PHONY: samplecode
