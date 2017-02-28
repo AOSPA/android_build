@@ -34,11 +34,49 @@
 # if the file exists.
 #
 INTERNAL_BUILD_ID_MAKEFILE := $(wildcard $(BUILD_SYSTEM)/build_id.mk)
-ifneq "" "$(INTERNAL_BUILD_ID_MAKEFILE)"
+ifdef INTERNAL_BUILD_ID_MAKEFILE
   include $(INTERNAL_BUILD_ID_MAKEFILE)
 endif
 
-ifeq "" "$(PLATFORM_VERSION)"
+# Returns all words in $1 up to and including $2
+define find_and_earlier
+  $(strip $(if $(1),
+    $(firstword $(1))
+    $(if $(filter $(firstword $(1)),$(2)),,
+      $(call find_and_earlier,$(wordlist 2,$(words $(1)),$(1)),$(2)))))
+endef
+
+#$(warning $(call find_and_earlier,A B C,A))
+#$(warning $(call find_and_earlier,A B C,B))
+#$(warning $(call find_and_earlier,A B C,C))
+#$(warning $(call find_and_earlier,A B C,D))
+
+define version-list
+$(1) $(1)DR1 $(1)DR2 $(1)MR1 $(1)MR2
+endef
+
+ALL_VERSIONS := O P
+ALL_VERSIONS := $(foreach v,$(ALL_VERSIONS),$(call version-list,$(v)))
+
+ifeq (,$(TARGET_PLATFORM_VERSION))
+  # Default targeted platform version
+  # TODO: PLATFORM_VERSION, PLATFORM_SDK_VERSION, etc. should be conditional
+  # on this
+  TARGET_PLATFORM_VERSION := O
+endif
+
+ifeq (,$(filter $(ALL_VERSIONS), $(TARGET_PLATFORM_VERSION)))
+$(warning Invalid TARGET_PLATFORM_VERSION '$(TARGET_PLATFORM_VERSION)', must be one of)
+$(warning $(ALL_VERSIONS))
+$(error Stopping...)
+endif
+
+ENABLED_VERSIONS := $(call find_and_earlier,$(ALL_VERSIONS),$(TARGET_PLATFORM_VERSION))
+
+$(foreach v,$(ENABLED_VERSIONS), \
+  $(eval IS_AT_LEAST_$(v) := true))
+
+ifndef PLATFORM_VERSION
   # This is the canonical definition of the platform version,
   # which is the version that we reveal to the end user.
   # Update this value when the platform version changes (rather
@@ -55,7 +93,7 @@ ifeq "" "$(PLATFORM_VERSION)"
   PLATFORM_VERSION := O
 endif
 
-ifeq "" "$(PLATFORM_SDK_VERSION)"
+ifndef PLATFORM_SDK_VERSION
   # This is the canonical definition of the SDK version, which defines
   # the set of APIs and functionality available in the platform.  It
   # is a single integer that increases monotonically as updates to
@@ -75,7 +113,7 @@ ifeq "" "$(PLATFORM_SDK_VERSION)"
   PLATFORM_SDK_VERSION := 25
 endif
 
-ifeq "" "$(PLATFORM_JACK_MIN_SDK_VERSION)"
+ifndef PLATFORM_JACK_MIN_SDK_VERSION
   # This is definition of the min SDK version given to Jack for the current
   # platform. For released version it should be the same as
   # PLATFORM_SDK_VERSION. During development, this number may be incremented
@@ -84,7 +122,7 @@ ifeq "" "$(PLATFORM_JACK_MIN_SDK_VERSION)"
   PLATFORM_JACK_MIN_SDK_VERSION := o-b1
 endif
 
-ifeq "" "$(PLATFORM_VERSION_CODENAME)"
+ifndef PLATFORM_VERSION_CODENAME
   # This is the current development code-name, if the build is not a final
   # release build.  If this is a final release build, it is simply "REL".
   PLATFORM_VERSION_CODENAME := O
@@ -95,10 +133,10 @@ ifeq "" "$(PLATFORM_VERSION_CODENAME)"
   PLATFORM_VERSION_ALL_CODENAMES := $(PLATFORM_VERSION_CODENAME)
 endif
 
-ifeq "REL" "$(PLATFORM_VERSION_CODENAME)"
+ifeq (REL,$(PLATFORM_VERSION_CODENAME))
   PLATFORM_PREVIEW_SDK_VERSION := 0
 else
-  ifeq "" "$(PLATFORM_PREVIEW_SDK_VERSION)"
+  ifndef PLATFORM_PREVIEW_SDK_VERSION
     # This is the definition of a preview SDK version over and above the current
     # platform SDK version. Unlike the platform SDK version, a higher value
     # for preview SDK version does NOT mean that all prior preview APIs are
@@ -112,20 +150,20 @@ else
   endif
 endif
 
-ifeq "" "$(DEFAULT_APP_TARGET_SDK)"
+ifndef DEFAULT_APP_TARGET_SDK
   # This is the default minSdkVersion and targetSdkVersion to use for
   # all .apks created by the build system.  It can be overridden by explicitly
   # setting these in the .apk's AndroidManifest.xml.  It is either the code
   # name of the development build or, if this is a release build, the official
   # SDK version of this release.
-  ifeq "REL" "$(PLATFORM_VERSION_CODENAME)"
+  ifeq (REL,$(PLATFORM_VERSION_CODENAME))
     DEFAULT_APP_TARGET_SDK := $(PLATFORM_SDK_VERSION)
   else
     DEFAULT_APP_TARGET_SDK := $(PLATFORM_VERSION_CODENAME)
   endif
 endif
 
-ifeq "" "$(PLATFORM_SECURITY_PATCH)"
+ifndef PLATFORM_SECURITY_PATCH
     #  Used to indicate the security patch that has been applied to the device.
     #  It must signify that the build includes all security patches issued up through the designated Android Public Security Bulletin.
     #  It must be of the form "YYYY-MM-DD" on production devices.
@@ -134,7 +172,7 @@ ifeq "" "$(PLATFORM_SECURITY_PATCH)"
       PLATFORM_SECURITY_PATCH := 2017-04-05
 endif
 
-ifeq "" "$(PLATFORM_BASE_OS)"
+ifndef PLATFORM_BASE_OS
   # Used to indicate the base os applied to the device.
   # Can be an arbitrary string, but must be a single word.
   #
@@ -142,7 +180,7 @@ ifeq "" "$(PLATFORM_BASE_OS)"
   PLATFORM_BASE_OS :=
 endif
 
-ifeq "" "$(BUILD_ID)"
+ifndef BUILD_ID
   # Used to signify special builds.  E.g., branches and/or releases,
   # like "M5-RC7".  Can be an arbitrary string, but must be a single
   # word and a valid file name.
@@ -151,7 +189,7 @@ ifeq "" "$(BUILD_ID)"
   BUILD_ID := UNKNOWN
 endif
 
-ifeq "" "$(BUILD_DATETIME)"
+ifndef BUILD_DATETIME
   # Used to reproduce builds by setting the same time. Must be the number
   # of seconds since the Epoch.
   BUILD_DATETIME := $(shell date +%s)
@@ -163,7 +201,7 @@ else
 DATE := date -d @$(BUILD_DATETIME)
 endif
 
-ifeq "" "$(BUILD_NUMBER)"
+ifndef BUILD_NUMBER
   # BUILD_NUMBER should be set to the source control value that
   # represents the current state of the source code.  E.g., a
   # perforce changelist number or a git hash.  Can be an arbitrary string

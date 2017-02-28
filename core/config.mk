@@ -92,6 +92,7 @@ CLEAR_VARS:= $(BUILD_SYSTEM)/clear_vars.mk
 BUILD_HOST_STATIC_LIBRARY:= $(BUILD_SYSTEM)/host_static_library.mk
 BUILD_HOST_SHARED_LIBRARY:= $(BUILD_SYSTEM)/host_shared_library.mk
 BUILD_STATIC_LIBRARY:= $(BUILD_SYSTEM)/static_library.mk
+BUILD_HEADER_LIBRARY:= $(BUILD_SYSTEM)/header_library.mk
 BUILD_AUX_STATIC_LIBRARY:= $(BUILD_SYSTEM)/aux_static_library.mk
 BUILD_AUX_EXECUTABLE:= $(BUILD_SYSTEM)/aux_executable.mk
 BUILD_SHARED_LIBRARY:= $(BUILD_SYSTEM)/shared_library.mk
@@ -496,6 +497,8 @@ MAINDEXCLASSES := $(HOST_OUT_EXECUTABLES)/mainDexClasses
 SOONG_ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/soong_zip
 ZIP2ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/zip2zip
 
+JAVAC_FILTER := $(SOONG_HOST_OUT_EXECUTABLES)/soong_javac_filter
+
 # Always use prebuilts for ckati and makeparallel
 prebuilt_build_tools := prebuilts/build-tools
 ifeq ($(filter address,$(SANITIZE_HOST)),)
@@ -601,10 +604,16 @@ E2FSCK := $(HOST_OUT_EXECUTABLES)/e2fsck$(HOST_EXECUTABLE_SUFFIX)
 MKTARBALL := build/tools/mktarball.sh
 TUNE2FS := $(HOST_OUT_EXECUTABLES)/tune2fs$(HOST_EXECUTABLE_SUFFIX)
 JARJAR := $(HOST_OUT_JAVA_LIBRARIES)/jarjar.jar
+DESUGAR := $(HOST_OUT_JAVA_LIBRARIES)/desugar.jar
 DATA_BINDING_COMPILER := $(HOST_OUT_JAVA_LIBRARIES)/databinding-compiler.jar
 FAT16COPY := build/tools/fat16copy.py
 CHECK_LINK_TYPE := build/tools/check_link_type.py
 
+ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
+DEFAULT_JACK_ENABLED:=full
+else
+DEFAULT_JACK_ENABLED:=
+endif
 ifneq ($(ANDROID_JACK_EXTRA_ARGS),)
 JACK_DEFAULT_ARGS :=
 DEFAULT_JACK_EXTRA_ARGS := $(ANDROID_JACK_EXTRA_ARGS)
@@ -701,7 +710,7 @@ endif
 
 # allow overriding default Java libraries on a per-target basis
 ifeq ($(TARGET_DEFAULT_JAVA_LIBRARIES),)
-  TARGET_DEFAULT_JAVA_LIBRARIES := core-oj core-libart legacy-test ext framework okhttp
+  TARGET_DEFAULT_JAVA_LIBRARIES := core-oj core-libart ext framework okhttp
 endif
 
 # Flags for DEX2OAT
