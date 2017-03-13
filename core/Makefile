@@ -297,7 +297,7 @@ $(INSTALLED_VENDOR_BUILD_PROP_TARGET): $(INSTALLED_BUILD_PROP_TARGET)
 	$(hide) echo > $@
 	$(hide) echo ro.vendor.build.date=`$(DATE_FROM_FILE)`>>$@
 	$(hide) echo ro.vendor.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
-	$(hide) echo ro.vendor.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
+	$(hide) echo ro.vendor.build.fingerprint="$(BUILD_FINGERPRINT)">>$@
 endif
 
 # ----------------------------------------------------------------
