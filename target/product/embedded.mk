@@ -88,19 +88,15 @@ PRODUCT_PACKAGES += \
 
 # SELinux packages
 PRODUCT_PACKAGES += \
-    file_contexts.bin \
-    nonplat_file_contexts \
     nonplat_mac_permissions.xml \
     nonplat_property_contexts \
     nonplat_seapp_contexts \
     nonplat_service_contexts \
-    plat_file_contexts \
     plat_mac_permissions.xml \
     plat_property_contexts \
     plat_seapp_contexts \
     plat_service_contexts \
-    selinux_version \
-    sepolicy
+    selinux_version
 
 # AID Generation for
 # <pwd.h> and <grp.h>
@@ -120,3 +116,7 @@ PRODUCT_COPY_FILES += \
     system/core/rootdir/init.usb.configfs.rc:root/init.usb.configfs.rc \
     system/core/rootdir/ueventd.rc:root/ueventd.rc \
     system/core/rootdir/etc/hosts:system/etc/hosts
+
+# Framework Manifest
+PRODUCT_COPY_FILES += \
+    system/libhidl/manifest.xml:system/manifest.xml

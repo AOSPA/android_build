@@ -307,13 +307,6 @@ endif
 
 $(LOCAL_INTERMEDIATE_TARGETS): \
     PRIVATE_ANDROID_MANIFEST := $(full_android_manifest)
-ifneq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
-$(LOCAL_INTERMEDIATE_TARGETS): \
-    PRIVATE_DEFAULT_APP_TARGET_SDK := $(LOCAL_SDK_VERSION)
-else
-$(LOCAL_INTERMEDIATE_TARGETS): \
-    PRIVATE_DEFAULT_APP_TARGET_SDK := $(DEFAULT_APP_TARGET_SDK)
-endif
 
 ifeq ($(LOCAL_DATA_BINDING),true)
 data_binding_stamp := $(data_binding_intermediates)/data-binding.stamp
@@ -638,18 +631,14 @@ ALL_MODULES.$(my_register_name).BUILT_INSTALLED += \
 $(my_all_targets): $(installed_apk_splits)
 
 ifdef LOCAL_COMPATIBILITY_SUITE
-cts_testcase_file := $(foreach s,$(my_split_suffixes),$(COMPATIBILITY_TESTCASES_OUT_$(LOCAL_COMPATIBILITY_SUITE))/$(LOCAL_MODULE)_$(s).apk)
-$(cts_testcase_file) : $(COMPATIBILITY_TESTCASES_OUT_$(LOCAL_COMPATIBILITY_SUITE))/$(LOCAL_MODULE)_%.apk : $(built_module_path)/package_%.apk | $(ACP)
-	$(copy-file-to-new-target)
-common_testcase_file := $(foreach s,$(my_split_suffixes),$($(my_prefix)OUT_TESTCASES)/$(LOCAL_MODULE)/$(LOCAL_MODULE)_$(s).apk)
-$(common_testcase_file) : $($(my_prefix)OUT_TESTCASES)/$(LOCAL_MODULE)/$(LOCAL_MODULE)_%.apk : $(built_module_path)/package_%.apk
-	$(copy-file-to-new-target)
 
-COMPATIBILITY.$(LOCAL_COMPATIBILITY_SUITE).FILES := \
-  $(COMPATIBILITY.$(LOCAL_COMPATIBILITY_SUITE).FILES) \
-  $(cts_testcase_file) $(common_testcase_file)
+$(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
+  $(eval my_compat_dist_$(suite) := $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
+    $(foreach s,$(my_split_suffixes),\
+      $(built_module_path)/package_$(s).apk:$(dir)/$(LOCAL_MODULE)_$(s).apk))))
 
-$(my_all_targets) : $(cts_testcase_file) $(common_testcase_file)
+$(call create-suite-dependencies)
+
 endif # LOCAL_COMPATIBILITY_SUITE
 endif # LOCAL_PACKAGE_SPLITS
 

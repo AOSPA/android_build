@@ -146,33 +146,14 @@ def LoadInfoDict(input_file, input_dir=None):
       except IOError as e:
         if e.errno == errno.ENOENT:
           raise KeyError(fn)
-  d = {}
+
   try:
     d = LoadDictionaryFromLines(read_helper("META/misc_info.txt").split("\n"))
   except KeyError:
-    # ok if misc_info.txt doesn't exist
-    pass
+    raise ValueError("can't find META/misc_info.txt in input target-files")
 
-  # backwards compatibility: These values used to be in their own
-  # files.  Look for them, in case we're processing an old
-  # target_files zip.
-
-  if "recovery_api_version" not in d:
-    try:
-      d["recovery_api_version"] = read_helper(
-          "META/recovery-api-version.txt").strip()
-    except KeyError:
-      raise ValueError("can't find recovery API version in input target-files")
-
-  if "tool_extensions" not in d:
-    try:
-      d["tool_extensions"] = read_helper("META/tool-extensions.txt").strip()
-    except KeyError:
-      # ok if extensions don't exist
-      pass
-
-  if "fstab_version" not in d:
-    d["fstab_version"] = "1"
+  assert "recovery_api_version" in d
+  assert "fstab_version" in d
 
   # A few properties are stored as links to the files in the out/ directory.
   # It works fine with the build system. However, they are no longer available
@@ -268,6 +249,7 @@ def LoadInfoDict(input_file, input_dir=None):
   d["build.prop"] = LoadBuildProp(read_helper)
   return d
 
+
 def LoadBuildProp(read_helper):
   try:
     data = read_helper("SYSTEM/build.prop")
@@ -275,6 +257,7 @@ def LoadBuildProp(read_helper):
     print("Warning: could not find SYSTEM/build.prop in %s" % (zip,))
     data = ""
   return LoadDictionaryFromLines(data.split("\n"))
+
 
 def LoadDictionaryFromLines(lines):
   d = {}
@@ -287,15 +270,15 @@ def LoadDictionaryFromLines(lines):
       d[name] = value
   return d
 
+
 def LoadRecoveryFSTab(read_helper, fstab_version, recovery_fstab_path,
                       system_root_image=False):
   class Partition(object):
-    def __init__(self, mount_point, fs_type, device, length, device2, context):
+    def __init__(self, mount_point, fs_type, device, length, context):
       self.mount_point = mount_point
       self.fs_type = fs_type
       self.device = device
       self.length = length
-      self.device2 = device2
       self.context = context
 
   try:
@@ -304,81 +287,44 @@ def LoadRecoveryFSTab(read_helper, fstab_version, recovery_fstab_path,
     print("Warning: could not find {}".format(recovery_fstab_path))
     data = ""
 
-  if fstab_version == 1:
-    d = {}
-    for line in data.split("\n"):
-      line = line.strip()
-      if not line or line.startswith("#"):
-        continue
-      pieces = line.split()
-      if not 3 <= len(pieces) <= 4:
-        raise ValueError("malformed recovery.fstab line: \"%s\"" % (line,))
-      options = None
-      if len(pieces) >= 4:
-        if pieces[3].startswith("/"):
-          device2 = pieces[3]
-          if len(pieces) >= 5:
-            options = pieces[4]
-        else:
-          device2 = None
-          options = pieces[3]
+  assert fstab_version == 2
+
+  d = {}
+  for line in data.split("\n"):
+    line = line.strip()
+    if not line or line.startswith("#"):
+      continue
+
+    # <src> <mnt_point> <type> <mnt_flags and options> <fs_mgr_flags>
+    pieces = line.split()
+    if len(pieces) != 5:
+      raise ValueError("malformed recovery.fstab line: \"%s\"" % (line,))
+
+    # Ignore entries that are managed by vold.
+    options = pieces[4]
+    if "voldmanaged=" in options:
+      continue
+
+    # It's a good line, parse it.
+    length = 0
+    options = options.split(",")
+    for i in options:
+      if i.startswith("length="):
+        length = int(i[7:])
       else:
-        device2 = None
-
-      mount_point = pieces[0]
-      length = 0
-      if options:
-        options = options.split(",")
-        for i in options:
-          if i.startswith("length="):
-            length = int(i[7:])
-          else:
-            print("%s: unknown option \"%s\"" % (mount_point, i))
-
-      d[mount_point] = Partition(mount_point=mount_point, fs_type=pieces[1],
-                                 device=pieces[2], length=length,
-                                 device2=device2)
-
-  elif fstab_version == 2:
-    d = {}
-    for line in data.split("\n"):
-      line = line.strip()
-      if not line or line.startswith("#"):
-        continue
-      # <src> <mnt_point> <type> <mnt_flags and options> <fs_mgr_flags>
-      pieces = line.split()
-      if len(pieces) != 5:
-        raise ValueError("malformed recovery.fstab line: \"%s\"" % (line,))
-
-      # Ignore entries that are managed by vold
-      options = pieces[4]
-      if "voldmanaged=" in options:
+        # Ignore all unknown options in the unified fstab.
         continue
 
-      # It's a good line, parse it
-      length = 0
-      options = options.split(",")
-      for i in options:
-        if i.startswith("length="):
-          length = int(i[7:])
-        else:
-          # Ignore all unknown options in the unified fstab
-          continue
+    mount_flags = pieces[3]
+    # Honor the SELinux context if present.
+    context = None
+    for i in mount_flags.split(","):
+      if i.startswith("context="):
+        context = i
 
-      mount_flags = pieces[3]
-      # Honor the SELinux context if present.
-      context = None
-      for i in mount_flags.split(","):
-        if i.startswith("context="):
-          context = i
-
-      mount_point = pieces[1]
-      d[mount_point] = Partition(mount_point=mount_point, fs_type=pieces[2],
-                                 device=pieces[0], length=length,
-                                 device2=None, context=context)
-
-  else:
-    raise ValueError("Unknown fstab_version: \"%d\"" % (fstab_version,))
+    mount_point = pieces[1]
+    d[mount_point] = Partition(mount_point=mount_point, fs_type=pieces[2],
+                               device=pieces[0], length=length, context=context)
 
   # / is used for the system mount point when the root directory is included in
   # system. Other areas assume system is always at "/system" so point /system
@@ -518,7 +464,13 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
   elif info_dict.get("vboot", None):
     path = "/" + os.path.basename(sourcedir).lower()
     img_keyblock = tempfile.NamedTemporaryFile()
-    cmd = [info_dict["vboot_signer_cmd"], info_dict["futility"],
+    # We have switched from the prebuilt futility binary to using the tool
+    # (futility-host) built from the source. Override the setting in the old
+    # TF.zip.
+    futility = info_dict["futility"]
+    if futility.startswith("prebuilts/"):
+      futility = "futility-host"
+    cmd = [info_dict["vboot_signer_cmd"], futility,
            img_unsigned.name, info_dict["vboot_key"] + ".vbpubk",
            info_dict["vboot_key"] + ".vbprivk",
            info_dict["vboot_subkey"] + ".vbprivk",
@@ -612,7 +564,7 @@ def UnzipTemp(filename, pattern=None):
   def unzip_to_dir(filename, dirname):
     cmd = ["unzip", "-o", "-q", filename, "-d", dirname]
     if pattern is not None:
-      cmd.append(pattern)
+      cmd.extend(pattern)
     p = Run(cmd, stdout=subprocess.PIPE)
     p.communicate()
     if p.returncode != 0:
@@ -920,7 +872,7 @@ def ParseOptions(argv,
   return args
 
 
-def MakeTempFile(prefix=None, suffix=None):
+def MakeTempFile(prefix='tmp', suffix=''):
   """Make a temp file and add it to the list of things to be deleted
   when Cleanup() is called.  Return the filename."""
   fd, fn = tempfile.mkstemp(prefix=prefix, suffix=suffix)
@@ -1239,6 +1191,10 @@ class File(object):
     t.flush()
     return t
 
+  def WriteToDir(self, d):
+    with open(os.path.join(d, self.name), "wb") as fp:
+      fp.write(self.data)
+
   def AddToZip(self, z, compression=None):
     ZipWriteStr(z, self.name, self.data, compress_type=compression)
 
@@ -1384,6 +1340,7 @@ class BlockDifference(object):
         version = max(
             int(i) for i in
             OPTIONS.info_dict.get("blockimgdiff_versions", "1").split(","))
+    assert version >= 3
     self.version = version
 
     b = blockimgdiff.BlockImageDiff(tgt, src, threads=OPTIONS.worker_threads,
@@ -1448,7 +1405,7 @@ class BlockDifference(object):
 
     # incremental OTA
     else:
-      if touched_blocks_only and self.version >= 3:
+      if touched_blocks_only:
         ranges = self.touched_src_ranges
         expected_sha1 = self.touched_src_sha1
       else:
@@ -1460,23 +1417,12 @@ class BlockDifference(object):
         return
 
       ranges_str = ranges.to_string_raw()
-      if self.version >= 4:
-        script.AppendExtra(('if (range_sha1("%s", "%s") == "%s" || '
-                            'block_image_verify("%s", '
-                            'package_extract_file("%s.transfer.list"), '
-                            '"%s.new.dat", "%s.patch.dat")) then') % (
-                            self.device, ranges_str, expected_sha1,
-                            self.device, partition, partition, partition))
-      elif self.version == 3:
-        script.AppendExtra(('if (range_sha1("%s", "%s") == "%s" || '
-                            'block_image_verify("%s", '
-                            'package_extract_file("%s.transfer.list"), '
-                            '"%s.new.dat", "%s.patch.dat")) then') % (
-                            self.device, ranges_str, expected_sha1,
-                            self.device, partition, partition, partition))
-      else:
-        script.AppendExtra('if range_sha1("%s", "%s") == "%s" then' % (
-                           self.device, ranges_str, self.src.TotalSha1()))
+      script.AppendExtra(('if (range_sha1("%s", "%s") == "%s" || '
+                          'block_image_verify("%s", '
+                          'package_extract_file("%s.transfer.list"), '
+                          '"%s.new.dat", "%s.patch.dat")) then') % (
+                          self.device, ranges_str, expected_sha1,
+                          self.device, partition, partition, partition))
       script.Print('Verified %s image...' % (partition,))
       script.AppendExtra('else')
 

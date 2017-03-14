@@ -65,6 +65,14 @@ PRODUCT_PACKAGES += \
 	android.hardware.keymaster@3.0-impl \
 	android.hardware.keymaster@3.0-service
 
+PRODUCT_PACKAGES += \
+    android.hardware.gnss@1.0-service \
+    android.hardware.gnss@1.0-impl
+
+PRODUCT_PACKAGES += \
+	android.hardware.sensors@1.0-impl \
+	android.hardware.sensors@1.0-service
+
 # camera service treble disable until all backwards compat is complete
 PRODUCT_PROPERTY_OVERRIDES += \
     camera.disable_treble=1

@@ -38,7 +38,14 @@ my_built_vdex := $(patsubst %.odex,%.vdex,$(my_built_odex))
 my_installed_vdex := $(patsubst %.odex,%.vdex,$(my_installed_odex))
 my_installed_art := $(patsubst %.odex,%.art,$(my_installed_odex))
 
-ifeq (true,$(WITH_DEXPREOPT_APP_IMAGE))
+ifndef LOCAL_DEX_PREOPT_APP_IMAGE
+# Local override not defined, use the global one.
+ifeq (true,$(WITH_DEX_PREOPT_APP_IMAGE))
+  LOCAL_DEX_PREOPT_APP_IMAGE := true
+endif
+endif
+
+ifeq (true,$(LOCAL_DEX_PREOPT_APP_IMAGE))
 my_built_art := $(patsubst %.odex,%.art,$(my_built_odex))
 $(my_built_odex): PRIVATE_ART_FILE_PREOPT_FLAGS := --app-image-file=$(my_built_art) \
     --image-format=lz4

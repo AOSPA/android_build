@@ -1202,31 +1202,6 @@ $(if $(PRIVATE_RENAME_CPP_EXT),\
   $(hide) mv $(basename $@).cc $@)
 endef
 
-
-######################################################################
-## Commands for generating DBus adaptors from .dbus-xml files.
-######################################################################
-define generate-dbus-adaptors
-@echo "Generating DBus adaptors for $(PRIVATE_MODULE)"
-@mkdir -p $(dir $@)
-$(hide) $(DBUS_GENERATOR) \
-	--service-config=$(PRIVATE_DBUS_SERVICE_CONFIG) \
-	--adaptor=$@ \
-	$<
-endef
-
-######################################################################
-## Commands for generating DBus proxies from .dbus-xml files.
-######################################################################
-define generate-dbus-proxies
-@echo "Generating DBus proxies for $(PRIVATE_MODULE)"
-@mkdir -p $(dir $@)
-$(hide) $(DBUS_GENERATOR) \
-	--service-config=$(PRIVATE_DBUS_SERVICE_CONFIG) \
-	--proxy=$@ \
-	$(filter %.dbus-xml,$^)
-endef
-
 ###########################################################
 ## Helper to set include paths form transform-*-to-o
 ###########################################################
@@ -2552,7 +2527,8 @@ $(hide) rm -f $@ $@.tmp
 $(hide) java -jar $(DESUGAR) \
     $(addprefix --bootclasspath_entry ,$(call desugar-bootclasspath,$(PRIVATE_BOOTCLASSPATH))) \
     $(addprefix --classpath_entry ,$(PRIVATE_ALL_JAVA_LIBRARIES)) \
-    --min_sdk_version 24 --allow_empty_bootclasspath \
+    --min_sdk_version $(PRIVATE_SDK_VERSION) \
+    --allow_empty_bootclasspath \
     $(if $(filter --core-library,$(PRIVATE_DX_FLAGS)),--core_library) \
     -i $< -o $@.tmp
     mv $@.tmp $@
@@ -2568,6 +2544,7 @@ $(hide) rm -f $(dir $@)classes*.dex
 $(hide) $(DX) \
     -JXms16M -JXmx2048M \
     --dex --output=$(dir $@) \
+    --min-sdk-version=$(PRIVATE_SDK_VERSION) \
     $(if $(NO_OPTIMIZE_DX), \
         --no-optimize) \
     $(if $(GENERATE_DEX_DEBUG), \
@@ -3149,7 +3126,8 @@ STATS.MODULE_TYPE := \
   NOTICE_FILE \
   HOST_DALVIK_JAVA_LIBRARY \
   HOST_DALVIK_STATIC_JAVA_LIBRARY \
-  base_rules
+  base_rules \
+  HEADER_LIBRARY
 
 $(foreach $(s),$(STATS.MODULE_TYPE),$(eval STATS.MODULE_TYPE.$(s) :=))
 define record-module-type
@@ -3247,6 +3225,43 @@ endef
 #$(warning 1 == $(call math_max,1,1))
 #$(warning 42 == $(call math_max,5,42))
 #$(warning 42 == $(call math_max,42,5))
+
+define math_gt_or_eq
+$(if $(filter $(1),$(call math_max,$(1),$(2))),true)
+endef
+
+#$(warning $(call math_gt_or_eq, 2, 1))
+#$(warning $(call math_gt_or_eq, 1, 1))
+#$(warning $(if $(call math_gt_or_eq, 1, 2),false,true))
+
+# $1 is the variable name to increment
+define inc_and_print
+$(strip $(eval $(1) := $($(1)) .)$(words $($(1))))
+endef
+
+###########################################################
+## Compatibility suite tools
+###########################################################
+
+# Return a list of output directories for a given suite and the current LOCAL_MODULE
+define compatibility_suite_dirs
+  $(strip \
+    $(COMPATIBILITY_TESTCASES_OUT_$(1)) \
+    $($(my_prefix)OUT_TESTCASES)/$(LOCAL_MODULE))
+endef
+
+# For each suite:
+# 1. Copy the files to the many suite output directories.
+# 2. Add all the files to each suite's dependent files list.
+# 3. Do the dependency addition to my_all_targets
+# Requires for each suite: my_compat_dist_$(suite) to be defined.
+define create-suite-dependencies
+$(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
+  $(eval my_compat_files_$(suite) := $(call copy-many-files, $(my_compat_dist_$(suite)))) \
+  $(eval COMPATIBILITY.$(suite).FILES := \
+    $(COMPATIBILITY.$(suite).FILES) $(my_compat_files_$(suite))) \
+  $(eval $(my_all_targets) : $(my_compat_files_$(suite))))
+endef
 
 ###########################################################
 ## Other includes

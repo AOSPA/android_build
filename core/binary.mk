@@ -61,7 +61,11 @@ my_export_c_include_deps := $(LOCAL_EXPORT_C_INCLUDE_DEPS)
 my_arflags :=
 
 ifneq (,$(strip $(foreach dir,$(subst $(comma),$(space),$(COVERAGE_PATHS)),$(filter $(dir)%,$(LOCAL_PATH)))))
+ifeq (,$(strip $(foreach dir,$(subst $(comma),$(space),$(COVERAGE_EXCLUDE_PATHS)),$(filter $(dir)%,$(LOCAL_PATH)))))
   my_native_coverage := true
+else
+  my_native_coverage := false
+endif
 else
   my_native_coverage := false
 endif
@@ -471,6 +475,11 @@ ifneq ($(LOCAL_NO_LIBCOMPILER_RT),true)
 ifeq (,$(WITHOUT_LIBCOMPILER_RT))
   my_static_libraries += $(COMPILER_RT_CONFIG_EXTRA_STATIC_LIBRARIES)
 endif
+endif
+
+# Statically link libwinpthread when cross compiling win32.
+ifeq ($($(my_prefix)OS),windows)
+  my_static_libraries += libwinpthread
 endif
 
 ifneq ($(filter ../%,$(my_src_files)),)
@@ -927,62 +936,6 @@ else
     endif
 endif
 endif  # $(proto_sources) non-empty
-
-###########################################################
-## Compile the .dbus-xml files to c++ headers
-###########################################################
-dbus_definitions := $(filter %.dbus-xml,$(my_src_files))
-dbus_generated_headers :=
-ifneq ($(dbus_definitions),)
-my_soong_problems += dbus
-
-dbus_definition_paths := $(addprefix $(LOCAL_PATH)/,$(dbus_definitions))
-dbus_service_config := $(filter %dbus-service-config.json,$(my_src_files))
-dbus_service_config_path := $(addprefix $(LOCAL_PATH)/,$(dbus_service_config))
-
-# Mark these source files as not producing objects
-$(call track-src-file-obj,$(dbus_definitions) $(dbus_service_config),)
-
-dbus_gen_dir := $(generated_sources_dir)/dbus_bindings
-
-ifdef LOCAL_DBUS_PROXY_PREFIX
-dbus_header_dir := $(dbus_gen_dir)/include/$(LOCAL_DBUS_PROXY_PREFIX)
-dbus_headers := dbus-proxies.h
-else
-dbus_header_dir := $(dbus_gen_dir)
-dbus_headers := $(patsubst %.dbus-xml,%.h,$(dbus_definitions))
-endif
-dbus_generated_headers := $(addprefix $(dbus_header_dir)/,$(dbus_headers))
-
-# Ensure that we only define build rules once in multilib builds.
-ifndef $(my_prefix)_$(LOCAL_MODULE_CLASS)_$(LOCAL_MODULE)_dbus_bindings_defined
-$(my_prefix)_$(LOCAL_MODULE_CLASS)_$(LOCAL_MODULE)_dbus_bindings_defined := true
-
-$(dbus_generated_headers): PRIVATE_MODULE := $(LOCAL_MODULE)
-$(dbus_generated_headers): PRIVATE_DBUS_SERVICE_CONFIG := $(dbus_service_config_path)
-$(dbus_generated_headers) : $(dbus_service_config_path) $(DBUS_GENERATOR)
-ifdef LOCAL_DBUS_PROXY_PREFIX
-$(dbus_generated_headers) : $(dbus_definition_paths)
-	$(generate-dbus-proxies)
-else
-$(dbus_generated_headers) : $(dbus_header_dir)/%.h : $(LOCAL_PATH)/%.dbus-xml
-	$(generate-dbus-adaptors)
-endif  # $(LOCAL_DBUS_PROXY_PREFIX)
-endif  # $(my_prefix)_$(LOCAL_MODULE_CLASS)_$(LOCAL_MODULE)_dbus_bindings_defined
-
-ifdef LOCAL_DBUS_PROXY_PREFIX
-# Auto-export the generated dbus proxy directory.
-my_export_c_include_dirs += $(dbus_gen_dir)/include
-my_c_includes += $(dbus_gen_dir)/include
-else
-my_export_c_include_dirs += $(dbus_header_dir)
-my_c_includes += $(dbus_header_dir)
-endif  # $(LOCAL_DBUS_PROXY_PREFIX)
-
-my_generated_sources += $(dbus_generated_headers)
-
-endif  # $(dbus_definitions) non-empty
-
 
 ###########################################################
 ## AIDL: Compile .aidl files to .cpp and .h files
@@ -1862,6 +1815,14 @@ endif
 # Coverage packaging.
 ###########################################################
 ifeq ($(my_native_coverage),true)
-LOCAL_GCNO_FILES := $(patsubst %.o,%.gcno,$(all_objects))
-$(foreach f,$(all_objects),$(eval $(call gcno-touch-rule,$(f),$(f:.o=.gcno))))
+my_gcno_objects := \
+    $(cpp_objects) \
+    $(gen_cpp_objects) \
+    $(c_objects) \
+    $(gen_c_objects) \
+    $(objc_objects) \
+    $(objcpp_objects)
+
+LOCAL_GCNO_FILES := $(patsubst %.o,%.gcno,$(my_gcno_objects))
+$(foreach f,$(my_gcno_objects),$(eval $(call gcno-touch-rule,$(f),$(f:.o=.gcno))))
 endif
