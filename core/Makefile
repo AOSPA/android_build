@@ -71,21 +71,10 @@ $(gen): frameworks/base/docs/docs-redirect-index.html
 endif
 
 # -----------------------------------------------------------------
-# vendor_default_property_overrides_split_enabled and
-# vendor_build_property_overrides_split_enabled
-vendor_default_property_overrides_split_enabled :=
-vendor_build_property_overrides_split_enabled :=
-ifeq ($(ENABLE_TREBLE), true)
-  ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
-    vendor_build_property_overrides_split_enabled := true
-
-    # Checks whether early mount for vendor partition is enabled or not.
-    # TODO(jaekyun): Early mount will be mandatory for ENABLE_TREBLE=true. After
-    # that is done, this condition check should be removed.
-    ifeq ($(ENABLE_EARLY_MOUNT), true)
-      vendor_default_property_overrides_split_enabled := true
-    endif
-  endif
+# property_overrides_split_enabled
+property_overrides_split_enabled :=
+ifeq ($(BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED), true)
+  property_overrides_split_enabled := true
 endif
 
 # -----------------------------------------------------------------
@@ -94,7 +83,7 @@ INSTALLED_DEFAULT_PROP_TARGET := $(TARGET_ROOT_OUT)/default.prop
 ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_DEFAULT_PROP_TARGET)
 FINAL_DEFAULT_PROPERTIES := \
     $(call collapse-pairs, $(ADDITIONAL_DEFAULT_PROPERTIES))
-ifndef vendor_default_property_overrides_split_enabled
+ifndef property_overrides_split_enabled
   FINAL_DEFAULT_PROPERTIES += \
       $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
 endif
@@ -122,7 +111,7 @@ $(INSTALLED_DEFAULT_PROP_TARGET): $(intermediate_system_build_prop)
 # -----------------------------------------------------------------
 # vendor default.prop
 INSTALLED_VENDOR_DEFAULT_PROP_TARGET :=
-ifdef vendor_default_property_overrides_split_enabled
+ifdef property_overrides_split_enabled
 INSTALLED_VENDOR_DEFAULT_PROP_TARGET := $(TARGET_OUT_VENDOR)/default.prop
 ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_VENDOR_DEFAULT_PROP_TARGET)
 
@@ -141,7 +130,7 @@ $(INSTALLED_VENDOR_DEFAULT_PROP_TARGET): $(INSTALLED_DEFAULT_PROP_TARGET)
 		echo "$(line)" >> $@;)
 	$(hide) build/tools/post_process_props.py $@
 
-endif  # vendor_default_property_overrides_split_enabled
+endif  # property_overrides_split_enabled
 
 # -----------------------------------------------------------------
 # build.prop
@@ -291,7 +280,7 @@ endif
 			TARGET_CPU_ABI2="$(TARGET_CPU_ABI2)" \
 			TARGET_AAPT_CHARACTERISTICS="$(TARGET_AAPT_CHARACTERISTICS)" \
 	        bash $(BUILDINFO_SH) >> $@
-ifndef vendor_build_property_overrides_split_enabled
+ifndef property_overrides_split_enabled
 	$(hide) TARGET_BOOTLOADER_BOARD_NAME="$(TARGET_BOOTLOADER_BOARD_NAME)" \
 			TARGET_BOARD_PLATFORM="$(TARGET_BOARD_PLATFORM)" \
 	        bash $(VENDOR_BUILDINFO_SH) >> $@
@@ -337,12 +326,12 @@ ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
 INSTALLED_VENDOR_BUILD_PROP_TARGET := $(TARGET_OUT_VENDOR)/build.prop
 ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_VENDOR_BUILD_PROP_TARGET)
 
-ifdef vendor_build_property_overrides_split_enabled
+ifdef property_overrides_split_enabled
 FINAL_VENDOR_BUILD_PROPERTIES += \
     $(call collapse-pairs, $(PRODUCT_PROPERTY_OVERRIDES))
 FINAL_VENDOR_BUILD_PROPERTIES := $(call uniq-pairs-by-first-component, \
     $(FINAL_VENDOR_BUILD_PROPERTIES),=)
-endif  # vendor_build_property_overrides_split_enabled
+endif  # property_overrides_split_enabled
 
 $(INSTALLED_VENDOR_BUILD_PROP_TARGET): $(VENDOR_BUILDINFO_SH)
 	@echo Target vendor buildinfo: $@
@@ -351,7 +340,7 @@ $(INSTALLED_VENDOR_BUILD_PROP_TARGET): $(VENDOR_BUILDINFO_SH)
 	$(hide) echo ro.vendor.build.date=`$(DATE_FROM_FILE)`>>$@
 	$(hide) echo ro.vendor.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
 	$(hide) echo ro.vendor.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
-ifdef vendor_build_property_overrides_split_enabled
+ifdef property_overrides_split_enabled
 	$(hide) TARGET_BOOTLOADER_BOARD_NAME="$(TARGET_BOOTLOADER_BOARD_NAME)" \
 			TARGET_BOARD_PLATFORM="$(TARGET_BOARD_PLATFORM)" \
 	        bash $(VENDOR_BUILDINFO_SH) >> $@
@@ -361,7 +350,7 @@ ifdef vendor_build_property_overrides_split_enabled
 	$(hide) $(foreach line,$(FINAL_VENDOR_BUILD_PROPERTIES), \
 		echo "$(line)" >> $@;)
 	$(hide) build/tools/post_process_props.py $@
-endif  # vendor_build_property_overrides_split_enabled
+endif  # property_overrides_split_enabled
 endif  # BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
 
 # ----------------------------------------------------------------
@@ -902,7 +891,7 @@ INTERNAL_USERIMAGES_DEPS += $(FEC)
 endif
 endif
 
-SELINUX_FC := $(TARGET_ROOT_OUT)/file_contexts.bin
+SELINUX_FC := $(call intermediates-dir-for,ETC,file_contexts.bin)/file_contexts.bin
 INTERNAL_USERIMAGES_DEPS += $(SELINUX_FC)
 
 INTERNAL_USERIMAGES_DEPS += $(BLK_ALLOC_TO_BASE_FS)
@@ -977,11 +966,19 @@ INTERNAL_RECOVERYIMAGE_FILES := $(filter $(TARGET_RECOVERY_OUT)/%, \
     $(ALL_DEFAULT_INSTALLED_MODULES))
 
 recovery_initrc := $(call include-path-for, recovery)/etc/init.rc
-recovery_sepolicy := $(call intermediates-dir-for,ETC,sepolicy.recovery)/sepolicy.recovery
+recovery_sepolicy := \
+    $(TARGET_RECOVERY_ROOT_OUT)/sepolicy \
+    $(TARGET_RECOVERY_ROOT_OUT)/file_contexts.bin \
+    $(TARGET_RECOVERY_ROOT_OUT)/plat_property_contexts \
+    $(TARGET_RECOVERY_ROOT_OUT)/nonplat_property_contexts
+# Passed into rsync from non-recovery root to recovery root, to avoid overwriting recovery-specific
+# SELinux files
+IGNORE_RECOVERY_SEPOLICY := $(patsubst $(TARGET_RECOVERY_OUT)/%,--exclude=/%,$(recovery_sepolicy))
+
 recovery_kernel := $(INSTALLED_KERNEL_TARGET) # same as a non-recovery system
 recovery_ramdisk := $(PRODUCT_OUT)/ramdisk-recovery.img
 recovery_build_props := $(intermediate_system_build_prop)
-ifdef vendor_build_property_overrides_split_enabled
+ifdef property_overrides_split_enabled
 recovery_build_props += $(INSTALLED_VENDOR_BUILD_PROP_TARGET)
 endif
 recovery_resources_common := $(call include-path-for, recovery)/res
@@ -1115,14 +1112,13 @@ define build-recoveryimage-target
   $(hide) mkdir -p $(TARGET_RECOVERY_OUT)
   $(hide) mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/etc $(TARGET_RECOVERY_ROOT_OUT)/sdcard $(TARGET_RECOVERY_ROOT_OUT)/tmp
   @echo Copying baseline ramdisk...
-  $(hide) rsync -a --exclude=etc --exclude=sdcard $(IGNORE_CACHE_LINK) $(TARGET_ROOT_OUT) $(TARGET_RECOVERY_OUT) # "cp -Rf" fails to overwrite broken symlinks on Mac.
+  # Use rsync because "cp -Rf" fails to overwrite broken symlinks on Mac.
+  $(hide) rsync -a --exclude=etc --exclude=sdcard $(IGNORE_RECOVERY_SEPOLICY) $(IGNORE_CACHE_LINK) $(TARGET_ROOT_OUT) $(TARGET_RECOVERY_OUT)
   @echo Modifying ramdisk contents...
   $(if $(BOARD_RECOVERY_KERNEL_MODULES), \
     $(call build-image-kernel-modules,$(BOARD_RECOVERY_KERNEL_MODULES),$(TARGET_RECOVERY_ROOT_OUT),,$(call intermediates-dir-for,PACKAGING,depmod_recovery)))
   $(hide) rm -f $(TARGET_RECOVERY_ROOT_OUT)/init*.rc
   $(hide) cp -f $(recovery_initrc) $(TARGET_RECOVERY_ROOT_OUT)/
-  $(hide) rm -f $(TARGET_RECOVERY_ROOT_OUT)/sepolicy
-  $(hide) cp -f $(recovery_sepolicy) $(TARGET_RECOVERY_ROOT_OUT)/sepolicy
   $(hide) cp $(TARGET_ROOT_OUT)/init.recovery.*.rc $(TARGET_RECOVERY_ROOT_OUT)/ || true # Ignore error when the src file doesn't exist.
   $(hide) mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/res
   $(hide) rm -rf $(TARGET_RECOVERY_ROOT_OUT)/res/*

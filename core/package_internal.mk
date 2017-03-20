@@ -96,7 +96,32 @@ package_resource_overlays := $(strip \
     $(wildcard $(foreach dir, $(DEVICE_PACKAGE_OVERLAYS), \
       $(addprefix $(dir)/, $(LOCAL_RESOURCE_DIR)))))
 
+enforce_rro_enabled :=
+ifeq ($(BOARD_ENFORCE_RRO),true)
+  ifeq (,$(filter $(LOCAL_PACKAGE_NAME), $(BOARD_ENFORCE_RRO_EXEMPT_SOURCES)))
+    ifneq ($(package_resource_overlays),)
+      enforce_rro_enabled := true
+    endif
+  endif
+
+  ifdef enforce_rro_enabled
+    ifeq (,$(LOCAL_MODULE_PATH))
+      ifeq (true,$(LOCAL_PROPRIETARY_MODULE))
+        enforce_rro_enabled :=
+      else ifeq (true,$(LOCAL_OEM_MODULE))
+        enforce_rro_enabled :=
+      else ifeq (true,$(LOCAL_ODM_MODULE))
+        enforce_rro_enabled :=
+      endif
+    else ifeq ($(filter $(TARGET_OUT)/%,$(LOCAL_MODULE_PATH)),)
+      enforce_rro_enabled :=
+    endif
+  endif
+endif
+
+ifndef enforce_rro_enabled
 LOCAL_RESOURCE_DIR := $(package_resource_overlays) $(LOCAL_RESOURCE_DIR)
+endif
 
 all_assets := $(strip \
     $(foreach dir, $(LOCAL_ASSET_DIR), \
@@ -355,6 +380,8 @@ ifdef LOCAL_USE_AAPT2
 my_compiled_res_base_dir := $(intermediates)/flat-res
 my_generated_res_dirs := $(rs_generated_res_dir)
 my_generated_res_dirs_deps := $(RenderScript_file_stamp)
+my_asset_dirs := $(LOCAL_ASSET_DIR)
+my_full_asset_paths := $(all_assets)
 # Add AAPT2 link specific flags.
 $(my_res_package): PRIVATE_AAPT_FLAGS := $(LOCAL_AAPT_FLAGS) --no-static-lib-packages
 include $(BUILD_SYSTEM)/aapt2.mk
@@ -652,3 +679,27 @@ endif # skip_definition
 
 # Reset internal variables.
 all_res_assets :=
+
+ifdef enforce_rro_enabled
+  ifdef LOCAL_EXPORT_PACKAGE_RESOURCES
+    enforce_rro_use_res_lib := true
+  else
+    enforce_rro_use_res_lib := false
+  endif
+
+  ifdef LOCAL_MANIFEST_PACKAGE_NAME
+    enforce_rro_is_manifest_package_name := true
+    enforce_rro_manifest_package_info := $(LOCAL_MANIFEST_PACKAGE_NAME)
+  else
+    enforce_rro_is_manifest_package_name := false
+    enforce_rro_manifest_package_info := $(full_android_manifest)
+  endif
+
+$(call append_enforce_rro_sources, \
+    $(my_register_name), \
+    $(enforce_rro_is_manifest_package_name), \
+    $(enforce_rro_manifest_package_info), \
+    $(enforce_rro_use_res_lib), \
+    $(package_resource_overlays) \
+    )
+endif  # enforce_rro_enabled
