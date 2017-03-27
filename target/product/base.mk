@@ -45,9 +45,6 @@ PRODUCT_PACKAGES += \
     incident \
     incident_report \
     input \
-    input.evdev.default \
-    inputflinger \
-    inputflingerhost \
     javax.obex \
     libandroid \
     libandroid_runtime \
@@ -62,11 +59,11 @@ PRODUCT_PACKAGES += \
     libcamera2ndk \
     libdl \
     libdrmclearkeyplugin \
+    libclearkeycasplugin \
     libeffectproxy \
     libeffects \
     libinput \
     libinputflinger \
-    libinputflingerhost \
     libiprouteutil \
     libjnigraphics \
     libldnhncr \
@@ -113,7 +110,6 @@ PRODUCT_PACKAGES += \
     mediadrmserver \
     mediaserver \
     mediametrics \
-    mediacodec \
     mediaextractor \
     monkey \
     mtpd \
@@ -140,6 +136,10 @@ PRODUCT_PACKAGES += \
     vdc \
     vold \
     wm
+
+# Essential HAL modules
+PRODUCT_PACKAGES += \
+    android.hardware.media.omx@1.0-service
 
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
