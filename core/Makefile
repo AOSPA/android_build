@@ -6863,7 +6863,7 @@ endif
 
 $(BUILT_TARGET_FILES_PACKAGE): $(BUILT_TARGET_FILES_DIR)
 	@echo "Packaging target files: $@"
-	$(hide) $(SOONG_ZIP) -d -o $@ -C $(zip_root) -r $@.list -sha256
+	$(hide) $(SOONG_ZIP) -L 0 -d -o $@ -C $(zip_root) -r $@.list -sha256
 
 .PHONY: target-files-package
 target-files-package: $(BUILT_TARGET_FILES_PACKAGE)
