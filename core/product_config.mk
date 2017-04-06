@@ -265,8 +265,10 @@ all_product_configs :=
 PRODUCT_BOOT_JARS := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_BOOT_JARS))
 PRODUCT_SYSTEM_SERVER_JARS := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_SERVER_JARS))
 
-# Find the device that this product maps to.
+# Find the device that this product maps to, if needed.
+ifeq ($(TARGET_DEVICE),)
 TARGET_DEVICE := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEVICE)
+endif
 
 # Figure out which resoure configuration options to use for this
 # product.
