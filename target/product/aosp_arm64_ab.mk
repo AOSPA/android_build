@@ -98,6 +98,8 @@ PRODUCT_PACKAGES := \
     android.hidl.memory@1.0 \
 
 PRODUCT_PACKAGES += \
+    libdynamic_sensor_ext \
+    libaudioroute \
     libxml2 \
     libtinyalsa \
     libtinycompress \
