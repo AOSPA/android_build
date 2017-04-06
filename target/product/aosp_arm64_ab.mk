@@ -20,21 +20,14 @@
 # system.prop.
 
 PRODUCT_COPY_FILES := \
-    device/generic/goldfish/data/etc/apns-conf.xml:system/etc/apns-conf.xml \
-    device/generic/goldfish/camera/media_profiles.xml:system/etc/media_profiles.xml \
-    frameworks/av/media/libstagefright/data/media_codecs_google_audio.xml:system/etc/media_codecs_google_audio.xml \
-    frameworks/av/media/libstagefright/data/media_codecs_google_telephony.xml:system/etc/media_codecs_google_telephony.xml \
-    frameworks/av/media/libstagefright/data/media_codecs_google_video.xml:system/etc/media_codecs_google_video.xml \
-    device/generic/goldfish/camera/media_codecs.xml:system/etc/media_codecs.xml \
+    device/generic/goldfish/data/etc/apns-conf.xml:system/etc/apns-conf.xml
 
-# TODO(jiyong): remove sailfish/marlin rc and fstab files. They should be in
+# TODO(jiyong): remove sailfish/marlin rc files. They should be in
 # /vendor/etc/init after b/35269867
 PRODUCT_COPY_FILES += \
-    device/google/marlin/fstab.common:root/fstab.sailfish \
     device/google/marlin/init.recovery.common.rc:root/init.recovery.sailfish.rc \
 
 PRODUCT_COPY_FILES += \
-    device/google/marlin/fstab.common:root/fstab.marlin \
     device/google/marlin/init.recovery.common.rc:root/init.recovery.marlin.rc \
 
 # For now, let's use marlin bootanimation as the default boot animation
@@ -44,6 +37,9 @@ PRODUCT_COPY_FILES += \
 # TODO(jiyong): remove this marlin-specific overlay when b/35742444 is fixed.
 PRODUCT_PACKAGE_OVERLAYS := \
     device/google/marlin/overlay
+
+#split selinux policy
+PRODUCT_FULL_TREBLE_OVERRIDE := true
 
 # Some of HAL interface libraries are automatically added by the dependencies from
 # the framework. However, we list them all here to make it explicit and prevent
@@ -92,6 +88,7 @@ PRODUCT_PACKAGES := \
     android.hardware.vibrator@1.0 \
     android.hardware.vr@1.0 \
     android.hardware.wifi@1.0 \
+    android.hardware.wifi.supplicant@1.0 \
     android.hidl.allocator@1.0 \
     android.hidl.base@1.0 \
     android.hidl.manager@1.0 \
@@ -103,7 +100,24 @@ PRODUCT_PACKAGES += \
     libxml2 \
     libtinyalsa \
     libtinycompress \
-    cplay
+    cplay \
+    libion \
+
+# WiFi
+# Note: Wifi HAL (android.hardware.wifi@1.0-service, wpa_supplicant,
+# and wpa_supplicant.conf) is not here. They are at vendor.img
+PRODUCT_PACKAGES += \
+    libwpa_client \
+    hostapd \
+    hostapd_cli \
+    wificond \
+    wifilogd \
+
+# TODO(jiyong) move ims to vendor partition
+#PRODUCT_PACKAGES += ims
+
+# TODO(jiyong) remove this!!!
+PRODUCT_DEFAULT_DEV_CERTIFICATE := vendor/google/certs/devkeys/devkey
 
 PRODUCT_SYSTEM_VERITY_PARTITION := /dev/block/bootdevice/by-name/system
 

@@ -112,6 +112,11 @@ PRODUCT_SYSTEM_SERVER_JARS := \
     ethernet-service \
     wifi-service
 
+# The set of packages whose code can be loaded by the system server.
+PRODUCT_SYSTEM_SERVER_APPS += \
+    SettingsProvider \
+    WallpaperBackup
+
 # Adoptable external storage supports both ext4 and f2fs
 PRODUCT_PACKAGES += \
     e2fsck \
@@ -126,6 +131,9 @@ PRODUCT_COPY_FILES += \
 
 PRODUCT_COPY_FILES += \
     system/core/rootdir/etc/public.libraries.android.txt:system/etc/public.libraries.txt
+
+PRODUCT_COPY_FILES += \
+    system/core/rootdir/etc/ld.config.txt:system/etc/ld.config.txt
 
 # Different dexopt types for different package update/install times.
 # On eng builds, make "boot" reasons do pure JIT for faster turnaround.

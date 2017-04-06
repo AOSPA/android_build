@@ -47,8 +47,6 @@ TARGET_COPY_OUT_VENDOR := vendor
 # Generic AOSP image does NOT support HWC1
 TARGET_USES_HWC2 := true
 
-BOARD_SEPOLICY_DIRS += build/target/board/generic/sepolicy
-
 # TODO(jiyong): Remove these two. These are required in order to remove
 # board-specific sysprops from system.img. This should be replaced with
 # a more meaningful build flags such as BOARD_SYSPROP_SPLIT.
@@ -75,6 +73,10 @@ TARGET_NO_RECOVERY := true
 BOARD_USES_RECOVERY_AS_BOOT := true
 BOARD_BUILD_SYSTEM_ROOT_IMAGE := true
 
+# TODO(jiyong) These might be SoC specific.
+BOARD_ROOT_EXTRA_FOLDERS := bt_firmware firmware firmware/radio persist
+BOARD_ROOT_EXTRA_SYMLINKS := /vendor/lib/dsp:/dsp
+
 # TODO(b/35603549): this is currently set to 2.5GB to support sailfish/marlin
 # Fix this!
 BOARD_SYSTEMIMAGE_PARTITION_SIZE := 2147483648
@@ -83,10 +85,8 @@ BOARD_SYSTEMIMAGE_PARTITION_SIZE := 2147483648
 BOARD_NAND_SPARE_SIZE := 0
 BOARD_FLASH_BLOCK_SIZE := 512
 
-###############################################################################
-# Below are sailfish/marlin specific configs.
-# Must be moved after early-mount is supported.
-###############################################################################
-BOARD_SEPOLICY_DIRS += device/google/marlin/sepolicy
-
 BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED := true
+
+# TODO(b/36764215): remove this setting when the generic system image
+# no longer has QCOM-specific directories under /.
+BOARD_SEPOLICY_DIRS += build/target/board/generic_arm64_ab/sepolicy
