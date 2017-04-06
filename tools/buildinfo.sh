@@ -31,7 +31,10 @@ if [ -n "$PRODUCT_MODEL" ] ; then
 fi
 echo "ro.product.brand=$PRODUCT_BRAND"
 echo "ro.product.name=$PRODUCT_NAME"
+
+if [ -n "$TARGET_DEVICE" ] ; then
 echo "ro.product.device=$TARGET_DEVICE"
+fi
 echo "ro.product.board=$TARGET_BOOTLOADER_BOARD_NAME"
 
 # These values are deprecated, use "ro.product.cpu.abilist"
