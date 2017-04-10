@@ -2913,6 +2913,8 @@ ifeq ($(build_ota_package),true)
 name := $(TARGET_PRODUCT)
 ifeq ($(TARGET_BUILD_TYPE),debug)
   name := $(name)_debug
+  # Assume non-release recoveries skip signature check
+  extra_ota_args := --no_signing
 endif
 
 INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name)-$(ROM_VERSION).zip
@@ -2941,13 +2943,6 @@ else
 endif
 endif
 
-# Assume non-release recoveries to skip signature check
-ifeq ($(TARGET_BUILD_VARIANT),user)
-    sign_arg := -k $(KEY_CERT_PAIR)
-else
-    sign_arg := --no_signing
-endif
-
 $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
 		build/make/tools/releasetools/ota_from_target_files
 	@echo "Package OTA: $@"
@@ -2956,7 +2951,8 @@ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
 	   --block \
 	   --extracted_input_target_files $(patsubst %.zip,%,$(BUILT_TARGET_FILES_PACKAGE)) \
 	   -p $(HOST_OUT) \
-	   $(sign_arg) \
+           -k $(KEY_CERT_PAIR) \
+           $(extra_ota_args) \
 	   --backup=$(backuptool) \
 	   $(if $(OEM_OTA_CONFIG), -o $(OEM_OTA_CONFIG)) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
