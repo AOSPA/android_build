@@ -156,7 +156,7 @@ ifdef need_compile_java
 full_static_java_libs := \
     $(foreach lib,$(LOCAL_STATIC_JAVA_LIBRARIES), \
       $(call intermediates-dir-for, \
-        JAVA_LIBRARIES,$(lib),$(LOCAL_IS_HOST_MODULE),COMMON)/javalib.jar)
+        JAVA_LIBRARIES,$(lib),$(LOCAL_IS_HOST_MODULE),COMMON)/classes.jar)
 
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_STATIC_JAVA_LIBRARIES := $(full_static_java_libs)
 
@@ -221,11 +221,11 @@ ifeq ($(USE_CORE_LIB_BOOTCLASSPATH),true)
 ifeq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
 my_bootclasspath := ""
 else
-my_bootclasspath := $(call normalize-path-list,$(call host-dex-java-lib-files,core-oj-hostdex core-libart-hostdex))
+my_bootclasspath := $(call normalize-path-list,$(call java-lib-files,core-oj-hostdex core-libart-hostdex,true))
 endif
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_BOOTCLASSPATH := -bootclasspath $(my_bootclasspath)
 
-full_shared_java_libs := $(call host-dex-java-lib-files,$(LOCAL_JAVA_LIBRARIES))
+full_shared_java_libs := $(call java-lib-files,$(LOCAL_JAVA_LIBRARIES),true)
 full_java_lib_deps := $(full_shared_java_libs)
 else # !USE_CORE_LIB_BOOTCLASSPATH
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_BOOTCLASSPATH :=
@@ -247,7 +247,7 @@ ifneq ($(apk_libraries),)
   link_apk_libraries := \
       $(foreach lib,$(apk_libraries), \
         $(call intermediates-dir-for, \
-              APPS,$(lib),,COMMON)/classes.jar)
+              APPS,$(lib),,COMMON)/classes-pre-proguard.jar)
 
   # link against the jar with full original names (before proguard processing).
   full_shared_java_libs += $(link_apk_libraries)
@@ -268,7 +268,7 @@ ifdef LOCAL_INSTRUMENTATION_FOR
   link_instr_intermediates_dir.COMMON := $(call intermediates-dir-for, \
       APPS,$(LOCAL_INSTRUMENTATION_FOR),,COMMON)
   # link against the jar with full original names (before proguard processing).
-  link_instr_classes_jar := $(link_instr_intermediates_dir.COMMON)/classes.jar
+  link_instr_classes_jar := $(link_instr_intermediates_dir.COMMON)/classes-pre-proguard.jar
   full_java_libs += $(link_instr_classes_jar)
   full_java_lib_deps += $(link_instr_classes_jar)
 endif  # LOCAL_INSTRUMENTATION_FOR
