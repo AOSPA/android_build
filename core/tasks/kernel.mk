@@ -33,9 +33,13 @@ endif
 endif
 
 ifeq ($(KERNEL_ARCH),arm64)
+ifeq ($(KERNEL_CROSS_COMPILE),)
 KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-androidkernel-
+endif
 else ifeq ($(KERNEL_ARCH),arm)
+ifeq ($(KERNEL_CROSS_COMPILE),)
 KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-
+endif
 else
 $(error The target Kernel architecture is not supported)
 endif
