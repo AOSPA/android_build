@@ -1749,6 +1749,9 @@ else
 $(BUILT_TARGET_FILES_PACKAGE): PRIVATE_RECOVERY_OUT := RECOVERY
 endif
 
+# Allow alternative tags offset definition
+BOARD_TAGS_OFFSET ?= $(BOARD_KERNEL_TAGS_OFFSET)
+
 # Depending on the various images guarantees that the underlying
 # directories are up-to-date.
 $(BUILT_TARGET_FILES_PACKAGE): \
