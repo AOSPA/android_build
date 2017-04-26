@@ -628,6 +628,7 @@ function lunch()
     if [[ $product == pa_* ]]
     then
         pushd $(gettop) > /dev/null
+        build/tools/roomservice.py $product
         if [ $? -ne 0 ]
         then
             echo
