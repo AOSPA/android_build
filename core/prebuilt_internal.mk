@@ -79,9 +79,13 @@ else
 endif
 
 ifeq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
-ifeq ($(prebuilt_module_is_a_library),true)
-SOONG_ALREADY_CONV := $(SOONG_ALREADY_CONV) $(LOCAL_MODULE)
-endif
+  ifeq ($(prebuilt_module_is_a_library),true)
+    SOONG_ALREADY_CONV := $(SOONG_ALREADY_CONV) $(LOCAL_MODULE)
+  endif
+
+  ifdef LOCAL_USE_VNDK
+    SPLIT_VENDOR.$(LOCAL_MODULE_CLASS).$(patsubst %.vendor,%,$(LOCAL_MODULE)) := 1
+  endif
 endif
 
 # Don't install static libraries by default.
@@ -145,7 +149,13 @@ endif
 export_cflags :=
 
 my_link_type := $(intermediates)/link_type
-$(my_link_type): PRIVATE_LINK_TYPE := native:$(if $(LOCAL_SDK_VERSION),ndk,platform)
+ifdef LOCAL_SDK_VERSION
+$(my_link_type): PRIVATE_LINK_TYPE := native:ndk
+else ifdef LOCAL_USE_VNDK
+$(my_link_type): PRIVATE_LINK_TYPE := native:vendor
+else
+$(my_link_type): PRIVATE_LINK_TYPE := native:platform
+endif
 $(eval $(call link-type-partitions,$(my_link_type)))
 $(my_link_type):
 	@echo Check module type: $@
@@ -162,6 +172,14 @@ ifdef LOCAL_SHARED_LIBRARIES
 my_shared_libraries := $(LOCAL_SHARED_LIBRARIES)
 # Extra shared libraries introduced by LOCAL_CXX_STL.
 include $(BUILD_SYSTEM)/cxx_stl_setup.mk
+ifdef LOCAL_USE_VNDK
+  ifeq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
+    my_shared_libraries := $(addsuffix .vendor,$(my_shared_libraries))
+  else
+    my_shared_libraries := $(foreach l,$(my_shared_libraries),\
+      $(if $(SPLIT_VENDOR.SHARED_LIBRARIES.$(l)),$(l).vendor,$(l)))
+  endif
+endif
 $(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)DEPENDENCIES_ON_SHARED_LIBRARIES += \
   $(my_register_name):$(LOCAL_INSTALLED_MODULE):$(subst $(space),$(comma),$(my_shared_libraries))
 
@@ -431,10 +449,22 @@ endif # ! prebuilt_module_is_dex_javalib
 
 ifeq ($(LOCAL_MODULE_CLASS),JAVA_LIBRARIES)
 my_src_jar := $(my_prebuilt_src_file)
-ifeq ($(LOCAL_IS_HOST_MODULE),)
+
+ifdef LOCAL_IS_HOST_MODULE
+# for host java libraries deps should be in the common dir, so we make a copy in
+# the common dir.
+common_classes_jar := $(intermediates.COMMON)/classes.jar
+
+$(common_classes_jar): PRIVATE_MODULE := $(LOCAL_MODULE)
+
+$(common_classes_jar) : $(my_src_jar)
+	$(transform-prebuilt-to-target)
+
+else # !LOCAL_IS_HOST_MODULE
 # for target java libraries, the LOCAL_BUILT_MODULE is in a product-specific dir,
 # while the deps should be in the common dir, so we make a copy in the common dir.
 common_classes_jar := $(intermediates.COMMON)/classes.jar
+common_classes_pre_proguard_jar := $(intermediates.COMMON)/classes-pre-proguard.jar
 common_javalib_jar := $(intermediates.COMMON)/javalib.jar
 
 $(common_classes_jar) $(common_javalib_jar): PRIVATE_MODULE := $(LOCAL_MODULE)
@@ -475,6 +505,9 @@ $(my_src_jar) : $(my_src_aar)
 endif
 
 $(common_classes_jar) : $(my_src_jar)
+	$(transform-prebuilt-to-target)
+
+$(common_classes_pre_proguard_jar) : $(my_src_jar)
 	$(transform-prebuilt-to-target)
 
 $(common_javalib_jar) : $(common_classes_jar)
@@ -520,6 +553,7 @@ endif # LOCAL_IS_HOST_MODULE is not set
 
 ifneq ($(prebuilt_module_is_dex_javalib),true)
 
+ifdef LOCAL_JACK_ENABLED
 # We may be building classes.jack from a host jar for host dalvik Java library.
 $(intermediates.COMMON)/classes.jack : PRIVATE_JACK_FLAGS:=$(LOCAL_JACK_FLAGS)
 $(intermediates.COMMON)/classes.jack : PRIVATE_JACK_MIN_SDK_VERSION := $(if $(strip $(LOCAL_MIN_SDK_VERSION)),$(LOCAL_MIN_SDK_VERSION),1)
@@ -534,7 +568,7 @@ $(intermediates.COMMON)/classes.jack : $(LOCAL_JACK_PLUGIN_PATH) $(my_src_jar) \
 # always rebuilt.
 $(intermediates.COMMON)/classes.dex.toc: $(intermediates.COMMON)/classes.jack
 	touch $@
-
+endif # LOCAL_JACK_ENABLED
 endif # ! prebuilt_module_is_dex_javalib
 endif # JAVA_LIBRARIES
 
