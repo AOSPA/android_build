@@ -2925,6 +2925,11 @@ ifdef BUILT_VENDOR_MATRIX
 	$(hide) cp $(BUILT_VENDOR_MATRIX) $(zip_root)/META/vendor_matrix.xml
 endif
 
+# Export signing properties on Paranoid Android Builds
+ifneq ($(PA_BUILD),)
+	$(shell echo "TARGET_OTA_ASSERT_DEVICE=$(TARGET_OTA_ASSERT_DEVICE)" >> $(PRODUCT_OUT)/signing.props)
+endif
+
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \
 	    build/make/tools/releasetools/add_img_to_target_files -a -v -p $(HOST_OUT) $(zip_root)
 	@# Zip everything up, preserving symlinks and placing META/ files first to
