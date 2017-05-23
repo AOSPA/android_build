@@ -37,6 +37,8 @@ PRODUCT_PACKAGES += \
     Shell \
     StatementService \
     WallpaperBackup \
+    android.hidl.base-V1.0-java \
+    android.hidl.manager-V1.0-java \
     bcc \
     bu \
     com.android.future.usb.accessory \
@@ -59,6 +61,7 @@ PRODUCT_PACKAGES += \
     gatekeeperd \
     keystore \
     keystore.default \
+    ld.config.txt \
     ld.mc \
     libaaudio \
     libOpenMAXAL \
@@ -90,6 +93,11 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.software.webview.xml:system/etc/permissions/android.software.webview.xml
 
+ifneq (REL,$(PLATFORM_VERSION_CODENAME))
+PRODUCT_COPY_FILES += \
+    frameworks/native/data/etc/android.software.preview_sdk.xml:system/etc/permissions/android.software.preview_sdk.xml
+endif
+
 # The order of PRODUCT_BOOT_JARS matters.
 PRODUCT_BOOT_JARS := \
     core-oj \
@@ -104,7 +112,9 @@ PRODUCT_BOOT_JARS := \
     voip-common \
     ims-common \
     apache-xml \
-    org.apache.http.legacy.boot
+    org.apache.http.legacy.boot \
+    android.hidl.base-V1.0-java \
+    android.hidl.manager-V1.0-java
 
 # The order of PRODUCT_SYSTEM_SERVER_JARS matters.
 PRODUCT_SYSTEM_SERVER_JARS := \
@@ -131,30 +141,6 @@ PRODUCT_COPY_FILES += \
 
 PRODUCT_COPY_FILES += \
     system/core/rootdir/etc/public.libraries.android.txt:system/etc/public.libraries.txt
-
-PRODUCT_COPY_FILES += \
-    system/core/rootdir/etc/ld.config.txt:system/etc/ld.config.txt
-
-# Different dexopt types for different package update/install times.
-# On eng builds, make "boot" reasons do pure JIT for faster turnaround.
-ifeq (eng,$(TARGET_BUILD_VARIANT))
-    PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-        pm.dexopt.first-boot=verify-at-runtime \
-        pm.dexopt.boot=verify-at-runtime
-else
-    PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-        pm.dexopt.first-boot=interpret-only \
-        pm.dexopt.boot=verify-profile
-endif
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-    pm.dexopt.install=interpret-only \
-    pm.dexopt.bg-dexopt=speed-profile \
-    pm.dexopt.ab-ota=speed-profile \
-    pm.dexopt.nsys-library=speed \
-    pm.dexopt.shared-apk=speed \
-    pm.dexopt.forced-dexopt=speed \
-    pm.dexopt.core-app=speed
-
 
 # Enable boot.oat filtering of compiled classes to reduce boot.oat size. b/28026683
 PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\

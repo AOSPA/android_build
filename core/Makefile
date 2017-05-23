@@ -709,13 +709,14 @@ endif
 
 .PHONY: notice_files
 
-# Create the rule to combine the files into text and html forms
-# $(1) - Plain text output file
-# $(2) - HTML output file
-# $(3) - File title
-# $(4) - Directory to use.  Notice files are all $(4)/src.  Other
+# Create the rule to combine the files into text and html/xml forms
+# $(1) - xml_excluded_vendor|xml_vendor|html
+# $(2) - Plain text output file
+# $(3) - HTML/XML output file
+# $(4) - File title
+# $(5) - Directory to use.  Notice files are all $(4)/src.  Other
 #		 directories in there will be used for scratch
-# $(5) - Dependencies for the output files
+# $(6) - Dependencies for the output files
 #
 # The algorithm here is that we go collect a hash for each of the notice
 # files and write the names of the files that match that hash.  Then
@@ -729,12 +730,16 @@ endif
 # original notice files instead of making rules to copy them somwehere.
 # Then we could traverse that without quite as much bash drama.
 define combine-notice-files
-$(1) $(2): PRIVATE_MESSAGE := $(3)
-$(1) $(2): PRIVATE_DIR := $(4)
-$(1) : $(2)
-$(2) : $(5) $(BUILD_SYSTEM)/Makefile build/tools/generate-notice-files.py
-	build/tools/generate-notice-files.py $(1) $(2) $$(PRIVATE_MESSAGE) $$(PRIVATE_DIR)/src
-notice_files: $(1) $(2)
+$(2) $(3): PRIVATE_MESSAGE := $(4)
+$(2) $(3): PRIVATE_DIR := $(5)
+$(2) : $(3)
+$(3) : $(6) $(BUILD_SYSTEM)/Makefile build/tools/generate-notice-files.py
+	build/tools/generate-notice-files.py --text-output $(2) \
+		$(if $(filter $(1),xml_excluded_vendor),-e vendor --xml-output, \
+		  $(if $(filter $(1),xml_vendor),-i vendor --xml-output, \
+		    --html-output)) $(3) \
+		-t $$(PRIVATE_MESSAGE) -s $$(PRIVATE_DIR)/src
+notice_files: $(2) $(3)
 endef
 
 # TODO These intermediate NOTICE.txt/NOTICE.html files should go into
@@ -742,24 +747,51 @@ endef
 # the src subdirectory.
 
 target_notice_file_txt := $(TARGET_OUT_INTERMEDIATES)/NOTICE.txt
-target_notice_file_html := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html
-target_notice_file_html_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html.gz
+target_notice_file_html_or_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html
+target_notice_file_html_or_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html.gz
+installed_notice_html_or_xml_gz := $(TARGET_OUT)/etc/NOTICE.html.gz
 tools_notice_file_txt := $(HOST_OUT_INTERMEDIATES)/NOTICE.txt
 tools_notice_file_html := $(HOST_OUT_INTERMEDIATES)/NOTICE.html
+
+ifeq ($(PRODUCT_FULL_TREBLE),true)
+target_notice_file_html_or_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE.xml
+target_notice_file_html_or_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.xml.gz
+installed_notice_html_or_xml_gz := $(TARGET_OUT)/etc/NOTICE.xml.gz
+
+target_vendor_notice_file_txt := $(TARGET_OUT_INTERMEDIATES)/NOTICE_VENDOR.txt
+target_vendor_notice_file_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE_VENDOR.xml
+target_vendor_notice_file_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE_VENDOR.xml.gz
+installed_vendor_notice_xml_gz := $(TARGET_OUT_VENDOR)/etc/NOTICE.xml.gz
+endif
 
 ifndef TARGET_BUILD_APPS
 kernel_notice_file := $(TARGET_OUT_NOTICE_FILES)/src/kernel.txt
 winpthreads_notice_file := $(TARGET_OUT_NOTICE_FILES)/src/winpthreads.txt
 pdk_fusion_notice_files := $(filter $(TARGET_OUT_NOTICE_FILES)/%, $(ALL_PDK_FUSION_FILES))
 
-$(eval $(call combine-notice-files, \
+ifdef target_vendor_notice_file_xml_gz
+$(eval $(call combine-notice-files, xml_excluded_vendor, \
 			$(target_notice_file_txt), \
-			$(target_notice_file_html), \
+			$(target_notice_file_html_or_xml), \
 			"Notices for files contained in the filesystem images in this directory:", \
 			$(TARGET_OUT_NOTICE_FILES), \
 			$(ALL_DEFAULT_INSTALLED_MODULES) $(kernel_notice_file) $(pdk_fusion_notice_files)))
+$(eval $(call combine-notice-files, xml_vendor, \
+			$(target_vendor_notice_file_txt), \
+			$(target_vendor_notice_file_xml), \
+			"Notices for files contained in the vendor filesystem image in this directory:", \
+			$(TARGET_OUT_NOTICE_FILES), \
+			$(target_notice_file_html_or_xml)))
+else
+$(eval $(call combine-notice-files, html, \
+			$(target_notice_file_txt), \
+			$(target_notice_file_html_or_xml), \
+			"Notices for files contained in the filesystem images in this directory:", \
+			$(TARGET_OUT_NOTICE_FILES), \
+			$(ALL_DEFAULT_INSTALLED_MODULES) $(kernel_notice_file) $(pdk_fusion_notice_files)))
+endif
 
-$(eval $(call combine-notice-files, \
+$(eval $(call combine-notice-files, html, \
 			$(tools_notice_file_txt), \
 			$(tools_notice_file_html), \
 			"Notices for files contained in the tools directory:", \
@@ -772,15 +804,25 @@ $(eval $(call combine-notice-files, \
 # the module processing has already been done -- in fact, we used the
 # fact that all that has been done to get the list of modules that we
 # need notice files for.
-$(target_notice_file_html_gz): $(target_notice_file_html) | $(MINIGZIP)
+$(target_notice_file_html_or_xml_gz): $(target_notice_file_html_or_xml) | $(MINIGZIP)
 	$(hide) $(MINIGZIP) -9 < $< > $@
-installed_notice_html_gz := $(TARGET_OUT)/etc/NOTICE.html.gz
-$(installed_notice_html_gz): $(target_notice_file_html_gz)
+$(installed_notice_html_or_xml_gz): $(target_notice_file_html_or_xml_gz)
 	$(copy-file-to-target)
+
+ifdef target_vendor_notice_file_xml_gz
+# Install the vendor html file at /vendor/etc/NOTICE.xml.gz.
+$(target_vendor_notice_file_xml_gz): $(target_vendor_notice_file_xml) | $(MINIGZIP)
+	$(hide) $(MINIGZIP) -9 < $< > $@
+$(installed_vendor_notice_xml_gz): $(target_vendor_notice_file_xml_gz)
+	$(copy-file-to-target)
+endif
 
 # if we've been run my mm, mmm, etc, don't reinstall this every time
 ifeq ($(ONE_SHOT_MAKEFILE),)
-ALL_DEFAULT_INSTALLED_MODULES += $(installed_notice_html_gz)
+  ALL_DEFAULT_INSTALLED_MODULES += $(installed_notice_html_or_xml_gz)
+  ifdef target_vendor_notice_file_xml_gz
+    ALL_DEFAULT_INSTALLED_MODULES += $(installed_vendor_notice_xml_gz)
+  endif
 endif
 endif  # TARGET_BUILD_APPS
 
@@ -956,6 +998,8 @@ $(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_signing_args=$(INTERNAL_AVB_SIGNING_A
 $(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_avbtool=$(AVBTOOL)" >> $(1))
 $(if $(BOARD_AVB_ENABLE),$(hide) echo "system_avb_enable=$(BOARD_AVB_ENABLE)" >> $(1))
 $(if $(BOARD_AVB_ENABLE),$(hide) echo "system_avb_add_hashtree_footer_args=$(BOARD_AVB_SYSTEM_ADD_HASHTREE_FOOTER_ARGS)" >> $(1))
+$(if $(BOARD_AVB_ENABLE),$(hide) echo "vendor_avb_enable=$(BOARD_AVB_ENABLE)" >> $(1))
+$(if $(BOARD_AVB_ENABLE),$(hide) echo "vendor_avb_add_hashtree_footer_args=$(BOARD_AVB_VENDOR_ADD_HASHTREE_FOOTER_ARGS)" >> $(1))
 $(if $(filter true,$(BOARD_USES_RECOVERY_AS_BOOT)),\
     $(hide) echo "recovery_as_boot=true" >> $(1))
 $(if $(filter true,$(BOARD_BUILD_SYSTEM_ROOT_IMAGE)),\
@@ -1110,8 +1154,7 @@ define build-image-kernel-modules
     $(hide) mkdir -p $(4)/lib/modules/0.0/$(3)lib/modules
     $(hide) cp $(1) $(4)/lib/modules/0.0/$(3)lib/modules
     $(hide) $(DEPMOD) -b $(4) 0.0
-    $(hide) sed -e 's/\(.*modules.*\):/\/\1:/g' -e 's/ \([^ ]*modules[^ ]*\)/ \/\1/g' -i $(4)/lib/modules/0.0/modules.dep
-    $(hide) cp $(4)/lib/modules/0.0/modules.dep $(2)/lib/modules
+    $(hide) sed -e 's/\(.*modules.*\):/\/\1:/g' -e 's/ \([^ ]*modules[^ ]*\)/ \/\1/g' $(4)/lib/modules/0.0/modules.dep > $(2)/lib/modules/modules.dep
 endef
 
 # $(1): output file
@@ -1659,61 +1702,6 @@ IGNORE_CACHE_LINK := --exclude=cache
 endif # BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE
 
 # -----------------------------------------------------------------
-# vbmeta image
-ifeq ($(BOARD_AVB_ENABLE),true)
-
-BUILT_VBMETAIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta.img
-
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS := \
-    --include_descriptors_from_image $(INSTALLED_BOOTIMAGE_TARGET) \
-    --include_descriptors_from_image $(INSTALLED_SYSTEMIMAGE) \
-    --generate_dm_verity_cmdline_from_hashtree $(INSTALLED_SYSTEMIMAGE)
-
-ifdef BOARD_AVB_ROLLBACK_INDEX
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += --rollback_index $(BOARD_AVB_ROLLBACK_INDEX)
-endif
-
-ifndef BOARD_AVB_KEY_PATH
-# If key path isn't specified, use the 4096-bit test key.
-INTERNAL_AVB_SIGNING_ARGS := \
-    --algorithm SHA256_RSA4096 \
-    --key external/avb/test/data/testkey_rsa4096.pem
-else
-INTERNAL_AVB_SIGNING_ARGS := \
-    --algorithm $(BOARD_AVB_ALGORITHM) --key $(BOARD_AVB_KEY_PATH)
-endif
-
-ifndef BOARD_BOOTIMAGE_PARTITION_SIZE
-  $(error BOARD_BOOTIMAGE_PARTITION_SIZE must be set for BOARD_AVB_ENABLE)
-endif
-
-ifndef BOARD_SYSTEMIMAGE_PARTITION_SIZE
-  $(error BOARD_SYSTEMIMAGE_PARTITION_SIZE must be set for BOARD_AVB_ENABLE)
-endif
-
-define build-vbmetaimage-target
-  $(call pretty,"Target vbmeta image: $(INSTALLED_VBMETAIMAGE_TARGET)")
-  $(hide) $(AVBTOOL) make_vbmeta_image \
-    $(INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS) \
-    $(INTERNAL_AVB_SIGNING_ARGS) \
-    $(BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS) \
-    --output $@
-endef
-
-INSTALLED_VBMETAIMAGE_TARGET := $(BUILT_VBMETAIMAGE_TARGET)
-$(INSTALLED_VBMETAIMAGE_TARGET): $(AVBTOOL) $(INSTALLED_BOOTIMAGE_TARGET) $(INSTALLED_SYSTEMIMAGE)
-	$(build-vbmetaimage-target)
-
-.PHONY: vbmetaimage-nodeps
-vbmetaimage-nodeps:
-	$(build-vbmetaimage-target)
-
-# We need $(AVBTOOL) for system.img generation.
-FULL_SYSTEMIMAGE_DEPS += $(AVBTOOL)
-
-endif # BOARD_AVB_ENABLE
-
-# -----------------------------------------------------------------
 # system_other partition image
 ifeq ($(BOARD_USES_SYSTEM_OTHER_ODEX),true)
 BOARD_USES_SYSTEM_OTHER := true
@@ -1815,6 +1803,69 @@ else ifdef BOARD_PREBUILT_VENDORIMAGE
 INSTALLED_VENDORIMAGE_TARGET := $(PRODUCT_OUT)/vendor.img
 $(eval $(call copy-one-file,$(BOARD_PREBUILT_VENDORIMAGE),$(INSTALLED_VENDORIMAGE_TARGET)))
 endif
+
+# -----------------------------------------------------------------
+# vbmeta image
+ifeq ($(BOARD_AVB_ENABLE),true)
+
+BUILT_VBMETAIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta.img
+
+INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS := \
+    --include_descriptors_from_image $(INSTALLED_BOOTIMAGE_TARGET) \
+    --include_descriptors_from_image $(INSTALLED_SYSTEMIMAGE) \
+
+ifdef INSTALLED_VENDORIMAGE_TARGET
+INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
+    --include_descriptors_from_image $(INSTALLED_VENDORIMAGE_TARGET)
+endif
+
+ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += --setup_rootfs_from_kernel $(BUILT_SYSTEMIMAGE)
+endif
+
+ifdef BOARD_AVB_ROLLBACK_INDEX
+INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += --rollback_index $(BOARD_AVB_ROLLBACK_INDEX)
+endif
+
+ifndef BOARD_AVB_KEY_PATH
+# If key path isn't specified, use the 4096-bit test key.
+INTERNAL_AVB_SIGNING_ARGS := \
+    --algorithm SHA256_RSA4096 \
+    --key external/avb/test/data/testkey_rsa4096.pem
+else
+INTERNAL_AVB_SIGNING_ARGS := \
+    --algorithm $(BOARD_AVB_ALGORITHM) --key $(BOARD_AVB_KEY_PATH)
+endif
+
+ifndef BOARD_BOOTIMAGE_PARTITION_SIZE
+  $(error BOARD_BOOTIMAGE_PARTITION_SIZE must be set for BOARD_AVB_ENABLE)
+endif
+
+ifndef BOARD_SYSTEMIMAGE_PARTITION_SIZE
+  $(error BOARD_SYSTEMIMAGE_PARTITION_SIZE must be set for BOARD_AVB_ENABLE)
+endif
+
+define build-vbmetaimage-target
+  $(call pretty,"Target vbmeta image: $(INSTALLED_VBMETAIMAGE_TARGET)")
+  $(hide) $(AVBTOOL) make_vbmeta_image \
+    $(INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS) \
+    $(INTERNAL_AVB_SIGNING_ARGS) \
+    $(BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS) \
+    --output $@
+endef
+
+INSTALLED_VBMETAIMAGE_TARGET := $(BUILT_VBMETAIMAGE_TARGET)
+$(INSTALLED_VBMETAIMAGE_TARGET): $(AVBTOOL) $(INSTALLED_BOOTIMAGE_TARGET) $(INSTALLED_SYSTEMIMAGE) $(INSTALLED_VENDORIMAGE_TARGET)
+	$(build-vbmetaimage-target)
+
+.PHONY: vbmetaimage-nodeps
+vbmetaimage-nodeps:
+	$(build-vbmetaimage-target)
+
+# We need $(AVBTOOL) for system.img generation.
+FULL_SYSTEMIMAGE_DEPS += $(AVBTOOL)
+
+endif # BOARD_AVB_ENABLE
 
 # -----------------------------------------------------------------
 # bring in the installer image generation defines if necessary
@@ -2064,6 +2115,8 @@ $(BUILT_TARGET_FILES_PACKAGE): \
 		$(HOST_OUT_EXECUTABLES)/imgdiff \
 		$(HOST_OUT_EXECUTABLES)/bsdiff \
 		$(BUILD_IMAGE_SRCS) \
+		$(INSTALLED_VENDOR_MANIFEST) \
+		$(INSTALLED_VENDOR_MATRIX) \
 		| $(ACP)
 	@echo "Package target files: $@"
 	$(call create-system-vendor-symlink)
@@ -2285,6 +2338,16 @@ endif
 ifdef INSTALLED_SYSTEMOTHERIMAGE_TARGET
 	$(hide) $(call fs_config,$(zip_root)/SYSTEM_OTHER,system/) > $(zip_root)/META/system_other_filesystem_config.txt
 endif
+	@# Metadata for compatibility verification.
+	$(hide) cp $(BUILT_SYSTEM_MANIFEST) $(zip_root)/META/system_manifest.xml
+	$(hide) cp $(BUILT_SYSTEM_COMPATIBILITY_MATRIX) $(zip_root)/META/system_compatibility_matrix.xml
+ifdef BUILT_VENDOR_MANIFEST
+	$(hide) cp $(BUILT_VENDOR_MANIFEST) $(zip_root)/META/vendor_manifest.xml
+endif
+ifdef BUILT_VENDOR_MATRIX
+	$(hide) cp $(BUILT_VENDOR_MATRIX) $(zip_root)/META/vendor_matrix.xml
+endif
+
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \
 	    ./build/tools/releasetools/add_img_to_target_files -a -v -p $(HOST_OUT) $(zip_root)
 	@# Zip everything up, preserving symlinks and placing META/ files first to

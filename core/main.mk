@@ -817,7 +817,7 @@ overridden_packages := $(call get-package-overrides,$(modules_to_install))
 ifdef overridden_packages
 #  old_modules_to_install := $(modules_to_install)
   modules_to_install := \
-      $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk %/$(p).odex), \
+      $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk %/$(p).odex %/$(p).vdex), \
           $(modules_to_install))
 endif
 #$(error filtered out
@@ -1015,9 +1015,9 @@ apps_only: $(unbundled_build_modules)
 droid_targets: apps_only
 
 # Combine the NOTICE files for a apps_only build
-$(eval $(call combine-notice-files, \
+$(eval $(call combine-notice-files, html, \
     $(target_notice_file_txt), \
-    $(target_notice_file_html), \
+    $(target_notice_file_html_or_xml), \
     "Notices for files for apps:", \
     $(TARGET_OUT_NOTICE_FILES), \
     $(apps_only_installed_files)))
@@ -1080,7 +1080,7 @@ $(call dist-for-goals,sdk win_sdk, \
 # umbrella targets to assit engineers in verifying builds
 .PHONY: java native target host java-host java-target native-host native-target \
         java-host-tests java-target-tests native-host-tests native-target-tests \
-        java-tests native-tests host-tests target-tests tests
+        java-tests native-tests host-tests target-tests tests java-dex
 # some synonyms
 .PHONY: host-java target-java host-native target-native \
         target-java-tests target-native-tests

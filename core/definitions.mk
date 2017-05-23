@@ -1226,7 +1226,8 @@ define transform-cpp-to-o-compiler-args
 	$(PRIVATE_CPPFLAGS) \
 	$(PRIVATE_DEBUG_CFLAGS) \
 	$(PRIVATE_CFLAGS_NO_OVERRIDE) \
-	$(PRIVATE_CPPFLAGS_NO_OVERRIDE)
+	$(PRIVATE_CPPFLAGS_NO_OVERRIDE) \
+	$(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS))
 endef
 
 define clang-tidy-cpp
@@ -1266,7 +1267,8 @@ define transform-c-or-s-to-o-compiler-args
 	    $(PRIVATE_TARGET_GLOBAL_CONLYFLAGS) \
 	    $(PRIVATE_ARM_CFLAGS) \
 	 ) \
-	 $(1)
+	 $(1) \
+	$(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS))
 endef
 
 define transform-c-to-o-compiler-args
@@ -1832,18 +1834,21 @@ endef
 define transform-to-stripped-keep-mini-debug-info
 @echo "$($(PRIVATE_PREFIX)DISPLAY) Strip (mini debug info): $(PRIVATE_MODULE) ($@)"
 @mkdir -p $(dir $@)
-$(hide) $(PRIVATE_NM) -D $< --format=posix --defined-only | awk '{ print $$1 }' | sort >$@.dynsyms
-$(hide) $(PRIVATE_NM) $< --format=posix --defined-only | awk '{ if ($$2 == "T" || $$2 == "t" || $$2 == "D") print $$1 }' | sort >$@.funcsyms
-$(hide) comm -13 $@.dynsyms $@.funcsyms >$@.keep_symbols
-$(hide) $(PRIVATE_OBJCOPY) --only-keep-debug $< $@.debug
-$(hide) $(PRIVATE_OBJCOPY) --rename-section .debug_frame=saved_debug_frame $@.debug $@.mini_debuginfo
-$(hide) $(PRIVATE_OBJCOPY) -S --remove-section .gdb_index --remove-section .comment --keep-symbols=$@.keep_symbols $@.mini_debuginfo
-$(hide) $(PRIVATE_OBJCOPY) --rename-section saved_debug_frame=.debug_frame $@.mini_debuginfo
-$(hide) $(PRIVATE_STRIP) --strip-all -R .comment $< -o $@
-$(hide) rm -f $@.mini_debuginfo.xz
-$(hide) xz $@.mini_debuginfo
-$(hide) $(PRIVATE_OBJCOPY) --add-section .gnu_debugdata=$@.mini_debuginfo.xz $@
-$(hide) rm -f $@.dynsyms $@.funcsyms $@.keep_symbols $@.debug $@.mini_debuginfo.xz
+$(hide) rm -f $@ $@.dynsyms $@.funcsyms $@.keep_symbols $@.debug $@.mini_debuginfo.xz
+if $(PRIVATE_STRIP) --strip-all -R .comment $< -o $@; then \
+  $(PRIVATE_OBJCOPY) --only-keep-debug $< $@.debug && \
+  $(PRIVATE_NM) -D $< --format=posix --defined-only | awk '{ print $$1 }' | sort >$@.dynsyms && \
+  $(PRIVATE_NM) $< --format=posix --defined-only | awk '{ if ($$2 == "T" || $$2 == "t" || $$2 == "D") print $$1 }' | sort >$@.funcsyms && \
+  comm -13 $@.dynsyms $@.funcsyms >$@.keep_symbols && \
+  $(PRIVATE_OBJCOPY) --rename-section .debug_frame=saved_debug_frame $@.debug $@.mini_debuginfo && \
+  $(PRIVATE_OBJCOPY) -S --remove-section .gdb_index --remove-section .comment --keep-symbols=$@.keep_symbols $@.mini_debuginfo && \
+  $(PRIVATE_OBJCOPY) --rename-section saved_debug_frame=.debug_frame $@.mini_debuginfo && \
+  rm -f $@.mini_debuginfo.xz && \
+  xz $@.mini_debuginfo && \
+  $(PRIVATE_OBJCOPY) --add-section .gnu_debugdata=$@.mini_debuginfo.xz $@; \
+else \
+  cp -f $< $@; \
+fi
 endef
 
 define transform-to-stripped-keep-symbols
@@ -2267,9 +2272,10 @@ $(hide) mkdir -p $(dir $(PRIVATE_CLASSES_JACK))
 $(hide) mkdir -p $(PRIVATE_JACK_INTERMEDIATES_DIR)
 $(if $(PRIVATE_JACK_INCREMENTAL_DIR),$(hide) mkdir -p $(PRIVATE_JACK_INCREMENTAL_DIR))
 $(call dump-words-to-file,$(PRIVATE_JAVA_SOURCES),$(PRIVATE_JACK_INTERMEDIATES_DIR)/java-source-list)
-$(hide) if [ -d "$(PRIVATE_SOURCE_INTERMEDIATES_DIR)" ]; then \
-          find $(PRIVATE_SOURCE_INTERMEDIATES_DIR) -name '*.java' >> $(PRIVATE_JACK_INTERMEDIATES_DIR)/java-source-list; \
-fi
+$(if $(PRIVATE_SOURCE_INTERMEDIATES_DIR), \
+    $(hide) if [ -d "$(PRIVATE_SOURCE_INTERMEDIATES_DIR)" ]; then \
+            find $(PRIVATE_SOURCE_INTERMEDIATES_DIR) -name '*.java' >> $(PRIVATE_JACK_INTERMEDIATES_DIR)/java-source-list; \
+    fi)
 $(if $(PRIVATE_HAS_PROTO_SOURCES), \
     $(hide) find $(PRIVATE_PROTO_SOURCE_INTERMEDIATES_DIR) -name '*.java' >> $(PRIVATE_JACK_INTERMEDIATES_DIR)/java-source-list )
 $(if $(PRIVATE_HAS_RS_SOURCES), \
@@ -2286,6 +2292,10 @@ $(if $(PRIVATE_EXTRA_JAR_ARGS),
     $(hide) $(call add-java-resources-to,$@.res.tmp.zip)
     $(hide) unzip -qo $@.res.tmp.zip -d $@.res.tmp
     $(hide) rm $@.res.tmp.zip)
+$(if $(PRIVATE_JACK_IMPORT_JAR),
+    $(hide) mkdir -p $@.tmpjill.res
+    $(hide) unzip -qo $(PRIVATE_JACK_IMPORT_JAR) -d $@.tmpjill.res
+    $(hide) find $@.tmpjill.res -iname "*.class" -delete)
 $(hide) if [ -s $(PRIVATE_JACK_INTERMEDIATES_DIR)/java-source-list-uniq ] ; then \
     export tmpEcjArg="@$(PRIVATE_JACK_INTERMEDIATES_DIR)/java-source-list-uniq"; \
 else \
@@ -2298,6 +2308,8 @@ $(call call-jack) \
         -D jack.dex.optimize="false") \
     $(if $(PRIVATE_RMTYPEDEFS), \
         -D jack.android.remove-typedef="true") \
+    $(if $(PRIVATE_JACK_IMPORT_JAR), \
+        --import $(PRIVATE_JACK_IMPORT_JAR) --import-resource $@.tmpjill.res) \
     $(addprefix --classpath ,$(strip \
         $(call normalize-path-list,$(PRIVATE_JACK_SHARED_LIBRARIES)))) \
     $(addprefix --import ,$(call reverse-list,$(PRIVATE_STATIC_JACK_LIBRARIES))) \
