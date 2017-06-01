@@ -16,7 +16,7 @@
 
 # PRODUCT_PROPERTY_OVERRIDES cannot be used here because sysprops will be at
 # /vendor/[build|default].prop when build split is on. In order to have sysprops
-# on the generic system image, place them in build/make/target/board/generic_arm64_ab/
+# on the generic system image, place them in build/make/target/board/generic_arm_a/
 # system.prop.
 
 PRODUCT_COPY_FILES := \
@@ -29,7 +29,7 @@ PRODUCT_FULL_TREBLE_OVERRIDE := true
 # the framework. However, we list them all here to make it explicit and prevent
 # possible mistake.
 PRODUCT_PACKAGES := \
-    android.frameworks.vr.composer@1.0 \
+    android.dvr.composer@1.0 \
     android.hardware.audio@2.0 \
     android.hardware.audio.common@2.0 \
     android.hardware.audio.common@2.0-util \
@@ -60,6 +60,7 @@ PRODUCT_PACKAGES := \
     android.hardware.media.omx@1.0-utils \
     android.hardware.memtrack@1.0 \
     android.hardware.nfc@1.0 \
+    android.hardware.oemlock@1.0 \
     android.hardware.power@1.0 \
     android.hardware.radio@1.0 \
     android.hardware.radio.deprecated@1.0 \
@@ -69,8 +70,10 @@ PRODUCT_PACKAGES := \
     android.hardware.tv.cec@1.0 \
     android.hardware.tv.input@1.0 \
     android.hardware.usb@1.0 \
+    android.hardware.usb@1.1 \
     android.hardware.vibrator@1.0 \
     android.hardware.vr@1.0 \
+    android.hardware.weaver@1.0 \
     android.hardware.wifi@1.0 \
     android.hardware.wifi.supplicant@1.0 \
     android.hidl.allocator@1.0 \
@@ -97,22 +100,12 @@ PRODUCT_PACKAGES += \
     wificond \
     wifilogd \
 
-# TODO(jiyong) move ims to vendor partition
-#PRODUCT_PACKAGES += ims
-
 PRODUCT_SYSTEM_VERITY_PARTITION := /dev/block/bootdevice/by-name/system
 
-AB_OTA_UPDATER := true
-AB_OTA_PARTITIONS := system
-PRODUCT_PACKAGES += \
-    update_engine \
-    update_verifier
-
-$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base_telephony.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/verity.mk)
 
-PRODUCT_NAME := aosp_arm64_ab
-PRODUCT_DEVICE := generic_arm64_ab
+PRODUCT_NAME := aosp_arm_a
+PRODUCT_DEVICE := generic_arm_a
 PRODUCT_BRAND := Android
-PRODUCT_MODEL := AOSP on ARM64
+PRODUCT_MODEL := AOSP on ARM32
