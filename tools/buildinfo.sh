@@ -62,4 +62,8 @@ if [ -n "$BUILD_THUMBPRINT" ] ; then
 fi
 echo "ro.build.characteristics=$TARGET_AAPT_CHARACTERISTICS"
 
+# This property will be used to query for the device
+# in Paranoid Hub app.
+echo "ro.pa.device=$TARGET_DEVICE"
+
 echo "# end build properties"
