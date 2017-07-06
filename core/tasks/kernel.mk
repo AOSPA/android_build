@@ -41,6 +41,23 @@ $(error The target Kernel architecture is not supported)
 endif
 
 ifeq ($(TARGET_PREBUILT_KERNEL),)
+    FULL_KERNEL_BUILD := true
+else
+    ifneq "$(wildcard $(TARGET_KERNEL_SOURCE) )" ""
+        ifneq ($(TARGET_KERNEL_CONFIG),)
+            $(warning ******************************************************************)
+            $(warning * A prebuilt Kernel was found, but the board configuration       *)
+            $(warning * defines TARGET_KERNEL_SOURCE and TARGET_KERNEL_CONFIG.         *)
+            $(warning * Allowing full Kernel image and headers to build from source,   *)
+            $(warning * even though you MAY WANT to define some rules to properly      *)
+            $(warning * pack the boot image using the prebuilt Kernel.                 *)
+            $(warning ******************************************************************)
+            FULL_KERNEL_BUILD := true
+        endif
+    endif
+endif
+
+ifeq ($(FULL_KERNEL_BUILD),true)
 
 KERNEL_GCC_NOANDROID_CHK := $(shell (echo "int main() {return 0;}" | $(KERNEL_CROSS_COMPILE)gcc -E -mno-android - > /dev/null 2>&1 ; echo $$?))
 ifeq ($(strip $(KERNEL_GCC_NOANDROID_CHK)),0)
