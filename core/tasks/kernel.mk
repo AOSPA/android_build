@@ -40,7 +40,57 @@ else
 $(error The target Kernel architecture is not supported)
 endif
 
-ifeq ($(TARGET_PREBUILT_KERNEL),)
+ifeq "$(wildcard $(TARGET_KERNEL_SOURCE) )" ""
+    ifneq ($(TARGET_PREBUILT_KERNEL),)
+        HAS_PREBUILT_KERNEL := true
+    else
+        $(foreach cf,$(PRODUCT_COPY_FILES), \
+            $(eval _src := $(call word-colon,1,$(cf))) \
+            $(eval _dest := $(call word-colon,2,$(cf))) \
+            $(ifeq kernel,$(_dest), \
+                $(eval HAS_PREBUILT_KERNEL := true)))
+    endif
+
+    ifneq ($(HAS_PREBUILT_KERNEL),)
+        $(warning ***************************************************************)
+        $(warning * Using prebuilt kernel binary instead of source              *)
+        $(warning * THIS IS DEPRECATED, AND WILL BE DISCONTINUED                *)
+        $(warning * Please configure your device to download the kernel         *)
+        $(warning * source repository to $(KERNEL_SRC))
+        $(warning * See http://wiki.lineageos.org/w/Doc:_integrated_kernel_building)
+        $(warning * for more information                                        *)
+        $(warning ***************************************************************)
+        FULL_KERNEL_BUILD := false
+    else
+        $(warning ***************************************************************)
+        $(warning *                                                             *)
+        $(warning * No kernel source found, and no fallback prebuilt defined.   *)
+        $(warning * Please make sure your device is properly configured to      *)
+        $(warning * download the kernel repository to $(KERNEL_SRC))
+        $(warning * and add the TARGET_KERNEL_CONFIG variable to BoardConfig.mk *)
+        $(warning *                                                             *)
+        $(warning * As an alternative, define the TARGET_PREBUILT_KERNEL        *)
+        $(warning * variable with the path to the prebuilt binary kernel image  *)
+        $(warning * in your BoardConfig.mk file                                 *)
+        $(warning *                                                             *)
+        $(warning ***************************************************************)
+        $(error "NO KERNEL")
+    endif
+else
+    ifeq ($(TARGET_KERNEL_CONFIG),)
+        $(warning **********************************************************)
+        $(warning * Kernel source found, but no configuration was defined  *)
+        $(warning * Please add the TARGET_KERNEL_CONFIG variable to your   *)
+        $(warning * BoardConfig.mk file                                    *)
+        $(warning **********************************************************)
+        # $(error "NO KERNEL CONFIG")
+    else
+        #$(info Kernel source found, building it)
+        FULL_KERNEL_BUILD := true
+    endif
+endif
+
+ifeq ($(FULL_KERNEL_BUILD),true)
 
 KERNEL_GCC_NOANDROID_CHK := $(shell (echo "int main() {return 0;}" | $(KERNEL_CROSS_COMPILE)gcc -E -mno-android - > /dev/null 2>&1 ; echo $$?))
 ifeq ($(strip $(KERNEL_GCC_NOANDROID_CHK)),0)
