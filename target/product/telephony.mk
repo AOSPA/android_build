@@ -17,6 +17,8 @@
 # This is the list of product-level settings that are specific
 # to products that have telephony hardware.
 
+TARGET_USES_QCOM_BSP_ATEL := true
+
 PRODUCT_PACKAGES := \
     CarrierConfig \
     CarrierDefaultApp \
