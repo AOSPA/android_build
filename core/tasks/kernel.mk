@@ -1,3 +1,6 @@
+# Exclude Sony devices using their own kernel building script
+ifneq ($(BUILD_KERNEL),true)
+
 # Android makefile to build the Kernel as a part of the Android build-system
 PERL		= perl
 
@@ -199,3 +202,5 @@ $(file) : $(TARGET_PREBUILT_INT_KERNEL) | $(ACP)
 	$(transform-prebuilt-to-target)
 
 ALL_PREBUILT += $(INSTALLED_KERNEL_TARGET)
+
+endif # BUILD_KERNEL
