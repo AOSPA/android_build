@@ -86,7 +86,7 @@ $(cleantarget): PRIVATE_CLEAN_FILES += $(intermediates.COMMON)
 ifndef LOCAL_JACK_ENABLED
 
 $(full_classes_compiled_jar): PRIVATE_JAVA_LAYERS_FILE := $(layers_file)
-$(full_classes_compiled_jar): PRIVATE_JAVACFLAGS := $(GLOBAL_JAVAC_DEBUG_FLAGS) $(LOCAL_JAVACFLAGS)
+$(full_classes_compiled_jar): PRIVATE_JAVACFLAGS := $(GLOBAL_JAVAC_DEBUG_FLAGS) $(LOCAL_JAVACFLAGS) $(annotation_processor_flags)
 $(full_classes_compiled_jar): PRIVATE_JAR_EXCLUDE_FILES :=
 $(full_classes_compiled_jar): PRIVATE_JAR_PACKAGES :=
 $(full_classes_compiled_jar): PRIVATE_JAR_EXCLUDE_PACKAGES :=
@@ -96,7 +96,10 @@ $(full_classes_compiled_jar): \
         $(full_java_lib_deps) \
         $(jar_manifest_file) \
         $(proto_java_sources_file_stamp) \
-        $(LOCAL_ADDITIONAL_DEPENDENCIES)
+        $(annotation_processor_deps) \
+        $(NORMALIZE_PATH) \
+        $(LOCAL_ADDITIONAL_DEPENDENCIES) \
+        | $(SOONG_JAVAC_WRAPPER)
 	$(transform-host-java-to-package)
 
 my_desugaring :=
@@ -116,7 +119,7 @@ ifneq ($(strip $(LOCAL_JARJAR_RULES)),)
 $(full_classes_jarjar_jar): PRIVATE_JARJAR_RULES := $(LOCAL_JARJAR_RULES)
 $(full_classes_jarjar_jar): $(full_classes_desugar_jar) $(LOCAL_JARJAR_RULES) | $(JARJAR)
 	@echo JarJar: $@
-	$(hide) java -jar $(JARJAR) process $(PRIVATE_JARJAR_RULES) $< $@
+	$(hide) $(JAVA) -jar $(JARJAR) process $(PRIVATE_JARJAR_RULES) $< $@
 else
 full_classes_jarjar_jar := $(full_classes_desugar_jar)
 endif

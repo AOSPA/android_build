@@ -114,6 +114,7 @@ LOCAL_PROGUARD_ENABLED :=
 endif
 
 full_classes_compiled_jar := $(intermediates.COMMON)/$(full_classes_compiled_jar_leaf)
+full_classes_processed_jar := $(intermediates.COMMON)/classes-processed.jar
 full_classes_desugar_jar := $(intermediates.COMMON)/classes-desugar.jar
 jarjar_leaf := classes-jarjar.jar
 full_classes_jarjar_jar := $(intermediates.COMMON)/$(jarjar_leaf)
@@ -428,7 +429,17 @@ ifeq ($(RUN_ERROR_PRONE),true)
 LOCAL_JAVACFLAGS += $(LOCAL_ERROR_PRONE_FLAGS)
 endif
 
-$(full_classes_compiled_jar): PRIVATE_JAVACFLAGS := $(GLOBAL_JAVAC_DEBUG_FLAGS) $(LOCAL_JAVACFLAGS)
+# For user / userdebug builds, strip the local variable table and the local variable
+# type table. This has no bearing on stack traces, but will leave less information
+# available via JDWP.
+ifneq (,$(PRODUCT_MINIMIZE_JAVA_DEBUG_INFO))
+ifneq (,$(filter userdebug user,$(TARGET_BUILD_VARIANT)))
+LOCAL_JAVACFLAGS+= -g:source,lines
+LOCAL_JACK_FLAGS+= -D jack.dex.debug.vars=false -D jack.dex.debug.vars.synthetic=false
+endif
+endif
+
+$(full_classes_compiled_jar): PRIVATE_JAVACFLAGS := $(GLOBAL_JAVAC_DEBUG_FLAGS) $(LOCAL_JAVACFLAGS) $(annotation_processor_flags)
 $(full_classes_compiled_jar): PRIVATE_JAR_EXCLUDE_FILES := $(LOCAL_JAR_EXCLUDE_FILES)
 $(full_classes_compiled_jar): PRIVATE_JAR_PACKAGES := $(LOCAL_JAR_PACKAGES)
 $(full_classes_compiled_jar): PRIVATE_JAR_EXCLUDE_PACKAGES := $(LOCAL_JAR_EXCLUDE_PACKAGES)
@@ -441,25 +452,50 @@ $(full_classes_compiled_jar): \
         $(layers_file) \
         $(RenderScript_file_stamp) \
         $(proto_java_sources_file_stamp) \
+        $(annotation_processor_deps) \
         $(NORMALIZE_PATH) \
-        $(LOCAL_ADDITIONAL_DEPENDENCIES)
+        $(LOCAL_ADDITIONAL_DEPENDENCIES) \
+        | $(SOONG_JAVAC_WRAPPER)
 	$(transform-java-to-classes.jar)
 
 javac-check : $(full_classes_compiled_jar)
 javac-check-$(LOCAL_MODULE) : $(full_classes_compiled_jar)
+
+ifdef LOCAL_JAR_PROCESSOR
+# LOCAL_JAR_PROCESSOR_ARGS must be evaluated here to set up the rule-local
+# PRIVATE_JAR_PROCESSOR_ARGS variable, but $< and $@ are not available yet.
+# Set ${in} and ${out} so they can be referenced by LOCAL_JAR_PROCESSOR_ARGS
+# using deferred evaluation (LOCAL_JAR_PROCESSOR_ARGS = instead of :=).
+in := $(full_classes_compiled_jar)
+out := $(full_classes_processed_jar).tmp
+$(full_classes_processed_jar): PRIVATE_JAR_PROCESSOR_ARGS := $(LOCAL_JAR_PROCESSOR_ARGS)
+$(full_classes_processed_jar): PRIVATE_JAR_PROCESSOR := $(HOST_OUT_JAVA_LIBRARIES)/$(LOCAL_JAR_PROCESSOR).jar
+$(full_classes_processed_jar): PRIVATE_TMP_OUT := $(out)
+in :=
+out :=
+
+$(full_classes_processed_jar): $(full_classes_compiled_jar) $(LOCAL_JAR_PROCESSOR)
+	@echo Processing $@ with $(PRIVATE_JAR_PROCESSOR)
+	$(hide) rm -f $@ $(PRIVATE_TMP_OUT)
+	$(hide) $(JAVA) -jar $(PRIVATE_JAR_PROCESSOR) $(PRIVATE_JAR_PROCESSOR_ARGS)
+	$(hide) mv $(PRIVATE_TMP_OUT) $@
+
+else
+full_classes_processed_jar := $(full_classes_compiled_jar)
+endif
 
 my_desugaring :=
 ifndef LOCAL_JACK_ENABLED
 ifndef LOCAL_IS_STATIC_JAVA_LIBRARY
 my_desugaring := true
 $(full_classes_desugar_jar): PRIVATE_DX_FLAGS := $(LOCAL_DX_FLAGS)
-$(full_classes_desugar_jar): $(full_classes_compiled_jar) $(DESUGAR)
+$(full_classes_desugar_jar): $(full_classes_processed_jar) $(DESUGAR)
 	$(desugar-classes-jar)
 endif
 endif
 
 ifndef my_desugaring
-full_classes_desugar_jar := $(full_classes_compiled_jar)
+full_classes_desugar_jar := $(full_classes_processed_jar)
 endif
 
 # Run jarjar if necessary
@@ -467,7 +503,7 @@ ifneq ($(strip $(LOCAL_JARJAR_RULES)),)
 $(full_classes_jarjar_jar): PRIVATE_JARJAR_RULES := $(LOCAL_JARJAR_RULES)
 $(full_classes_jarjar_jar): $(full_classes_desugar_jar) $(LOCAL_JARJAR_RULES) | $(JARJAR)
 	@echo JarJar: $@
-	$(hide) java -jar $(JARJAR) process $(PRIVATE_JARJAR_RULES) $< $@
+	$(hide) $(JAVA) -jar $(JARJAR) process $(PRIVATE_JARJAR_RULES) $< $@
 else
 full_classes_jarjar_jar := $(full_classes_desugar_jar)
 endif
@@ -611,7 +647,7 @@ extra_input_jar :=
 endif
 
 # If not using jack and building against the current SDK version then filter
-# out junit and android.test classes from the application that are to be
+# out the junit, android.test and c.a.i.u.Predicate classes that are to be
 # removed from the Android API as part of b/30188076 but which are still
 # present in the Android API. This is to allow changes to be made to the
 # build to statically include those classes into the application without
@@ -620,7 +656,7 @@ proguard_injar_filters :=
 ifndef LOCAL_JACK_ENABLED
 ifdef LOCAL_SDK_VERSION
 ifeq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
-proguard_injar_filters := (!junit/framework/**,!junit/runner/**,!android/test/**)
+proguard_injar_filters := (!junit/framework/**,!junit/runner/**,!junit/textui/**,!android/test/**,!com/android/internal/util/*)
 endif
 endif
 endif
@@ -736,13 +772,14 @@ else  # LOCAL_PROGUARD_ENABLED not defined
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_JACK_PROGUARD_FLAGS :=
 endif # LOCAL_PROGUARD_ENABLED defined
 
-$(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_JACK_FLAGS := $(GLOBAL_JAVAC_DEBUG_FLAGS) $(LOCAL_JACK_FLAGS)
+$(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_JACK_FLAGS := $(GLOBAL_JAVAC_DEBUG_FLAGS) $(LOCAL_JACK_FLAGS) $(annotation_processor_flags)
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_JACK_VERSION := $(LOCAL_JACK_VERSION)
 
 jack_all_deps := $(java_sources) $(java_resource_sources) $(full_jack_deps) \
         $(jar_manifest_file) $(layers_file) $(RenderScript_file_stamp) \
         $(common_proguard_flag_files) $(proguard_flag_files) \
-        $(proto_java_sources_file_stamp) $(LOCAL_ADDITIONAL_DEPENDENCIES) $(LOCAL_JARJAR_RULES) \
+        $(proto_java_sources_file_stamp) $(annotation_processor_deps) \
+        $(LOCAL_ADDITIONAL_DEPENDENCIES) $(LOCAL_JARJAR_RULES) \
         $(NORMALIZE_PATH) $(JACK_DEFAULT_ARGS) $(JACK)
 
 $(jack_check_timestamp): $(jack_all_deps) | setup-jack-server

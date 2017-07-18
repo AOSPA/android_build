@@ -846,10 +846,10 @@ endef
 ## Use echo-(warning|error) in a build rule
 ## Use pretty-(warning|error) instead of $(warning)/$(error)
 ###########################################################
-ESC_BOLD := \e[1m
-ESC_WARNING := \e[35m
-ESC_ERROR := \e[31m
-ESC_RESET := \e[0m
+ESC_BOLD := \033[1m
+ESC_WARNING := \033[35m
+ESC_ERROR := \033[31m
+ESC_RESET := \033[0m
 
 # $(1): path (and optionally line) information
 # $(2): message to print
@@ -1017,12 +1017,15 @@ $(foreach d,$1, \
 $(hide) echo >> $2
 endef
 
+# b/37755219
+RS_CC_ASAN_OPTIONS := ASAN_OPTIONS=detect_leaks=0:detect_container_overflow=0
+
 define transform-renderscripts-to-java-and-bc
 @echo "RenderScript: $(PRIVATE_MODULE) <= $(PRIVATE_RS_SOURCE_FILES)"
 $(hide) rm -rf $(PRIVATE_RS_OUTPUT_DIR)
 $(hide) mkdir -p $(PRIVATE_RS_OUTPUT_DIR)/res/raw
 $(hide) mkdir -p $(PRIVATE_RS_OUTPUT_DIR)/src
-$(hide) $(PRIVATE_RS_CC) \
+$(hide) $(RS_CC_ASAN_OPTIONS) $(PRIVATE_RS_CC) \
   -o $(PRIVATE_RS_OUTPUT_DIR)/res/raw \
   -p $(PRIVATE_RS_OUTPUT_DIR)/src \
   -d $(PRIVATE_RS_OUTPUT_DIR) \
@@ -1046,8 +1049,9 @@ $(hide) $(PRIVATE_CXX) -shared -Wl,-soname,$(notdir $@) -nostdlib \
 	$(dir $@)/$(notdir $(<:.bc=.o)) \
 	$(RS_PREBUILT_COMPILER_RT) \
 	-o $@ $(TARGET_GLOBAL_LDFLAGS) -Wl,--hash-style=sysv -L prebuilts/gcc/ \
-	$(RS_PREBUILT_LIBPATH) -L $(TARGET_OUT_INTERMEDIATE_LIBRARIES) \
-	-lRSSupport -lm -lc
+	$(RS_PREBUILT_LIBPATH) \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libRSSupport)/libRSSupport.so \
+	-lm -lc
 endef
 
 ###########################################################
@@ -1058,7 +1062,7 @@ define transform-renderscripts-to-cpp-and-bc
 @echo "RenderScript: $(PRIVATE_MODULE) <= $(PRIVATE_RS_SOURCE_FILES)"
 $(hide) rm -rf $(PRIVATE_RS_OUTPUT_DIR)
 $(hide) mkdir -p $(PRIVATE_RS_OUTPUT_DIR)/
-$(hide) $(PRIVATE_RS_CC) \
+$(hide) $(RS_CC_ASAN_OPTIONS) $(PRIVATE_RS_CC) \
   -o $(PRIVATE_RS_OUTPUT_DIR)/ \
   -d $(PRIVATE_RS_OUTPUT_DIR) \
   -a $@ -MD \
@@ -2010,6 +2014,9 @@ else
 APPS_DEFAULT_VERSION_NAME := $(PLATFORM_VERSION)
 endif
 
+# b/37750224
+AAPT_ASAN_OPTIONS := ASAN_OPTIONS=detect_leaks=0
+
 # TODO: Right now we generate the asset resources twice, first as part
 # of generating the Java classes, then at the end when packaging the final
 # assets.  This should be changed to do one of two things: (1) Don't generate
@@ -2024,7 +2031,7 @@ endif
 define create-resource-java-files
 @mkdir -p $(PRIVATE_SOURCE_INTERMEDIATES_DIR)
 @mkdir -p $(dir $(PRIVATE_RESOURCE_PUBLICS_OUTPUT))
-$(hide) $(AAPT) package $(PRIVATE_AAPT_FLAGS) -m \
+$(hide) $(AAPT_ASAN_OPTIONS) $(AAPT) package $(PRIVATE_AAPT_FLAGS) -m \
     $(eval # PRIVATE_PRODUCT_AAPT_CONFIG is intentionally missing-- see comment.) \
     $(addprefix -J , $(PRIVATE_SOURCE_INTERMEDIATES_DIR)) \
     $(addprefix -M , $(PRIVATE_ANDROID_MANIFEST)) \
@@ -2203,9 +2210,9 @@ endef
 # $(2): bootclasspath
 define compile-java
 $(hide) rm -f $@
-$(hide) rm -rf $(PRIVATE_CLASS_INTERMEDIATES_DIR)
+$(hide) rm -rf $(PRIVATE_CLASS_INTERMEDIATES_DIR) $(PRIVATE_ANNO_INTERMEDIATES_DIR)
 $(hide) mkdir -p $(dir $@)
-$(hide) mkdir -p $(PRIVATE_CLASS_INTERMEDIATES_DIR)
+$(hide) mkdir -p $(PRIVATE_CLASS_INTERMEDIATES_DIR) $(PRIVATE_ANNO_INTERMEDIATES_DIR)
 $(call unzip-jar-files,$(PRIVATE_STATIC_JAVA_LIBRARIES),$(PRIVATE_CLASS_INTERMEDIATES_DIR))
 $(call dump-words-to-file,$(PRIVATE_JAVA_SOURCES),$(PRIVATE_CLASS_INTERMEDIATES_DIR)/java-source-list)
 $(hide) if [ -d "$(PRIVATE_SOURCE_INTERMEDIATES_DIR)" ]; then \
@@ -2218,13 +2225,13 @@ $(if $(PRIVATE_HAS_RS_SOURCES), \
 $(hide) tr ' ' '\n' < $(PRIVATE_CLASS_INTERMEDIATES_DIR)/java-source-list \
     | $(NORMALIZE_PATH) | sort -u > $(PRIVATE_CLASS_INTERMEDIATES_DIR)/java-source-list-uniq
 $(hide) if [ -s $(PRIVATE_CLASS_INTERMEDIATES_DIR)/java-source-list-uniq ] ; then \
-    $(1) -encoding UTF-8 \
+    $(SOONG_JAVAC_WRAPPER) $(1) -encoding UTF-8 \
     $(if $(findstring true,$(PRIVATE_WARNINGS_ENABLE)),$(xlint_unchecked),) \
     $(2) \
     $(addprefix -classpath ,$(strip \
         $(call normalize-path-list,$(PRIVATE_ALL_JAVA_LIBRARIES)))) \
     $(if $(findstring true,$(PRIVATE_WARNINGS_ENABLE)),$(xlint_unchecked),) \
-    -extdirs "" -d $(PRIVATE_CLASS_INTERMEDIATES_DIR) \
+    -extdirs "" -d $(PRIVATE_CLASS_INTERMEDIATES_DIR) -s $(PRIVATE_ANNO_INTERMEDIATES_DIR) \
     $(PRIVATE_JAVACFLAGS) \
     \@$(PRIVATE_CLASS_INTERMEDIATES_DIR)/java-source-list-uniq \
     || ( rm -rf $(PRIVATE_CLASS_INTERMEDIATES_DIR) ; exit 41 ) \
@@ -2248,9 +2255,9 @@ $(if $(PRIVATE_JAR_EXCLUDE_PACKAGES), $(hide) rm -rf \
 $(if $(PRIVATE_JAR_MANIFEST), \
     $(hide) sed -e "s/%BUILD_NUMBER%/$(BUILD_NUMBER_FROM_FILE)/" \
             $(PRIVATE_JAR_MANIFEST) > $(dir $@)/manifest.mf && \
-        jar -cfm $@ $(dir $@)/manifest.mf \
+        $(JAR) -cfm $@ $(dir $@)/manifest.mf \
             -C $(PRIVATE_CLASS_INTERMEDIATES_DIR) ., \
-    $(hide) jar -cf $@ -C $(PRIVATE_CLASS_INTERMEDIATES_DIR) .)
+    $(hide) $(JAR) -cf $@ -C $(PRIVATE_CLASS_INTERMEDIATES_DIR) .)
 $(if $(PRIVATE_EXTRA_JAR_ARGS),$(call add-java-resources-to,$@))
 endef
 
@@ -2406,13 +2413,16 @@ else \
 fi
 endef
 
+# b/37756495
+IJAR_ASAN_OPTIONS := ASAN_OPTIONS=detect_leaks=0
+
 ## Rule to create a table of contents from a .jar file.
 ## Must be called with $(eval).
 # $(1): A .jar file
 define _transform-jar-to-toc
 $1.toc: $1 | $(IJAR)
 	@echo Generating TOC: $$@
-	$(hide) $(IJAR) $$< $$@.tmp
+	$(hide) $(IJAR_ASAN_OPTIONS) $(IJAR) $$< $$@.tmp
 	$$(call commit-change-for-toc,$$@)
 endef
 
@@ -2518,7 +2528,7 @@ $(if $(PRIVATE_JAR_MANIFEST), $(hide) echo unsupported options JAR_MANIFEST in $
 endef
 
 define transform-classes.jar-to-emma
-$(hide) java -classpath $(EMMA_JAR) emma instr -outmode fullcopy -outfile \
+$(hide) $(JAVA) -classpath $(EMMA_JAR) emma instr -outmode fullcopy -outfile \
     $(PRIVATE_EMMA_COVERAGE_FILE) -ip $< -d $(PRIVATE_EMMA_INTERMEDIATES_DIR) \
     $(addprefix -ix , $(PRIVATE_EMMA_COVERAGE_FILTER))
 endef
@@ -2534,11 +2544,17 @@ define codename-or-sdk-to-sdk
 $(if $(filter $(1),$(PLATFORM_VERSION_CODENAME)),10000,$(1))
 endef
 
+# --add-opens is required because desugar reflects via java.lang.invoke.MethodHandles.Lookup
 define desugar-classes-jar
 @echo Desugar: $@
 @mkdir -p $(dir $@)
 $(hide) rm -f $@ $@.tmp
-$(hide) java -jar $(DESUGAR) \
+@rm -rf $(dir $@)/desugar_dumped_classes
+@mkdir $(dir $@)/desugar_dumped_classes
+$(hide) $(JAVA) \
+    $(if $(EXPERIMENTAL_USE_OPENJDK9),--add-opens java.base/java.lang.invoke=ALL-UNNAMED,) \
+    -Djdk.internal.lambda.dumpProxyClasses=$(abspath $(dir $@))/desugar_dumped_classes \
+    -jar $(DESUGAR) \
     $(addprefix --bootclasspath_entry ,$(call desugar-bootclasspath,$(PRIVATE_BOOTCLASSPATH))) \
     $(addprefix --classpath_entry ,$(PRIVATE_ALL_JAVA_LIBRARIES)) \
     --min_sdk_version $(call codename-or-sdk-to-sdk,$(PRIVATE_DEFAULT_APP_TARGET_SDK)) \
@@ -2549,14 +2565,11 @@ $(hide) java -jar $(DESUGAR) \
 endef
 
 
-#TODO: use a smaller -Xmx value for most libraries;
-#      only core.jar and framework.jar need a heap this big.
 define transform-classes.jar-to-dex
 @echo "target Dex: $(PRIVATE_MODULE)"
 @mkdir -p $(dir $@)
 $(hide) rm -f $(dir $@)classes*.dex
-$(hide) $(DX) \
-    -JXms16M -JXmx2048M \
+$(hide) $(DX_COMMAND) \
     --dex --output=$(dir $@) \
     --min-sdk-version=$(call codename-or-sdk-to-sdk,$(PRIVATE_DEFAULT_APP_TARGET_SDK)) \
     $(if $(NO_OPTIMIZE_DX), \
@@ -2576,7 +2589,7 @@ endef
 define create-empty-package-at
 @mkdir -p $(dir $(1))
 $(hide) touch $(dir $(1))zipdummy
-$(hide) (cd $(dir $(1)) && jar cf $(notdir $(1)) zipdummy)
+$(hide) $(JAR) cf $(1) -C $(dir $(1)) zipdummy
 $(hide) zip -qd $(1) zipdummy
 $(hide) rm $(dir $(1))zipdummy
 endef
@@ -2609,7 +2622,7 @@ endef
 #values; applications can override these by explicitly stating
 #them in their manifest.
 define add-assets-to-package
-$(hide) $(AAPT) package -u $(PRIVATE_AAPT_FLAGS) \
+$(hide) $(AAPT_ASAN_OPTIONS) $(AAPT) package -u $(PRIVATE_AAPT_FLAGS) \
     $(addprefix -c , $(PRIVATE_PRODUCT_AAPT_CONFIG)) \
     $(addprefix --preferred-density , $(PRIVATE_PRODUCT_AAPT_PREF_CONFIG)) \
     $(addprefix -M , $(PRIVATE_ANDROID_MANIFEST)) \
@@ -2670,7 +2683,7 @@ endef
 #
 define add-java-resources-to
 $(call dump-words-to-file, $(PRIVATE_EXTRA_JAR_ARGS), $(1).jar-arg-list)
-$(hide) jar uf $(1) @$(1).jar-arg-list
+$(hide) $(JAR) uf $(1) @$(1).jar-arg-list
 @rm -f $(1).jar-arg-list
 endef
 
@@ -2682,7 +2695,7 @@ define add-carried-jack-resources
         | sed -e "s?^$(PRIVATE_JACK_INTERMEDIATES_DIR)/? -C \"$(PRIVATE_JACK_INTERMEDIATES_DIR)\" \"?" -e "s/$$/\"/" \
         > $(dir $@)jack_res_jar_flags; \
     if [ -s $(dir $@)jack_res_jar_flags ] ; then \
-        jar uf $@ @$(dir $@)jack_res_jar_flags; \
+        $(JAR) uf $@ @$(dir $@)jack_res_jar_flags; \
     fi; \
 fi
 endef
@@ -2693,10 +2706,14 @@ define sign-package
 $(call sign-package-arg,$@)
 endef
 
+# signapk uses internal APIs from sun.security.{pkcs,x509}; see http://b/37137869
 # $(1): the package file we are signing.
 define sign-package-arg
 $(hide) mv $(1) $(1).unsigned
-$(hide) java -Djava.library.path=$(SIGNAPK_JNI_LIBRARY_PATH) -jar $(SIGNAPK_JAR) \
+$(hide) $(JAVA) -Djava.library.path=$(SIGNAPK_JNI_LIBRARY_PATH) \
+    $(if $(EXPERIMENTAL_USE_OPENJDK9),--add-exports java.base/sun.security.pkcs=ALL-UNNAMED,) \
+    $(if $(EXPERIMENTAL_USE_OPENJDK9),--add-exports java.base/sun.security.x509=ALL-UNNAMED,) \
+    -jar $(SIGNAPK_JAR) \
     $(PRIVATE_CERTIFICATE) $(PRIVATE_PRIVATE_KEY) \
     $(PRIVATE_ADDITIONAL_CERTIFICATES) $(1).unsigned $(1).signed
 $(hide) mv $(1).signed $(1)
@@ -3154,52 +3171,15 @@ $(strip $(if $(LOCAL_RECORDED_MODULE_TYPE),,
 endef
 
 ###########################################################
-# Link type checking
-###########################################################
-define check-link-type
-$(hide) mkdir -p $(dir $@) && rm -f $@
-$(hide) $(CHECK_LINK_TYPE) --makefile $(PRIVATE_MAKEFILE) --module $(PRIVATE_MODULE) \
-  --type "$(PRIVATE_LINK_TYPE)" $(addprefix --allowed ,$(PRIVATE_ALLOWED_TYPES)) \
-  $(addprefix --warn ,$(PRIVATE_WARN_TYPES)) $(PRIVATE_DEPS)
-$(hide) echo "$(PRIVATE_LINK_TYPE)" >$@
-endef
-
-define link-type-partitions
-ifndef LOCAL_IS_HOST_MODULE
-ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
-ifneq ($(filter $(TARGET_OUT_VENDOR)/%,$(my_module_path)),)
-$(1): PRIVATE_LINK_TYPE += partition:vendor
-$(1): PRIVATE_WARN_TYPES += partition:data
-$(1): PRIVATE_ALLOWED_TYPES += partition:vendor partition:oem partition:odm
-else ifneq ($(filter $(TARGET_OUT_OEM)/%,$(my_module_path)),)
-$(1): PRIVATE_LINK_TYPE += partition:oem
-$(1): PRIVATE_WARN_TYPES += partition:data
-$(1): PRIVATE_ALLOWED_TYPES += partition:vendor partition:oem partition:odm
-else ifneq ($(filter $(TARGET_OUT_ODM)/%,$(my_module_path)),)
-$(1): PRIVATE_LINK_TYPE += partition:odm
-$(1): PRIVATE_WARN_TYPES += partition:data
-$(1): PRIVATE_ALLOWED_TYPES += partition:vendor partition:oem partition:odm
-else ifneq ($(filter $(TARGET_OUT_DATA)/%,$(my_module_path)),)
-$(1): PRIVATE_LINK_TYPE += partition:data
-$(1): PRIVATE_ALLOWED_TYPES += partition:data partition:vendor partition:oem partition:odm
-else
-$(1): PRIVATE_WARN_TYPES += partition:vendor partition:oem partition:odm partition:data
-endif
-else # uninstallable module
-$(1): PRIVATE_ALLOWED_TYPES += partition:vendor partition:oem partition:odm partition:data
-endif
-endif
-endef
-
-###########################################################
 ## Compatibility suite tools
 ###########################################################
 
-# Return a list of output directories for a given suite and the current LOCAL_MODULE
+# Return a list of output directories for a given suite and the current LOCAL_MODULE.
+# Can be passed a subdirectory to use for the common testcase directory.
 define compatibility_suite_dirs
   $(strip \
     $(COMPATIBILITY_TESTCASES_OUT_$(1)) \
-    $($(my_prefix)OUT_TESTCASES)/$(LOCAL_MODULE))
+    $($(my_prefix)OUT_TESTCASES)/$(LOCAL_MODULE)$(2))
 endef
 
 # For each suite:
@@ -3209,11 +3189,146 @@ endef
 # Requires for each suite: my_compat_dist_$(suite) to be defined.
 define create-suite-dependencies
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
-  $(eval my_compat_files_$(suite) := $(call copy-many-files, $(my_compat_dist_$(suite)))) \
   $(eval COMPATIBILITY.$(suite).FILES := \
-    $(COMPATIBILITY.$(suite).FILES) $(my_compat_files_$(suite))) \
-  $(eval $(my_all_targets) : $(my_compat_files_$(suite))))
+    $(COMPATIBILITY.$(suite).FILES) $(foreach f,$(my_compat_dist_$(suite)),$(call word-colon,2,$(f))))) \
+$(eval $(my_all_targets) : $(call copy-many-files, \
+  $(sort $(foreach suite,$(LOCAL_COMPATIBILITY_SUITE),$(my_compat_dist_$(suite))))))
 endef
+
+###########################################################
+## Path Cleaning
+###########################################################
+
+# Remove "dir .." combinations (but keep ".. ..")
+#
+# $(1): The expanded path, where / is converted to ' ' to work with $(word)
+define _clean-path-strip-dotdot
+$(strip \
+  $(if $(word 2,$(1)),
+    $(if $(call streq,$(word 2,$(1)),..),
+      $(if $(call streq,$(word 1,$(1)),..),
+        $(word 1,$(1)) $(call _clean-path-strip-dotdot,$(wordlist 2,$(words $(1)),$(1)))
+      ,
+        $(call _clean-path-strip-dotdot,$(wordlist 3,$(words $(1)),$(1)))
+      )
+    ,
+      $(word 1,$(1)) $(call _clean-path-strip-dotdot,$(wordlist 2,$(words $(1)),$(1)))
+    )
+  ,
+    $(1)
+  )
+)
+endef
+
+# Remove any leading .. from the path (in case of /..)
+#
+# Should only be called if the original path started with /
+# $(1): The expanded path, where / is converted to ' ' to work with $(word)
+define _clean-path-strip-root-dotdots
+$(strip $(if $(call streq,$(firstword $(1)),..),
+  $(call _clean-path-strip-root-dotdots,$(wordlist 2,$(words $(1)),$(1))),
+  $(1)))
+endef
+
+# Call _clean-path-strip-dotdot until the path stops changing
+# $(1): Non-empty if this path started with a /
+# $(2): The expanded path, where / is converted to ' ' to work with $(word)
+define _clean-path-expanded
+$(strip \
+  $(eval _ep := $(call _clean-path-strip-dotdot,$(2)))
+  $(if $(1),$(eval _ep := $(call _clean-path-strip-root-dotdots,$(_ep))))
+  $(if $(call streq,$(2),$(_ep)),
+    $(_ep),
+    $(call _clean-path-expanded,$(1),$(_ep))))
+endef
+
+# Clean the file path -- remove //, dir/.., extra .
+#
+# This should be the same semantics as golang's filepath.Clean
+#
+# $(1): The file path to clean
+define clean-path
+$(strip \
+  $(if $(call streq,$(words $(1)),1),
+    $(eval _rooted := $(filter /%,$(1)))
+    $(eval _expanded_path := $(filter-out .,$(subst /,$(space),$(1))))
+    $(eval _path := $(if $(_rooted),/)$(subst $(space),/,$(call _clean-path-expanded,$(_rooted),$(_expanded_path))))
+    $(if $(_path),
+      $(_path),
+      .
+     )
+  ,
+    $(if $(call streq,$(words $(1)),0),
+      .,
+      $(error Call clean-path with only one path (without spaces))
+    )
+  )
+)
+endef
+
+ifeq ($(TEST_MAKE_clean_path),true)
+  define my_test
+    $(if $(call streq,$(call clean-path,$(1)),$(2)),,
+      $(eval my_failed := true)
+      $(warning clean-path test '$(1)': expected '$(2)', got '$(call clean-path,$(1))'))
+  endef
+  my_failed :=
+
+  # Already clean
+  $(call my_test,abc,abc)
+  $(call my_test,abc/def,abc/def)
+  $(call my_test,a/b/c,a/b/c)
+  $(call my_test,.,.)
+  $(call my_test,..,..)
+  $(call my_test,../..,../..)
+  $(call my_test,../../abc,../../abc)
+  $(call my_test,/abc,/abc)
+  $(call my_test,/,/)
+
+  # Empty is current dir
+  $(call my_test,,.)
+
+  # Remove trailing slash
+  $(call my_test,abc/,abc)
+  $(call my_test,abc/def/,abc/def)
+  $(call my_test,a/b/c/,a/b/c)
+  $(call my_test,./,.)
+  $(call my_test,../,..)
+  $(call my_test,../../,../..)
+  $(call my_test,/abc/,/abc)
+
+  # Remove doubled slash
+  $(call my_test,abc//def//ghi,abc/def/ghi)
+  $(call my_test,//abc,/abc)
+  $(call my_test,///abc,/abc)
+  $(call my_test,//abc//,/abc)
+  $(call my_test,abc//,abc)
+
+  # Remove . elements
+  $(call my_test,abc/./def,abc/def)
+  $(call my_test,/./abc/def,/abc/def)
+  $(call my_test,abc/.,abc)
+
+  # Remove .. elements
+  $(call my_test,abc/def/ghi/../jkl,abc/def/jkl)
+  $(call my_test,abc/def/../ghi/../jkl,abc/jkl)
+  $(call my_test,abc/def/..,abc)
+  $(call my_test,abc/def/../..,.)
+  $(call my_test,/abc/def/../..,/)
+  $(call my_test,abc/def/../../..,..)
+  $(call my_test,/abc/def/../../..,/)
+  $(call my_test,abc/def/../../../ghi/jkl/../../../mno,../../mno)
+  $(call my_test,/../abc,/abc)
+
+  # Combinations
+  $(call my_test,abc/./../def,def)
+  $(call my_test,abc//./../def,def)
+  $(call my_test,abc/../../././../def,../../def)
+
+  ifdef my_failed
+    $(error failed clean-path test)
+  endif
+endif
 
 ###########################################################
 ## Other includes

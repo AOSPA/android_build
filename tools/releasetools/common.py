@@ -107,10 +107,15 @@ class ExternalError(RuntimeError):
   pass
 
 
-def Run(args, **kwargs):
-  """Create and return a subprocess.Popen object, printing the command
-  line on the terminal if -v was specified."""
-  if OPTIONS.verbose:
+def Run(args, verbose=None, **kwargs):
+  """Create and return a subprocess.Popen object.
+
+  Caller can specify if the command line should be printed. The global
+  OPTIONS.verbose will be used if not specified.
+  """
+  if verbose is None:
+    verbose = OPTIONS.verbose
+  if verbose:
     print("  running: ", " ".join(args))
   return subprocess.Popen(args, **kwargs)
 
@@ -340,14 +345,13 @@ def DumpInfoDict(d):
     print("%-25s = (%s) %s" % (k, type(v).__name__, v))
 
 
-def AppendAVBSigningArgs(cmd):
+def AppendAVBSigningArgs(cmd, partition):
   """Append signing arguments for avbtool."""
-  keypath = OPTIONS.info_dict.get("board_avb_key_path", None)
-  algorithm = OPTIONS.info_dict.get("board_avb_algorithm", None)
-  if not keypath or not algorithm:
-    algorithm = "SHA256_RSA4096"
-    keypath = "external/avb/test/data/testkey_rsa4096.pem"
-  cmd.extend(["--key", keypath, "--algorithm", algorithm])
+  # e.g., "--key path/to/signing_key --algorithm SHA256_RSA4096"
+  key_path = OPTIONS.info_dict.get("avb_" + partition + "_key_path")
+  algorithm = OPTIONS.info_dict.get("avb_" + partition + "_algorithm")
+  if key_path and algorithm:
+    cmd.extend(["--key", key_path, "--algorithm", algorithm])
 
 
 def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
@@ -485,13 +489,13 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
     img_keyblock.close()
 
   # AVB: if enabled, calculate and add hash to boot.img.
-  if info_dict.get("board_avb_enable", None) == "true":
-    avbtool = os.getenv('AVBTOOL') or "avbtool"
-    part_size = info_dict.get("boot_size", None)
+  if info_dict.get("avb_enable") == "true":
+    avbtool = os.getenv('AVBTOOL') or info_dict["avb_avbtool"]
+    part_size = info_dict["boot_size"]
     cmd = [avbtool, "add_hash_footer", "--image", img.name,
            "--partition_size", str(part_size), "--partition_name", "boot"]
-    AppendAVBSigningArgs(cmd)
-    args = info_dict.get("board_avb_boot_add_hash_footer_args", None)
+    AppendAVBSigningArgs(cmd, "boot")
+    args = info_dict.get("avb_boot_add_hash_footer_args")
     if args and args.strip():
       cmd.extend(shlex.split(args))
     p = Run(cmd, stdout=subprocess.PIPE)
@@ -1601,7 +1605,6 @@ def MakeRecoveryPatch(input_dir, output_sink, recovery_img, boot_img,
     info_dict = OPTIONS.info_dict
 
   full_recovery_image = info_dict.get("full_recovery_image", None) == "true"
-  system_root_image = info_dict.get("system_root_image", None) == "true"
 
   if full_recovery_image:
     output_sink("etc/recovery.img", recovery_img.data)
@@ -1657,30 +1660,8 @@ fi
        'bonus_args': bonus_args}
 
   # The install script location moved from /system/etc to /system/bin
-  # in the L release.  Parse init.*.rc files to find out where the
-  # target-files expects it to be, and put it there.
-  sh_location = "etc/install-recovery.sh"
-  found = False
-  if system_root_image:
-    init_rc_dir = os.path.join(input_dir, "ROOT")
-  else:
-    init_rc_dir = os.path.join(input_dir, "BOOT", "RAMDISK")
-  init_rc_files = os.listdir(init_rc_dir)
-  for init_rc_file in init_rc_files:
-    if (not init_rc_file.startswith('init.') or
-        not init_rc_file.endswith('.rc')):
-      continue
-
-    with open(os.path.join(init_rc_dir, init_rc_file)) as f:
-      for line in f:
-        m = re.match(r"^service flash_recovery /system/(\S+)\s*$", line)
-        if m:
-          sh_location = m.group(1)
-          found = True
-          break
-
-    if found:
-      break
+  # in the L release.
+  sh_location = "bin/install-recovery.sh"
 
   print("putting script in", sh_location)
 

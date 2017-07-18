@@ -62,6 +62,14 @@ $(foreach f,$(CUSTOM_IMAGE_COPY_FILES),\
   $(eval my_image_copy_files += $(src))\
   $(eval my_copy_pairs += $(src):$(my_staging_dir)/$(word 2,$(pair))))
 
+ifndef CUSTOM_IMAGE_AVB_KEY_PATH
+# If key path isn't specified, use the default signing args.
+my_avb_signing_args := $(INTERNAL_AVB_SIGNING_ARGS)
+else
+my_avb_signing_args := \
+  --algorithm $(CUSTOM_IMAGE_AVB_ALGORITHM) --key $(CUSTOM_IMAGE_AVB_KEY_PATH)
+endif
+
 $(my_built_custom_image): PRIVATE_INTERMEDIATES := $(intermediates)
 $(my_built_custom_image): PRIVATE_MOUNT_POINT := $(CUSTOM_IMAGE_MOUNT_POINT)
 $(my_built_custom_image): PRIVATE_PARTITION_SIZE := $(CUSTOM_IMAGE_PARTITION_SIZE)
@@ -74,7 +82,23 @@ $(my_built_custom_image): PRIVATE_SUPPORT_VERITY := $(CUSTOM_IMAGE_SUPPORT_VERIT
 $(my_built_custom_image): PRIVATE_VERITY_KEY := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY)
 $(my_built_custom_image): PRIVATE_VERITY_BLOCK_DEVICE := $(CUSTOM_IMAGE_VERITY_BLOCK_DEVICE)
 $(my_built_custom_image): PRIVATE_DICT_FILE := $(CUSTOM_IMAGE_DICT_FILE)
-$(my_built_custom_image): $(INTERNAL_USERIMAGES_DEPS) $(my_built_modules) $(my_image_copy_files) \
+$(my_built_custom_image): PRIVATE_AVB_AVBTOOL := $(AVBTOOL)
+$(my_built_custom_image): PRIVATE_AVB_SIGNING_ARGS := $(my_avb_signing_args)
+$(my_built_custom_image): PRIVATE_AVB_HASH_ENABLE := $(CUSTOM_IMAGE_AVB_HASH_ENABLE)
+$(my_built_custom_image): PRIVATE_AVB_ADD_HASH_FOOTER_ARGS := $(CUSTOM_IMAGE_AVB_ADD_HASH_FOOTER_ARGS)
+$(my_built_custom_image): PRIVATE_AVB_HASHTREE_ENABLE := $(CUSTOM_IMAGE_AVB_HASHTREE_ENABLE)
+$(my_built_custom_image): PRIVATE_AVB_ADD_HASHTREE_FOOTER_ARGS := $(CUSTOM_IMAGE_AVB_ADD_HASHTREE_FOOTER_ARGS)
+ifeq (true,$(filter true, $(CUSTOM_IMAGE_AVB_HASH_ENABLE) $(CUSTOM_IMAGE_AVB_HASHTREE_ENABLE)))
+  $(my_built_custom_image): $(AVBTOOL)
+else ifneq (,$(filter true, $(CUSTOM_IMAGE_AVB_HASH_ENABLE) $(CUSTOM_IMAGE_AVB_HASHTREE_ENABLE)))
+  $(error Cannot set both CUSTOM_IMAGE_AVB_HASH_ENABLE and CUSTOM_IMAGE_AVB_HASHTREE_ENABLE to true)
+endif
+my_custom_image_modules_var:=BOARD_$(strip $(call to-upper,$(my_custom_image_name)))_KERNEL_MODULES
+my_custom_image_modules:=$($(my_custom_image_modules_var))
+my_custom_image_modules_dep:=$(if $(my_custom_image_modules),$(my_custom_image_modules) $(DEPMOD),)
+$(my_built_custom_image): PRIVATE_KERNEL_MODULES := $(my_custom_image_modules)
+$(my_built_custom_image): PRIVATE_IMAGE_NAME := $(my_custom_image_name)
+$(my_built_custom_image): $(INTERNAL_USERIMAGES_DEPS) $(my_built_modules) $(my_image_copy_files) $(my_custom_image_modules_dep) \
   $(CUSTOM_IMAGE_DICT_FILE)
 	@echo "Build image $@"
 	$(hide) rm -rf $(PRIVATE_INTERMEDIATES) && mkdir -p $(PRIVATE_INTERMEDIATES)
@@ -84,10 +108,13 @@ $(my_built_custom_image): $(INTERNAL_USERIMAGES_DEPS) $(my_built_modules) $(my_i
 	          $(eval pair := $(subst :,$(space),$(p)))\
 	          mkdir -p $(dir $(word 2,$(pair)));\
 	          cp -Rf $(word 1,$(pair)) $(word 2,$(pair));)
+	$(if $(PRIVATE_KERNEL_MODULES), \
+		$(call build-image-kernel-modules,$(PRIVATE_KERNEL_MODULES),$(PRIVATE_STAGING_DIR),$(PRIVATE_IMAGE_NAME)/,$(call intermediates-dir-for,PACKAGING,depmod_$(PRIVATE_IMAGE_NAME))))
 	$(if $($(PRIVATE_PICKUP_FILES)),$(hide) cp -Rf $(PRIVATE_PICKUP_FILES) $(PRIVATE_STAGING_DIR))
 	# Generate the dict.
 	$(hide) echo "# For all accepted properties, see BuildImage() in tools/releasetools/build_image.py" > $(PRIVATE_INTERMEDIATES)/image_info.txt
 	$(hide) echo "mount_point=$(PRIVATE_MOUNT_POINT)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt
+	$(hide) echo "partition_name=$(PRIVATE_MOUNT_POINT)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt
 	$(hide) echo "fs_type=$(PRIVATE_FILE_SYSTEM_TYPE)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt
 	$(hide) echo "partition_size=$(PRIVATE_PARTITION_SIZE)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt
 	$(hide) echo "ext_mkuserimg=$(notdir $(MKEXTUSERIMG))" >> $(PRIVATE_INTERMEDIATES)/image_info.txt
@@ -97,6 +124,14 @@ $(my_built_custom_image): $(INTERNAL_USERIMAGES_DEPS) $(my_built_modules) $(my_i
 	    echo "verity_key=$(PRIVATE_VERITY_KEY)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt;\
 	    echo "verity_signer_cmd=$(VERITY_SIGNER)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt;\
 	    echo "verity_block_device=$(PRIVATE_VERITY_BLOCK_DEVICE)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt)
+	$(hide) echo "avb_avbtool=$(PRIVATE_AVB_AVBTOOL)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt
+	$(hide) echo "avb_signing_args=$(PRIVATE_AVB_SIGNING_ARGS)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt
+	$(if $(PRIVATE_AVB_HASH_ENABLE),\
+	  $(hide) echo "avb_hash_enable=$(PRIVATE_AVB_HASH_ENABLE)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt;\
+	    echo "avb_add_hash_footer_args=$(PRIVATE_AVB_ADD_HASH_FOOTER_ARGS)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt)
+	$(if $(PRIVATE_AVB_HASHTREE_ENABLE),\
+	  $(hide) echo "avb_hashtree_enable=$(PRIVATE_AVB_HASHTREE_ENABLE)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt;\
+	    echo "avb_add_hashtree_footer_args=$(PRIVATE_AVB_ADD_HASHTREE_FOOTER_ARGS)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt)
 	$(if $(PRIVATE_DICT_FILE),\
 	  $(hide) echo "# Properties from $(PRIVATE_DICT_FILE)" >> $(PRIVATE_INTERMEDIATES)/image_info.txt;\
 	    cat $(PRIVATE_DICT_FILE) >> $(PRIVATE_INTERMEDIATES)/image_info.txt)
@@ -116,3 +151,9 @@ custom_images $(my_custom_image_name) : $(my_installed_custom_image)
 
 # Archive the built image.
 $(call dist-for-goals, $(my_custom_image_name) custom_images,$(my_installed_custom_image))
+
+my_staging_dir :=
+my_built_modules :=
+my_copy_dest :=
+my_copy_pairs :=
+my_pickup_files :=

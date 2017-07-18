@@ -88,6 +88,7 @@ INTERNAL_VALID_VARIANTS := user userdebug eng
 # Provide "PRODUCT-<prodname>-<goal>" targets, which lets you build
 # a particular configuration without needing to set up the environment.
 #
+ifndef KATI
 product_goals := $(strip $(filter PRODUCT-%,$(MAKECMDGOALS)))
 ifdef product_goals
   # Scrape the product and build names out of the goal,
@@ -113,54 +114,42 @@ ifdef product_goals
     $(error "tests" has been deprecated as a build variant. Use it as a build goal instead.)
   endif
 
-  # The build server wants to do make PRODUCT-dream-installclean
-  # which really means TARGET_PRODUCT=dream make installclean.
+  # The build server wants to do make PRODUCT-dream-sdk
+  # which really means TARGET_PRODUCT=dream make sdk.
   ifneq ($(filter-out $(INTERNAL_VALID_VARIANTS),$(TARGET_BUILD_VARIANT)),)
-    MAKECMDGOALS := $(MAKECMDGOALS) $(TARGET_BUILD_VARIANT)
+    override MAKECMDGOALS := $(MAKECMDGOALS) $(TARGET_BUILD_VARIANT)
     TARGET_BUILD_VARIANT := userdebug
     default_goal_substitution :=
   else
-    default_goal_substitution := $(DEFAULT_GOAL)
+    default_goal_substitution := droid
   endif
 
   # Replace the PRODUCT-* goal with the build goal that it refers to.
   # Note that this will ensure that it appears in the same relative
   # position, in case it matters.
-  #
-  # Note that modifying this will not affect the goals that make will
-  # attempt to build, but it's important because we inspect this value
-  # in certain situations (like for "make sdk").
-  #
-  MAKECMDGOALS := $(patsubst $(goal_name),$(default_goal_substitution),$(MAKECMDGOALS))
-
-  # Define a rule for the PRODUCT-* goal, and make it depend on the
-  # patched-up command-line goals as well as any other goals that we
-  # want to force.
-  #
-.PHONY: $(goal_name)
-$(goal_name): $(MAKECMDGOALS)
+  override MAKECMDGOALS := $(patsubst $(goal_name),$(default_goal_substitution),$(MAKECMDGOALS))
 endif
+endif # !KATI
 # else: Use the value set in the environment or buildspec.mk.
 
 # ---------------------------------------------------------------
 # Provide "APP-<appname>" targets, which lets you build
 # an unbundled app.
 #
+ifndef KATI
 unbundled_goals := $(strip $(filter APP-%,$(MAKECMDGOALS)))
 ifdef unbundled_goals
   ifneq ($(words $(unbundled_goals)),1)
     $(error Only one APP-* goal may be specified; saw "$(unbundled_goals)")
   endif
   TARGET_BUILD_APPS := $(strip $(subst -, ,$(patsubst APP-%,%,$(unbundled_goals))))
-  ifneq ($(filter $(DEFAULT_GOAL),$(MAKECMDGOALS)),)
-    MAKECMDGOALS := $(patsubst $(unbundled_goals),,$(MAKECMDGOALS))
+  ifneq ($(filter droid,$(MAKECMDGOALS)),)
+    override MAKECMDGOALS := $(patsubst $(unbundled_goals),,$(MAKECMDGOALS))
   else
-    MAKECMDGOALS := $(patsubst $(unbundled_goals),$(DEFAULT_GOAL),$(MAKECMDGOALS))
+    override MAKECMDGOALS := $(patsubst $(unbundled_goals),droid,$(MAKECMDGOALS))
   endif
-
-.PHONY: $(unbundled_goals)
-$(unbundled_goals): $(MAKECMDGOALS)
 endif # unbundled_goals
+endif
 
 # Default to building dalvikvm on hosts that support it...
 ifeq ($(HOST_OS),linux)
@@ -391,6 +380,20 @@ PRODUCT_DEX_PREOPT_DEFAULT_FLAGS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_DEFAULT_FLAGS))
 PRODUCT_DEX_PREOPT_BOOT_FLAGS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_BOOT_FLAGS))
+PRODUCT_DEX_PREOPT_PROFILE_DIR := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_PROFILE_DIR))
+
+# Boot image options.
+PRODUCT_USE_PROFILE_FOR_BOOT_IMAGE := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_PROFILE_FOR_BOOT_IMAGE))
+PRODUCT_DEX_PREOPT_BOOT_IMAGE_PROFILE_LOCATION := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_BOOT_IMAGE_PROFILE_LOCATION))
+
+PRODUCT_SYSTEM_SERVER_COMPILER_FILTER := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_SERVER_COMPILER_FILTER))
+PRODUCT_SYSTEM_SERVER_DEBUG_INFO := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_SERVER_DEBUG_INFO))
+
 # Resolve and setup per-module dex-preopt configs.
 PRODUCT_DEX_PREOPT_MODULE_CONFIGS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_MODULE_CONFIGS))
@@ -419,6 +422,10 @@ $(foreach c,$(PRODUCT_SANITIZER_MODULE_CONFIGS),\
     $(eval SANITIZER.$(TARGET_PRODUCT).$(m).CONFIG := $(cf))))
 _psmc_modules :=
 
+# Whether the product wants to ship libartd. For rules and meaning, see art/Android.mk.
+PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD))
+
 # Make this art variable visible to soong_config.mk.
 PRODUCT_ART_USE_READ_BARRIER := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ART_USE_READ_BARRIER))
@@ -434,3 +441,7 @@ PRODUCT_ENFORCE_RRO_TARGETS := \
 # Add reserved headroom to a system image.
 PRODUCT_SYSTEM_HEADROOM := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_HEADROOM))
+
+# Whether to save disk space by minimizing java debug info
+PRODUCT_MINIMIZE_JAVA_DEBUG_INFO := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_MINIMIZE_JAVA_DEBUG_INFO))

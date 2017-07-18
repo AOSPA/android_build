@@ -225,6 +225,16 @@ function setpaths()
     fi
 
     export ANDROID_DEV_SCRIPTS=$T/development/scripts:$T/prebuilts/devtools/tools:$T/external/selinux/prebuilts/bin
+
+    # add kernel specific binaries
+    case $(uname -s) in
+        Linux)
+            export ANDROID_DEV_SCRIPTS=$ANDROID_DEV_SCRIPTS:$T/prebuilts/misc/linux-x86/dtc:$T/prebuilts/misc/linux-x86/libufdt
+            ;;
+        *)
+            ;;
+    esac
+
     export ANDROID_BUILD_PATHS=$(get_build_var ANDROID_BUILD_PATHS):$ANDROID_TOOLCHAIN:$ANDROID_TOOLCHAIN_2ND_ARCH:$ANDROID_DEV_SCRIPTS:
 
     # If prebuilts/android-emulator/<system>/ exists, prepend it to our PATH
@@ -610,7 +620,11 @@ function lunch()
 
     export TARGET_PRODUCT=$(get_build_var TARGET_PRODUCT)
     export TARGET_BUILD_VARIANT=$(get_build_var TARGET_BUILD_VARIANT)
-    export TARGET_PLATFORM_VERSION=$(get_build_var TARGET_PLATFORM_VERSION)
+    if [ -n "$version" ]; then
+      export TARGET_PLATFORM_VERSION=$(get_build_var TARGET_PLATFORM_VERSION)
+    else
+      unset TARGET_PLATFORM_VERSION
+    fi
     export TARGET_BUILD_TYPE=release
 
     echo
@@ -1239,7 +1253,7 @@ case `uname -s` in
     Darwin)
         function mgrep()
         {
-            find -E . -name .repo -prune -o -name .git -prune -o -path ./out -prune -o -type f -iregex '.*/(Makefile|Makefile\..*|.*\.make|.*\.mak|.*\.mk|.*\.bp)' \
+            find -E . -name .repo -prune -o -name .git -prune -o -path ./out -prune -o \( -iregex '.*/(Makefile|Makefile\..*|.*\.make|.*\.mak|.*\.mk|.*\.bp)' -o -regex '(.*/)?soong/[^/]*.go' \) -type f \
                 -exec grep --color -n "$@" {} +
         }
 
@@ -1253,7 +1267,7 @@ case `uname -s` in
     *)
         function mgrep()
         {
-            find . -name .repo -prune -o -name .git -prune -o -path ./out -prune -o -regextype posix-egrep -iregex '(.*\/Makefile|.*\/Makefile\..*|.*\.make|.*\.mak|.*\.mk|.*\.bp)' -type f \
+            find . -name .repo -prune -o -name .git -prune -o -path ./out -prune -o \( -regextype posix-egrep -iregex '(.*\/Makefile|.*\/Makefile\..*|.*\.make|.*\.mak|.*\.mk|.*\.bp)' -o -regextype posix-extended -regex '(.*/)?soong/[^/]*.go' \) -type f \
                 -exec grep --color -n "$@" {} +
         }
 

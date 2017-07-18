@@ -24,9 +24,10 @@ ifdef LOCAL_IS_HOST_MODULE
   endif
 else
   ifeq ($(LOCAL_SYSTEM_SHARED_LIBRARIES),none)
-      my_system_shared_libraries := libc libm
+      my_system_shared_libraries := libc libm libdl
   else
       my_system_shared_libraries := $(LOCAL_SYSTEM_SHARED_LIBRARIES)
+      my_system_shared_libraries := $(patsubst libc,libc libdl,$(my_system_shared_libraries))
   endif
 endif
 
@@ -39,7 +40,7 @@ my_src_files := $(LOCAL_SRC_FILES)
 my_src_files_exclude := $(LOCAL_SRC_FILES_EXCLUDE)
 my_static_libraries := $(LOCAL_STATIC_LIBRARIES)
 my_whole_static_libraries := $(LOCAL_WHOLE_STATIC_LIBRARIES)
-my_shared_libraries := $(LOCAL_SHARED_LIBRARIES)
+my_shared_libraries := $(filter-out $(my_system_shared_libraries),$(LOCAL_SHARED_LIBRARIES))
 my_header_libraries := $(LOCAL_HEADER_LIBRARIES)
 my_cflags := $(LOCAL_CFLAGS)
 my_conlyflags := $(LOCAL_CONLYFLAGS)
@@ -309,7 +310,7 @@ endif
 ifneq ($(LOCAL_NO_PIC),true)
 ifneq ($($(my_prefix)OS),windows)
 ifneq ($(filter EXECUTABLES NATIVE_TESTS,$(LOCAL_MODULE_CLASS)),)
-my_cflags += -fpie
+my_cflags += -fPIE
 else
 my_cflags += -fPIC
 endif
@@ -530,37 +531,6 @@ endif
 my_asflags += -D__ASSEMBLY__
 
 ###########################################################
-## When compiling against the VNDK, use LL-NDK libraries
-###########################################################
-ifneq ($(LOCAL_USE_VNDK),)
-  ####################################################
-  ## Soong modules may be built twice, once for /system
-  ## and once for /vendor. If we're using the VNDK,
-  ## switch all soong libraries over to the /vendor
-  ## variant.
-  ####################################################
-  ifeq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
-    # Soong-built libraries should always use the .vendor variant
-    my_whole_static_libraries := $(addsuffix .vendor,$(my_whole_static_libraries))
-    my_static_libraries := $(addsuffix .vendor,$(my_static_libraries))
-    my_shared_libraries := $(addsuffix .vendor,$(my_shared_libraries))
-    my_system_shared_libraries := $(addsuffix .vendor,$(my_system_shared_libraries))
-    my_header_libraries := $(addsuffix .vendor,$(my_header_libraries))
-  else
-    my_whole_static_libraries := $(foreach l,$(my_whole_static_libraries),\
-      $(if $(SPLIT_VENDOR.STATIC_LIBRARIES.$(l)),$(l).vendor,$(l)))
-    my_static_libraries := $(foreach l,$(my_static_libraries),\
-      $(if $(SPLIT_VENDOR.STATIC_LIBRARIES.$(l)),$(l).vendor,$(l)))
-    my_shared_libraries := $(foreach l,$(my_shared_libraries),\
-      $(if $(SPLIT_VENDOR.SHARED_LIBRARIES.$(l)),$(l).vendor,$(l)))
-    my_system_shared_libraries := $(foreach l,$(my_system_shared_libraries),\
-      $(if $(SPLIT_VENDOR.SHARED_LIBRARIES.$(l)),$(l).vendor,$(l)))
-    my_header_libraries := $(foreach l,$(my_header_libraries),\
-      $(if $(SPLIT_VENDOR.HEADER_LIBRARIES.$(l)),$(l).vendor,$(l)))
-  endif
-endif
-
-###########################################################
 ## Define PRIVATE_ variables from global vars
 ###########################################################
 ifndef LOCAL_IS_HOST_MODULE
@@ -568,6 +538,7 @@ ifdef LOCAL_USE_VNDK
 my_target_global_c_includes := \
     $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)PROJECT_INCLUDES)
 my_target_global_c_system_includes := \
+    $(TARGET_OUT_HEADERS) \
     $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)PROJECT_SYSTEM_INCLUDES)
 else ifdef LOCAL_SDK_VERSION
 my_target_global_c_includes :=
@@ -1374,6 +1345,36 @@ $(call track-src-file-obj,$(asm_sources_asm),$(asm_objects_asm))
 asm_objects += $(asm_objects_asm)
 endif
 
+###########################################################
+## When compiling against the VNDK, use LL-NDK libraries
+###########################################################
+ifneq ($(LOCAL_USE_VNDK),)
+  ####################################################
+  ## Soong modules may be built twice, once for /system
+  ## and once for /vendor. If we're using the VNDK,
+  ## switch all soong libraries over to the /vendor
+  ## variant.
+  ####################################################
+  ifeq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
+    # Soong-built libraries should always use the .vendor variant
+    my_whole_static_libraries := $(addsuffix .vendor,$(my_whole_static_libraries))
+    my_static_libraries := $(addsuffix .vendor,$(my_static_libraries))
+    my_shared_libraries := $(addsuffix .vendor,$(my_shared_libraries))
+    my_system_shared_libraries := $(addsuffix .vendor,$(my_system_shared_libraries))
+    my_header_libraries := $(addsuffix .vendor,$(my_header_libraries))
+  else
+    my_whole_static_libraries := $(foreach l,$(my_whole_static_libraries),\
+      $(if $(SPLIT_VENDOR.STATIC_LIBRARIES.$(l)),$(l).vendor,$(l)))
+    my_static_libraries := $(foreach l,$(my_static_libraries),\
+      $(if $(SPLIT_VENDOR.STATIC_LIBRARIES.$(l)),$(l).vendor,$(l)))
+    my_shared_libraries := $(foreach l,$(my_shared_libraries),\
+      $(if $(SPLIT_VENDOR.SHARED_LIBRARIES.$(l)),$(l).vendor,$(l)))
+    my_system_shared_libraries := $(foreach l,$(my_system_shared_libraries),\
+      $(if $(SPLIT_VENDOR.SHARED_LIBRARIES.$(l)),$(l).vendor,$(l)))
+    my_header_libraries := $(foreach l,$(my_header_libraries),\
+      $(if $(SPLIT_VENDOR.HEADER_LIBRARIES.$(l)),$(l).vendor,$(l)))
+  endif
+endif
 
 ##########################################################
 ## Set up installed module dependency
@@ -1394,7 +1395,7 @@ endif
 ifdef LOCAL_INSTALLED_MODULE
 ifdef installed_shared_library_module_names
 $(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)DEPENDENCIES_ON_SHARED_LIBRARIES += \
-    $(my_register_name):$(LOCAL_INSTALLED_MODULE):$(subst $(space),$(comma),$(sort $(installed_shared_library_module_names)))
+    $(my_register_name):$(LOCAL_INSTALLED_MODULE):$(subst $(space),$(comma),$(installed_shared_library_module_names))
 endif
 endif
 
@@ -1404,6 +1405,8 @@ endif
 ####################################################
 import_includes := $(intermediates)/import_includes
 import_includes_deps := $(strip \
+    $(if $(LOCAL_USE_VNDK),\
+      $(call intermediates-dir-for,HEADER_LIBRARIES,device_kernel_headers,$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/export_includes) \
     $(foreach l, $(installed_shared_library_module_names), \
       $(call intermediates-dir-for,SHARED_LIBRARIES,$(l),$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/export_includes) \
     $(foreach l, $(my_static_libraries) $(my_whole_static_libraries), \
@@ -1427,39 +1430,28 @@ endif
 ## other NDK-built libraries
 ####################################################
 
-my_link_type := $(intermediates)/link_type
-all_link_types: $(my_link_type)
 ifdef LOCAL_SDK_VERSION
-$(my_link_type): PRIVATE_LINK_TYPE := native:ndk
-$(my_link_type): PRIVATE_WARN_TYPES :=
-$(my_link_type): PRIVATE_ALLOWED_TYPES := native:ndk
+my_link_type := native:ndk
+my_warn_types :=
+my_allowed_types := native:ndk
 else ifdef LOCAL_USE_VNDK
-$(my_link_type): PRIVATE_LINK_TYPE := native:vendor
-$(my_link_type): PRIVATE_WARN_TYPES :=
-$(my_link_type): PRIVATE_ALLOWED_TYPES := native:vendor
+my_link_type := native:vendor
+my_warn_types :=
+my_allowed_types := native:vendor
 else
-$(my_link_type): PRIVATE_LINK_TYPE := native:platform
-$(my_link_type): PRIVATE_WARN_TYPES :=
-$(my_link_type): PRIVATE_ALLOWED_TYPES := native:ndk native:platform
+my_link_type := native:platform
+my_warn_types :=
+my_allowed_types := native:ndk native:platform
 endif
-$(eval $(call link-type-partitions,$(my_link_type)))
-my_link_type_deps := $(strip \
-   $(foreach l,$(my_whole_static_libraries) $(my_static_libraries), \
-     $(call intermediates-dir-for,STATIC_LIBRARIES,$(l),$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/link_type))
-ifneq ($(LOCAL_MODULE_CLASS),STATIC_LIBRARIES)
-ifneq ($(LOCAL_MODULE_CLASS),HEADER_LIBRARIES)
-my_link_type_deps += $(strip \
-   $(foreach l,$(my_shared_libraries), \
-     $(call intermediates-dir-for,SHARED_LIBRARIES,$(l),$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/link_type))
-endif
-endif
-$(my_link_type): PRIVATE_DEPS := $(my_link_type_deps)
-$(my_link_type): PRIVATE_MODULE := $(LOCAL_MODULE)
-$(my_link_type): PRIVATE_MAKEFILE := $(LOCAL_MODULE_MAKEFILE)
-$(my_link_type): $(my_link_type_deps) $(CHECK_LINK_TYPE)
-	@echo Check module type: $@
-	$(check-link-type)
 
+my_link_deps := $(addprefix STATIC_LIBRARIES:,$(my_whole_static_libraries) $(my_static_libraries))
+ifneq ($(filter-out STATIC_LIBRARIES HEADER_LIBRARIES,$(LOCAL_MODULE_CLASS)),)
+my_link_deps += $(addprefix SHARED_LIBRARIES:,$(my_shared_libraries))
+endif
+
+my_2nd_arch_prefix := $(LOCAL_2ND_ARCH_VAR_PREFIX)
+my_common :=
+include $(BUILD_SYSTEM)/link_type.mk
 
 ###########################################################
 ## Common object handling.
@@ -1739,6 +1731,12 @@ ifneq (,$(filter 1 true,$(my_tidy_enabled)))
     ifeq ($(my_tidy_flags),)
       my_tidy_flags := $(call default_tidy_header_filter,$(LOCAL_PATH))
     endif
+
+    # We might be using the static analyzer through clang-tidy.
+    # https://bugs.llvm.org/show_bug.cgi?id=32914
+    ifneq ($(my_tidy_checks),)
+      my_tidy_flags += "-extra-arg-before=-D__clang_analyzer__"
+    endif
   endif
 endif
 
@@ -1858,7 +1856,7 @@ export_cflags :=
 .KATI_RESTAT: $(export_includes)
 
 # Make sure export_includes gets generated when you are running mm/mmm
-$(LOCAL_BUILT_MODULE) : | $(export_includes) $(my_link_type)
+$(LOCAL_BUILT_MODULE) : | $(export_includes)
 
 ifneq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
 ifneq (,$(filter-out $(LOCAL_PATH)/%,$(my_export_c_include_dirs)))
@@ -1869,10 +1867,11 @@ SOONG_CONV.$(LOCAL_MODULE).PROBLEMS := \
     $(SOONG_CONV.$(LOCAL_MODULE).PROBLEMS) $(my_soong_problems)
 SOONG_CONV.$(LOCAL_MODULE).DEPS := \
     $(SOONG_CONV.$(LOCAL_MODULE).DEPS) \
-    $(my_static_libraries) \
-    $(my_whole_static_libraries) \
-    $(my_shared_libraries) \
-    $(my_system_shared_libraries)
+    $(filter-out $($(LOCAL_2ND_ARCH_VAR_PREFIX)UBSAN_RUNTIME_LIBRARY),\
+        $(my_static_libraries) \
+        $(my_whole_static_libraries) \
+        $(my_shared_libraries) \
+        $(my_system_shared_libraries))
 SOONG_CONV := $(SOONG_CONV) $(LOCAL_MODULE)
 endif
 

@@ -173,6 +173,12 @@ TARGET_COPY_OUT_OEM := oem
 TARGET_COPY_OUT_ODM := odm
 TARGET_COPY_OUT_ROOT := root
 TARGET_COPY_OUT_RECOVERY := recovery
+
+# Returns the non-sanitized version of the path provided in $1.
+define get_non_asan_path
+$(patsubst $(PRODUCT_OUT)/$(TARGET_COPY_OUT_ASAN)/%,$(PRODUCT_OUT)/%,$1)
+endef
+
 ###########################################
 # Define TARGET_COPY_OUT_VENDOR to a placeholder, for at this point
 # we don't know if the device wants to build a separate vendor.img
@@ -183,6 +189,13 @@ TARGET_COPY_OUT_RECOVERY := recovery
 _vendor_path_placeholder := ||VENDOR-PATH-PH||
 TARGET_COPY_OUT_VENDOR := $(_vendor_path_placeholder)
 ###########################################
+
+#################################################################
+# Set up minimal BOOTCLASSPATH list of jars to build/execute
+# java code with dalvikvm/art.
+TARGET_CORE_JARS := core-oj core-libart conscrypt okhttp bouncycastle apache-xml
+HOST_CORE_JARS := $(addsuffix -hostdex,$(TARGET_CORE_JARS))
+#################################################################
 
 # Read the product specs so we can get TARGET_DEVICE and other
 # variables that we need in order to locate the output files.
@@ -384,10 +397,19 @@ $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_SHARED_LIBRARIES := $(HOST_CROSS
 $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_EXECUTABLES := $(HOST_CROSS_OUT_EXECUTABLES)
 $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_NATIVE_TESTS := $(HOST_CROSS_OUT)/nativetest64
 
-TARGET_OUT_INTERMEDIATES := $(PRODUCT_OUT)/obj
+ifneq ($(filter address,$(SANITIZE_TARGET)),)
+  TARGET_OUT_INTERMEDIATES := $(PRODUCT_OUT)/obj_asan
+else
+  TARGET_OUT_INTERMEDIATES := $(PRODUCT_OUT)/obj
+endif
 TARGET_OUT_HEADERS := $(TARGET_OUT_INTERMEDIATES)/include
 TARGET_OUT_INTERMEDIATE_LIBRARIES := $(TARGET_OUT_INTERMEDIATES)/lib
-TARGET_OUT_COMMON_INTERMEDIATES := $(TARGET_COMMON_OUT_ROOT)/obj
+
+ifneq ($(filter address,$(SANITIZE_TARGET)),)
+  TARGET_OUT_COMMON_INTERMEDIATES := $(TARGET_COMMON_OUT_ROOT)/obj_asan
+else
+  TARGET_OUT_COMMON_INTERMEDIATES := $(TARGET_COMMON_OUT_ROOT)/obj
+endif
 
 TARGET_OUT_GEN := $(PRODUCT_OUT)/gen
 TARGET_OUT_COMMON_GEN := $(TARGET_COMMON_OUT_ROOT)/gen
@@ -429,7 +451,12 @@ TARGET_2ND_ARCH_MODULE_SUFFIX := _$(TARGET_2ND_ARCH)
 else
 TARGET_2ND_ARCH_MODULE_SUFFIX := $(HOST_2ND_ARCH_MODULE_SUFFIX)
 endif
-$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATES := $(PRODUCT_OUT)/obj_$(TARGET_2ND_ARCH)
+
+ifneq ($(filter address,$(SANITIZE_TARGET)),)
+  $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATES := $(PRODUCT_OUT)/obj_$(TARGET_2ND_ARCH)_asan
+else
+  $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATES := $(PRODUCT_OUT)/obj_$(TARGET_2ND_ARCH)
+endif
 $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATE_LIBRARIES := $($(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATES)/lib
 ifeq ($(TARGET_TRANSLATE_2ND_ARCH),true)
 $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_SHARED_LIBRARIES := $(target_out_shared_libraries_base)/lib/$(TARGET_2ND_ARCH)

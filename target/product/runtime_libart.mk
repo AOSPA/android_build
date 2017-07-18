@@ -16,15 +16,14 @@
 
 # Provides a functioning ART environment without Android frameworks
 
+ifeq ($(TARGET_CORE_JARS),)
+$(error TARGET_CORE_JARS is empty; cannot update PRODUCT_PACKAGES variable)
+endif
+
 # Minimal boot classpath. This should be a subset of PRODUCT_BOOT_JARS, and equivalent to
 # TARGET_CORE_JARS.
 PRODUCT_PACKAGES += \
-    apache-xml \
-    bouncycastle \
-    core-oj \
-    core-libart \
-    conscrypt \
-    okhttp \
+    $(TARGET_CORE_JARS)
 
 # Additional mixins to the boot classpath.
 PRODUCT_PACKAGES += \
@@ -42,7 +41,6 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     libjavacore \
     libopenjdk \
-    libopenjdkjvm \
 
 # Libcore ICU. TODO: Try to figure out if/why we need them explicitly.
 PRODUCT_PACKAGES += \
@@ -50,24 +48,9 @@ PRODUCT_PACKAGES += \
     libicuuc \
 
 # ART.
-PRODUCT_PACKAGES += \
-    dalvikvm \
-    dex2oat \
-    dexoptanalyzer \
-    libart \
-    libart_fake \
-    libopenjdkjvmti \
-    patchoat \
-    profman
-
+PRODUCT_PACKAGES += art-runtime
 # ART/dex helpers.
-PRODUCT_PACKAGES += \
-    ahat \
-    dexdiag \
-    dexdump \
-    dexlist \
-    hprof-conv \
-    oatdump \
+PRODUCT_PACKAGES += art-tools
 
 # Certificates.
 PRODUCT_PACKAGES += \

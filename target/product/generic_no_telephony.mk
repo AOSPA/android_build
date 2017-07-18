@@ -27,6 +27,8 @@ PRODUCT_PACKAGES := \
     OneTimeInitializer \
     Provision \
     SystemUI \
+    SysuiDarkThemeOverlay \
+    SysuiLightWallpaperThemeOverlay \
     EasterEgg \
     WallpaperCropper
 

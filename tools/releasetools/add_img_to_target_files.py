@@ -69,6 +69,7 @@ OPTIONS = common.OPTIONS
 
 OPTIONS.add_missing = False
 OPTIONS.rebuild_recovery = False
+OPTIONS.replace_updated_files_list = []
 OPTIONS.replace_verity_public_key = False
 OPTIONS.replace_verity_private_key = False
 OPTIONS.is_signing = False
@@ -98,8 +99,7 @@ def GetCareMap(which, imgname):
   assert which in ("system", "vendor")
 
   simg = sparse_img.SparseImage(imgname)
-  care_map_list = []
-  care_map_list.append(which)
+  care_map_list = [which]
 
   care_map_ranges = simg.care_map
   key = which + "_adjusted_partition_size"
@@ -126,6 +126,12 @@ def AddSystem(output_zip, prefix="IMAGES/", recovery_img=None, boot_img=None):
     ofile = open(os.path.join(OPTIONS.input_tmp, "SYSTEM", fn), "w")
     ofile.write(data)
     ofile.close()
+
+    arc_name = "SYSTEM/" + fn
+    if arc_name in output_zip.namelist():
+      OPTIONS.replace_updated_files_list.append(arc_name)
+    else:
+      common.ZipWrite(output_zip, ofile.name, arc_name)
 
   if OPTIONS.rebuild_recovery:
     print("Building new recovery patch")
@@ -164,6 +170,43 @@ def AddVendor(output_zip, prefix="IMAGES/"):
   block_list = OutputFile(output_zip, OPTIONS.input_tmp, prefix, "vendor.map")
   CreateImage(OPTIONS.input_tmp, OPTIONS.info_dict, "vendor", img,
               block_list=block_list)
+  return img.name
+
+
+def AddDtbo(output_zip, prefix="IMAGES/"):
+  """Adds the DTBO image.
+
+  Uses the image under prefix if it already exists. Otherwise looks for the
+  image under PREBUILT_IMAGES/, signs it as needed, and returns the image name.
+  """
+
+  img = OutputFile(output_zip, OPTIONS.input_tmp, prefix, "dtbo.img")
+  if os.path.exists(img.input_name):
+    print("dtbo.img already exists in %s, no need to rebuild..." % (prefix,))
+    return img.input_name
+
+  dtbo_prebuilt_path = os.path.join(
+      OPTIONS.input_tmp, "PREBUILT_IMAGES", "dtbo.img")
+  assert os.path.exists(dtbo_prebuilt_path)
+  shutil.copy(dtbo_prebuilt_path, img.name)
+
+  # AVB-sign the image as needed.
+  if OPTIONS.info_dict.get("avb_enable") == "true":
+    avbtool = os.getenv('AVBTOOL') or OPTIONS.info_dict["avb_avbtool"]
+    part_size = OPTIONS.info_dict["dtbo_size"]
+    # The AVB hash footer will be replaced if already present.
+    cmd = [avbtool, "add_hash_footer", "--image", img.name,
+           "--partition_size", str(part_size), "--partition_name", "dtbo"]
+    common.AppendAVBSigningArgs(cmd, "dtbo")
+    args = OPTIONS.info_dict.get("avb_dtbo_add_hash_footer_args")
+    if args and args.strip():
+      cmd.extend(shlex.split(args))
+    p = common.Run(cmd, stdout=subprocess.PIPE)
+    p.communicate()
+    assert p.returncode == 0, \
+        "avbtool add_hash_footer of %s failed" % (img.name,)
+
+  img.Write()
   return img.name
 
 
@@ -222,9 +265,14 @@ def CreateImage(input_dir, info_dict, what, output_file, block_list=None):
   if block_list:
     block_list.Write()
 
+  # Set the 'adjusted_partition_size' that excludes the verity blocks of the
+  # given image. When avb is enabled, this size is the max image size returned
+  # by the avb tool.
   is_verity_partition = "verity_block_device" in image_props
-  verity_supported = image_props.get("verity") == "true"
-  if is_verity_partition and verity_supported:
+  verity_supported = (image_props.get("verity") == "true" or
+                      image_props.get("avb_enable") == "true")
+  is_avb_enable = image_props.get("avb_hashtree_enable") == "true"
+  if verity_supported and (is_verity_partition or is_avb_enable):
     adjusted_blocks_value = image_props.get("partition_size")
     if adjusted_blocks_value:
       adjusted_blocks_key = what + "_adjusted_partition_size"
@@ -285,23 +333,51 @@ def AddUserdata(output_zip, prefix="IMAGES/"):
   img.Write()
 
 
+def AppendVBMetaArgsForPartition(cmd, partition, img_path, public_key_dir):
+  if not img_path:
+    return
+
+  # Check if chain partition is used.
+  key_path = OPTIONS.info_dict.get("avb_" + partition + "_key_path")
+  if key_path:
+    # extract public key in AVB format to be included in vbmeta.img
+    avbtool = os.getenv('AVBTOOL') or OPTIONS.info_dict["avb_avbtool"]
+    public_key_path = os.path.join(public_key_dir, "%s.avbpubkey" % partition)
+    p = common.Run([avbtool, "extract_public_key", "--key", key_path,
+                    "--output", public_key_path],
+                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.communicate()
+    assert p.returncode == 0, \
+        "avbtool extract_public_key fail for partition: %r" % partition
+
+    rollback_index_location = OPTIONS.info_dict[
+        "avb_" + partition + "_rollback_index_location"]
+    cmd.extend(["--chain_partition", "%s:%s:%s" % (
+        partition, rollback_index_location, public_key_path)])
+  else:
+    cmd.extend(["--include_descriptors_from_image", img_path])
+
+
 def AddVBMeta(output_zip, boot_img_path, system_img_path, vendor_img_path,
-              prefix="IMAGES/"):
+              dtbo_img_path, prefix="IMAGES/"):
   """Create a VBMeta image and store it in output_zip."""
   img = OutputFile(output_zip, OPTIONS.input_tmp, prefix, "vbmeta.img")
-  avbtool = os.getenv('AVBTOOL') or "avbtool"
-  cmd = [avbtool, "make_vbmeta_image",
-         "--output", img.name,
-         "--include_descriptors_from_image", boot_img_path,
-         "--include_descriptors_from_image", system_img_path]
-  if vendor_img_path is not None:
-    cmd.extend(["--include_descriptors_from_image", vendor_img_path])
-  if OPTIONS.info_dict.get("system_root_image", None) == "true":
-    cmd.extend(["--setup_rootfs_from_kernel", system_img_path])
-  common.AppendAVBSigningArgs(cmd)
-  args = OPTIONS.info_dict.get("board_avb_make_vbmeta_image_args", None)
+  avbtool = os.getenv('AVBTOOL') or OPTIONS.info_dict["avb_avbtool"]
+  cmd = [avbtool, "make_vbmeta_image", "--output", img.name]
+  common.AppendAVBSigningArgs(cmd, "vbmeta")
+
+  public_key_dir = tempfile.mkdtemp(prefix="avbpubkey-")
+  OPTIONS.tempfiles.append(public_key_dir)
+
+  AppendVBMetaArgsForPartition(cmd, "boot", boot_img_path, public_key_dir)
+  AppendVBMetaArgsForPartition(cmd, "system", system_img_path, public_key_dir)
+  AppendVBMetaArgsForPartition(cmd, "vendor", vendor_img_path, public_key_dir)
+  AppendVBMetaArgsForPartition(cmd, "dtbo", dtbo_img_path, public_key_dir)
+
+  args = OPTIONS.info_dict.get("avb_vbmeta_args")
   if args and args.strip():
     cmd.extend(shlex.split(args))
+
   p = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   p.communicate()
   assert p.returncode == 0, "avbtool make_vbmeta_image failed"
@@ -374,6 +450,27 @@ def AddCache(output_zip, prefix="IMAGES/"):
 
   common.CheckSize(img.name, "cache.img", OPTIONS.info_dict)
   img.Write()
+
+
+def ReplaceUpdatedFiles(zip_filename, files_list):
+  """Update all the zip entries listed in the files_list.
+
+  For now the list includes META/care_map.txt, and the related files under
+  SYSTEM/ after rebuilding recovery.
+  """
+
+  cmd = ["zip", "-d", zip_filename] + files_list
+  p = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+  p.communicate()
+
+  output_zip = zipfile.ZipFile(zip_filename, "a",
+                               compression=zipfile.ZIP_DEFLATED,
+                               allowZip64=True)
+  for item in files_list:
+    file_path = os.path.join(OPTIONS.input_tmp, item)
+    assert os.path.exists(file_path)
+    common.ZipWrite(output_zip, file_path, arcname=item)
+  common.ZipClose(output_zip)
 
 
 def AddImagesToTargetFiles(filename):
@@ -462,7 +559,7 @@ def AddImagesToTargetFiles(filename):
 
   banner("system")
   system_img_path = AddSystem(
-    output_zip, recovery_img=recovery_image, boot_img=boot_image)
+      output_zip, recovery_img=recovery_image, boot_img=boot_image)
   vendor_img_path = None
   if has_vendor:
     banner("vendor")
@@ -475,13 +572,21 @@ def AddImagesToTargetFiles(filename):
     AddUserdata(output_zip)
     banner("cache")
     AddCache(output_zip)
-  if OPTIONS.info_dict.get("board_bpt_enable", None) == "true":
+
+  if OPTIONS.info_dict.get("board_bpt_enable") == "true":
     banner("partition-table")
     AddPartitionTable(output_zip)
-  if OPTIONS.info_dict.get("board_avb_enable", None) == "true":
+
+  dtbo_img_path = None
+  if OPTIONS.info_dict.get("has_dtbo") == "true":
+    banner("dtbo")
+    dtbo_img_path = AddDtbo(output_zip)
+
+  if OPTIONS.info_dict.get("avb_enable") == "true":
     banner("vbmeta")
     boot_contents = boot_image.WriteToTemp()
-    AddVBMeta(output_zip, boot_contents.name, system_img_path, vendor_img_path)
+    AddVBMeta(output_zip, boot_contents.name, system_img_path,
+              vendor_img_path, dtbo_img_path)
 
   # For devices using A/B update, copy over images from RADIO/ and/or
   # VENDOR_IMAGES/ to IMAGES/ and make sure we have all the needed
@@ -495,12 +600,14 @@ def AddImagesToTargetFiles(filename):
     # partitions (if present), then write this file to target_files package.
     care_map_list = []
     for line in lines:
-      if line.strip() == "system" and OPTIONS.info_dict.get(
-          "system_verity_block_device", None) is not None:
+      if line.strip() == "system" and (
+          "system_verity_block_device" in OPTIONS.info_dict or
+          OPTIONS.info_dict.get("avb_system_hashtree_enable") == "true"):
         assert os.path.exists(system_img_path)
         care_map_list += GetCareMap("system", system_img_path)
-      if line.strip() == "vendor" and OPTIONS.info_dict.get(
-          "vendor_verity_block_device", None) is not None:
+      if line.strip() == "vendor" and (
+          "vendor_verity_block_device" in OPTIONS.info_dict or
+          OPTIONS.info_dict.get("avb_vendor_hashtree_enable") == "true"):
         assert os.path.exists(vendor_img_path)
         care_map_list += GetCareMap("vendor", vendor_img_path)
 
@@ -538,15 +645,46 @@ def AddImagesToTargetFiles(filename):
         assert os.path.exists(img_path), "cannot find " + img_name
 
     if care_map_list:
-      file_path = "META/care_map.txt"
-      if output_zip:
-        common.ZipWriteStr(output_zip, file_path, '\n'.join(care_map_list))
+      care_map_path = "META/care_map.txt"
+      if output_zip and care_map_path not in output_zip.namelist():
+        common.ZipWriteStr(output_zip, care_map_path, '\n'.join(care_map_list))
       else:
-        with open(os.path.join(OPTIONS.input_tmp, file_path), 'w') as fp:
+        with open(os.path.join(OPTIONS.input_tmp, care_map_path), 'w') as fp:
           fp.write('\n'.join(care_map_list))
+        if output_zip:
+          OPTIONS.replace_updated_files_list.append(care_map_path)
+
+  # Radio images that need to be packed into IMAGES/, and product-img.zip.
+  pack_radioimages = os.path.join(
+      OPTIONS.input_tmp, "META", "pack_radioimages.txt")
+  if os.path.exists(pack_radioimages):
+    with open(pack_radioimages, 'r') as f:
+      lines = f.readlines()
+    for line in lines:
+      img_name = line.strip()
+      _, ext = os.path.splitext(img_name)
+      if not ext:
+        img_name += ".img"
+      prebuilt_path = os.path.join(OPTIONS.input_tmp, "IMAGES", img_name)
+      if os.path.exists(prebuilt_path):
+        print("%s already exists, no need to overwrite..." % (img_name,))
+        continue
+
+      img_radio_path = os.path.join(OPTIONS.input_tmp, "RADIO", img_name)
+      assert os.path.exists(img_radio_path), \
+          "Failed to find %s at %s" % (img_name, img_radio_path)
+      if output_zip:
+        common.ZipWrite(output_zip, img_radio_path,
+                        os.path.join("IMAGES", img_name))
+      else:
+        shutil.copy(img_radio_path, prebuilt_path)
 
   if output_zip:
     common.ZipClose(output_zip)
+    if OPTIONS.replace_updated_files_list:
+      ReplaceUpdatedFiles(output_zip.filename,
+                          OPTIONS.replace_updated_files_list)
+
 
 def main(argv):
   def option_handler(o, a):

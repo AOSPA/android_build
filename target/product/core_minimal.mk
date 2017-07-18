@@ -88,7 +88,11 @@ PRODUCT_PACKAGES += \
     voip-common \
     webview \
     webview_zygote \
-    wifi-service
+
+# Wifi modules
+PRODUCT_PACKAGES += \
+    wifi-service \
+    wificond \
 
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.software.webview.xml:system/etc/permissions/android.software.webview.xml
@@ -98,20 +102,19 @@ PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.software.preview_sdk.xml:system/etc/permissions/android.software.preview_sdk.xml
 endif
 
+ifeq ($(TARGET_CORE_JARS),)
+$(error TARGET_CORE_JARS is empty; cannot initialize PRODUCT_BOOT_JARS variable)
+endif
+
 # The order of PRODUCT_BOOT_JARS matters.
 PRODUCT_BOOT_JARS := \
-    core-oj \
-    core-libart \
-    conscrypt \
-    okhttp \
+    $(TARGET_CORE_JARS) \
     legacy-test \
-    bouncycastle \
     ext \
     framework \
     telephony-common \
     voip-common \
     ims-common \
-    apache-xml \
     org.apache.http.legacy.boot \
     android.hidl.base-V1.0-java \
     android.hidl.manager-V1.0-java
@@ -145,6 +148,12 @@ PRODUCT_COPY_FILES += \
 # Enable boot.oat filtering of compiled classes to reduce boot.oat size. b/28026683
 PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
     frameworks/base/compiled-classes-phone:system/etc/compiled-classes)
+
+# On userdebug builds, collect more tombstones by default.
+ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+    tombstoned.max_tombstone_count=50
+endif
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/runtime_libart.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/base.mk)

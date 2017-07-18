@@ -130,7 +130,13 @@ ifneq ($(strip $(LOCAL_DROIDDOC_USE_STANDARD_DOCLET)),true)
 ##
 
 droiddoc_templates := \
-    $(sort $(shell find $(LOCAL_DROIDDOC_CUSTOM_TEMPLATE_DIR) -type f))
+    $(sort $(shell find $(LOCAL_DROIDDOC_CUSTOM_TEMPLATE_DIR) -type f $(if $(ALLOW_MISSING_DEPENDENCIES),2>/dev/null)))
+
+ifdef ALLOW_MISSING_DEPENDENCIES
+  ifndef droiddoc_templates
+    droiddoc_templates := $(LOCAL_DROIDDOC_CUSTOM_TEMPLATE_DIR)
+  endif
+endif
 
 droiddoc := \
 	$(HOST_JDK_TOOLS_JAR) \
@@ -173,8 +179,9 @@ $(full_target): \
 	$(call prepare-doc-source-list,$(PRIVATE_SRC_LIST_FILE),$(PRIVATE_JAVA_FILES), \
 			$(PRIVATE_SOURCE_INTERMEDIATES_DIR) $(PRIVATE_ADDITIONAL_JAVA_DIR))
 	$(hide) ( \
-		javadoc \
+		$(JAVADOC) \
                 -encoding UTF-8 \
+                -source 1.8 \
                 \@$(PRIVATE_SRC_LIST_FILE) \
                 -J-Xmx1600m \
                 -J-XX:-OmitStackTraceInFastThrow \
@@ -210,13 +217,13 @@ $(full_target): $(full_src_files) $(full_java_lib_deps)
 	$(call prepare-doc-source-list,$(PRIVATE_SRC_LIST_FILE),$(PRIVATE_JAVA_FILES), \
 			$(PRIVATE_SOURCE_INTERMEDIATES_DIR) $(PRIVATE_ADDITIONAL_JAVA_DIR))
 	$(hide) ( \
-		javadoc \
+		$(JAVADOC) \
                 -encoding UTF-8 \
                 $(PRIVATE_DROIDDOC_OPTIONS) \
                 \@$(PRIVATE_SRC_LIST_FILE) \
                 -J-Xmx1024m \
                 -XDignore.symbol.file \
-                $(if $(LEGACY_USE_JAVA7),,-Xdoclint:none) \
+                -Xdoclint:none \
                 $(PRIVATE_PROFILING_OPTIONS) \
                 $(addprefix -classpath ,$(PRIVATE_CLASSPATH)) \
                 $(addprefix -bootclasspath ,$(PRIVATE_BOOTCLASSPATH)) \

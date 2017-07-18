@@ -14,7 +14,7 @@
 #
 
 # Don't bother with the cleanspecs if you are running mm/mmm
-ifeq ($(ONE_SHOT_MAKEFILE)$(dont_bother),)
+ifeq ($(ONE_SHOT_MAKEFILE)$(dont_bother)$(NO_ANDROID_CLEANSPEC),)
 
 INTERNAL_CLEAN_STEPS :=
 
@@ -142,143 +142,7 @@ rewrite_clean_steps_file :=
 INTERNAL_CLEAN_STEPS :=
 INTERNAL_CLEAN_BUILD_VERSION :=
 
-endif  # if not ONE_SHOT_MAKEFILE dont_bother
-
-# Since products and build variants (unfortunately) share the same
-# PRODUCT_OUT staging directory, things can get out of sync if different
-# build configurations are built in the same tree.  The following logic
-# will notice when the configuration has changed and remove the files
-# necessary to keep things consistent.
-
-previous_build_config_file := $(PRODUCT_OUT)/previous_build_config.mk
-current_build_config_file := $(PRODUCT_OUT)/current_build_config.mk
-
-current_build_config := \
-    $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)
-force_installclean := false
-
-# Read the current state from the file, if present.
-# Will set PREVIOUS_BUILD_CONFIG.
-#
-PREVIOUS_BUILD_CONFIG :=
--include $(previous_build_config_file)
-PREVIOUS_BUILD_CONFIG := $(strip $(PREVIOUS_BUILD_CONFIG))
-
-ifdef PREVIOUS_BUILD_CONFIG
-  ifneq ($(current_build_config),$(PREVIOUS_BUILD_CONFIG))
-    $(info *** Build configuration changed: "$(PREVIOUS_BUILD_CONFIG)" -> "$(current_build_config)")
-    ifneq ($(DISABLE_AUTO_INSTALLCLEAN),true)
-      force_installclean := true
-    else
-      $(info DISABLE_AUTO_INSTALLCLEAN is set; skipping auto-clean. Your tree may be in an inconsistent state.)
-    endif
-  endif
-endif  # else, this is the first build, so no need to clean.
-
-# Write the new state to the file.
-#
-$(shell \
-  mkdir -p $(dir $(current_build_config_file)) && \
-  echo "PREVIOUS_BUILD_CONFIG := $(current_build_config)" > \
-      $(current_build_config_file) \
- )
-$(shell cmp $(current_build_config_file) $(previous_build_config_file) > /dev/null 2>&1 || \
-  mv -f $(current_build_config_file) $(previous_build_config_file))
-
-PREVIOUS_BUILD_CONFIG :=
-previous_build_config_file :=
-current_build_config_file :=
-current_build_config :=
-
-#
-# installclean logic
-#
-
-# The files/dirs to delete during an installclean.
-#
-# Deletes all of the installed files -- the intent is to remove files
-# that may no longer be installed, either because the user previously
-# installed them, or they were previously installed by default but no
-# longer are.
-#
-# This is faster than a full clean, since we're not deleting the
-# intermediates. Instead of recompiling, we can just copy the results.
-#
-# Host bin, frameworks, and lib* are intentionally omitted, since
-# otherwise we'd have to rebuild any generated files created with those
-# tools.
-installclean_files := \
-	$(HOST_OUT)/obj/NOTICE_FILES \
-	$(HOST_OUT)/obj/PACKAGING \
-	$(HOST_OUT)/coverage \
-	$(HOST_OUT)/cts \
-	$(HOST_OUT)/nativetest* \
-	$(HOST_OUT)/sdk \
-	$(HOST_OUT)/sdk_addon \
-	$(HOST_OUT)/testcases \
-	$(HOST_OUT)/vts \
-	$(HOST_CROSS_OUT)/bin \
-	$(HOST_CROSS_OUT)/coverage \
-	$(HOST_CROSS_OUT)/lib* \
-	$(HOST_CROSS_OUT)/nativetest* \
-	$(PRODUCT_OUT)/*.img \
-	$(PRODUCT_OUT)/*.ini \
-	$(PRODUCT_OUT)/*.txt \
-	$(PRODUCT_OUT)/*.xlb \
-	$(PRODUCT_OUT)/*.zip \
-	$(PRODUCT_OUT)/kernel \
-	$(PRODUCT_OUT)/data \
-	$(PRODUCT_OUT)/skin \
-	$(PRODUCT_OUT)/obj/NOTICE_FILES \
-	$(PRODUCT_OUT)/obj/PACKAGING \
-	$(PRODUCT_OUT)/recovery \
-	$(PRODUCT_OUT)/root \
-	$(PRODUCT_OUT)/system \
-	$(PRODUCT_OUT)/system_other \
-	$(PRODUCT_OUT)/vendor \
-	$(PRODUCT_OUT)/oem \
-	$(PRODUCT_OUT)/obj/FAKE \
-	$(PRODUCT_OUT)/breakpad \
-	$(PRODUCT_OUT)/cache \
-	$(PRODUCT_OUT)/coverage \
-	$(PRODUCT_OUT)/installer \
-	$(PRODUCT_OUT)/odm \
-	$(PRODUCT_OUT)/sysloader \
-	$(PRODUCT_OUT)/testcases \
-
-# The files/dirs to delete during a dataclean, which removes any files
-# in the staging and emulator data partitions.
-dataclean_files := \
-	$(PRODUCT_OUT)/data/* \
-	$(PRODUCT_OUT)/data-qemu/* \
-	$(PRODUCT_OUT)/userdata-qemu.img
-
-# make sure *_OUT is set so that we won't result in deleting random parts
-# of the filesystem.
-ifneq (2,$(words $(HOST_OUT) $(PRODUCT_OUT)))
-  $(error both HOST_OUT and PRODUCT_OUT should be set at this point.)
-endif
-
-# Define the rules for commandline invocation.
-.PHONY: dataclean
-dataclean: FILES := $(dataclean_files)
-dataclean:
-	$(hide) rm -rf $(FILES)
-	@echo "Deleted emulator userdata images."
-
-.PHONY: installclean
-installclean: FILES := $(installclean_files)
-installclean: dataclean
-	$(hide) rm -rf $(FILES)
-	@echo "Deleted images and staging directories."
-
-ifeq ($(force_installclean),true)
-  $(info *** Forcing "make installclean"...)
-  $(info *** rm -rf $(dataclean_files) $(installclean_files))
-  $(shell rm -rf $(dataclean_files) $(installclean_files))
-  $(info *** Done with the cleaning, now starting the real build.)
-endif
-force_installclean :=
+endif  # if not ONE_SHOT_MAKEFILE dont_bother NO_ANDROID_CLEANSPEC
 
 ###########################################################
 

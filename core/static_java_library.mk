@@ -39,6 +39,7 @@ need_compile_res :=
 # A static Java library needs to explicily set LOCAL_RESOURCE_DIR.
 ifdef LOCAL_RESOURCE_DIR
 need_compile_res := true
+LOCAL_RESOURCE_DIR := $(foreach d,$(LOCAL_RESOURCE_DIR),$(call clean-path,$(d)))
 endif
 ifdef LOCAL_USE_AAPT2
 ifneq ($(LOCAL_STATIC_ANDROID_LIBRARIES),)
@@ -206,7 +207,7 @@ $(built_aar) : $(aar_classes_jar) $(full_android_manifest)
 	# Note: Use "cp -n" to honor the resource overlay rules, if multiple res dirs exist.
 	$(hide) $(foreach res,$(PRIVATE_RESOURCE_DIR),cp -Rfn $(res)/* $(dir $@)aar/res;)
 	$(hide) cp $(PRIVATE_R_TXT) $(dir $@)aar/R.txt
-	$(hide) jar -cMf $@ \
+	$(hide) $(JAR) -cMf $@ \
 	  -C $(dir $@)aar .
 
 # Register the aar file.

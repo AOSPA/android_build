@@ -243,10 +243,24 @@ intermediates := $(call local-intermediates-dir,,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(
 intermediates.COMMON := $(call local-intermediates-dir,COMMON)
 generated_sources_dir := $(call local-generated-sources-dir)
 
+ifneq ($(LOCAL_OVERRIDES_MODULES),)
+  ifeq ($(LOCAL_MODULE_CLASS),EXECUTABLES)
+    ifndef LOCAL_IS_HOST_MODULE
+      EXECUTABLES.$(LOCAL_MODULE).OVERRIDES := $(strip $(LOCAL_OVERRIDES_MODULES))
+    else
+      $(call pretty-error,host modules cannot use LOCAL_OVERRIDES_MODULES)
+    endif
+  else
+      $(call pretty-error,LOCAL_MODULE_CLASS := $(LOCAL_MODULE_CLASS) cannot use LOCAL_OVERRIDES_MODULES)
+  endif
+endif
+
 ###########################################################
 # Pick a name for the intermediate and final targets
 ###########################################################
 include $(BUILD_SYSTEM)/configure_module_stem.mk
+
+LOCAL_BUILT_MODULE := $(intermediates)/$(my_built_module_stem)
 
 # OVERRIDE_BUILT_MODULE_PATH is only allowed to be used by the
 # internal SHARED_LIBRARIES build files.
@@ -255,11 +269,8 @@ ifdef OVERRIDE_BUILT_MODULE_PATH
   ifneq ($(LOCAL_MODULE_CLASS),SHARED_LIBRARIES)
     $(error $(LOCAL_PATH): Illegal use of OVERRIDE_BUILT_MODULE_PATH)
   endif
-  built_module_path := $(OVERRIDE_BUILT_MODULE_PATH)
-else
-  built_module_path := $(intermediates)
+  $(eval $(call copy-one-file,$(LOCAL_BUILT_MODULE),$(OVERRIDE_BUILT_MODULE_PATH)/$(my_built_module_stem)))
 endif
-LOCAL_BUILT_MODULE := $(built_module_path)/$(my_built_module_stem)
 
 ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
   # Apk and its attachments reside in its own subdir.
@@ -295,6 +306,11 @@ $(LOCAL_BUILT_MODULE).toc: $(LOCAL_BUILT_MODULE)
 .KATI_RESTAT: $(LOCAL_BUILT_MODULE).toc
 # Build .toc file when using mm, mma, or make $(my_register_name)
 $(my_all_targets): $(LOCAL_BUILT_MODULE).toc
+
+ifdef OVERRIDE_BUILT_MODULE_PATH
+$(eval $(call copy-one-file,$(LOCAL_BUILT_MODULE).toc,$(OVERRIDE_BUILT_MODULE_PATH)/$(my_built_module_stem).toc))
+$(OVERRIDE_BUILT_MODULE_PATH)/$(my_built_module_stem).toc: $(OVERRIDE_BUILT_MODULE_PATH)/$(my_built_module_stem)
+endif
 endif
 
 ###########################################################
@@ -431,9 +447,27 @@ endif
 ###########################################################
 ifdef LOCAL_COMPATIBILITY_SUITE
 
+# If we are building a native test or benchmark and its stem variants are not defined,
+# separate the multiple architectures into subdirectories of the testcase folder.
+arch_dir :=
+is_native :=
+ifeq ($(LOCAL_MODULE_CLASS),NATIVE_TESTS)
+  is_native := true
+endif
+ifeq ($(LOCAL_MODULE_CLASS),NATIVE_BENCHMARK)
+  is_native := true
+endif
+ifdef LOCAL_MULTILIB
+  is_native := true
+endif
+ifdef is_native
+  arch_dir := /$($(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)
+  is_native :=
+endif
+
 # The module itself.
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
-  $(eval my_compat_dist_$(suite) := $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
+  $(eval my_compat_dist_$(suite) := $(foreach dir, $(call compatibility_suite_dirs,$(suite),$(arch_dir)), \
     $(LOCAL_BUILT_MODULE):$(dir)/$(my_installed_module_stem))))
 
 # Make sure we only add the files once for multilib modules.
@@ -460,6 +494,13 @@ ifneq (,$(wildcard $(LOCAL_PATH)/DynamicConfig.xml))
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
   $(eval my_compat_dist_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
     $(LOCAL_PATH)/DynamicConfig.xml:$(dir)/$(LOCAL_MODULE).dynamic)))
+endif
+
+ifneq (,$(wildcard $(LOCAL_PATH)/$(LOCAL_MODULE)_*.config))
+$(foreach extra_config, $(wildcard $(LOCAL_PATH)/$(LOCAL_MODULE)_*.config), \
+  $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
+    $(eval my_compat_dist_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
+      $(extra_config):$(dir)/$(notdir $(extra_config))))))
 endif
 endif # $(my_prefix)$(LOCAL_MODULE_CLASS)_$(LOCAL_MODULE)_compat_files
 

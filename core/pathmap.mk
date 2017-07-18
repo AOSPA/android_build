@@ -40,7 +40,6 @@ pathmap_INCL := \
     libhardware:hardware/libhardware/include \
     libhardware_legacy:hardware/libhardware_legacy/include \
     libril:hardware/ril/include \
-    opengl-tests-includes:frameworks/native/opengl/tests/include \
     recovery:bootable/recovery \
     system-core:system/core/include \
     audio:system/media/audio/include \
@@ -87,6 +86,7 @@ FRAMEWORKS_BASE_SUBDIRS := \
 	    telecomm \
 	    telephony \
 	    wifi \
+	    lowpan \
 	    keystore \
 	    rs \
 	 )
