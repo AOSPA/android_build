@@ -1406,7 +1406,7 @@ endif
 import_includes := $(intermediates)/import_includes
 import_includes_deps := $(strip \
     $(if $(LOCAL_USE_VNDK),\
-      $(call intermediates-dir-for,HEADER_LIBRARIES,device_kernel_headers,$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/export_includes) \
+      $(call intermediates-dir-for,HEADER_LIBRARIES,device_kernel_headers.vendor,$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/export_includes) \
     $(foreach l, $(installed_shared_library_module_names), \
       $(call intermediates-dir-for,SHARED_LIBRARIES,$(l),$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/export_includes) \
     $(foreach l, $(my_static_libraries) $(my_whole_static_libraries), \
@@ -1499,7 +1499,8 @@ my_tracked_src_files :=
 
 my_c_includes += $(TOPDIR)$(LOCAL_PATH) $(intermediates) $(generated_sources_dir)
 
-ifndef LOCAL_SDK_VERSION
+# The platform JNI header is for platform modules only.
+ifeq ($(LOCAL_SDK_VERSION)$(LOCAL_USE_VNDK),)
   my_c_includes += $(JNI_H_INCLUDE)
 endif
 

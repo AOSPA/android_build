@@ -592,6 +592,7 @@ NANOPB_SRCS := external/nanopb-c/generator/protoc-gen-nanopb \
 VTSC := $(HOST_OUT_EXECUTABLES)/vtsc$(HOST_EXECUTABLE_SUFFIX)
 MKBOOTFS := $(HOST_OUT_EXECUTABLES)/mkbootfs$(HOST_EXECUTABLE_SUFFIX)
 MINIGZIP := $(HOST_OUT_EXECUTABLES)/minigzip$(HOST_EXECUTABLE_SUFFIX)
+BRO := $(HOST_OUT_EXECUTABLES)/bro$(HOST_EXECUTABLE_SUFFIX)
 ifeq (,$(strip $(BOARD_CUSTOM_MKBOOTIMG)))
 MKBOOTIMG := $(HOST_OUT_EXECUTABLES)/mkbootimg$(HOST_EXECUTABLE_SUFFIX)
 else
@@ -668,7 +669,7 @@ RELOCATION_PACKER := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/relocation
 
 FINDBUGS_DIR := external/owasp/sanitizer/tools/findbugs/bin
 FINDBUGS := $(FINDBUGS_DIR)/findbugs
-EMMA_JAR := external/emma/lib/emma$(COMMON_JAVA_PACKAGE_SUFFIX)
+JACOCO_CLI_JAR := $(HOST_OUT_JAVA_LIBRARIES)/jacoco-cli$(COMMON_JAVA_PACKAGE_SUFFIX)
 
 # Tool to merge AndroidManifest.xmls
 ANDROID_MANIFEST_MERGER := $(JAVA) -classpath prebuilts/devtools/tools/lib/manifest-merger.jar com.android.manifmerger.Main merge

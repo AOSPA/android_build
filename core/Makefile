@@ -2085,7 +2085,8 @@ OTATOOLS :=  $(HOST_OUT_EXECUTABLES)/minigzip \
   $(HOST_OUT_EXECUTABLES)/lib/shflags/shflags \
   $(HOST_OUT_EXECUTABLES)/delta_generator \
   $(AVBTOOL) \
-  $(BLK_ALLOC_TO_BASE_FS)
+  $(BLK_ALLOC_TO_BASE_FS) \
+  $(BRO)
 
 ifeq (true,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VBOOT))
 OTATOOLS += \
@@ -2119,7 +2120,9 @@ OTATOOLS += \
   $(HOST_LIBRARY_PATH)/libz-host$(HOST_SHLIB_SUFFIX) \
   $(HOST_LIBRARY_PATH)/libsparse-host$(HOST_SHLIB_SUFFIX) \
   $(HOST_LIBRARY_PATH)/libbase$(HOST_SHLIB_SUFFIX) \
-  $(HOST_LIBRARY_PATH)/libpcre2$(HOST_SHLIB_SUFFIX)
+  $(HOST_LIBRARY_PATH)/libpcre2$(HOST_SHLIB_SUFFIX) \
+  $(HOST_LIBRARY_PATH)/libbrotli$(HOST_SHLIB_SUFFIX)
+
 
 .PHONY: otatools
 otatools: $(OTATOOLS)
@@ -2568,6 +2571,8 @@ $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
 
 ifeq ($(AB_OTA_UPDATER),true)
 $(INTERNAL_OTA_PACKAGE_TARGET): $(BRILLO_UPDATE_PAYLOAD)
+else
+$(INTERNAL_OTA_PACKAGE_TARGET): $(BRO)
 endif
 
 $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
@@ -2678,19 +2683,35 @@ $(APPS_ZIP): $(INSTALLED_SYSTEMIMAGE)
 		zip -qjX $@ $$apps_to_zip; \
 	fi
 
-#------------------------------------------------------------------
-# A zip of emma code coverage meta files. Generated for fully emma
-# instrumented build.
-#
 ifeq (true,$(EMMA_INSTRUMENT))
-EMMA_META_ZIP := $(PRODUCT_OUT)/emma_meta.zip
-# the dependency will be set up later in build/core/main.mk.
+  #------------------------------------------------------------------
+  # An archive of classes for use in generating code-coverage reports
+  # These are the uninstrumented versions of any classes that were
+  # to be instrumented.
+  # Any dependencies are set up later in build/core/main.mk.
+
+  ifeq ($(ANDROID_COMPILE_WITH_JACK),false)
+    JACOCO_REPORT_CLASSES_ALL := $(PRODUCT_OUT)/jacoco-report-classes-all.jar
+$(JACOCO_REPORT_CLASSES_ALL) :
+	@echo "Collecting uninstrumented classes"
+	$(hide) find $(TARGET_COMMON_OUT_ROOT) $(HOST_COMMON_OUT_ROOT) -name "jacoco-report-classes.jar" | \
+		zip -@ -0 -q -X $@
+# Meaning of these options:
+# -@ scan stdin for file paths to add to the zip
+# -0 don't do any compression
+# -q supress most output
+# -X skip storing extended file attributes
+
+  else
+    EMMA_META_ZIP := $(PRODUCT_OUT)/emma_meta.zip
 $(EMMA_META_ZIP) :
 	@echo "Collecting Emma coverage meta files."
 	$(hide) find $(TARGET_COMMON_OUT_ROOT) $(HOST_COMMON_OUT_ROOT) -name "coverage.em" | \
 		zip -@ -qX $@
+endif
 
 endif # EMMA_INSTRUMENT=true
+
 
 #------------------------------------------------------------------
 # A zip of Proguard obfuscation dictionary files.
