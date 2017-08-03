@@ -468,3 +468,6 @@ endif
 ifeq ($(USE_CLANG_PLATFORM_BUILD),)
 USE_CLANG_PLATFORM_BUILD := true
 endif
+
+# Bring in dex_preopt.mk
+include $(BUILD_SYSTEM)/dex_preopt.mk
