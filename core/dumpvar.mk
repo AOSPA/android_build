@@ -23,6 +23,7 @@ print_build_config_vars := \
   HOST_CROSS_2ND_ARCH \
   HOST_BUILD_TYPE \
   BUILD_ID \
+  USE_DEXPREOPT \
   OUT_DIR
 
 ifeq ($(TARGET_BUILD_PDK),true)

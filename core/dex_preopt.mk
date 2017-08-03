@@ -23,19 +23,27 @@ DEX_PREOPT_DEFAULT ?= true
 # being used). To bundle everything one should set this to '%'
 SYSTEM_OTHER_ODEX_FILTER ?= app/% priv-app/%
 
-# The default values for pre-opting: always preopt PIC.
+# The default values for pre-opting: never preopt PIC.
 # Conditional to building on linux, as dex2oat currently does not work on darwin.
 ifeq ($(HOST_OS),linux)
-  WITH_DEXPREOPT_PIC ?= true
-  WITH_DEXPREOPT ?= true
-# For an eng build only pre-opt the boot image. This gives reasonable performance and still
-# allows a simple workflow: building in frameworks/base and syncing.
-  ifeq (eng,$(TARGET_BUILD_VARIANT))
-    WITH_DEXPREOPT_BOOT_IMG_ONLY ?= true
-  endif
-# Add mini-debug-info to the boot classpath if explicitly asked to do so.
-  ifeq (true,$(WITH_DEXPREOPT_DEBUG_INFO))
-    PRODUCT_DEX_PREOPT_BOOT_FLAGS += --generate-mini-debug-info
+  # Use the shell environment variable "USE_DEXPREOPT" to define the pre-optimization values.
+  ifneq ($(filter-out true,$(USE_DEXPREOPT)),)
+    # If the variable "USE_DEXPREOPT" is set to "false", pre-opting will be uncondionally disabled.
+    WITH_DEXPREOPT ?= false
+  else
+    # If the variable "USE_DEXPREOPT" is not set or set to "true", pre-opting will use the default values.
+    WITH_DEXPREOPT ?= true
+    # Enable position-independent code by default.
+    WITH_DEXPREOPT_PIC ?= true
+    # For an eng build only pre-opt the boot image. This gives reasonable performance and still
+    # allows a simple workflow: building in frameworks/base and syncing.
+    ifeq (eng,$(TARGET_BUILD_VARIANT))
+      WITH_DEXPREOPT_BOOT_IMG_ONLY ?= true
+    endif
+    # Add mini-debug-info to the boot classpath if explicitly asked to do so.
+    ifeq (true,$(WITH_DEXPREOPT_DEBUG_INFO))
+      PRODUCT_DEX_PREOPT_BOOT_FLAGS += --generate-mini-debug-info
+    endif
   endif
 endif
 
