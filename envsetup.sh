@@ -1669,8 +1669,10 @@ function mka() {
             schedtool -B -n 1 -e ionice -n 1 make -j$(cat /proc/cpuinfo | grep "^processor" | wc -l) "$@"
             ;;
     esac
+    RETVAL=$?
 
     cd "$CROOTD"
+    return $RETVAL
 }
 
 # Print colored exit condition
