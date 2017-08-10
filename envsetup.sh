@@ -1555,8 +1555,10 @@ function mka() {
             schedtool -B -n 1 -e ionice -n 1 make -j$(cat /proc/cpuinfo | grep "^processor" | wc -l) "$@"
             ;;
     esac
+    RETVAL=$?
 
     cd "$CROOTD"
+    return $RETVAL
 }
 
 # Force JAVA_HOME to point to java 1.7/1.8 if it isn't already set.
