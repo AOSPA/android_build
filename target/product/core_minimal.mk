@@ -124,7 +124,8 @@ PRODUCT_BOOT_JARS := \
 PRODUCT_SYSTEM_SERVER_JARS := \
     services \
     ethernet-service \
-    wifi-service
+    wifi-service \
+    com.android.location.provider \
 
 # The set of packages whose code can be loaded by the system server.
 PRODUCT_SYSTEM_SERVER_APPS += \
@@ -148,7 +149,11 @@ PRODUCT_COPY_FILES += \
 
 # Enable boot.oat filtering of compiled classes to reduce boot.oat size. b/28026683
 PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
-    frameworks/base/compiled-classes-phone:system/etc/compiled-classes)
+    frameworks/base/config/compiled-classes-phone:system/etc/compiled-classes)
+
+# Enable dirty image object binning to reduce dirty pages in the image.
+PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
+    frameworks/base/dirty-image-objects-phone:system/etc/dirty-image-objects)
 
 # On userdebug builds, collect more tombstones by default.
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))

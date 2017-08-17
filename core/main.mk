@@ -610,7 +610,7 @@ add-required-deps :=
 #     - TARGET
 #     - HOST
 #     - HOST_CROSS
-#     - AUX
+#     - AUX-<variant-name>
 #   3: Whether to use the common intermediates directory or not
 #     - _
 #     - COMMON
@@ -637,8 +637,14 @@ add-required-deps :=
 
 link_type_error :=
 
-define link-type-prefix
+define link-type-prefix-base
 $(word 2,$(subst :,$(space),$(1)))
+endef
+define link-type-prefix
+$(if $(filter AUX-%,$(link-type-prefix-base)),$(patsubst AUX-%,AUX,$(link-type-prefix-base)),$(link-type-prefix-base))
+endef
+define link-type-aux-variant
+$(if $(filter AUX-%,$(link-type-prefix-base)),$(patsubst AUX-%,%,$(link-type-prefix-base)))
 endef
 define link-type-common
 $(patsubst _,,$(word 3,$(subst :,$(space),$(1))))
@@ -729,7 +735,11 @@ endif
 #  2. The jni_link_type rule for embedded native code
 #  3. The 2ND_jni_link_type for the second architecture native code
 define link-type-file
-$(call intermediates-dir-for,$(link-type-class),$(link-type-name),$(filter AUX HOST HOST_CROSS,$(link-type-prefix)),$(link-type-common),$(link-type-2ndarchprefix),$(filter HOST_CROSS,$(link-type-prefix)))/$(if $(filter APPS,$(link-type-class)),$(if $(link-type-common),,$(link-type-2ndarchprefix)jni_))link_type
+$(eval _ltf_aux_variant:=$(link-type-aux-variant))\
+$(if $(_ltf_aux_variant),$(call aux-variant-load-env,$(_ltf_aux_variant)))\
+$(call intermediates-dir-for,$(link-type-class),$(link-type-name),$(filter AUX HOST HOST_CROSS,$(link-type-prefix)),$(link-type-common),$(link-type-2ndarchprefix),$(filter HOST_CROSS,$(link-type-prefix)))/$(if $(filter APPS,$(link-type-class)),$(if $(link-type-common),,$(link-type-2ndarchprefix)jni_))link_type\
+$(if $(_ltf_aux_variant),$(call aux-variant-load-env,none))\
+$(eval _ltf_aux_variant:=)
 endef
 
 # Write out the file-based link_type rules for the ALLOW_MISSING_DEPENDENCIES
@@ -867,6 +877,8 @@ ifdef is_sdk_build
                       $(TARGET_OUT_DATA)/%, \
                               $(sort $(call get-tagged-modules,gnu)))
   target_gnu_MODULES := $(filter-out $(TARGET_OUT_EXECUTABLES)/%,$(target_gnu_MODULES))
+  target_gnu_MODULES := $(filter-out %/libopenjdkjvmti.so,$(target_gnu_MODULES))
+  target_gnu_MODULES := $(filter-out %/libopenjdkjvmtid.so,$(target_gnu_MODULES))
   $(info Removing from sdk:)$(foreach d,$(target_gnu_MODULES),$(info : $(d)))
   modules_to_install := \
               $(filter-out $(target_gnu_MODULES),$(modules_to_install))
