@@ -512,6 +512,13 @@ function lunch()
         return 1
     fi
 
+    if (echo -n $product | grep -q -e "^aospa_") ; then
+        AOSPA_BUILD=$(echo -n $product | sed -e 's/^aospa_//g')
+    else
+        AOSPA_BUILD=
+    fi
+    export AOSPA_BUILD
+
     _lunch_meat $product $release $variant
 }
 
