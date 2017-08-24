@@ -17,6 +17,9 @@
 # Common boardconfig settings for generic AOSP products targetting mobile
 # (phone/table) devices.
 
+# VNDK
+BOARD_VNDK_VERSION := current
+
 # Properties
 TARGET_SYSTEM_PROP := build/make/target/board/treble_system.prop
 BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED := true
@@ -53,3 +56,8 @@ NUM_FRAMEBUFFER_SURFACE_BUFFERS := 3
 # TODO(b/35790399): remove when b/35790399 is fixed.
 BOARD_NAND_SPARE_SIZE := 0
 BOARD_FLASH_BLOCK_SIZE := 512
+
+# b/64700195: add minimum support for odm.img
+# Currently odm.img can only be built by `make custom_images`.
+# Adding /odm mount point under root directory.
+BOARD_ROOT_EXTRA_FOLDERS += odm
