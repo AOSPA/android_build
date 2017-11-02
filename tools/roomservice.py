@@ -59,8 +59,6 @@ if __name__ == '__main__':
         device = product
 
     dependencies_json_path %= device
-    if not os.path.isfile(dependencies_json_path):
-        raise ValueError('No dependencies file could be found for the device (%s).' % device)
     dependencies = json.loads(open(dependencies_json_path, 'r').read())
 
     try:
