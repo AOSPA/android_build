@@ -263,6 +263,19 @@ LOCAL_EXPORT_C_INCLUDE_DEPS := $(my_gen_oem_aid)
 include $(BUILD_STATIC_LIBRARY)
 
 ##################################
+include $(CLEAR_VARS)
+LOCAL_MODULE := liboemaids_system
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(dir $(my_gen_oem_aid))
+LOCAL_EXPORT_C_INCLUDE_DEPS := $(my_gen_oem_aid)
+include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := liboemaids_vendor
+LOCAL_VENDOR_MODULE := true
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(dir $(my_gen_oem_aid))
+LOCAL_EXPORT_C_INCLUDE_DEPS := $(my_gen_oem_aid)
+include $(BUILD_SHARED_LIBRARY)
+
 # Generate the system/etc/passwd text file for the target
 # This file may be empty if no AIDs are defined in
 # TARGET_FS_CONFIG_GEN files.
