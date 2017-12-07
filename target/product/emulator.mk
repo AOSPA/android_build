@@ -84,8 +84,11 @@ PRODUCT_PACKAGES += \
     android.hardware.gnss@1.0-impl
 
 PRODUCT_PACKAGES += \
-    android.hardware.sensors@1.0-impl \
-    android.hardware.sensors@1.0-service
+    android.hardware.sensors@1.0-impl
+
+ifneq ($(strip $(TARGET_HAS_LOW_RAM)),true)
+PRODUCT_PACKAGES += android.hardware.sensors@1.0-service
+endif
 
 PRODUCT_PACKAGES += \
     android.hardware.drm@1.0-service \
