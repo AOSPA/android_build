@@ -92,6 +92,8 @@ $(SOONG_VARIABLES): FORCE
 	echo '    "DeviceKernelHeaders": $(call json_list,$(strip $(TARGET_PROJECT_SYSTEM_INCLUDES))),'; \
 	echo ''; \
 	echo '    "BoardUsesQTIHardware":  $(if $(BOARD_USES_QTI_HARDWARE),true,false)';  \
+        echo ''; \
+        echo '    "CameraEnablesNotifyPerformanceMode":  $(if $(CAMERA_ENABLED_NOTIFY_PERFORMANCE_MODE),true,false)';  \
 	echo '}') > $(SOONG_VARIABLES_TMP); \
 	if ! cmp -s $(SOONG_VARIABLES_TMP) $(SOONG_VARIABLES); then \
 	  mv $(SOONG_VARIABLES_TMP) $(SOONG_VARIABLES); \
