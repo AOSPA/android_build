@@ -26,6 +26,7 @@
 #     BUILD_NUMBER
 #     BUILD_DATETIME
 #     PLATFORM_SECURITY_PATCH
+#     PLATFORM_VNDK_VERSION
 #
 
 # Look for an optional file containing overrides of the defaults,
@@ -183,13 +184,31 @@ ifndef DEFAULT_APP_TARGET_SDK
   endif
 endif
 
+ifndef PLATFORM_VNDK_VERSION
+  # This is the definition of the VNDK version for the current VNDK libraries.
+  # The version is only available when PLATFORM_VERSION_CODENAME == REL.
+  # Otherwise, it will be set to a CODENAME version. The ABI is allowed to be
+  # changed only before the Android version is released. Once
+  # PLATFORM_VNDK_VERSION is set to actual version, the ABI for this version
+  # will be frozon and emit build errors if any ABI for the VNDK libs are
+  # changed.
+  # After that the snapshot of the VNDK with this version will be generated.
+  #
+  # The VNDK version follows PLATFORM_SDK_VERSION.
+  ifeq (REL,$(PLATFORM_VERSION_CODENAME))
+    PLATFORM_VNDK_VERSION := $(PLATFORM_SDK_VERSION)
+  else
+    PLATFORM_VNDK_VERSION := $(PLATFORM_VERSION_CODENAME)
+  endif
+endif
+
 ifndef PLATFORM_SECURITY_PATCH
     #  Used to indicate the security patch that has been applied to the device.
     #  It must signify that the build includes all security patches issued up through the designated Android Public Security Bulletin.
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-      PLATFORM_SECURITY_PATCH := 2017-12-05
+      PLATFORM_SECURITY_PATCH := 2018-02-05
 endif
 
 ifndef PLATFORM_BASE_OS
@@ -232,4 +251,11 @@ ifndef BUILD_NUMBER
   # from this date/time" value.  Make it start with a non-digit so that
   # anyone trying to parse it as an integer will probably get "0".
   BUILD_NUMBER := eng.$(shell echo $${USER:0:6}).$(shell $(DATE) +%Y%m%d.%H%M%S)
+endif
+
+ifndef PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION
+  # Used to set minimum supported target sdk version. Apps targeting sdk
+  # version lower than the set value will fail to install and run on android
+  # device.
+  PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION := 0
 endif

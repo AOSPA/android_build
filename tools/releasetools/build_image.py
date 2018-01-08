@@ -195,8 +195,9 @@ def AdjustPartitionSizeForVerity(partition_size, fec_supported):
     else:
       hi = i
 
-  print("Adjusted partition size for verity, partition_size: {},"
-        " verity_size: {}".format(result, verity_size))
+  if OPTIONS.verbose:
+    print("Adjusted partition size for verity, partition_size: {},"
+          " verity_size: {}".format(result, verity_size))
   AdjustPartitionSizeForVerity.results[key] = (result, verity_size)
   return (result, verity_size)
 
@@ -257,7 +258,7 @@ def Append2Simg(sparse_image_path, unsparse_image_path, error_message):
   return True
 
 def Append(target, file_to_append, error_message):
-  print "appending %s to %s" % (file_to_append, target)
+  # appending file_to_append to target
   with open(target, "a") as out_file:
     with open(file_to_append, "r") as input_file:
       for line in input_file:
@@ -374,6 +375,40 @@ def ConvertBlockMapToBaseFs(block_map_file):
     os.remove(base_fs_file)
     return None
   return base_fs_file
+
+
+def CheckHeadroom(ext4fs_output, prop_dict):
+  """Checks if there's enough headroom space available.
+
+  Headroom is the reserved space on system image (via PRODUCT_SYSTEM_HEADROOM),
+  which is useful for devices with low disk space that have system image
+  variation between builds. The 'partition_headroom' in prop_dict is the size
+  in bytes, while the numbers in 'ext4fs_output' are for 4K-blocks.
+
+  Args:
+    ext4fs_output: The output string from mke2fs command.
+    prop_dict: The property dict.
+
+  Returns:
+    The check result.
+  """
+  ext4fs_stats = re.compile(
+      r'Created filesystem with .* (?P<used_blocks>[0-9]+)/'
+      r'(?P<total_blocks>[0-9]+) blocks')
+  m = ext4fs_stats.match(ext4fs_output.strip().split('\n')[-1])
+  used_blocks = int(m.groupdict().get('used_blocks'))
+  total_blocks = int(m.groupdict().get('total_blocks'))
+  headroom_blocks = int(prop_dict.get('partition_headroom')) / BLOCK_SIZE
+  adjusted_blocks = total_blocks - headroom_blocks
+  if used_blocks > adjusted_blocks:
+    mount_point = prop_dict.get("mount_point")
+    print("Error: Not enough room on %s (total: %d blocks, used: %d blocks, "
+          "headroom: %d blocks, available: %d blocks)" % (
+              mount_point, total_blocks, used_blocks, headroom_blocks,
+              adjusted_blocks))
+    return False
+  return True
+
 
 def BuildImage(in_dir, prop_dict, out_file, target_out=None):
   """Build an image to out_file from in_dir with property prop_dict.
@@ -516,6 +551,17 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
   elif fs_type.startswith("f2fs"):
     build_command = ["mkf2fsuserimg.sh"]
     build_command.extend([out_file, prop_dict["partition_size"]])
+    if fs_config:
+      build_command.extend(["-C", fs_config])
+    build_command.extend(["-f", in_dir])
+    if target_out:
+      build_command.extend(["-D", target_out])
+    if "selinux_fc" in prop_dict:
+      build_command.extend(["-s", prop_dict["selinux_fc"]])
+    build_command.extend(["-t", prop_dict["mount_point"]])
+    if "timestamp" in prop_dict:
+      build_command.extend(["-T", str(prop_dict["timestamp"])])
+    build_command.extend(["-L", prop_dict["mount_point"]])
   else:
     print("Error: unknown filesystem type '%s'" % (fs_type))
     return False
@@ -530,14 +576,12 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
     shutil.rmtree(staging_system, ignore_errors=True)
     shutil.copytree(origin_in, staging_system, symlinks=True)
 
-  has_reserved_blocks = prop_dict.get("has_ext4_reserved_blocks") == "true"
   ext4fs_output = None
-
   try:
     if fs_type.startswith("ext4"):
-      (ext4fs_output, exit_code) = RunCommand(build_command, True)
+      (ext4fs_output, exit_code) = RunCommand(build_command)
     else:
-      (_, exit_code) = RunCommand(build_command, True)
+      (_, exit_code) = RunCommand(build_command)
   finally:
     if in_dir != origin_in:
       # Clean up temporary directories and files.
@@ -547,39 +591,13 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
     if base_fs_file is not None:
       os.remove(base_fs_file)
   if exit_code != 0:
+    print("Error: '%s' failed with exit code %d" % (build_command, exit_code))
     return False
 
-  # Bug: 21522719, 22023465
-  # There are some reserved blocks on ext4 FS (lesser of 4096 blocks and 2%).
-  # We need to deduct those blocks from the available space, since they are
-  # not writable even with root privilege. It only affects devices using
-  # file-based OTA and a kernel version of 3.10 or greater (currently just
-  # sprout).
-  # Separately, check if there's enough headroom space available. This is useful for
-  # devices with low disk space that have system image variation between builds.
-  if (has_reserved_blocks or "partition_headroom" in prop_dict) and fs_type.startswith("ext4"):
+  # Check if there's enough headroom space available for ext4 image.
+  if "partition_headroom" in prop_dict and fs_type.startswith("ext4"):
     assert ext4fs_output is not None
-    ext4fs_stats = re.compile(
-        r'Created filesystem with .* (?P<used_blocks>[0-9]+)/'
-        r'(?P<total_blocks>[0-9]+) blocks')
-    m = ext4fs_stats.match(ext4fs_output.strip().split('\n')[-1])
-    used_blocks = int(m.groupdict().get('used_blocks'))
-    total_blocks = int(m.groupdict().get('total_blocks'))
-    reserved_blocks = 0
-    headroom_blocks = 0
-    adjusted_blocks = total_blocks
-    if has_reserved_blocks:
-      reserved_blocks = min(4096, int(total_blocks * 0.02))
-      adjusted_blocks -= reserved_blocks
-    if "partition_headroom" in prop_dict:
-      headroom_blocks = int(prop_dict.get('partition_headroom')) / BLOCK_SIZE
-      adjusted_blocks -= headroom_blocks
-    if used_blocks > adjusted_blocks:
-      mount_point = prop_dict.get("mount_point")
-      print("Error: Not enough room on %s (total: %d blocks, used: %d blocks, "
-            "reserved: %d blocks, headroom: %d blocks, available: %d blocks)" % (
-                mount_point, total_blocks, used_blocks, reserved_blocks,
-                headroom_blocks, adjusted_blocks))
+    if not CheckHeadroom(ext4fs_output, prop_dict):
       return False
 
   if not fs_spans_partition:
@@ -624,7 +642,11 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
 
     os.remove(unsparse_image)
 
-  return exit_code == 0
+    if exit_code != 0:
+      print("Error: '%s' failed with exit code %d" % (e2fsck_command, exit_code))
+      return False
+
+  return True
 
 
 def ImagePropFromGlobalDict(glob_dict, mount_point):
@@ -681,7 +703,6 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("system_root_image", "system_root_image")
     copy_prop("ramdisk_dir", "ramdisk_dir")
     copy_prop("ramdisk_fs_config", "ramdisk_fs_config")
-    copy_prop("has_ext4_reserved_blocks", "has_ext4_reserved_blocks")
     copy_prop("system_squashfs_compressor", "squashfs_compressor")
     copy_prop("system_squashfs_compressor_opt", "squashfs_compressor_opt")
     copy_prop("system_squashfs_block_size", "squashfs_block_size")
@@ -701,7 +722,6 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("system_size", "partition_size")
     copy_prop("system_journal_size", "journal_size")
     copy_prop("system_verity_block_device", "verity_block_device")
-    copy_prop("has_ext4_reserved_blocks", "has_ext4_reserved_blocks")
     copy_prop("system_squashfs_compressor", "squashfs_compressor")
     copy_prop("system_squashfs_compressor_opt", "squashfs_compressor_opt")
     copy_prop("system_squashfs_block_size", "squashfs_block_size")
@@ -727,7 +747,6 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("vendor_size", "partition_size")
     copy_prop("vendor_journal_size", "journal_size")
     copy_prop("vendor_verity_block_device", "verity_block_device")
-    copy_prop("has_ext4_reserved_blocks", "has_ext4_reserved_blocks")
     copy_prop("vendor_squashfs_compressor", "squashfs_compressor")
     copy_prop("vendor_squashfs_compressor_opt", "squashfs_compressor_opt")
     copy_prop("vendor_squashfs_block_size", "squashfs_block_size")
@@ -738,7 +757,6 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("fs_type", "fs_type")
     copy_prop("oem_size", "partition_size")
     copy_prop("oem_journal_size", "journal_size")
-    copy_prop("has_ext4_reserved_blocks", "has_ext4_reserved_blocks")
     copy_prop("oem_extfs_inode_count", "extfs_inode_count")
   d["partition_name"] = mount_point
   return d

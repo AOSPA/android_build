@@ -26,6 +26,7 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     egl.cfg \
     gralloc.goldfish \
+    gralloc.goldfish.default \
     gralloc.ranchu \
     libGLESv1_CM_emulation \
     lib_renderControl_enc \
@@ -35,6 +36,9 @@ PRODUCT_PACKAGES += \
     libOpenglSystemCommon \
     libGLESv2_emulation \
     libGLESv1_enc \
+    libEGL_swiftshader \
+    libGLESv1_CM_swiftshader \
+    libGLESv2_swiftshader \
     qemu-props \
     camera.goldfish \
     camera.goldfish.jpeg \
@@ -80,6 +84,10 @@ PRODUCT_PACKAGES += \
     android.hardware.keymaster@3.0-service
 
 PRODUCT_PACKAGES += \
+    android.hardware.keymaster@4.0-service \
+    android.hardware.keymaster@4.0-strongbox-service
+
+PRODUCT_PACKAGES += \
     android.hardware.gnss@1.0-service \
     android.hardware.gnss@1.0-impl
 
@@ -110,8 +118,8 @@ PRODUCT_PACKAGES += \
     vndk-sp
 
 PRODUCT_COPY_FILES += \
-    device/generic/goldfish/init.ranchu-core.sh:vendor/bin/init.ranchu-core.sh \
-    device/generic/goldfish/init.ranchu-net.sh:vendor/bin/init.ranchu-net.sh \
+    device/generic/goldfish/init.ranchu-core.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.ranchu-core.sh \
+    device/generic/goldfish/init.ranchu-net.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.ranchu-net.sh \
     device/generic/goldfish/init.ranchu.rc:root/init.ranchu.rc \
     device/generic/goldfish/fstab.ranchu:root/fstab.ranchu \
     device/generic/goldfish/fstab.ranchu.early:root/fstab.ranchu.early \
@@ -120,6 +128,7 @@ PRODUCT_COPY_FILES += \
     device/generic/goldfish/manifest.xml:$(TARGET_COPY_OUT_VENDOR)/manifest.xml \
     device/generic/goldfish/data/etc/permissions/privapp-permissions-goldfish.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/privapp-permissions-goldfish.xml \
     device/generic/goldfish/data/etc/config.ini:config.ini \
+    frameworks/native/data/etc/android.hardware.wifi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.wifi.xml \
     frameworks/native/data/etc/android.hardware.usb.accessory.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.usb.accessory.xml
 
 PRODUCT_PACKAGE_OVERLAYS := device/generic/goldfish/overlay
@@ -127,3 +136,10 @@ PRODUCT_PACKAGE_OVERLAYS := device/generic/goldfish/overlay
 PRODUCT_CHARACTERISTICS := emulator
 
 PRODUCT_FULL_TREBLE_OVERRIDE := true
+
+#watchdog tiggers reboot because location service is not
+#responding, disble it for now.
+#still keep it on internal master as it is still working
+#once it is fixed in aosp, remove this block of comment.
+#PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+#config.disable_location=true

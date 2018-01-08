@@ -146,6 +146,10 @@ ifneq ($(all_assets),)
 need_compile_asset := true
 endif
 
+ifdef LOCAL_AAPT2_ONLY
+LOCAL_USE_AAPT2 := true
+endif
+
 my_res_package :=
 ifdef LOCAL_USE_AAPT2
 # In aapt2 the last takes precedence.
@@ -385,7 +389,7 @@ else
 ifneq (,$(LOCAL_SDK_VERSION))
 # Set target-api for LOCAL_SDK_VERSIONs other than current.
 ifneq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
-renderscript_target_api := $(LOCAL_SDK_VERSION)
+renderscript_target_api := $(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION))
 endif
 endif  # LOCAL_SDK_VERSION is set
 endif  # LOCAL_RENDERSCRIPT_TARGET_API is set

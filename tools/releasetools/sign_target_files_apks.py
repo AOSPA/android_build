@@ -278,7 +278,7 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
       if stat.S_ISLNK(info.external_attr >> 16):
         new_data = data
       else:
-        new_data = RewriteProps(data, misc_info)
+        new_data = RewriteProps(data)
       common.ZipWriteStr(output_tf_zip, out_info, new_data)
 
     elif info.filename.endswith("mac_permissions.xml"):
@@ -385,8 +385,14 @@ def ReplaceCerts(data):
 
 
 def EditTags(tags):
-  """Given a string containing comma-separated tags, apply the edits
-  specified in OPTIONS.tag_changes and return the updated string."""
+  """Applies the edits to the tag string as specified in OPTIONS.tag_changes.
+
+  Args:
+    tags: The input string that contains comma-separated tags.
+
+  Returns:
+    The updated tags (comma-separated and sorted).
+  """
   tags = set(tags.split(","))
   for ch in OPTIONS.tag_changes:
     if ch[0] == "-":
@@ -396,20 +402,27 @@ def EditTags(tags):
   return ",".join(sorted(tags))
 
 
-def RewriteProps(data, misc_info):
+def RewriteProps(data):
+  """Rewrites the system properties in the given string.
+
+  Each property is expected in 'key=value' format. The properties that contain
+  build tags (i.e. test-keys, dev-keys) will be updated accordingly by calling
+  EditTags().
+
+  Args:
+    data: Input string, separated by newlines.
+
+  Returns:
+    The string with modified properties.
+  """
   output = []
   for line in data.split("\n"):
     line = line.strip()
     original_line = line
     if line and line[0] != '#' and "=" in line:
       key, value = line.split("=", 1)
-      if (key in ("ro.build.fingerprint", "ro.vendor.build.fingerprint")
-          and misc_info.get("oem_fingerprint_properties") is None):
-        pieces = value.split("/")
-        pieces[-1] = EditTags(pieces[-1])
-        value = "/".join(pieces)
-      elif (key in ("ro.build.thumbprint", "ro.vendor.build.thumbprint")
-            and misc_info.get("oem_fingerprint_properties") is not None):
+      if key in ("ro.build.fingerprint", "ro.build.thumbprint",
+                 "ro.vendor.build.fingerprint", "ro.vendor.build.thumbprint"):
         pieces = value.split("/")
         pieces[-1] = EditTags(pieces[-1])
         value = "/".join(pieces)
@@ -444,7 +457,7 @@ def ReplaceOtaKeys(input_tf_zip, output_tf_zip, misc_info):
   except KeyError:
     raise common.ExternalError("can't read META/otakeys.txt from input")
 
-  extra_recovery_keys = misc_info.get("extra_recovery_keys", None)
+  extra_recovery_keys = misc_info.get("extra_recovery_keys")
   if extra_recovery_keys:
     extra_recovery_keys = [OPTIONS.key_map.get(k, k) + ".x509.pem"
                            for k in extra_recovery_keys.split()]
@@ -468,8 +481,10 @@ def ReplaceOtaKeys(input_tf_zip, output_tf_zip, misc_info):
   else:
     devkey = misc_info.get("default_system_dev_certificate",
                            "build/target/product/security/testkey")
-    mapped_keys.append(
-        OPTIONS.key_map.get(devkey, devkey) + ".x509.pem")
+    mapped_devkey = OPTIONS.key_map.get(devkey, devkey)
+    if mapped_devkey != devkey:
+      misc_info["default_system_dev_certificate"] = mapped_devkey
+    mapped_keys.append(mapped_devkey + ".x509.pem")
     print("META/otakeys.txt has no keys; using %s for OTA package"
           " verification." % (mapped_keys[0],))
 
@@ -587,6 +602,7 @@ def ReplaceAvbSigningKeys(misc_info):
   AVB_FOOTER_ARGS_BY_PARTITION = {
     'boot' : 'avb_boot_add_hash_footer_args',
     'dtbo' : 'avb_dtbo_add_hash_footer_args',
+    'recovery' : 'avb_recovery_add_hash_footer_args',
     'system' : 'avb_system_add_hashtree_footer_args',
     'vendor' : 'avb_vendor_add_hashtree_footer_args',
     'vbmeta' : 'avb_vbmeta_args',

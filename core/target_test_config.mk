@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2014 The Android Open Source Project
+# Copyright (C) 2017 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,13 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-LOCAL_PATH := $(call my-dir)
 
-# the signtos tool - signs Trusty images
-# ============================================================
-include $(CLEAR_VARS)
-LOCAL_MODULE := signtos
-LOCAL_SRC_FILES := SignTos.java
-LOCAL_JAR_MANIFEST := SignTos.mf
-LOCAL_STATIC_JAVA_LIBRARIES := bouncycastle bouncycastle-bcpkix
-include $(BUILD_HOST_JAVA_LIBRARY)
+#
+# Common rules for building a TradeFed test XML file for target side tests.
+#
+
+$(call record-module-type,TARGET_TEST_CONFIG)
+
+include $(BUILD_SYSTEM)/test_config_common.mk

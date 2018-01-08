@@ -167,7 +167,7 @@ endef
 # $(1): directory to search under
 # Ignores $(1)/Android.mk
 define first-makefiles-under
-$(shell build/tools/findleaves.py $(FIND_LEAVES_EXCLUDES) \
+$(shell build/make/tools/findleaves.py $(FIND_LEAVES_EXCLUDES) \
         --mindepth=2 $(addprefix --dir=,$(1)) Android.mk)
 endef
 
@@ -2253,7 +2253,7 @@ $(hide) if [ -s $(PRIVATE_JAVA_SOURCE_LIST) ] ; then \
     \@$(PRIVATE_JAVA_SOURCE_LIST) \
     || ( rm -rf $(PRIVATE_CLASS_INTERMEDIATES_DIR) ; exit 41 ) \
 fi
-$(if $(PRIVATE_JAVA_LAYERS_FILE), $(hide) build/tools/java-layers.py \
+$(if $(PRIVATE_JAVA_LAYERS_FILE), $(hide) build/make/tools/java-layers.py \
     $(PRIVATE_JAVA_LAYERS_FILE) @$(PRIVATE_JAVA_SOURCE_LIST),)
 $(if $(PRIVATE_JAR_EXCLUDE_FILES), $(hide) find $(PRIVATE_CLASS_INTERMEDIATES_DIR) \
     -name $(word 1, $(PRIVATE_JAR_EXCLUDE_FILES)) \
@@ -2381,7 +2381,7 @@ $(hide) rm -f $@ $@.tmp
 @rm -rf $(dir $@)/desugar_dumped_classes
 @mkdir $(dir $@)/desugar_dumped_classes
 $(hide) $(JAVA) \
-    $(if $(EXPERIMENTAL_USE_OPENJDK9),--add-opens java.base/java.lang.invoke=ALL-UNNAMED,) \
+    $(if $(USE_OPENJDK9),--add-opens java.base/java.lang.invoke=ALL-UNNAMED,) \
     -Djdk.internal.lambda.dumpProxyClasses=$(abspath $(dir $@))/desugar_dumped_classes \
     -jar $(DESUGAR) \
     $(addprefix --bootclasspath_entry ,$(PRIVATE_BOOTCLASSPATH)) \
@@ -2409,6 +2409,21 @@ $(hide) $(DX_COMMAND) \
 	    --dump-width=1000) \
     $(PRIVATE_DX_FLAGS) \
     $<
+endef
+
+
+define transform-classes-d8.jar-to-dex
+@echo "target Dex: $(PRIVATE_MODULE)"
+@mkdir -p $(dir $@)
+$(hide) rm -f $(dir $@)classes*.dex $(dir $@)d8_input.jar
+$(hide) $(ZIP2ZIP) -j -i $< -o $(dir $@)d8_input.jar "**/*.class"
+$(hide) $(DX_COMMAND) \
+    --output $(dir $@) \
+    --min-api $(PRIVATE_MIN_SDK_VERSION) \
+    $(subst --main-dex-list=, --main-dex-list , \
+        $(filter-out --core-library --multi-dex --minimal-main-dex,$(PRIVATE_DX_FLAGS))) \
+    $(dir $@)d8_input.jar
+$(hide) rm -f $(dir $@)d8_input.jar
 endef
 
 # Create a mostly-empty .jar file that we'll add to later.
@@ -2578,9 +2593,9 @@ endef
 define uncompress-dexs
 $(hide) if (zipinfo $@ '*.dex' 2>/dev/null | grep -v ' stor ' >/dev/null) ; then \
   rm -rf $(dir $@)uncompresseddexs && mkdir $(dir $@)uncompresseddexs; \
-  unzip $@ '*.dex' -d $(dir $@)uncompresseddexs && \
-  zip -d $@ '*.dex' && \
-  ( cd $(dir $@)uncompresseddexs && find . -type f | sort | zip -D -X -0 ../$(notdir $@) -@ ) && \
+  unzip -q $@ '*.dex' -d $(dir $@)uncompresseddexs && \
+  zip -qd $@ '*.dex' && \
+  ( cd $(dir $@)uncompresseddexs && find . -type f | sort | zip -qD -X -0 ../$(notdir $@) -@ ) && \
   rm -rf $(dir $@)uncompresseddexs; \
   fi
 endef
@@ -2590,9 +2605,9 @@ endef
 define uncompress-shared-libs
 $(hide) if (zipinfo $@ $(PRIVATE_EMBEDDED_JNI_LIBS) 2>/dev/null | grep -v ' stor ' >/dev/null) ; then \
   rm -rf $(dir $@)uncompressedlibs && mkdir $(dir $@)uncompressedlibs; \
-  unzip $@ $(PRIVATE_EMBEDDED_JNI_LIBS) -d $(dir $@)uncompressedlibs && \
-  zip -d $@ 'lib/*.so' && \
-  ( cd $(dir $@)uncompressedlibs && find lib -type f | sort | zip -D -X -0 ../$(notdir $@) -@ ) && \
+  unzip -q $@ $(PRIVATE_EMBEDDED_JNI_LIBS) -d $(dir $@)uncompressedlibs && \
+  zip -qd $@ 'lib/*.so' && \
+  ( cd $(dir $@)uncompressedlibs && find lib -type f | sort | zip -qD -X -0 ../$(notdir $@) -@ ) && \
   rm -rf $(dir $@)uncompressedlibs; \
   fi
 endef
@@ -2783,7 +2798,7 @@ endef
 ###########################################################
 ## Commands to call Proguard
 ###########################################################
-ifeq ($(EXPERIMENTAL_USE_OPENJDK9),true)
+ifdef TARGET_OPENJDK9
 define transform-jar-to-proguard
 @echo Skipping Proguard: $<$(PRIVATE_PROGUARD_INJAR_FILTERS) $@
 $(hide) cp '$<' $@
@@ -2804,7 +2819,7 @@ endif
 ###########################################################
 define transform-jar-to-dex-r8
 @echo R8: $@
-$(hide) $(JAVA) -jar $(R8_COMPAT_PROGUARD_JAR) -injars '$<$(PRIVATE_PROGUARD_INJAR_FILTERS)' \
+$(hide) $(R8_COMPAT_PROGUARD) -injars '$<$(PRIVATE_PROGUARD_INJAR_FILTERS)' \
     --min-api $(PRIVATE_MIN_SDK_VERSION) \
     --force-proguard-compatibility --output $(subst classes.dex,,$@) \
     $(PRIVATE_PROGUARD_FLAGS) \
@@ -3027,7 +3042,9 @@ STATS.MODULE_TYPE := \
   HOST_DALVIK_JAVA_LIBRARY \
   HOST_DALVIK_STATIC_JAVA_LIBRARY \
   base_rules \
-  HEADER_LIBRARY
+  HEADER_LIBRARY \
+  HOST_TEST_CONFIG \
+  TARGET_TEST_CONFIG
 
 $(foreach s,$(STATS.MODULE_TYPE),$(eval STATS.MODULE_TYPE.$(s) :=))
 define record-module-type
@@ -3290,6 +3307,30 @@ endef
 # run test
 $(strip $(call test-validate-paths-are-subdirs))
 
+###########################################################
+## Validate jacoco class filters and convert them to
+## file arguments
+## Jacoco class filters are comma-separated lists of class
+## files (android.app.Application), and may have '*' as the
+## last character to match all classes in a package
+## including subpackages.
+define jacoco-class-filter-to-file-args
+$(strip $(call jacoco-validate-file-args,\
+  $(subst $(comma),$(space),\
+    $(subst .,/,\
+      $(strip $(1))))))
+endef
+
+define jacoco-validate-file-args
+$(strip $(1)\
+  $(call validate-paths-are-subdirs,$(1))
+  $(foreach arg,$(1),\
+    $(if $(findstring ?,$(arg)),$(call pretty-error,\
+      '?' filters are not supported in LOCAL_JACK_COVERAGE_INCLUDE_FILTER or LOCAL_JACK_COVERAGE_EXCLUDE_FILTER))\
+    $(if $(findstring *,$(patsubst %*,%,$(arg))),$(call pretty-error,\
+      '*' is only supported at the end of a filter in LOCAL_JACK_COVERAGE_INCLUDE_FILTER or LOCAL_JACK_COVERAGE_EXCLUDE_FILTER))\
+  ))
+endef
 
 ###########################################################
 ## Other includes
@@ -3370,4 +3411,23 @@ $(foreach source,$(ENFORCE_RRO_SOURCES), \
   $(eval include $(BUILD_SYSTEM)/generate_enforce_rro.mk) \
   $(eval ALL_MODULES.$(enforce_rro_source_module).REQUIRED += $(enforce_rro_module)) \
 )
+endef
+
+###########################################################
+## Find system_$(VER) in LOCAL_SDK_VERSION
+##
+## $(1): LOCAL_SDK_VERSION
+###########################################################
+define has-system-sdk-version
+$(filter system_%,$(1))
+endef
+
+###########################################################
+## Get numerical version in LOCAL_SDK_VERSION
+##
+## $(1): LOCAL_SDK_VERSION
+###########################################################
+define get-numeric-sdk-version
+$(filter-out current,\
+  $(if $(call has-system-sdk-version,$(1)),$(patsubst system_%,%,$(1)),$(1)))
 endef

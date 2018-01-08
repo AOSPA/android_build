@@ -81,10 +81,13 @@ PRODUCT_PACKAGES += \
     tzdatacheck \
     vndservice \
     vndservicemanager \
-    compatibility_matrix.xml \
-    manifest.xml \
-    system_manifest.xml \
-    system_compatibility_matrix.xml \
+
+# VINTF data
+PRODUCT_PACKAGES += \
+    device_compatibility_matrix.xml \
+    device_manifest.xml \
+    framework_manifest.xml \
+    framework_compatibility_matrix.xml \
 
 # SELinux packages are added as dependencies of the selinux_policy
 # phony package.
@@ -106,7 +109,7 @@ PRODUCT_PACKAGES_DEBUG += \
 
 # Ensure that this property is always defined so that bionic_systrace.cpp
 # can rely on it being initially set by init.
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     debug.atrace.tags.enableflags=0
 
 PRODUCT_COPY_FILES += \

@@ -1807,6 +1807,7 @@ warn_patterns = [
      'patterns': [r".*: warning: In file included from .+,"]},
 
     # warnings from clang-tidy
+    group_tidy_warn_pattern('android'),
     group_tidy_warn_pattern('cert'),
     group_tidy_warn_pattern('clang-diagnostic'),
     group_tidy_warn_pattern('cppcoreguidelines'),
@@ -2370,7 +2371,7 @@ def find_android_root(path):
   for idx in reversed(range(2, len(parts))):
     root_path = '/'.join(parts[:idx])
     # Android root directory should contain this script.
-    if os.path.exists(root_path + '/build/tools/warn.py'):
+    if os.path.exists(root_path + '/build/make/tools/warn.py'):
       android_root = root_path
       return root_path
   return ''

@@ -109,7 +109,7 @@ endif
 # The order of PRODUCT_BOOT_JARS matters.
 PRODUCT_BOOT_JARS := \
     $(TARGET_CORE_JARS) \
-    legacy-test \
+    android.test.base \
     ext \
     framework \
     telephony-common \
@@ -156,9 +156,13 @@ PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
 
 # On userdebug builds, collect more tombstones by default.
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     tombstoned.max_tombstone_count=50
 endif
+
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+    ro.logd.size.stats=64K \
+    log.tag.stats_log=I
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/runtime_libart.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/base.mk)

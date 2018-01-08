@@ -59,15 +59,6 @@ endif
 intermediates := $(call local-intermediates-dir)
 intermediates.COMMON := $(call local-intermediates-dir,COMMON)
 
-# Choose leaf name for the compiled jar file.
-ifeq ($(LOCAL_EMMA_INSTRUMENT),true)
-full_classes_compiled_jar_leaf := classes-no-debug-var.jar
-built_dex_intermediate_leaf := no-local
-else
-full_classes_compiled_jar_leaf := classes-full-debug.jar
-built_dex_intermediate_leaf := with-local
-endif
-
 ifeq ($(LOCAL_PROGUARD_ENABLED),disabled)
 LOCAL_PROGUARD_ENABLED :=
 endif
@@ -75,14 +66,13 @@ endif
 full_classes_turbine_jar := $(intermediates.COMMON)/classes-turbine.jar
 full_classes_header_jarjar := $(intermediates.COMMON)/classes-header-jarjar.jar
 full_classes_header_jar := $(intermediates.COMMON)/classes-header.jar
-full_classes_compiled_jar := $(intermediates.COMMON)/$(full_classes_compiled_jar_leaf)
+full_classes_compiled_jar := $(intermediates.COMMON)/classes-full-debug.jar
 full_classes_processed_jar := $(intermediates.COMMON)/classes-processed.jar
 full_classes_desugar_jar := $(intermediates.COMMON)/classes-desugar.jar
-jarjar_leaf := classes-jarjar.jar
-full_classes_jarjar_jar := $(intermediates.COMMON)/$(jarjar_leaf)
+full_classes_jarjar_jar := $(intermediates.COMMON)/classes-jarjar.jar
 full_classes_proguard_jar := $(intermediates.COMMON)/classes-proguard.jar
 full_classes_combined_jar := $(intermediates.COMMON)/classes-combined.jar
-built_dex_intermediate := $(intermediates.COMMON)/$(built_dex_intermediate_leaf)/classes.dex
+built_dex_intermediate := $(intermediates.COMMON)/dex/classes.dex
 full_classes_stubs_jar := $(intermediates.COMMON)/stubs.jar
 java_source_list_file := $(intermediates.COMMON)/java-source-list
 
@@ -135,7 +125,7 @@ else
   ifneq (,$(LOCAL_SDK_VERSION))
     # Set target-api for LOCAL_SDK_VERSIONs other than current.
     ifneq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
-      renderscript_target_api := $(LOCAL_SDK_VERSION)
+      renderscript_target_api := $(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION))
     endif
   endif  # LOCAL_SDK_VERSION is set
 endif  # LOCAL_RENDERSCRIPT_TARGET_API is set
@@ -323,7 +313,7 @@ logtags_java_sources := $(patsubst %.logtags,%.java,$(addprefix $(intermediates.
 logtags_sources := $(addprefix $(LOCAL_PATH)/, $(logtags_sources))
 
 $(logtags_java_sources): PRIVATE_MERGED_TAG := $(TARGET_OUT_COMMON_INTERMEDIATES)/all-event-log-tags.txt
-$(logtags_java_sources): $(intermediates.COMMON)/logtags/%.java: $(LOCAL_PATH)/%.logtags $(TARGET_OUT_COMMON_INTERMEDIATES)/all-event-log-tags.txt $(JAVATAGS) build/tools/event_log_tags.py
+$(logtags_java_sources): $(intermediates.COMMON)/logtags/%.java: $(LOCAL_PATH)/%.logtags $(TARGET_OUT_COMMON_INTERMEDIATES)/all-event-log-tags.txt $(JAVATAGS) build/make/tools/event_log_tags.py
 	$(transform-logtags-to-java)
 
 else
@@ -407,7 +397,7 @@ $(eval $(call copy-one-file,$(full_classes_jar),$(full_classes_stubs_jar)))
 ALL_MODULES.$(LOCAL_MODULE).STUBS := $(full_classes_stubs_jar)
 
 # The layers file allows you to enforce a layering between java packages.
-# Run build/tools/java-layers.py for more details.
+# Run build/make/tools/java-layers.py for more details.
 layers_file := $(addprefix $(LOCAL_PATH)/, $(LOCAL_JAVA_LAYERS_FILE))
 $(full_classes_compiled_jar): PRIVATE_JAVA_LAYERS_FILE := $(layers_file)
 $(full_classes_compiled_jar): PRIVATE_WARNINGS_ENABLE := $(LOCAL_WARNINGS_ENABLE)
@@ -568,16 +558,22 @@ endif
 
 $(eval $(call copy-one-file,$(full_classes_jarjar_jar),$(full_classes_jar)))
 
-ifeq ($(EXPERIMENTAL_USE_OPENJDK9),true)
+# Temporarily enable --multi-dex until proguard supports v53 class files
+# ( http://b/67673860 ) or we move away from proguard altogether.
+ifdef TARGET_OPENJDK9
 LOCAL_DX_FLAGS := $(filter-out --multi-dex,$(LOCAL_DX_FLAGS)) --multi-dex
 endif
 
+ifneq ($(USE_D8_DESUGAR),true)
 my_desugaring :=
 ifndef LOCAL_IS_STATIC_JAVA_LIBRARY
 my_desugaring := true
 $(full_classes_desugar_jar): PRIVATE_DX_FLAGS := $(LOCAL_DX_FLAGS)
 $(full_classes_desugar_jar): $(full_classes_jar) $(full_java_header_libs) $(DESUGAR)
 	$(desugar-classes-jar)
+endif
+else
+my_desugaring :=
 endif
 
 ifndef my_desugaring
@@ -648,6 +644,12 @@ ifeq ($(filter shrinktests,$(LOCAL_PROGUARD_ENABLED)),)
 common_proguard_flags += -dontshrink # don't shrink tests by default
 endif # shrinktests
 endif # test package
+ifneq ($(LOCAL_PROGUARD_ENABLED),custom)
+  ifdef LOCAL_USE_AAPT2
+    common_proguard_flag_files += $(foreach l,$(LOCAL_STATIC_ANDROID_LIBRARIES),\
+        $(call intermediates-dir-for,JAVA_LIBRARIES,$(l),,COMMON)/export_proguard_flags)
+  endif
+endif
 ifneq ($(common_proguard_flag_files),)
 common_proguard_flags += $(addprefix -include , $(common_proguard_flag_files))
 # This is included from $(BUILD_SYSTEM)/proguard.flags
@@ -712,7 +714,7 @@ endif
 proguard_injar_filters :=
 ifdef LOCAL_SDK_VERSION
 ifeq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
-proguard_injar_filters := (!junit/framework/**,!junit/runner/**,!junit/textui/**,!android/test/**,!com/android/internal/util/*)
+proguard_injar_filters := (!junit/framework/**,!junit/runner/**,!junit/textui/**)
 endif
 endif
 
@@ -739,20 +741,12 @@ full_classes_proguard_jar := $(full_classes_pre_proguard_jar)
 endif # !USE_R8
 
 else  # LOCAL_PROGUARD_ENABLED not defined
+proguard_flag_files :=
 full_classes_proguard_jar := $(full_classes_pre_proguard_jar)
 endif # LOCAL_PROGUARD_ENABLED defined
 
 ifneq ($(LOCAL_IS_STATIC_JAVA_LIBRARY),true)
 $(built_dex_intermediate): PRIVATE_DX_FLAGS := $(LOCAL_DX_FLAGS)
-# If you instrument class files that have local variable debug information in
-# them emma does not correctly maintain the local variable table.
-# This will cause an error when you try to convert the class files for Android.
-# The workaround here is to build different dex file here based on emma switch
-# then later copy into classes.dex. When emma is on, dx is run with --no-locals
-# option to remove local variable information
-ifeq ($(LOCAL_EMMA_INSTRUMENT),true)
-$(built_dex_intermediate): PRIVATE_DX_FLAGS += --no-locals
-endif
 
 my_r8 :=
 ifdef LOCAL_PROGUARD_ENABLED
@@ -764,14 +758,18 @@ my_r8 := true
 $(built_dex_intermediate): PRIVATE_PROGUARD_INJAR_FILTERS := $(proguard_injar_filters)
 $(built_dex_intermediate): PRIVATE_EXTRA_INPUT_JAR := $(extra_input_jar)
 $(built_dex_intermediate): PRIVATE_PROGUARD_FLAGS := $(legacy_proguard_flags) $(common_proguard_flags) $(LOCAL_PROGUARD_FLAGS)
-$(built_dex_intermediate) : $(full_classes_proguard_jar) $(extra_input_jar) $(my_support_library_sdk_raise) $(common_proguard_flag_files) $(proguard_flag_files) $(legacy_proguard_lib_deps) $(R8_COMPAT_PROGUARD_JAR)
+$(built_dex_intermediate) : $(full_classes_proguard_jar) $(extra_input_jar) $(my_support_library_sdk_raise) $(common_proguard_flag_files) $(proguard_flag_files) $(legacy_proguard_lib_deps) $(R8_COMPAT_PROGUARD)
 	$(transform-jar-to-dex-r8)
 endif # USE_R8
 endif # LOCAL_PROGUARD_ENABLED
 
 ifndef my_r8
-$(built_dex_intermediate): $(full_classes_proguard_jar) $(DX)
+$(built_dex_intermediate): $(full_classes_proguard_jar) $(DX) $(ZIP2ZIP)
+ifneq ($(USE_D8_DESUGAR),true)
 	$(transform-classes.jar-to-dex)
+else
+	$(transform-classes-d8.jar-to-dex)
+endif
 endif
 
 $(built_dex): $(built_dex_intermediate)
@@ -811,8 +809,8 @@ $(LOCAL_MODULE)-findbugs : $(findbugs_html)
 endif  # full_classes_jar is defined
 
 ifneq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
-  my_default_app_target_sdk := $(LOCAL_SDK_VERSION)
-  my_sdk_version := $(LOCAL_SDK_VERSION)
+  my_default_app_target_sdk := $(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION))
+  my_sdk_version := $(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION))
 else
   my_default_app_target_sdk := $(DEFAULT_APP_TARGET_SDK)
   my_sdk_version := $(PLATFORM_SDK_VERSION)

@@ -2,25 +2,6 @@ ifneq ($(BOARD_VNDK_VERSION),)
 LOCAL_PATH:= $(call my-dir)
 
 #####################################################################
-# Setting the VNDK version. Version is 10000.0 for not-yet-published
-# platform and xx.y for released platform.
-vndk_major_ver := 10000
-vndk_minor_ver := 0
-
-#TODO(b/68027291): Revive this check when we have stable VNDK in P or later.
-#ifneq ($(vndk_major_ver), $(PLATFORM_SDK_VERSION))
-#$(error vndk_major_version does not match PLATFORM_SDK_VERSION, please update.)
-#endif
-
-ifneq (REL,$(PLATFORM_VERSION_CODENAME))
-    vndk_major_ver := 10000
-    vndk_minor_ver := 0
-endif
-PLATFORM_VNDK_VERSION := $(vndk_major_ver).$(vndk_minor_ver)
-vndk_major_ver :=
-vndk_minor_ver :=
-
-#####################################################################
 # Create the list of vndk libraries from the source code.
 INTERNAL_VNDK_LIB_LIST := $(call intermediates-dir-for,PACKAGING,vndk)/libs.txt
 $(INTERNAL_VNDK_LIB_LIST):
@@ -96,7 +77,7 @@ endif
 	@chmod a+x $@
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := vndk_package
+LOCAL_MODULE := vndk_current
 LOCAL_REQUIRED_MODULES := \
     $(addsuffix .vendor,$(VNDK_CORE_LIBRARIES)) \
     $(addsuffix .vendor,$(VNDK_SAMEPROCESS_LIBRARIES)) \
@@ -104,5 +85,18 @@ LOCAL_REQUIRED_MODULES := \
     llndk.libraries.txt \
     vndksp.libraries.txt
 
+include $(BUILD_PHONY_PACKAGE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := vndk_package
+ifeq (current,$(BOARD_VNDK_VERSION))
+LOCAL_REQUIRED_MODULES := \
+    vndk_current
+else
+LOCAL_REQUIRED_MODULES := \
+    vndk_v$(BOARD_VNDK_VERSION)
+endif
+LOCAL_REQUIRED_MODULES += \
+    $(foreach vndk_ver,$(PRODUCT_EXTRA_VNDK_VERSIONS),vndk_v$(vndk_ver))
 include $(BUILD_PHONY_PACKAGE)
 endif # BOARD_VNDK_VERSION is set

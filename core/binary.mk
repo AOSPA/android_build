@@ -88,7 +88,7 @@ ifneq ($(LOCAL_SDK_VERSION),)
   endif
 
   # Make sure we've built the NDK.
-  my_additional_dependencies += $(SOONG_OUT_DIR)/ndk.timestamp
+  my_additional_dependencies += $(SOONG_OUT_DIR)/ndk_base.timestamp
 
   # mips32r6 is not supported by the NDK. No released NDK contains these
   # libraries, but the r10 in prebuilts/ndk had a local hack to add them :(
@@ -207,51 +207,26 @@ ifneq ($(LOCAL_SDK_VERSION),)
     endif
   else # LOCAL_NDK_STL_VARIANT is not stlport_* either
   ifneq (,$(filter c++_%, $(LOCAL_NDK_STL_VARIANT)))
-    # Pre-r11 NDKs used libgabi++ for libc++'s C++ ABI, but r11 and later use
-    # libc++abi.
-    #
-    # r13 no longer has the inner directory as a side effect of just using
-    # external/libcxx.
-    ifeq (r10,$(LOCAL_NDK_VERSION))
-      my_ndk_stl_include_path := \
-        $(my_ndk_source_root)/cxx-stl/llvm-libc++/libcxx/include
-      my_ndk_stl_include_path += \
-        $(my_ndk_source_root)/cxx-stl/llvm-libc++/gabi++/include
-    else ifeq (r11,$(LOCAL_NDK_VERSION))
-      my_ndk_stl_include_path := \
-        $(my_ndk_source_root)/cxx-stl/llvm-libc++/libcxx/include
-      my_ndk_stl_include_path += \
-        $(my_ndk_source_root)/cxx-stl/llvm-libc++abi/libcxxabi/include
-    else
-      my_ndk_stl_include_path := \
-        $(my_ndk_source_root)/cxx-stl/llvm-libc++/include
-      my_ndk_stl_include_path += \
-        $(my_ndk_source_root)/cxx-stl/llvm-libc++abi/include
-    endif
+    my_ndk_stl_include_path := \
+      $(my_ndk_source_root)/cxx-stl/llvm-libc++/include
+    my_ndk_stl_include_path += \
+      $(my_ndk_source_root)/cxx-stl/llvm-libc++abi/include
     my_ndk_stl_include_path += $(my_ndk_source_root)/android/support/include
 
     my_libcxx_libdir := \
       $(my_ndk_source_root)/cxx-stl/llvm-libc++/libs/$(my_cpu_variant)
 
-    ifneq (,$(filter r10 r11,$(LOCAL_NDK_VERSION)))
-      ifeq (c++_static,$(LOCAL_NDK_STL_VARIANT))
-        my_ndk_stl_static_lib := $(my_libcxx_libdir)/libc++_static.a
-      else
-        my_ndk_stl_shared_lib_fullpath := $(my_libcxx_libdir)/libc++_shared.so
-      endif
+    ifeq (c++_static,$(LOCAL_NDK_STL_VARIANT))
+      my_ndk_stl_static_lib := \
+        $(my_libcxx_libdir)/libc++_static.a \
+        $(my_libcxx_libdir)/libc++abi.a
     else
-      ifeq (c++_static,$(LOCAL_NDK_STL_VARIANT))
-        my_ndk_stl_static_lib := \
-          $(my_libcxx_libdir)/libc++_static.a \
-          $(my_libcxx_libdir)/libc++abi.a
-      else
-        my_ndk_stl_shared_lib_fullpath := $(my_libcxx_libdir)/libc++_shared.so
-      endif
+      my_ndk_stl_shared_lib_fullpath := $(my_libcxx_libdir)/libc++_shared.so
+    endif
 
-      my_ndk_stl_static_lib += $(my_libcxx_libdir)/libandroid_support.a
-      ifneq (,$(filter armeabi armeabi-v7a,$(my_cpu_variant)))
-        my_ndk_stl_static_lib += $(my_libcxx_libdir)/libunwind.a
-      endif
+    my_ndk_stl_static_lib += $(my_libcxx_libdir)/libandroid_support.a
+    ifneq (,$(filter armeabi armeabi-v7a,$(my_cpu_variant)))
+      my_ndk_stl_static_lib += $(my_libcxx_libdir)/libunwind.a
     endif
 
     my_ldlibs += -ldl
@@ -387,9 +362,9 @@ endif
 # clang is enabled by default for host builds
 # enable it unless we've specifically disabled clang above
 ifdef LOCAL_IS_HOST_MODULE
-    ifeq ($($(my_prefix)OS),windows)
+    ifneq ($($(my_prefix)CLANG_SUPPORTED),true)
         ifeq ($(my_clang),true)
-            $(error $(LOCAL_MODULE_MAKEFILE): $(LOCAL_MODULE): Clang is not yet supported for windows binaries)
+            $(call pretty-error,Clang is not yet supported for $($(my_prefix)OS) binaries)
         endif
         my_clang := false
     else
@@ -806,7 +781,7 @@ else
 ifneq (,$(LOCAL_SDK_VERSION))
 # Set target-api for LOCAL_SDK_VERSIONs other than current.
 ifneq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
-renderscript_target_api := $(LOCAL_SDK_VERSION)
+renderscript_target_api := $(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION))
 endif
 endif  # LOCAL_SDK_VERSION is set
 endif  # LOCAL_RENDERSCRIPT_TARGET_API is set
@@ -870,6 +845,9 @@ endif
 ###########################################################
 ## Compile the .proto files to .cc (or .c) and then to .o
 ###########################################################
+ifeq ($(strip $(LOCAL_PROTOC_OPTIMIZE_TYPE)),)
+  LOCAL_PROTOC_OPTIMIZE_TYPE := lite
+endif
 proto_sources := $(filter %.proto,$(my_src_files))
 ifneq ($(proto_sources),)
 proto_gen_dir := $(generated_sources_dir)/proto
@@ -891,7 +869,7 @@ my_rename_cpp_ext := true
 endif
 my_proto_c_includes := external/protobuf/src
 my_cflags += -DGOOGLE_PROTOBUF_NO_RTTI
-my_protoc_flags := --cpp_out=$(proto_gen_dir)
+my_protoc_flags := --cpp_out=$(if $(filter lite lite-static,$(LOCAL_PROTOC_OPTIMIZE_TYPE)),lite:,)$(proto_gen_dir)
 my_protoc_deps :=
 endif
 my_proto_c_includes += $(proto_gen_dir)
@@ -1330,6 +1308,22 @@ $(call track-src-file-obj,$(asm_sources_asm),$(asm_objects_asm))
 asm_objects += $(asm_objects_asm)
 endif
 
+###################################################################
+## When compiling a CFI enabled target, use the .cfi variant of any
+## static dependencies (where they exist).
+##################################################################
+define use_soong_cfi_static_libraries
+  $(foreach l,$(1),$(if $(filter $(l),$(SOONG_CFI_STATIC_LIBRARIES)),\
+      $(l).cfi,$(l)))
+endef
+
+ifneq ($(filter cfi,$(my_sanitize)),)
+  my_whole_static_libraries := $(call use_soong_cfi_static_libraries,\
+    $(my_whole_static_libraries))
+  my_static_libraries := $(call use_soong_cfi_static_libraries,\
+    $(my_static_libraries))
+endif
+
 ###########################################################
 ## When compiling against the VNDK, use LL-NDK libraries
 ###########################################################
@@ -1676,13 +1670,30 @@ ifeq ($(my_strict),true)
     my_cflags += -DANDROID_STRICT
 endif
 
-# Add -Werror if LOCAL_PATH is in the WARNING_DISALLOWED project list,
-# or not in the WARNING_ALLOWED project list.
-ifneq (,$(strip $(call find_warning_disallowed_projects,$(LOCAL_PATH))))
-  my_cflags_no_override += -Werror
-else
-  ifeq (,$(strip $(call find_warning_allowed_projects,$(LOCAL_PATH))))
-    my_cflags_no_override += -Werror
+# Check if -Werror or -Wno-error is used in C compiler flags.
+# Modules defined in $(SOONG_ANDROID_MK) are checked in soong's cc.go.
+ifneq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
+  # Header libraries do not need cflags.
+  ifneq (HEADER_LIBRARIES,$(LOCAL_MODULE_CLASS))
+    # Prebuilt modules do not need cflags.
+    ifeq (,$(LOCAL_PREBUILT_MODULE_FILE))
+      my_all_cflags := $(my_cflags) $(my_cppflags) $(my_cflags_no_override)
+      # Issue warning if -Wno-error is used.
+      ifneq (,$(filter -Wno-error,$(my_all_cflags)))
+        $(eval MODULES_USING_WNO_ERROR := $(MODULES_USING_WNO_ERROR) $(LOCAL_MODULE_MAKEFILE):$(LOCAL_MODULE))
+      else
+        # Issue warning if -Werror is not used. Add it.
+        ifeq (,$(filter -Werror,$(my_all_cflags)))
+          # Add -Wall -Werror unless the project is in the WARNING_ALLOWED project list.
+          ifeq (,$(strip $(call find_warning_allowed_projects,$(LOCAL_PATH))))
+            my_cflags := -Wall -Werror $(my_cflags)
+          else
+            $(eval MODULES_ADDED_WALL := $(MODULES_ADDED_WALL) $(LOCAL_MODULE_MAKEFILE):$(LOCAL_MODULE))
+            my_cflags := -Wall $(my_cflags)
+          endif
+        endif
+      endif
+    endif
   endif
 endif
 
@@ -1715,15 +1726,14 @@ ifneq (,$(filter 1 true,$(my_tidy_enabled)))
     ifneq ($(LOCAL_TIDY_CHECKS),)
       my_tidy_checks := $(my_tidy_checks),$(LOCAL_TIDY_CHECKS)
     endif
-    # Set up global default clang-tidy flags, which is none.
-    my_tidy_flags := $(WITH_TIDY_FLAGS)
-    # Use local clang-tidy flags if specified.
-    ifneq ($(LOCAL_TIDY_FLAGS),)
-      my_tidy_flags := $(LOCAL_TIDY_FLAGS)
-    endif
+    my_tidy_flags += $(WITH_TIDY_FLAGS) $(LOCAL_TIDY_FLAGS)
     # If tidy flags are not specified, default to check all header files.
     ifeq ($(my_tidy_flags),)
       my_tidy_flags := $(call default_tidy_header_filter,$(LOCAL_PATH))
+    endif
+    # If clang-tidy is not enabled globally, add the -quiet flag.
+    ifeq (,$(filter 1 true,$(WITH_TIDY)))
+      my_tidy_flags += -quiet
     endif
 
     # We might be using the static analyzer through clang-tidy.
@@ -1868,6 +1878,7 @@ SOONG_CONV.$(LOCAL_MODULE).DEPS := \
         $(my_whole_static_libraries) \
         $(my_shared_libraries) \
         $(my_system_shared_libraries))
+SOONG_CONV.$(LOCAL_MODULE).TYPE := native
 SOONG_CONV := $(SOONG_CONV) $(LOCAL_MODULE)
 endif
 

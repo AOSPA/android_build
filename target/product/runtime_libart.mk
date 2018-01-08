@@ -27,7 +27,7 @@ PRODUCT_PACKAGES += \
 
 # Additional mixins to the boot classpath.
 PRODUCT_PACKAGES += \
-    legacy-test \
+    android.test.base \
 
 # Why are we pulling in ext, which is frameworks/base, depending on tagsoup and nist-sip?
 PRODUCT_PACKAGES += \
@@ -89,5 +89,5 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     pm.dexopt.shared=speed
 
 # Enable minidebuginfo generation unless overridden.
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     dalvik.vm.dex2oat-minidebuginfo=true

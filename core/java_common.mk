@@ -1,5 +1,11 @@
 # Common to host and target Java modules.
 
+my_soong_problems :=
+
+ifneq ($(filter ../%,$(LOCAL_SRC_FILES)),)
+my_soong_problems += dotdot_srcs
+endif
+
 ###########################################################
 ## Java version
 ###########################################################
@@ -23,16 +29,39 @@ ifeq (,$(LOCAL_JAVA_LANGUAGE_VERSION))
     # TODO(ccross): allow 1.9 for current and unbundled once we have SDK system modules
     LOCAL_JAVA_LANGUAGE_VERSION := 1.8
   else
-    # DEFAULT_JAVA_LANGUAGE_VERSION is 1.8 unless EXPERIMENTAL_USE_OPENJDK9=true
-    # in which case it is 1.9
+    # DEFAULT_JAVA_LANGUAGE_VERSION is 1.8, unless TARGET_OPENJDK9 in which case it is 1.9
     LOCAL_JAVA_LANGUAGE_VERSION := $(DEFAULT_JAVA_LANGUAGE_VERSION)
   endif
 endif
 LOCAL_JAVACFLAGS += -source $(LOCAL_JAVA_LANGUAGE_VERSION) -target $(LOCAL_JAVA_LANGUAGE_VERSION)
 
 ###########################################################
+
+# OpenJDK versions up to 8 shipped with bootstrap and tools jars
+# (rt.jar, jce.jar, tools.jar etc.). These are no longer part of
+# OpenJDK 9, but we still make them available for host tools that
+# are targeting older versions.
+USE_HOST_BOOTSTRAP_JARS := true
+ifeq (,$(filter $(LOCAL_JAVA_LANGUAGE_VERSION), 1.6 1.7 1.8))
+USE_HOST_BOOTSTRAP_JARS := false
+endif
+
+###########################################################
+
+# Drop HOST_JDK_TOOLS_JAR from classpath when targeting versions > 9 (which don't have it).
+# TODO: Remove HOST_JDK_TOOLS_JAR and all references to it once host
+# bootstrap jars are no longer supported (ie. when USE_HOST_BOOTSTRAP_JARS
+# is always false). http://b/38418220
+ifneq ($(USE_HOST_BOOTSTRAP_JARS),true)
+LOCAL_CLASSPATH := $(filter-out $(HOST_JDK_TOOLS_JAR),$(LOCAL_CLASSPATH))
+endif
+
+###########################################################
 ## .proto files: Compile proto files to .java
 ###########################################################
+ifeq ($(strip $(LOCAL_PROTOC_OPTIMIZE_TYPE)),)
+  LOCAL_PROTOC_OPTIMIZE_TYPE := lite
+endif
 proto_sources := $(filter %.proto,$(LOCAL_SRC_FILES))
 # Because names of the .java files compiled from .proto files are unknown until the
 # .proto files are compiled, we use a timestamp file as depedency.
@@ -62,7 +91,7 @@ $(proto_java_sources_file_stamp): PRIVATE_PROTO_JAVA_OUTPUT_OPTION := --java_out
   endif
 endif
 $(proto_java_sources_file_stamp): PRIVATE_PROTOC_FLAGS := $(LOCAL_PROTOC_FLAGS)
-$(proto_java_sources_file_stamp): PRIVATE_PROTO_JAVA_OUTPUT_PARAMS := $(LOCAL_PROTO_JAVA_OUTPUT_PARAMS)
+$(proto_java_sources_file_stamp): PRIVATE_PROTO_JAVA_OUTPUT_PARAMS := $(if $(filter lite,$(LOCAL_PROTOC_OPTIMIZE_TYPE)),lite$(if $(LOCAL_PROTO_JAVA_OUTPUT_PARAMS),:,),)$(LOCAL_PROTO_JAVA_OUTPUT_PARAMS)
 $(proto_java_sources_file_stamp) : $(proto_sources_fullpath) $(PROTOC)
 	$(call transform-proto-to-java)
 
@@ -230,8 +259,16 @@ ifndef LOCAL_IS_HOST_MODULE
     else ifeq ($(LOCAL_SDK_VERSION)$(TARGET_BUILD_APPS),test_current)
       full_java_bootclasspath_libs := $(call java-lib-header-files,android_test_stubs_current)
     else
-      full_java_bootclasspath_libs := $(call java-lib-header-files,sdk_v$(LOCAL_SDK_VERSION))
-    endif # current, system_current, or test_current
+      ifneq (,$(call has-system-sdk-version,$(LOCAL_SDK_VERSION)))
+        ifeq (,$(TARGET_BUILD_APPS))
+          full_java_bootclasspath_libs := $(call java-lib-header-files,system_sdk_v$(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION)))
+        else
+          full_java_bootclasspath_libs := $(call java-lib-header-files,sdk_v$(LOCAL_SDK_VERSION))
+        endif
+      else
+        full_java_bootclasspath_libs := $(call java-lib-header-files,sdk_v$(LOCAL_SDK_VERSION))
+      endif
+    endif # current, system_current, system_${VER} or test_current
   endif # LOCAL_SDK_VERSION
 
   ifneq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
@@ -274,7 +311,23 @@ else # LOCAL_IS_HOST_MODULE
     full_shared_java_libs := $(call java-lib-files,$(LOCAL_JAVA_LIBRARIES),true)
     full_shared_java_header_libs := $(call java-lib-header-files,$(LOCAL_JAVA_LIBRARIES),true)
   else # !USE_CORE_LIB_BOOTCLASSPATH
-
+    # Give host-side tools a version of OpenJDK's standard libraries
+    # close to what they're targeting. As of Dec 2017, AOSP is only
+    # bundling OpenJDK 8 and 9, so nothing < 8 is available.
+    #
+    # When building with OpenJDK 8, the following should have no
+    # effect since those jars would be available by default.
+    #
+    # When building with OpenJDK 9 but targeting a version < 1.8,
+    # putting them on the bootclasspath means that:
+    # a) code can't (accidentally) refer to OpenJDK 9 specific APIs
+    # b) references to existing APIs are not reinterpreted in an
+    #    OpenJDK 9-specific way, eg. calls to subclasses of
+    #    java.nio.Buffer as in http://b/70862583
+    ifeq ($(USE_HOST_BOOTSTRAP_JARS),true)
+      full_java_bootclasspath_libs += $(ANDROID_JAVA8_HOME)/jre/lib/jce.jar
+      full_java_bootclasspath_libs += $(ANDROID_JAVA8_HOME)/jre/lib/rt.jar
+    endif
     full_shared_java_libs := $(addprefix $(HOST_OUT_JAVA_LIBRARIES)/,\
       $(addsuffix $(COMMON_JAVA_PACKAGE_SUFFIX),$(LOCAL_JAVA_LIBRARIES)))
     full_shared_java_header_libs := $(full_shared_java_libs)
@@ -405,6 +458,10 @@ ifeq ($(LOCAL_SDK_VERSION),system_current)
 my_link_type := java:system
 my_warn_types := java:platform
 my_allowed_types := java:sdk java:system
+else ifneq (,$(call has-system-sdk-version,$(LOCAL_SDK_VERSION)))
+my_link_type := java:system
+my_warn_types := java:platform
+my_allowed_types := java:sdk java:system
 else ifneq ($(LOCAL_SDK_VERSION),)
 my_link_type := java:sdk
 my_warn_types := java:system java:platform
@@ -415,10 +472,31 @@ my_warn_types :=
 my_allowed_types := java:sdk java:system java:platform
 endif
 
-my_link_deps := $(addprefix JAVA_LIBRARIES:,$(LOCAL_STATIC_JAVA_LIBRARIES))
+ifdef LOCAL_AAPT2_ONLY
+my_link_type += aapt2_only
+endif
+ifdef LOCAL_USE_AAPT2
+my_allowed_types += aapt2_only
+endif
+
+my_link_deps := $(addprefix JAVA_LIBRARIES:,$(LOCAL_STATIC_JAVA_LIBRARIES) $(LOCAL_JAVA_LIBRARIES))
 my_link_deps += $(addprefix APPS:,$(apk_libraries))
 
 my_2nd_arch_prefix := $(LOCAL_2ND_ARCH_VAR_PREFIX)
 my_common := COMMON
 include $(BUILD_SYSTEM)/link_type.mk
 endif  # !LOCAL_IS_HOST_MODULE
+
+ifneq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
+
+SOONG_CONV.$(LOCAL_MODULE).PROBLEMS := \
+    $(SOONG_CONV.$(LOCAL_MODULE).PROBLEMS) $(my_soong_problems)
+SOONG_CONV.$(LOCAL_MODULE).DEPS := \
+    $(SOONG_CONV.$(LOCAL_MODULE).DEPS) \
+    $(LOCAL_STATIC_JAVA_LIBRARIES) \
+    $(LOCAL_JAVA_LIBRARIES) \
+    $(LOCAL_JNI_SHARED_LIBRARIES)
+SOONG_CONV.$(LOCAL_MODULE).TYPE := java
+SOONG_CONV := $(SOONG_CONV) $(LOCAL_MODULE)
+
+endif
