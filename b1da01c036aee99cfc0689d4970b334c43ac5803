@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "89767270_01d86a38",
+        "filename": "core/soong_config.mk",
+        "patchSetId": 2
+      },
+      "lineNbr": 94,
+      "author": {
+        "id": 1000140
+      },
+      "writtenOn": "2018-01-10T09:46:23Z",
+      "side": 1,
+      "message": "Comma should come before the quotation mark",
+      "range": {
+        "startLine": 94,
+        "startChar": 79,
+        "endLine": 94,
+        "endChar": 81
+      },
+      "revId": "b1da01c036aee99cfc0689d4970b334c43ac5803",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad",
+      "unresolved": false
+    }
+  ]
+}
