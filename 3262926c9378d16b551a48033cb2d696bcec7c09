@@ -1,0 +1,44 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ec3c12cd_d1daf479",
+        "filename": "core/soong_config.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 94,
+      "author": {
+        "id": 1000140
+      },
+      "writtenOn": "2018-01-10T09:16:43Z",
+      "side": 1,
+      "message": "Add a comma before the ending quotation mark",
+      "revId": "3262926c9378d16b551a48033cb2d696bcec7c09",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "04f9c9fa_074f48c4",
+        "filename": "core/soong_config.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 97,
+      "author": {
+        "id": 1000140
+      },
+      "writtenOn": "2018-01-10T09:16:43Z",
+      "side": 1,
+      "message": "Remove this comma",
+      "range": {
+        "startLine": 97,
+        "startChar": 93,
+        "endLine": 97,
+        "endChar": 94
+      },
+      "revId": "3262926c9378d16b551a48033cb2d696bcec7c09",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad",
+      "unresolved": false
+    }
+  ]
+}
