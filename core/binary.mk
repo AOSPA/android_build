@@ -189,24 +189,14 @@ ifneq ($(LOCAL_SDK_VERSION),)
   ifeq (,$(LOCAL_NDK_STL_VARIANT))
     LOCAL_NDK_STL_VARIANT := system
   endif
-  ifneq (1,$(words $(filter none system stlport_static stlport_shared c++_static c++_shared gnustl_static, $(LOCAL_NDK_STL_VARIANT))))
+  ifneq (1,$(words $(filter none system c++_static c++_shared, $(LOCAL_NDK_STL_VARIANT))))
     $(error $(LOCAL_PATH): Unknown LOCAL_NDK_STL_VARIANT $(LOCAL_NDK_STL_VARIANT))
   endif
+
   ifeq (system,$(LOCAL_NDK_STL_VARIANT))
     my_ndk_stl_include_path := $(my_ndk_source_root)/cxx-stl/system/include
     my_system_shared_libraries += libstdc++
-  else # LOCAL_NDK_STL_VARIANT is not system
-  ifneq (,$(filter stlport_%, $(LOCAL_NDK_STL_VARIANT)))
-    my_ndk_stl_include_path := $(my_ndk_source_root)/cxx-stl/stlport/stlport
-    my_system_shared_libraries += libstdc++
-    ifeq (stlport_static,$(LOCAL_NDK_STL_VARIANT))
-      my_ndk_stl_static_lib := $(my_ndk_source_root)/cxx-stl/stlport/libs/$(my_cpu_variant)/libstlport_static.a
-      my_ldlibs += -ldl
-    else
-      my_ndk_stl_shared_lib_fullpath := $(my_ndk_source_root)/cxx-stl/stlport/libs/$(my_cpu_variant)/libstlport_shared.so
-    endif
-  else # LOCAL_NDK_STL_VARIANT is not stlport_* either
-  ifneq (,$(filter c++_%, $(LOCAL_NDK_STL_VARIANT)))
+  else ifneq (,$(filter c++_%, $(LOCAL_NDK_STL_VARIANT)))
     my_ndk_stl_include_path := \
       $(my_ndk_source_root)/cxx-stl/llvm-libc++/include
     my_ndk_stl_include_path += \
@@ -232,16 +222,8 @@ ifneq ($(LOCAL_SDK_VERSION),)
     my_ldlibs += -ldl
 
     my_ndk_cpp_std_version := c++11
-  else # LOCAL_NDK_STL_VARIANT is not c++_* either
-  ifneq (,$(filter gnustl_%, $(LOCAL_NDK_STL_VARIANT)))
-    my_ndk_stl_include_path := $(my_ndk_source_root)/cxx-stl/gnu-libstdc++/$($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_NDK_GCC_VERSION)/libs/$(my_cpu_variant)/include \
-                               $(my_ndk_source_root)/cxx-stl/gnu-libstdc++/$($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_NDK_GCC_VERSION)/include
-    my_ndk_stl_static_lib := $(my_ndk_source_root)/cxx-stl/gnu-libstdc++/$($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_NDK_GCC_VERSION)/libs/$(my_cpu_variant)/libgnustl_static.a
   else # LOCAL_NDK_STL_VARIANT must be none
     # Do nothing.
-  endif
-  endif
-  endif
   endif
 endif
 
@@ -371,11 +353,6 @@ ifdef LOCAL_IS_HOST_MODULE
         ifeq ($(my_clang),)
             my_clang := true
         endif
-    endif
-# Add option to make gcc the default for device build
-else ifeq ($(USE_CLANG_PLATFORM_BUILD),false)
-    ifeq ($(my_clang),)
-        my_clang := false
     endif
 else ifeq ($(my_clang),)
     my_clang := true
@@ -1404,10 +1381,12 @@ endif
 ## other NDK-built libraries
 ####################################################
 
+include $(BUILD_SYSTEM)/allowed_ndk_types.mk
+
 ifdef LOCAL_SDK_VERSION
-my_link_type := native:ndk
-my_warn_types :=
-my_allowed_types := native:ndk
+my_link_type := native:ndk:$(my_ndk_stl_family):$(my_ndk_stl_link_type)
+my_warn_types := $(my_warn_ndk_types)
+my_allowed_types := $(my_allowed_ndk_types)
 else ifdef LOCAL_USE_VNDK
     _name := $(patsubst %.vendor,%,$(LOCAL_MODULE))
     ifneq ($(filter $(_name),$(VNDK_CORE_LIBRARIES) $(VNDK_SAMEPROCESS_LIBRARIES) $(LLNDK_LIBRARIES)),)
@@ -1427,8 +1406,8 @@ else ifdef LOCAL_USE_VNDK
     endif
 else
 my_link_type := native:platform
-my_warn_types :=
-my_allowed_types := native:ndk native:platform
+my_warn_types := $(my_warn_ndk_types)
+my_allowed_types := $(my_allowed_ndk_types) native:platform
 endif
 
 my_link_deps := $(addprefix STATIC_LIBRARIES:,$(my_whole_static_libraries) $(my_static_libraries))
@@ -1733,13 +1712,13 @@ ifneq (,$(filter 1 true,$(my_tidy_enabled)))
     endif
     # If clang-tidy is not enabled globally, add the -quiet flag.
     ifeq (,$(filter 1 true,$(WITH_TIDY)))
-      my_tidy_flags += -quiet
+      my_tidy_flags += -quiet -extra-arg-before=-fno-caret-diagnostics
     endif
 
     # We might be using the static analyzer through clang-tidy.
     # https://bugs.llvm.org/show_bug.cgi?id=32914
     ifneq ($(my_tidy_checks),)
-      my_tidy_flags += "-extra-arg-before=-D__clang_analyzer__"
+      my_tidy_flags += -extra-arg-before=-D__clang_analyzer__
     endif
   endif
 endif

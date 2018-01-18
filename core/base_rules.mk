@@ -499,18 +499,22 @@ ifdef LOCAL_COMPATIBILITY_SUITE
 # separate the multiple architectures into subdirectories of the testcase folder.
 arch_dir :=
 is_native :=
+multi_arch :=
 ifeq ($(LOCAL_MODULE_CLASS),NATIVE_TESTS)
   is_native := true
+  multi_arch := true
 endif
 ifeq ($(LOCAL_MODULE_CLASS),NATIVE_BENCHMARK)
   is_native := true
+  multi_arch := true
 endif
 ifdef LOCAL_MULTILIB
-  is_native := true
+  multi_arch := true
 endif
-ifdef is_native
+ifdef multi_arch
   arch_dir := /$($(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)
 endif
+multi_arch :=
 
 # The module itself.
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
@@ -537,14 +541,23 @@ ifeq (,$(test_config))
     ifeq (true, $(LOCAL_IS_HOST_MODULE))
       is_instrumentation_test := false
     endif
+    # If LOCAL_MODULE_CLASS is not APPS, it's certainly not an instrumentation
+    # test. However, some packages for test data also have LOCAL_MODULE_CLASS
+    # set to APPS. These will require flag LOCAL_DISABLE_AUTO_GENERATE_TEST_CONFIG
+    # to disable auto-generating test config file.
+    ifneq (APPS, $(LOCAL_MODULE_CLASS))
+      is_instrumentation_test := false
+    endif
   endif
   # CTS modules can be used for test data, so test config files must be
   # explicitly created using AndroidTest.xml
   ifeq (,$(filter cts, $(LOCAL_COMPATIBILITY_SUITE)))
-    ifeq (true, $(filter true,$(is_native) $(is_instrumentation_test)))
-      include $(BUILD_SYSTEM)/autogen_test_config.mk
-      test_config := $(autogen_test_config_file)
-      autogen_test_config_file :=
+    ifneq (true, $(LOCAL_DISABLE_AUTO_GENERATE_TEST_CONFIG))
+      ifeq (true, $(filter true,$(is_native) $(is_instrumentation_test)))
+        include $(BUILD_SYSTEM)/autogen_test_config.mk
+        test_config := $(autogen_test_config_file)
+        autogen_test_config_file :=
+      endif
     endif
   endif
 endif

@@ -574,17 +574,15 @@ def Gunzip(in_filename, out_filename):
 
 
 def UnzipTemp(filename, pattern=None):
-  """Unzip the given archive into a temporary directory and return the name.
+  """Unzips the given archive into a temporary directory and returns the name.
 
-  If filename is of the form "foo.zip+bar.zip", unzip foo.zip into a
-  temp dir, then unzip bar.zip into that_dir/BOOTABLE_IMAGES.
+  If filename is of the form "foo.zip+bar.zip", unzip foo.zip into a temp dir,
+  then unzip bar.zip into that_dir/BOOTABLE_IMAGES.
 
-  Returns (tempdir, zipobj) where zipobj is a zipfile.ZipFile (of the
-  main file), open for reading.
+  Returns:
+    (tempdir, zipobj): tempdir is the name of the temprary directory; zipobj is
+        a zipfile.ZipFile (of the main file), open for reading.
   """
-
-  tmp = tempfile.mkdtemp(prefix="targetfiles-")
-  OPTIONS.tempfiles.append(tmp)
 
   def unzip_to_dir(filename, dirname):
     cmd = ["unzip", "-o", "-q", filename, "-d", dirname]
@@ -596,6 +594,7 @@ def UnzipTemp(filename, pattern=None):
       raise ExternalError("failed to unzip input target-files \"%s\"" %
                           (filename,))
 
+  tmp = MakeTempDir(prefix="targetfiles-")
   m = re.match(r"^(.*[.]zip)\+(.*[.]zip)$", filename, re.IGNORECASE)
   if m:
     unzip_to_dir(m.group(1), tmp)
@@ -793,11 +792,22 @@ def CheckSize(data, target, info_dict):
 
 
 def ReadApkCerts(tf_zip):
-  """Given a target_files ZipFile, parse the META/apkcerts.txt file
-  and return a tuple with the following elements: (1) a dictionary that maps
-  packages to certs (based on the "certificate" and "private_key" attributes
-  in the file. (2) A string representing the extension of compressed APKs in
-  the target files (e.g ".gz" ".bro")."""
+  """Parses the APK certs info from a given target-files zip.
+
+  Given a target-files ZipFile, parses the META/apkcerts.txt entry and returns a
+  tuple with the following elements: (1) a dictionary that maps packages to
+  certs (based on the "certificate" and "private_key" attributes in the file;
+  (2) a string representing the extension of compressed APKs in the target files
+  (e.g ".gz", ".bro").
+
+  Args:
+    tf_zip: The input target_files ZipFile (already open).
+
+  Returns:
+    (certmap, ext): certmap is a dictionary that maps packages to certs; ext is
+        the extension string of compressed APKs (e.g. ".gz"), or None if there's
+        no compressed APKs.
+  """
   certmap = {}
   compressed_extension = None
 
@@ -813,41 +823,51 @@ def ReadApkCerts(tf_zip):
     line = line.strip()
     if not line:
       continue
-    m = re.match(r'^name="(?P<NAME>.*)"\s+certificate="(?P<CERT>.*)"\s+'
-                 r'private_key="(?P<PRIVKEY>.*?)"(\s+compressed="(?P<COMPRESSED>.*)")?$',
-                 line)
-    if m:
-      matches = m.groupdict()
-      cert = matches["CERT"]
-      privkey = matches["PRIVKEY"]
-      name = matches["NAME"]
-      this_compressed_extension = matches["COMPRESSED"]
-      public_key_suffix_len = len(OPTIONS.public_key_suffix)
-      private_key_suffix_len = len(OPTIONS.private_key_suffix)
-      if cert in SPECIAL_CERT_STRINGS and not privkey:
-        certmap[name] = cert
-      elif (cert.endswith(OPTIONS.public_key_suffix) and
-            privkey.endswith(OPTIONS.private_key_suffix) and
-            cert[:-public_key_suffix_len] == privkey[:-private_key_suffix_len]):
-        certmap[name] = cert[:-public_key_suffix_len]
-      else:
-        raise ValueError("failed to parse line from apkcerts.txt:\n" + line)
-      if this_compressed_extension:
-        # Only count the installed files.
-        filename = name + '.' + this_compressed_extension
-        if filename not in installed_files:
-          continue
-        # Make sure that all the values in the compression map have the same
-        # extension. We don't support multiple compression methods in the same
-        # system image.
-        if compressed_extension:
-          if this_compressed_extension != compressed_extension:
-            raise ValueError("multiple compressed extensions : %s vs %s",
-                             (compressed_extension, this_compressed_extension))
-        else:
-          compressed_extension = this_compressed_extension
+    m = re.match(
+        r'^name="(?P<NAME>.*)"\s+certificate="(?P<CERT>.*)"\s+'
+        r'private_key="(?P<PRIVKEY>.*?)"(\s+compressed="(?P<COMPRESSED>.*)")?$',
+        line)
+    if not m:
+      continue
 
-  return (certmap, ("." + compressed_extension) if compressed_extension else None)
+    matches = m.groupdict()
+    cert = matches["CERT"]
+    privkey = matches["PRIVKEY"]
+    name = matches["NAME"]
+    this_compressed_extension = matches["COMPRESSED"]
+
+    public_key_suffix_len = len(OPTIONS.public_key_suffix)
+    private_key_suffix_len = len(OPTIONS.private_key_suffix)
+    if cert in SPECIAL_CERT_STRINGS and not privkey:
+      certmap[name] = cert
+    elif (cert.endswith(OPTIONS.public_key_suffix) and
+          privkey.endswith(OPTIONS.private_key_suffix) and
+          cert[:-public_key_suffix_len] == privkey[:-private_key_suffix_len]):
+      certmap[name] = cert[:-public_key_suffix_len]
+    else:
+      raise ValueError("Failed to parse line from apkcerts.txt:\n" + line)
+
+    if not this_compressed_extension:
+      continue
+
+    # Only count the installed files.
+    filename = name + '.' + this_compressed_extension
+    if filename not in installed_files:
+      continue
+
+    # Make sure that all the values in the compression map have the same
+    # extension. We don't support multiple compression methods in the same
+    # system image.
+    if compressed_extension:
+      if this_compressed_extension != compressed_extension:
+        raise ValueError(
+            "Multiple compressed extensions: {} vs {}".format(
+                compressed_extension, this_compressed_extension))
+    else:
+      compressed_extension = this_compressed_extension
+
+  return (certmap,
+          ("." + compressed_extension) if compressed_extension else None)
 
 
 COMMON_DOCSTRING = """
@@ -955,12 +975,24 @@ def MakeTempFile(prefix='tmp', suffix=''):
   return fn
 
 
+def MakeTempDir(prefix='tmp', suffix=''):
+  """Makes a temporary dir that will be cleaned up with a call to Cleanup().
+
+  Returns:
+    The absolute pathname of the new directory.
+  """
+  dir_name = tempfile.mkdtemp(suffix=suffix, prefix=prefix)
+  OPTIONS.tempfiles.append(dir_name)
+  return dir_name
+
+
 def Cleanup():
   for i in OPTIONS.tempfiles:
     if os.path.isdir(i):
-      shutil.rmtree(i)
+      shutil.rmtree(i, ignore_errors=True)
     else:
       os.remove(i)
+  del OPTIONS.tempfiles[:]
 
 
 class PasswordManager(object):

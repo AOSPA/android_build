@@ -558,6 +558,12 @@ endif
 
 $(eval $(call copy-one-file,$(full_classes_jarjar_jar),$(full_classes_jar)))
 
+LOCAL_FULL_CLASSES_PRE_JACOCO_JAR := $(full_classes_jar)
+
+#######################################
+include $(BUILD_SYSTEM)/jacoco.mk
+#######################################
+
 # Temporarily enable --multi-dex until proguard supports v53 class files
 # ( http://b/67673860 ) or we move away from proguard altogether.
 ifdef TARGET_OPENJDK9
@@ -569,7 +575,7 @@ my_desugaring :=
 ifndef LOCAL_IS_STATIC_JAVA_LIBRARY
 my_desugaring := true
 $(full_classes_desugar_jar): PRIVATE_DX_FLAGS := $(LOCAL_DX_FLAGS)
-$(full_classes_desugar_jar): $(full_classes_jar) $(full_java_header_libs) $(DESUGAR)
+$(full_classes_desugar_jar): $(LOCAL_FULL_CLASSES_JACOCO_JAR) $(full_java_header_libs) $(DESUGAR)
 	$(desugar-classes-jar)
 endif
 else
@@ -577,23 +583,17 @@ my_desugaring :=
 endif
 
 ifndef my_desugaring
-full_classes_desugar_jar := $(full_classes_jar)
+full_classes_desugar_jar := $(LOCAL_FULL_CLASSES_JACOCO_JAR)
 endif
 
-LOCAL_FULL_CLASSES_PRE_JACOCO_JAR := $(full_classes_desugar_jar)
-
-#######################################
-include $(BUILD_SYSTEM)/jacoco.mk
-#######################################
-
-full_classes_pre_proguard_jar := $(LOCAL_FULL_CLASSES_JACOCO_JAR)
+full_classes_pre_proguard_jar := $(full_classes_desugar_jar)
 
 # Keep a copy of the jar just before proguard processing.
 $(eval $(call copy-one-file,$(full_classes_pre_proguard_jar),$(intermediates.COMMON)/classes-pre-proguard.jar))
 
 # Run proguard if necessary
 ifdef LOCAL_PROGUARD_ENABLED
-ifneq ($(filter-out full custom nosystem obfuscation optimization shrinktests,$(LOCAL_PROGUARD_ENABLED)),)
+ifneq ($(filter-out full custom obfuscation optimization,$(LOCAL_PROGUARD_ENABLED)),)
     $(warning while processing: $(LOCAL_MODULE))
     $(error invalid value for LOCAL_PROGUARD_ENABLED: $(LOCAL_PROGUARD_ENABLED))
 endif
@@ -631,18 +631,9 @@ legacy_proguard_flags += -printmapping $(proguard_dictionary)
 
 common_proguard_flags := -forceprocessing
 
-common_proguard_flag_files :=
-ifeq ($(filter nosystem,$(LOCAL_PROGUARD_ENABLED)),)
-common_proguard_flag_files += $(BUILD_SYSTEM)/proguard.flags
-ifeq ($(LOCAL_EMMA_INSTRUMENT),true)
-common_proguard_flags += -include $(BUILD_SYSTEM)/proguard.emma.flags
-endif
-# If this is a test package, add proguard keep flags for tests.
+common_proguard_flag_files := $(BUILD_SYSTEM)/proguard.flags
 ifneq ($(LOCAL_INSTRUMENTATION_FOR)$(filter tests,$(LOCAL_MODULE_TAGS)),)
-common_proguard_flag_files += $(BUILD_SYSTEM)/proguard_tests.flags
-ifeq ($(filter shrinktests,$(LOCAL_PROGUARD_ENABLED)),)
 common_proguard_flags += -dontshrink # don't shrink tests by default
-endif # shrinktests
 endif # test package
 ifneq ($(LOCAL_PROGUARD_ENABLED),custom)
   ifdef LOCAL_USE_AAPT2
@@ -691,7 +682,6 @@ $(full_classes_proguard_jar) : $(link_instr_intermediates_dir.COMMON)/proguard.c
 
 endif # no obfuscation
 endif # LOCAL_INSTRUMENTATION_FOR
-endif  # LOCAL_PROGUARD_ENABLED is not nosystem
 
 proguard_flag_files := $(addprefix $(LOCAL_PATH)/, $(LOCAL_PROGUARD_FLAG_FILES))
 ifeq ($(USE_R8),true)

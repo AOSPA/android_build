@@ -287,7 +287,7 @@ endif
 # Check BOARD_VNDK_VERSION
 define check_vndk_version
   $(eval vndk_path := prebuilts/vndk/v$(1)) \
-  $(if $(wildcard $(vndk_path)/Android.bp),,$(error VNDK version $(1) not found))
+  $(if $(wildcard $(vndk_path)/*/Android.bp),,$(error VNDK version $(1) not found))
 endef
 
 ifdef BOARD_VNDK_VERSION
@@ -656,14 +656,4 @@ endif
 
 ifeq ($(CALLED_FROM_SETUP),true)
 PRINT_BUILD_CONFIG ?= true
-endif
-
-ifeq ($(USE_CLANG_PLATFORM_BUILD),)
-USE_CLANG_PLATFORM_BUILD := true
-endif
-
-ifneq ($(USE_CLANG_PLATFORM_BUILD),true)
-ifneq ($(USE_CLANG_PLATFORM_BUILD),false)
-$(error USE_CLANG_PLATFORM_BUILD must be true or false)
-endif
 endif
