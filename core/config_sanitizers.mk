@@ -230,8 +230,21 @@ ifneq ($(filter cfi,$(my_sanitize)),)
   # LLVM is not set up to do this on a function basis, so force Thumb on the
   # entire module.
   LOCAL_ARM_MODE := thumb
+ifndef LOCAL_IS_HOST_MODULE
+  ifeq ($(my_sdclang),true)
+    my_cflags += $(SDCLANG_CFI_EXTRA_CFLAGS)
+    my_ldflags += $(SDCLANG_CFI_EXTRA_LDFLAGS)
+  else ifeq ($(my_sdclang_2),true)
+    my_cflags += $(SDCLANG_CFI_EXTRA_CFLAGS)
+    my_ldflags += $(SDCLANG_CFI_EXTRA_LDFLAGS)
+  else
+    my_cflags += $(CFI_EXTRA_CFLAGS)
+    my_ldflags += $(CFI_EXTRA_LDFLAGS)
+  endif
+else
   my_cflags += $(CFI_EXTRA_CFLAGS)
   my_ldflags += $(CFI_EXTRA_LDFLAGS)
+endif
   my_arflags += --plugin $(LLVM_PREBUILTS_PATH)/../lib64/LLVMgold.so
   # Workaround for b/33678192. CFI jumptables need Thumb2 codegen.  Revert when
   # Clang is updated past r290384.
