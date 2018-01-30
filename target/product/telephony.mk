@@ -17,6 +17,9 @@
 # This is the list of product-level settings that are specific
 # to products that have telephony hardware.
 
+# Set flag to enable compilation of vendor value-adds to Android Telephony.
+TARGET_USES_QCOM_BSP_ATEL := true
+
 PRODUCT_PACKAGES := \
     CarrierConfig \
     CarrierDefaultApp \
