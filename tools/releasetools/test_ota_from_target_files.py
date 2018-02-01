@@ -15,11 +15,20 @@
 #
 
 import copy
+import os.path
 import unittest
 
 import common
 from ota_from_target_files import (
-    _LoadOemDicts, BuildInfo, WriteFingerprintAssertion)
+    _LoadOemDicts, BuildInfo, GetPackageMetadata, PayloadSigner,
+    WriteFingerprintAssertion)
+
+
+def get_testdata_dir():
+  """Returns the testdata dir, in relative to the script dir."""
+  # The script dir is the one we want, which could be different from pwd.
+  current_dir = os.path.dirname(os.path.realpath(__file__))
+  return os.path.join(current_dir, 'testdata')
 
 
 class MockScriptWriter(object):
@@ -300,3 +309,258 @@ class LoadOemDictsTest(unittest.TestCase):
       self.assertEqual('foo', oem_dict['xyz'])
       self.assertEqual('bar', oem_dict['a.b.c'])
       self.assertEqual('{}'.format(i), oem_dict['ro.build.index'])
+
+
+class OtaFromTargetFilesTest(unittest.TestCase):
+
+  TEST_TARGET_INFO_DICT = {
+      'build.prop' : {
+          'ro.product.device' : 'product-device',
+          'ro.build.fingerprint' : 'build-fingerprint-target',
+          'ro.build.version.incremental' : 'build-version-incremental-target',
+          'ro.build.date.utc' : '1500000000',
+      },
+  }
+
+  TEST_SOURCE_INFO_DICT = {
+      'build.prop' : {
+          'ro.product.device' : 'product-device',
+          'ro.build.fingerprint' : 'build-fingerprint-source',
+          'ro.build.version.incremental' : 'build-version-incremental-source',
+          'ro.build.date.utc' : '1400000000',
+      },
+  }
+
+  def setUp(self):
+    # Reset the global options as in ota_from_target_files.py.
+    common.OPTIONS.incremental_source = None
+    common.OPTIONS.downgrade = False
+    common.OPTIONS.timestamp = False
+    common.OPTIONS.wipe_user_data = False
+
+  def test_GetPackageMetadata_abOta_full(self):
+    target_info_dict = copy.deepcopy(self.TEST_TARGET_INFO_DICT)
+    target_info_dict['ab_update'] = 'true'
+    target_info = BuildInfo(target_info_dict, None)
+    metadata = GetPackageMetadata(target_info)
+    self.assertDictEqual(
+        {
+            'ota-type' : 'AB',
+            'ota-required-cache' : '0',
+            'post-build' : 'build-fingerprint-target',
+            'post-build-incremental' : 'build-version-incremental-target',
+            'post-timestamp' : '1500000000',
+            'pre-device' : 'product-device',
+        },
+        metadata)
+
+  def test_GetPackageMetadata_abOta_incremental(self):
+    target_info_dict = copy.deepcopy(self.TEST_TARGET_INFO_DICT)
+    target_info_dict['ab_update'] = 'true'
+    target_info = BuildInfo(target_info_dict, None)
+    source_info = BuildInfo(self.TEST_SOURCE_INFO_DICT, None)
+    common.OPTIONS.incremental_source = ''
+    metadata = GetPackageMetadata(target_info, source_info)
+    self.assertDictEqual(
+        {
+            'ota-type' : 'AB',
+            'ota-required-cache' : '0',
+            'post-build' : 'build-fingerprint-target',
+            'post-build-incremental' : 'build-version-incremental-target',
+            'post-timestamp' : '1500000000',
+            'pre-device' : 'product-device',
+            'pre-build' : 'build-fingerprint-source',
+            'pre-build-incremental' : 'build-version-incremental-source',
+        },
+        metadata)
+
+  def test_GetPackageMetadata_nonAbOta_full(self):
+    target_info = BuildInfo(self.TEST_TARGET_INFO_DICT, None)
+    metadata = GetPackageMetadata(target_info)
+    self.assertDictEqual(
+        {
+            'ota-type' : 'BLOCK',
+            'post-build' : 'build-fingerprint-target',
+            'post-build-incremental' : 'build-version-incremental-target',
+            'post-timestamp' : '1500000000',
+            'pre-device' : 'product-device',
+        },
+        metadata)
+
+  def test_GetPackageMetadata_nonAbOta_incremental(self):
+    target_info = BuildInfo(self.TEST_TARGET_INFO_DICT, None)
+    source_info = BuildInfo(self.TEST_SOURCE_INFO_DICT, None)
+    common.OPTIONS.incremental_source = ''
+    metadata = GetPackageMetadata(target_info, source_info)
+    self.assertDictEqual(
+        {
+            'ota-type' : 'BLOCK',
+            'post-build' : 'build-fingerprint-target',
+            'post-build-incremental' : 'build-version-incremental-target',
+            'post-timestamp' : '1500000000',
+            'pre-device' : 'product-device',
+            'pre-build' : 'build-fingerprint-source',
+            'pre-build-incremental' : 'build-version-incremental-source',
+        },
+        metadata)
+
+  def test_GetPackageMetadata_wipe(self):
+    target_info = BuildInfo(self.TEST_TARGET_INFO_DICT, None)
+    common.OPTIONS.wipe_user_data = True
+    metadata = GetPackageMetadata(target_info)
+    self.assertDictEqual(
+        {
+            'ota-type' : 'BLOCK',
+            'ota-wipe' : 'yes',
+            'post-build' : 'build-fingerprint-target',
+            'post-build-incremental' : 'build-version-incremental-target',
+            'post-timestamp' : '1500000000',
+            'pre-device' : 'product-device',
+        },
+        metadata)
+
+  @staticmethod
+  def _test_GetPackageMetadata_swapBuildTimestamps(target_info, source_info):
+    (target_info['build.prop']['ro.build.date.utc'],
+     source_info['build.prop']['ro.build.date.utc']) = (
+         source_info['build.prop']['ro.build.date.utc'],
+         target_info['build.prop']['ro.build.date.utc'])
+
+  def test_GetPackageMetadata_unintentionalDowngradeDetected(self):
+    target_info_dict = copy.deepcopy(self.TEST_TARGET_INFO_DICT)
+    source_info_dict = copy.deepcopy(self.TEST_SOURCE_INFO_DICT)
+    self._test_GetPackageMetadata_swapBuildTimestamps(
+        target_info_dict, source_info_dict)
+
+    target_info = BuildInfo(target_info_dict, None)
+    source_info = BuildInfo(source_info_dict, None)
+    common.OPTIONS.incremental_source = ''
+    self.assertRaises(RuntimeError, GetPackageMetadata, target_info,
+                      source_info)
+
+  def test_GetPackageMetadata_downgrade(self):
+    target_info_dict = copy.deepcopy(self.TEST_TARGET_INFO_DICT)
+    source_info_dict = copy.deepcopy(self.TEST_SOURCE_INFO_DICT)
+    self._test_GetPackageMetadata_swapBuildTimestamps(
+        target_info_dict, source_info_dict)
+
+    target_info = BuildInfo(target_info_dict, None)
+    source_info = BuildInfo(source_info_dict, None)
+    common.OPTIONS.incremental_source = ''
+    common.OPTIONS.downgrade = True
+    common.OPTIONS.wipe_user_data = True
+    metadata = GetPackageMetadata(target_info, source_info)
+    self.assertDictEqual(
+        {
+            'ota-downgrade' : 'yes',
+            'ota-type' : 'BLOCK',
+            'ota-wipe' : 'yes',
+            'post-build' : 'build-fingerprint-target',
+            'post-build-incremental' : 'build-version-incremental-target',
+            'pre-device' : 'product-device',
+            'pre-build' : 'build-fingerprint-source',
+            'pre-build-incremental' : 'build-version-incremental-source',
+        },
+        metadata)
+
+  def test_GetPackageMetadata_overrideTimestamp(self):
+    target_info_dict = copy.deepcopy(self.TEST_TARGET_INFO_DICT)
+    source_info_dict = copy.deepcopy(self.TEST_SOURCE_INFO_DICT)
+    self._test_GetPackageMetadata_swapBuildTimestamps(
+        target_info_dict, source_info_dict)
+
+    target_info = BuildInfo(target_info_dict, None)
+    source_info = BuildInfo(source_info_dict, None)
+    common.OPTIONS.incremental_source = ''
+    common.OPTIONS.timestamp = True
+    metadata = GetPackageMetadata(target_info, source_info)
+    self.assertDictEqual(
+        {
+            'ota-type' : 'BLOCK',
+            'post-build' : 'build-fingerprint-target',
+            'post-build-incremental' : 'build-version-incremental-target',
+            'post-timestamp' : '1500000001',
+            'pre-device' : 'product-device',
+            'pre-build' : 'build-fingerprint-source',
+            'pre-build-incremental' : 'build-version-incremental-source',
+        },
+        metadata)
+
+
+class PayloadSignerTest(unittest.TestCase):
+
+  SIGFILE = 'sigfile.bin'
+  SIGNED_SIGFILE = 'signed-sigfile.bin'
+
+  def setUp(self):
+    self.testdata_dir = get_testdata_dir()
+    self.assertTrue(os.path.exists(self.testdata_dir))
+
+    common.OPTIONS.payload_signer = None
+    common.OPTIONS.payload_signer_args = []
+    common.OPTIONS.package_key = os.path.join(self.testdata_dir, 'testkey')
+    common.OPTIONS.key_passwords = {
+        common.OPTIONS.package_key : None,
+    }
+
+  def tearDown(self):
+    common.Cleanup()
+
+  def _assertFilesEqual(self, file1, file2):
+    with open(file1, 'rb') as fp1, open(file2, 'rb') as fp2:
+      self.assertEqual(fp1.read(), fp2.read())
+
+  def test_init(self):
+    payload_signer = PayloadSigner()
+    self.assertEqual('openssl', payload_signer.signer)
+
+  def test_init_withPassword(self):
+    common.OPTIONS.package_key = os.path.join(
+        self.testdata_dir, 'testkey_with_passwd')
+    common.OPTIONS.key_passwords = {
+        common.OPTIONS.package_key : 'foo',
+    }
+    payload_signer = PayloadSigner()
+    self.assertEqual('openssl', payload_signer.signer)
+
+  def test_init_withExternalSigner(self):
+    common.OPTIONS.payload_signer = 'abc'
+    common.OPTIONS.payload_signer_args = ['arg1', 'arg2']
+    payload_signer = PayloadSigner()
+    self.assertEqual('abc', payload_signer.signer)
+    self.assertEqual(['arg1', 'arg2'], payload_signer.signer_args)
+
+  def test_Sign(self):
+    payload_signer = PayloadSigner()
+    input_file = os.path.join(self.testdata_dir, self.SIGFILE)
+    signed_file = payload_signer.Sign(input_file)
+
+    verify_file = os.path.join(self.testdata_dir, self.SIGNED_SIGFILE)
+    self._assertFilesEqual(verify_file, signed_file)
+
+  def test_Sign_withExternalSigner_openssl(self):
+    """Uses openssl as the external payload signer."""
+    common.OPTIONS.payload_signer = 'openssl'
+    common.OPTIONS.payload_signer_args = [
+        'pkeyutl', '-sign', '-keyform', 'DER', '-inkey',
+        os.path.join(self.testdata_dir, 'testkey.pk8'),
+        '-pkeyopt', 'digest:sha256']
+    payload_signer = PayloadSigner()
+    input_file = os.path.join(self.testdata_dir, self.SIGFILE)
+    signed_file = payload_signer.Sign(input_file)
+
+    verify_file = os.path.join(self.testdata_dir, self.SIGNED_SIGFILE)
+    self._assertFilesEqual(verify_file, signed_file)
+
+  def test_Sign_withExternalSigner_script(self):
+    """Uses testdata/payload_signer.sh as the external payload signer."""
+    common.OPTIONS.payload_signer = os.path.join(
+        self.testdata_dir, 'payload_signer.sh')
+    common.OPTIONS.payload_signer_args = [
+        os.path.join(self.testdata_dir, 'testkey.pk8')]
+    payload_signer = PayloadSigner()
+    input_file = os.path.join(self.testdata_dir, self.SIGFILE)
+    signed_file = payload_signer.Sign(input_file)
+
+    verify_file = os.path.join(self.testdata_dir, self.SIGNED_SIGFILE)
+    self._assertFilesEqual(verify_file, signed_file)
