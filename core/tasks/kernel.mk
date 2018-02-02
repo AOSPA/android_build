@@ -90,7 +90,11 @@ else
 ifeq ($(KERNEL_ARCH),arm64)
 TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/Image.gz
 else
+ifeq ($(TARGET_USES_LZ4_COMPRESSED_KERNEL),true)
+TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/Image.lz4
+else
 TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/zImage
+endif
 endif
 endif
 
