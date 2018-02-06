@@ -189,14 +189,16 @@ include build/make/core/pdk_config.mk
 
 #
 # -----------------------------------------------------------------
-# Enable dynamic linker developer warnings for userdebug, eng
-# and non-REL builds
+# Enable dynamic linker and hidden API developer warnings for
+# userdebug, eng and non-REL builds
 ifneq ($(TARGET_BUILD_VARIANT),user)
-  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1
+  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1 \
+                                 ro.art.hiddenapi.warning=1
 else
 # Enable it for user builds as long as they are not final.
 ifneq ($(PLATFORM_VERSION_CODENAME),REL)
-  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1
+  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1 \
+                                 ro.art.hiddenapi.warning=1
 endif
 endif
 
@@ -206,6 +208,14 @@ $(KATI_obsolete_var PRODUCT_FULL_TREBLE,\
 	Code should be written to work regardless of a device being Treble or \
 	variables like PRODUCT_SEPOLICY_SPLIT should be used until that is \
 	possible.)
+
+# Sets ro.actionable_compatible_property.enabled to know on runtime whether the whitelist
+# of actionable compatible properties is enabled or not.
+ifeq ($(PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE),true)
+ADDITIONAL_DEFAULT_PROPERTIES += ro.actionable_compatible_property.enabled=false
+else
+ADDITIONAL_DEFAULT_PROPERTIES += ro.actionable_compatible_property.enabled=${PRODUCT_COMPATIBLE_PROPERTY}
+endif
 
 # -----------------------------------------------------------------
 ###
@@ -1035,6 +1045,9 @@ bptimage: $(INSTALLED_BPTIMAGE_TARGET)
 .PHONY: vendorimage
 vendorimage: $(INSTALLED_VENDORIMAGE_TARGET)
 
+.PHONY: productimage
+productimage: $(INSTALLED_PRODUCTIMAGE_TARGET)
+
 .PHONY: systemotherimage
 systemotherimage: $(INSTALLED_SYSTEMOTHERIMAGE_TARGET)
 
@@ -1058,9 +1071,11 @@ droidcore: files \
 	$(INSTALLED_CACHEIMAGE_TARGET) \
 	$(INSTALLED_BPTIMAGE_TARGET) \
 	$(INSTALLED_VENDORIMAGE_TARGET) \
+	$(INSTALLED_PRODUCTIMAGE_TARGET) \
 	$(INSTALLED_SYSTEMOTHERIMAGE_TARGET) \
 	$(INSTALLED_FILES_FILE) \
 	$(INSTALLED_FILES_FILE_VENDOR) \
+	$(INSTALLED_FILES_FILE_PRODUCT) \
 	$(INSTALLED_FILES_FILE_SYSTEMOTHER) \
 	soong_docs
 
@@ -1126,6 +1141,7 @@ else # TARGET_BUILD_APPS
     $(COVERAGE_ZIP) \
     $(INSTALLED_FILES_FILE) \
     $(INSTALLED_FILES_FILE_VENDOR) \
+    $(INSTALLED_FILES_FILE_PRODUCT) \
     $(INSTALLED_FILES_FILE_SYSTEMOTHER) \
     $(INSTALLED_BUILD_PROP_TARGET) \
     $(BUILT_TARGET_FILES_PACKAGE) \

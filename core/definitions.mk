@@ -2241,12 +2241,17 @@ $(hide) if [ -s $(PRIVATE_JAVA_SOURCE_LIST) ] ; then \
     $(SOONG_JAVAC_WRAPPER) $(JAVAC_WRAPPER) $(1) -encoding UTF-8 \
     $(if $(findstring true,$(PRIVATE_WARNINGS_ENABLE)),$(xlint_unchecked),) \
     $(if $(PRIVATE_USE_SYSTEM_MODULES), \
-      $(addprefix --system=,$(PRIVATE_SYSTEM_MODULES)), \
+      $(addprefix --system=,$(PRIVATE_SYSTEM_MODULES_DIR)), \
       $(addprefix -bootclasspath ,$(strip \
           $(call normalize-path-list,$(PRIVATE_BOOTCLASSPATH)) \
           $(PRIVATE_EMPTY_BOOTCLASSPATH)))) \
-    $(addprefix -classpath ,$(strip \
-        $(call normalize-path-list,$(2)))) \
+    $(if $(PRIVATE_USE_SYSTEM_MODULES), \
+      $(if $(PRIVATE_PATCH_MODULE), \
+        --patch-module=$(PRIVATE_PATCH_MODULE)=$(call normalize-path-list,. $(2)))) \
+    $(addprefix -classpath ,$(call normalize-path-list,$(strip \
+      $(if $(PRIVATE_USE_SYSTEM_MODULES), \
+        $(filter-out $(PRIVATE_SYSTEM_MODULES_LIBS),$(PRIVATE_BOOTCLASSPATH))) \
+      $(2)))) \
     $(if $(findstring true,$(PRIVATE_WARNINGS_ENABLE)),$(xlint_unchecked),) \
     -d $(PRIVATE_CLASS_INTERMEDIATES_DIR) -s $(PRIVATE_ANNO_INTERMEDIATES_DIR) \
     $(PRIVATE_JAVACFLAGS) \
@@ -2781,18 +2786,22 @@ endef
 # $(3): LOCAL_DEX_PREOPT, if nostripping then leave classes*.dex
 define dexpreopt-copy-jar
 $(2): $(1)
-	@echo $(if $(filter nostripping,$(3)),"Copy: $$@","Copy without dex: $$@")
+	@echo "Copy: $$@"
 	$$(copy-file-to-target)
 	$(if $(filter nostripping,$(3)),,$$(call dexpreopt-remove-classes.dex,$$@))
 endef
 
-# $(1): the .jar or .apk to remove classes.dex
+# $(1): the .jar or .apk to remove classes.dex. Note that if all dex files
+# are uncompressed in the archive, then dexopt will not do a copy of the dex
+# files and we should not strip.
 define dexpreopt-remove-classes.dex
-$(hide) zip --quiet --delete $(1) classes.dex; \
+$(hide) if (zipinfo $1 '*.dex' 2>/dev/null | grep -v ' stor ' >/dev/null) ; then \
+zip --quiet --delete $(1) classes.dex; \
 dex_index=2; \
 while zip --quiet --delete $(1) classes$${dex_index}.dex > /dev/null; do \
   let dex_index=dex_index+1; \
-done
+done \
+fi
 endef
 
 ###########################################################
@@ -2800,15 +2809,13 @@ endef
 ###########################################################
 ifdef TARGET_OPENJDK9
 define transform-jar-to-proguard
-@echo Skipping Proguard: $<$(PRIVATE_PROGUARD_INJAR_FILTERS) $@
+@echo Skipping Proguard: $< $@
 $(hide) cp '$<' $@
 endef
 else
 define transform-jar-to-proguard
 @echo Proguard: $@
-$(hide) $(PROGUARD) -injars '$<$(PRIVATE_PROGUARD_INJAR_FILTERS)' \
-    -outjars $@ \
-    $(PRIVATE_PROGUARD_FLAGS) \
+$(hide) $(PROGUARD) -injars $< -outjars $@ $(PRIVATE_PROGUARD_FLAGS) \
     $(addprefix -injars , $(PRIVATE_EXTRA_INPUT_JAR))
 endef
 endif
@@ -2819,7 +2826,7 @@ endif
 ###########################################################
 define transform-jar-to-dex-r8
 @echo R8: $@
-$(hide) $(R8_COMPAT_PROGUARD) -injars '$<$(PRIVATE_PROGUARD_INJAR_FILTERS)' \
+$(hide) $(R8_COMPAT_PROGUARD) -injars '$<' \
     --min-api $(PRIVATE_MIN_SDK_VERSION) \
     --force-proguard-compatibility --output $(subst classes.dex,,$@) \
     $(PRIVATE_PROGUARD_FLAGS) \

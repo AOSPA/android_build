@@ -72,6 +72,8 @@ else ifneq ($(filter $(TARGET_OUT_OEM)/%,$(_path)),)
 LOCAL_OEM_MODULE := true
 else ifneq ($(filter $(TARGET_OUT_ODM)/%,$(_path)),)
 LOCAL_ODM_MODULE := true
+else ifneq ($(filter $(TARGET_OUT_PRODUCT)/%,$(_path)),)
+LOCAL_PRODUCT_MODULE := true
 endif
 _path :=
 
@@ -86,7 +88,7 @@ $(call pretty-error,Only one of LOCAL_PROPRIETARY_MODULE[$(LOCAL_PROPRIETARY_MOD
 endif
 
 include $(BUILD_SYSTEM)/local_vndk.mk
-include $(BUILD_SYSTEM)/local_vsdk.mk
+include $(BUILD_SYSTEM)/local_systemsdk.mk
 
 my_module_tags := $(LOCAL_MODULE_TAGS)
 ifeq ($(my_host_cross),true)
@@ -200,6 +202,8 @@ else ifeq (true,$(LOCAL_OEM_MODULE))
   partition_tag := _OEM
 else ifeq (true,$(LOCAL_ODM_MODULE))
   partition_tag := _ODM
+else ifeq (true,$(LOCAL_PRODUCT_MODULE))
+  partition_tag := _PRODUCT
 else ifeq (NATIVE_TESTS,$(LOCAL_MODULE_CLASS))
   partition_tag := _DATA
 else
@@ -586,9 +590,6 @@ $(foreach extra_config, $(wildcard $(LOCAL_PATH)/$(LOCAL_MODULE)_*.config), \
 endif
 endif # $(my_prefix)$(LOCAL_MODULE_CLASS)_$(LOCAL_MODULE)_compat_files
 
-arch_dir :=
-is_native :=
-
 ifneq ($(my_test_data_file_pairs),)
 $(foreach pair, $(my_test_data_file_pairs), \
   $(eval parts := $(subst :,$(space),$(pair))) \
@@ -598,6 +599,9 @@ $(foreach pair, $(my_test_data_file_pairs), \
     $(eval my_compat_dist_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite),$(arch_dir)), \
       $(src_path):$(call append-path,$(dir),$(file))))))
 endif
+
+arch_dir :=
+is_native :=
 
 $(call create-suite-dependencies)
 

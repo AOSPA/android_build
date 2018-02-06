@@ -310,6 +310,56 @@ class BuildInfo(object):
       script.AssertOemProperty(prop, values, oem_no_mount)
 
 
+class PayloadSigner(object):
+  """A class that wraps the payload signing works.
+
+  When generating a Payload, hashes of the payload and metadata files will be
+  signed with the device key, either by calling an external payload signer or
+  by calling openssl with the package key. This class provides a unified
+  interface, so that callers can just call PayloadSigner.Sign().
+
+  If an external payload signer has been specified (OPTIONS.payload_signer), it
+  calls the signer with the provided args (OPTIONS.payload_signer_args). Note
+  that the signing key should be provided as part of the payload_signer_args.
+  Otherwise without an external signer, it uses the package key
+  (OPTIONS.package_key) and calls openssl for the signing works.
+  """
+
+  def __init__(self):
+    if OPTIONS.payload_signer is None:
+      # Prepare the payload signing key.
+      private_key = OPTIONS.package_key + OPTIONS.private_key_suffix
+      pw = OPTIONS.key_passwords[OPTIONS.package_key]
+
+      cmd = ["openssl", "pkcs8", "-in", private_key, "-inform", "DER"]
+      cmd.extend(["-passin", "pass:" + pw] if pw else ["-nocrypt"])
+      signing_key = common.MakeTempFile(prefix="key-", suffix=".key")
+      cmd.extend(["-out", signing_key])
+
+      get_signing_key = common.Run(cmd, verbose=False, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT)
+      stdoutdata, _ = get_signing_key.communicate()
+      assert get_signing_key.returncode == 0, \
+          "Failed to get signing key: {}".format(stdoutdata)
+
+      self.signer = "openssl"
+      self.signer_args = ["pkeyutl", "-sign", "-inkey", signing_key,
+                          "-pkeyopt", "digest:sha256"]
+    else:
+      self.signer = OPTIONS.payload_signer
+      self.signer_args = OPTIONS.payload_signer_args
+
+  def Sign(self, in_file):
+    """Signs the given input file. Returns the output filename."""
+    out_file = common.MakeTempFile(prefix="signed-", suffix=".bin")
+    cmd = [self.signer] + self.signer_args + ['-in', in_file, '-out', out_file]
+    signing = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdoutdata, _ = signing.communicate()
+    assert signing.returncode == 0, \
+        "Failed to sign the input file: {}".format(stdoutdata)
+    return out_file
+
+
 def SignOutput(temp_zip_name, output_zip_name):
   pw = OPTIONS.key_passwords[OPTIONS.package_key]
 
@@ -527,12 +577,7 @@ def WriteFullOTAPackage(input_zip, output_zip):
   if target_info.oem_props and not OPTIONS.oem_no_mount:
     target_info.WriteMountOemScript(script)
 
-  metadata = {
-      "post-build": target_info.fingerprint,
-      "pre-device": target_info.device,
-      "post-timestamp": target_info.GetBuildProp("ro.build.date.utc"),
-      "ota-type" : "BLOCK",
-  }
+  metadata = GetPackageMetadata(target_info)
 
   device_specific = common.DeviceSpecificParams(
       input_zip=input_zip,
@@ -711,6 +756,57 @@ def HandleDowngradeMetadata(metadata, target_info, source_info):
     metadata["post-timestamp"] = post_timestamp
 
 
+def GetPackageMetadata(target_info, source_info=None):
+  """Generates and returns the metadata dict.
+
+  It generates a dict() that contains the info to be written into an OTA
+  package (META-INF/com/android/metadata). It also handles the detection of
+  downgrade / timestamp override / data wipe based on the global options.
+
+  Args:
+    target_info: The BuildInfo instance that holds the target build info.
+    source_info: The BuildInfo instance that holds the source build info, or
+        None if generating full OTA.
+
+  Returns:
+    A dict to be written into package metadata entry.
+  """
+  assert isinstance(target_info, BuildInfo)
+  assert source_info is None or isinstance(source_info, BuildInfo)
+
+  metadata = {
+      'post-build' : target_info.fingerprint,
+      'post-build-incremental' : target_info.GetBuildProp(
+          'ro.build.version.incremental'),
+  }
+
+  if target_info.is_ab:
+    metadata['ota-type'] = 'AB'
+    metadata['ota-required-cache'] = '0'
+  else:
+    metadata['ota-type'] = 'BLOCK'
+
+  if OPTIONS.wipe_user_data:
+    metadata['ota-wipe'] = 'yes'
+
+  is_incremental = source_info is not None
+  if is_incremental:
+    metadata['pre-build'] = source_info.fingerprint
+    metadata['pre-build-incremental'] = source_info.GetBuildProp(
+        'ro.build.version.incremental')
+    metadata['pre-device'] = source_info.device
+  else:
+    metadata['pre-device'] = target_info.device
+
+  # Detect downgrades, or fill in the post-timestamp.
+  if is_incremental:
+    HandleDowngradeMetadata(metadata, target_info, source_info)
+  else:
+    metadata['post-timestamp'] = target_info.GetBuildProp('ro.build.date.utc')
+
+  return metadata
+
+
 def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
   target_info = BuildInfo(OPTIONS.target_info_dict, OPTIONS.oem_dicts)
   source_info = BuildInfo(OPTIONS.source_info_dict, OPTIONS.oem_dicts)
@@ -728,12 +824,7 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
     if not OPTIONS.oem_no_mount:
       source_info.WriteMountOemScript(script)
 
-  metadata = {
-      "pre-device": source_info.device,
-      "ota-type": "BLOCK",
-  }
-
-  HandleDowngradeMetadata(metadata, target_info, source_info)
+  metadata = GetPackageMetadata(target_info, source_info)
 
   device_specific = common.DeviceSpecificParams(
       source_zip=source_zip,
@@ -744,13 +835,6 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
       script=script,
       metadata=metadata,
       info_dict=source_info)
-
-  metadata["pre-build"] = source_info.fingerprint
-  metadata["post-build"] = target_info.fingerprint
-  metadata["pre-build-incremental"] = source_info.GetBuildProp(
-      "ro.build.version.incremental")
-  metadata["post-build-incremental"] = target_info.GetBuildProp(
-      "ro.build.version.incremental")
 
   source_boot = common.GetBootableImage(
       "/tmp/boot.img", "boot.img", OPTIONS.source_tmp, "BOOT", source_info)
@@ -1042,20 +1126,8 @@ def WriteABOTAPackageWithBrilloScript(target_file, output_file,
   # The place where the output from the subprocess should go.
   log_file = sys.stdout if OPTIONS.verbose else subprocess.PIPE
 
-  # A/B updater expects a signing key in RSA format. Gets the key ready for
-  # later use in step 3, unless a payload_signer has been specified.
-  if OPTIONS.payload_signer is None:
-    cmd = ["openssl", "pkcs8",
-           "-in", OPTIONS.package_key + OPTIONS.private_key_suffix,
-           "-inform", "DER"]
-    pw = OPTIONS.key_passwords[OPTIONS.package_key]
-    cmd.extend(["-passin", "pass:" + pw] if pw else ["-nocrypt"])
-    rsa_key = common.MakeTempFile(prefix="key-", suffix=".key")
-    cmd.extend(["-out", rsa_key])
-    p1 = common.Run(cmd, verbose=False, stdout=log_file,
-                    stderr=subprocess.STDOUT)
-    p1.communicate()
-    assert p1.returncode == 0, "openssl pkcs8 failed"
+  # Get the PayloadSigner to be used in step 3.
+  payload_signer = PayloadSigner()
 
   # Stage the output zip package for package signing.
   temp_zip_file = tempfile.NamedTemporaryFile()
@@ -1070,24 +1142,7 @@ def WriteABOTAPackageWithBrilloScript(target_file, output_file,
     source_info = None
 
   # Metadata to comply with Android OTA package format.
-  metadata = {
-      "post-build" : target_info.fingerprint,
-      "post-build-incremental" : target_info.GetBuildProp(
-          "ro.build.version.incremental"),
-      "ota-required-cache" : "0",
-      "ota-type" : "AB",
-  }
-
-  if source_file is not None:
-    metadata["pre-device"] = source_info.device
-    metadata["pre-build"] = source_info.fingerprint
-    metadata["pre-build-incremental"] = source_info.GetBuildProp(
-        "ro.build.version.incremental")
-
-    HandleDowngradeMetadata(metadata, target_info, source_info)
-  else:
-    metadata["pre-device"] = target_info.device
-    metadata["post-timestamp"] = target_info.GetBuildProp("ro.build.date.utc")
+  metadata = GetPackageMetadata(target_info, source_info)
 
   # 1. Generate payload.
   payload_file = common.MakeTempFile(prefix="payload-", suffix=".bin")
@@ -1097,7 +1152,7 @@ def WriteABOTAPackageWithBrilloScript(target_file, output_file,
   if source_file is not None:
     cmd.extend(["--source_image", source_file])
   if OPTIONS.downgrade:
-    max_timestamp = GetBuildProp("ro.build.date.utc", OPTIONS.source_info_dict)
+    max_timestamp = source_info.GetBuildProp("ro.build.date.utc")
   else:
     max_timestamp = metadata["post-timestamp"]
   cmd.extend(["--max_timestamp", max_timestamp])
@@ -1118,37 +1173,11 @@ def WriteABOTAPackageWithBrilloScript(target_file, output_file,
   assert p1.returncode == 0, "brillo_update_payload hash failed"
 
   # 3. Sign the hashes and insert them back into the payload file.
-  signed_payload_sig_file = common.MakeTempFile(prefix="signed-sig-",
-                                                suffix=".bin")
-  signed_metadata_sig_file = common.MakeTempFile(prefix="signed-sig-",
-                                                 suffix=".bin")
   # 3a. Sign the payload hash.
-  if OPTIONS.payload_signer is not None:
-    cmd = [OPTIONS.payload_signer]
-    cmd.extend(OPTIONS.payload_signer_args)
-  else:
-    cmd = ["openssl", "pkeyutl", "-sign",
-           "-inkey", rsa_key,
-           "-pkeyopt", "digest:sha256"]
-  cmd.extend(["-in", payload_sig_file,
-              "-out", signed_payload_sig_file])
-  p1 = common.Run(cmd, stdout=log_file, stderr=subprocess.STDOUT)
-  p1.communicate()
-  assert p1.returncode == 0, "openssl sign payload failed"
+  signed_payload_sig_file = payload_signer.Sign(payload_sig_file)
 
   # 3b. Sign the metadata hash.
-  if OPTIONS.payload_signer is not None:
-    cmd = [OPTIONS.payload_signer]
-    cmd.extend(OPTIONS.payload_signer_args)
-  else:
-    cmd = ["openssl", "pkeyutl", "-sign",
-           "-inkey", rsa_key,
-           "-pkeyopt", "digest:sha256"]
-  cmd.extend(["-in", metadata_sig_file,
-              "-out", signed_metadata_sig_file])
-  p1 = common.Run(cmd, stdout=log_file, stderr=subprocess.STDOUT)
-  p1.communicate()
-  assert p1.returncode == 0, "openssl sign metadata failed"
+  signed_metadata_sig_file = payload_signer.Sign(metadata_sig_file)
 
   # 3c. Insert the signatures back into the payload file.
   signed_payload_file = common.MakeTempFile(prefix="signed-payload-",
@@ -1354,16 +1383,34 @@ def main(argv):
   assert not (OPTIONS.downgrade and OPTIONS.timestamp), \
       "Cannot have --downgrade AND --override_timestamp both"
 
-  # Load the dict file from the zip directly to have a peek at the OTA type.
-  # For packages using A/B update, unzipping is not needed.
+  # Load the build info dicts from the zip directly or the extracted input
+  # directory. We don't need to unzip the entire target-files zips, because they
+  # won't be needed for A/B OTAs (brillo_update_payload does that on its own).
+  # When loading the info dicts, we don't need to provide the second parameter
+  # to common.LoadInfoDict(). Specifying the second parameter allows replacing
+  # some properties with their actual paths, such as 'selinux_fc',
+  # 'ramdisk_dir', which won't be used during OTA generation.
   if OPTIONS.extracted_input is not None:
-    OPTIONS.info_dict = common.LoadInfoDict(OPTIONS.extracted_input,
-                                            OPTIONS.extracted_input)
+    OPTIONS.info_dict = common.LoadInfoDict(OPTIONS.extracted_input)
   else:
-    input_zip = zipfile.ZipFile(args[0], "r")
-    OPTIONS.info_dict = common.LoadInfoDict(input_zip)
-    common.ZipClose(input_zip)
+    with zipfile.ZipFile(args[0], 'r') as input_zip:
+      OPTIONS.info_dict = common.LoadInfoDict(input_zip)
 
+  if OPTIONS.verbose:
+    print("--- target info ---")
+    common.DumpInfoDict(OPTIONS.info_dict)
+
+  # Load the source build dict if applicable.
+  if OPTIONS.incremental_source is not None:
+    OPTIONS.target_info_dict = OPTIONS.info_dict
+    with zipfile.ZipFile(OPTIONS.incremental_source, 'r') as source_zip:
+      OPTIONS.source_info_dict = common.LoadInfoDict(source_zip)
+
+    if OPTIONS.verbose:
+      print("--- source info ---")
+      common.DumpInfoDict(OPTIONS.source_info_dict)
+
+  # Load OEM dicts if provided.
   OPTIONS.oem_dicts = _LoadOemDicts(OPTIONS.oem_source)
 
   ab_update = OPTIONS.info_dict.get("ab_update") == "true"
@@ -1380,20 +1427,6 @@ def main(argv):
     OPTIONS.key_passwords = common.GetKeyPasswords([OPTIONS.package_key])
 
   if ab_update:
-    if OPTIONS.incremental_source is not None:
-      OPTIONS.target_info_dict = OPTIONS.info_dict
-      source_zip = zipfile.ZipFile(OPTIONS.incremental_source, "r")
-      OPTIONS.source_info_dict = common.LoadInfoDict(source_zip)
-      common.ZipClose(source_zip)
-
-    if OPTIONS.verbose:
-      print("--- target info ---")
-      common.DumpInfoDict(OPTIONS.info_dict)
-
-      if OPTIONS.incremental_source is not None:
-        print("--- source info ---")
-        common.DumpInfoDict(OPTIONS.source_info_dict)
-
     WriteABOTAPackageWithBrilloScript(
         target_file=args[0],
         output_file=args[1],
@@ -1402,48 +1435,44 @@ def main(argv):
     print("done.")
     return
 
+  # Sanity check the loaded info dicts first.
+  if OPTIONS.info_dict.get("no_recovery") == "true":
+    raise common.ExternalError(
+        "--- target build has specified no recovery ---")
+
+  # Non-A/B OTAs rely on /cache partition to store temporary files.
+  cache_size = OPTIONS.info_dict.get("cache_size")
+  if cache_size is None:
+    print("--- can't determine the cache partition size ---")
+  OPTIONS.cache_size = cache_size
+
   if OPTIONS.extra_script is not None:
     OPTIONS.extra_script = open(OPTIONS.extra_script).read()
 
   if OPTIONS.extracted_input is not None:
     OPTIONS.input_tmp = OPTIONS.extracted_input
-    OPTIONS.target_tmp = OPTIONS.input_tmp
-    OPTIONS.info_dict = common.LoadInfoDict(OPTIONS.input_tmp,
-                                            OPTIONS.input_tmp)
     input_zip = zipfile.ZipFile(args[0], "r")
   else:
     print("unzipping target target-files...")
     OPTIONS.input_tmp, input_zip = common.UnzipTemp(
         args[0], UNZIP_PATTERN)
+  OPTIONS.target_tmp = OPTIONS.input_tmp
 
-    OPTIONS.target_tmp = OPTIONS.input_tmp
-    OPTIONS.info_dict = common.LoadInfoDict(input_zip, OPTIONS.target_tmp)
-
-  if OPTIONS.verbose:
-    print("--- target info ---")
-    common.DumpInfoDict(OPTIONS.info_dict)
-
-  # If the caller explicitly specified the device-specific extensions
-  # path via -s/--device_specific, use that.  Otherwise, use
-  # META/releasetools.py if it is present in the target target_files.
-  # Otherwise, take the path of the file from 'tool_extensions' in the
-  # info dict and look for that in the local filesystem, relative to
-  # the current directory.
-
+  # If the caller explicitly specified the device-specific extensions path via
+  # -s / --device_specific, use that. Otherwise, use META/releasetools.py if it
+  # is present in the target target_files. Otherwise, take the path of the file
+  # from 'tool_extensions' in the info dict and look for that in the local
+  # filesystem, relative to the current directory.
   if OPTIONS.device_specific is None:
     from_input = os.path.join(OPTIONS.input_tmp, "META", "releasetools.py")
     if os.path.exists(from_input):
       print("(using device-specific extensions from target_files)")
       OPTIONS.device_specific = from_input
     else:
-      OPTIONS.device_specific = OPTIONS.info_dict.get("tool_extensions", None)
+      OPTIONS.device_specific = OPTIONS.info_dict.get("tool_extensions")
 
   if OPTIONS.device_specific is not None:
     OPTIONS.device_specific = os.path.abspath(OPTIONS.device_specific)
-
-  if OPTIONS.info_dict.get("no_recovery") == "true":
-    raise common.ExternalError(
-        "--- target build has specified no recovery ---")
 
   # Set up the output zip. Create a temporary zip file if signing is needed.
   if OPTIONS.no_signing:
@@ -1456,12 +1485,6 @@ def main(argv):
     output_zip = zipfile.ZipFile(temp_zip_file, "w",
                                  compression=zipfile.ZIP_DEFLATED)
 
-  # Non A/B OTAs rely on /cache partition to store temporary files.
-  cache_size = OPTIONS.info_dict.get("cache_size", None)
-  if cache_size is None:
-    print("--- can't determine the cache partition size ---")
-  OPTIONS.cache_size = cache_size
-
   # Generate a full OTA.
   if OPTIONS.incremental_source is None:
     WriteFullOTAPackage(input_zip, output_zip)
@@ -1472,12 +1495,6 @@ def main(argv):
     OPTIONS.source_tmp, source_zip = common.UnzipTemp(
         OPTIONS.incremental_source,
         UNZIP_PATTERN)
-    OPTIONS.target_info_dict = OPTIONS.info_dict
-    OPTIONS.source_info_dict = common.LoadInfoDict(source_zip,
-                                                   OPTIONS.source_tmp)
-    if OPTIONS.verbose:
-      print("--- source info ---")
-      common.DumpInfoDict(OPTIONS.source_info_dict)
 
     WriteBlockIncrementalOTAPackage(input_zip, source_zip, output_zip)
 
@@ -1487,6 +1504,7 @@ def main(argv):
         target_files_diff.recursiveDiff(
             '', OPTIONS.source_tmp, OPTIONS.input_tmp, out_file)
 
+  common.ZipClose(input_zip)
   common.ZipClose(output_zip)
 
   # Sign the generated zip package unless no_signing is specified.

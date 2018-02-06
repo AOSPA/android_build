@@ -390,15 +390,9 @@ endif
 $(built_module) : $(my_prebuilt_src_file) | $(ZIPALIGN) $(SIGNAPK_JAR)
 	$(transform-prebuilt-to-target)
 	$(uncompress-shared-libs)
-ifneq (true,$(DONT_UNCOMPRESS_PRIV_APPS_DEXS))
-ifeq (true,$(LOCAL_PRIVILEGED_MODULE))
+ifeq (true, $(LOCAL_UNCOMPRESS_DEX))
 	$(uncompress-dexs)
-else
-  ifneq (,$(filter $(PRODUCT_LOADED_BY_PRIVILEGED_MODULES), $(LOCAL_MODULE)))
-	  $(uncompress-dexs)
-  endif  # PRODUCT_LOADED_BY_PRIVILEGED_MODULES
-endif  # LOCAL_PRIVILEGED_MODULE
-endif  # DONT_UNCOMPRESS_PRIV_APPS_DEXS
+endif  # LOCAL_UNCOMPRESS_DEX
 ifdef LOCAL_DEX_PREOPT
 ifneq ($(BUILD_PLATFORM_ZIP),)
 	@# Keep a copy of apk with classes.dex unstripped
@@ -423,10 +417,18 @@ endif  # LOCAL_COMPRESSED_MODULE
 endif  # ! LOCAL_REPLACE_PREBUILT_APK_INSTALLED
 
 ###############################
-## Rule to build the odex file
+## Rule to build the odex file.
+# In case we don't strip the built module, use it, as dexpreopt
+# can do optimizations based on whether the built module only
+# contains uncompressed dex code.
 ifdef LOCAL_DEX_PREOPT
+ifeq (nostripping,$(LOCAL_DEX_PREOPT))
+$(built_odex) : $(built_module)
+	$(call dexpreopt-one-file,$<,$@)
+else
 $(built_odex) : $(my_prebuilt_src_file)
 	$(call dexpreopt-one-file,$<,$@)
+endif
 endif
 
 ###############################
