@@ -24,7 +24,6 @@
 #     DEFAULT_APP_TARGET_SDK
 #     BUILD_ID
 #     BUILD_NUMBER
-#     BUILD_DATETIME
 #     PLATFORM_SECURITY_PATCH
 #     PLATFORM_VNDK_VERSION
 #     PLATFORM_SYSTEMSDK_VERSIONS
@@ -235,7 +234,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-      PLATFORM_SECURITY_PATCH := 2018-03-05
+      PLATFORM_SECURITY_PATCH := 2018-04-05
 endif
 
 ifndef PLATFORM_BASE_OS
@@ -266,6 +265,11 @@ DATE := date -r $(BUILD_DATETIME)
 else
 DATE := date -d @$(BUILD_DATETIME)
 endif
+
+# Everything should be using BUILD_DATETIME_FROM_FILE instead.
+# BUILD_DATETIME and DATE can be removed once BUILD_NUMBER moves
+# to soong_ui.
+BUILD_DATETIME :=
 
 ifndef BUILD_NUMBER
   # BUILD_NUMBER should be set to the source control value that
