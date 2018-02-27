@@ -78,7 +78,7 @@ SPECIAL_CERT_STRINGS = ("PRESIGNED", "EXTERNAL")
 
 
 # The partitions allowed to be signed by AVB (Android verified boot 2.0).
-AVB_PARTITIONS = ('boot', 'recovery', 'system', 'vendor', 'dtbo')
+AVB_PARTITIONS = ('boot', 'recovery', 'system', 'vendor', 'product', 'dtbo')
 
 
 class ErrorCode(object):
@@ -1385,7 +1385,7 @@ class Difference(object):
           p.kill()
           th.join()
 
-      if err or p.returncode != 0:
+      if p.returncode != 0:
         print("WARNING: failure running %s:\n%s\n" % (
             diff_program, "".join(err)))
         self.patch = None

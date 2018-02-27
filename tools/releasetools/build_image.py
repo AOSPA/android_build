@@ -325,8 +325,10 @@ def UnsparseImage(sparse_image_path, replace=True):
     else:
       return True, unsparse_image_path
   inflate_command = ["simg2img", sparse_image_path, unsparse_image_path]
-  (_, exit_code) = RunCommand(inflate_command)
+  (inflate_output, exit_code) = RunCommand(inflate_command)
   if exit_code != 0:
+    print("Error: '%s' failed with exit code %d:\n%s" % (
+        inflate_command, exit_code, inflate_output))
     os.remove(unsparse_image_path)
     return False, None
   return True, unsparse_image_path
@@ -553,6 +555,8 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
         build_command.extend(["-U", prop_dict["uuid"]])
       if "hash_seed" in prop_dict:
         build_command.extend(["-S", prop_dict["hash_seed"]])
+    if "ext4_share_dup_blocks" in prop_dict:
+      build_command.append("-c")
     if "selinux_fc" in prop_dict:
       build_command.append(prop_dict["selinux_fc"])
   elif fs_type.startswith("squash"):
@@ -569,12 +573,12 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
       build_command.extend(["-c", prop_dict["selinux_fc"]])
     if "block_list" in prop_dict:
       build_command.extend(["-B", prop_dict["block_list"]])
+    if "squashfs_block_size" in prop_dict:
+      build_command.extend(["-b", prop_dict["squashfs_block_size"]])
     if "squashfs_compressor" in prop_dict:
       build_command.extend(["-z", prop_dict["squashfs_compressor"]])
     if "squashfs_compressor_opt" in prop_dict:
       build_command.extend(["-zo", prop_dict["squashfs_compressor_opt"]])
-    if "squashfs_block_size" in prop_dict:
-      build_command.extend(["-b", prop_dict["squashfs_block_size"]])
     if prop_dict.get("squashfs_disable_4k_align") == "true":
       build_command.extend(["-a"])
   elif fs_type.startswith("f2fs"):
@@ -607,7 +611,8 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
 
   (mkfs_output, exit_code) = RunCommand(build_command)
   if exit_code != 0:
-    print("Error: '%s' failed with exit code %d" % (build_command, exit_code))
+    print("Error: '%s' failed with exit code %d:\n%s" % (
+        build_command, exit_code, mkfs_output))
     return False
 
   # Check if there's enough headroom space available for ext4 image.
@@ -654,13 +659,13 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
 
     # Run e2fsck on the inflated image file
     e2fsck_command = ["e2fsck", "-f", "-n", unsparse_image]
-    (_, exit_code) = RunCommand(e2fsck_command)
+    (e2fsck_output, exit_code) = RunCommand(e2fsck_command)
 
     os.remove(unsparse_image)
 
     if exit_code != 0:
-      print("Error: '%s' failed with exit code %d" % (e2fsck_command,
-                                                      exit_code))
+      print("Error: '%s' failed with exit code %d:\n%s" % (
+          e2fsck_command, exit_code, e2fsck_output))
       return False
 
   return True
@@ -720,6 +725,7 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("system_root_image", "system_root_image")
     copy_prop("ramdisk_dir", "ramdisk_dir")
     copy_prop("ramdisk_fs_config", "ramdisk_fs_config")
+    copy_prop("ext4_share_dup_blocks", "ext4_share_dup_blocks")
     copy_prop("system_squashfs_compressor", "squashfs_compressor")
     copy_prop("system_squashfs_compressor_opt", "squashfs_compressor_opt")
     copy_prop("system_squashfs_block_size", "squashfs_block_size")
@@ -765,12 +771,29 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("vendor_size", "partition_size")
     copy_prop("vendor_journal_size", "journal_size")
     copy_prop("vendor_verity_block_device", "verity_block_device")
+    copy_prop("ext4_share_dup_blocks", "ext4_share_dup_blocks")
     copy_prop("vendor_squashfs_compressor", "squashfs_compressor")
     copy_prop("vendor_squashfs_compressor_opt", "squashfs_compressor_opt")
     copy_prop("vendor_squashfs_block_size", "squashfs_block_size")
     copy_prop("vendor_squashfs_disable_4k_align", "squashfs_disable_4k_align")
     copy_prop("vendor_base_fs_file", "base_fs_file")
     copy_prop("vendor_extfs_inode_count", "extfs_inode_count")
+  elif mount_point == "product":
+    copy_prop("avb_product_hashtree_enable", "avb_hashtree_enable")
+    copy_prop("avb_product_add_hashtree_footer_args",
+              "avb_add_hashtree_footer_args")
+    copy_prop("avb_product_key_path", "avb_key_path")
+    copy_prop("avb_product_algorithm", "avb_algorithm")
+    copy_prop("product_fs_type", "fs_type")
+    copy_prop("product_size", "partition_size")
+    copy_prop("product_journal_size", "journal_size")
+    copy_prop("product_verity_block_device", "verity_block_device")
+    copy_prop("product_squashfs_compressor", "squashfs_compressor")
+    copy_prop("product_squashfs_compressor_opt", "squashfs_compressor_opt")
+    copy_prop("product_squashfs_block_size", "squashfs_block_size")
+    copy_prop("product_squashfs_disable_4k_align", "squashfs_disable_4k_align")
+    copy_prop("product_base_fs_file", "base_fs_file")
+    copy_prop("product_extfs_inode_count", "extfs_inode_count")
   elif mount_point == "oem":
     copy_prop("fs_type", "fs_type")
     copy_prop("oem_size", "partition_size")
@@ -824,6 +847,8 @@ def main(argv):
       mount_point = "vendor"
     elif image_filename == "oem.img":
       mount_point = "oem"
+    elif image_filename == "product.img":
+      mount_point = "product"
     else:
       print("error: unknown image file name ", image_filename, file=sys.stderr)
       sys.exit(1)
