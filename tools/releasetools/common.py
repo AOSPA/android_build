@@ -25,17 +25,17 @@ import platform
 import re
 import shlex
 import shutil
+import string
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 import zipfile
+from hashlib import sha1, sha256
 
 import blockimgdiff
-
-from hashlib import sha1 as sha1
-
+import sparse_img
 
 class Options(object):
   def __init__(self):
@@ -124,6 +124,11 @@ def Run(args, verbose=None, **kwargs):
   if verbose:
     print("  running: ", " ".join(args))
   return subprocess.Popen(args, **kwargs)
+
+
+def RoundUpTo4K(value):
+  rounded_up = value + 4095
+  return rounded_up - (rounded_up % 4096)
 
 
 def CloseInheritedPipes():
@@ -259,6 +264,20 @@ def LoadInfoDict(input_file, input_dir=None):
 
   d["build.prop"] = LoadBuildProp(read_helper, 'SYSTEM/build.prop')
   d["vendor.build.prop"] = LoadBuildProp(read_helper, 'VENDOR/build.prop')
+
+  # Set up the salt (based on fingerprint or thumbprint) that will be used when
+  # adding AVB footer.
+  if d.get("avb_enable") == "true":
+    fp = None
+    if "build.prop" in d:
+      build_prop = d["build.prop"]
+      if "ro.build.fingerprint" in build_prop:
+        fp = build_prop["ro.build.fingerprint"]
+      elif "ro.build.thumbprint" in build_prop:
+        fp = build_prop["ro.build.thumbprint"]
+    if fp:
+      d["avb_salt"] = sha256(fp).hexdigest()
+
   return d
 
 
@@ -604,6 +623,56 @@ def UnzipTemp(filename, pattern=None):
     unzip_to_dir(filename, tmp)
 
   return tmp, zipfile.ZipFile(filename, "r")
+
+
+def GetSparseImage(which, tmpdir, input_zip):
+  """Returns a SparseImage object suitable for passing to BlockImageDiff.
+
+  This function loads the specified sparse image from the given path, and
+  performs additional processing for OTA purpose. For example, it always adds
+  block 0 to clobbered blocks list. It also detects files that cannot be
+  reconstructed from the block list, for whom we should avoid applying imgdiff.
+
+  Args:
+    which: The partition name, which must be "system" or "vendor".
+    tmpdir: The directory that contains the prebuilt image and block map file.
+    input_zip: The target-files ZIP archive.
+
+  Returns:
+    A SparseImage object, with file_map info loaded.
+  """
+  assert which in ("system", "vendor")
+
+  path = os.path.join(tmpdir, "IMAGES", which + ".img")
+  mappath = os.path.join(tmpdir, "IMAGES", which + ".map")
+
+  # The image and map files must have been created prior to calling
+  # ota_from_target_files.py (since LMP).
+  assert os.path.exists(path) and os.path.exists(mappath)
+
+  # In ext4 filesystems, block 0 might be changed even being mounted R/O. We add
+  # it to clobbered_blocks so that it will be written to the target
+  # unconditionally. Note that they are still part of care_map. (Bug: 20939131)
+  clobbered_blocks = "0"
+
+  image = sparse_img.SparseImage(path, mappath, clobbered_blocks)
+
+  # block.map may contain less blocks, because mke2fs may skip allocating blocks
+  # if they contain all zeros. We can't reconstruct such a file from its block
+  # list. Tag such entries accordingly. (Bug: 65213616)
+  for entry in image.file_map:
+    # "/system/framework/am.jar" => "SYSTEM/framework/am.jar".
+    arcname = string.replace(entry, which, which.upper(), 1)[1:]
+    # Skip artificial names, such as "__ZERO", "__NONZERO-1".
+    if arcname not in input_zip.namelist():
+      continue
+
+    info = input_zip.getinfo(arcname)
+    ranges = image.file_map[entry]
+    if RoundUpTo4K(info.file_size) > ranges.size() * 4096:
+      ranges.extra['incomplete'] = True
+
+  return image
 
 
 def GetKeyPasswords(keylist):
@@ -1734,6 +1803,31 @@ def ParseCertificate(data):
       save = True
   cert = "".join(cert).decode('base64')
   return cert
+
+
+def ExtractPublicKey(cert):
+  """Extracts the public key (PEM-encoded) from the given certificate file.
+
+  Args:
+    cert: The certificate filename.
+
+  Returns:
+    The public key string.
+
+  Raises:
+    AssertionError: On non-zero return from 'openssl'.
+  """
+  # The behavior with '-out' is different between openssl 1.1 and openssl 1.0.
+  # While openssl 1.1 writes the key into the given filename followed by '-out',
+  # openssl 1.0 (both of 1.0.1 and 1.0.2) doesn't. So we collect the output from
+  # stdout instead.
+  cmd = ['openssl', 'x509', '-pubkey', '-noout', '-in', cert]
+  proc = Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  pubkey, stderrdata = proc.communicate()
+  assert proc.returncode == 0, \
+      'Failed to dump public key from certificate: %s\n%s' % (cert, stderrdata)
+  return pubkey
+
 
 def MakeRecoveryPatch(input_dir, output_sink, recovery_img, boot_img,
                       info_dict=None):
