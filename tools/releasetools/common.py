@@ -221,21 +221,6 @@ def LoadInfoDict(input_file, input_dir=None):
             vendor_base_fs_file,))
         del d["vendor_base_fs_file"]
 
-  try:
-    data = read_helper("META/imagesizes.txt")
-    for line in data.split("\n"):
-      if not line:
-        continue
-      name, value = line.split(" ", 1)
-      if not value:
-        continue
-      if name == "blocksize":
-        d[name] = value
-      else:
-        d[name + "_size"] = value
-  except KeyError:
-    pass
-
   def makeint(key):
     if key in d:
       d[key] = int(d[key], 0)
@@ -1800,17 +1785,23 @@ def GetTypeAndDevice(mount_point, info):
 
 
 def ParseCertificate(data):
-  """Parse a PEM-format certificate."""
-  cert = []
+  """Parses and converts a PEM-encoded certificate into DER-encoded.
+
+  This gives the same result as `openssl x509 -in <filename> -outform DER`.
+
+  Returns:
+    The decoded certificate string.
+  """
+  cert_buffer = []
   save = False
   for line in data.split("\n"):
     if "--END CERTIFICATE--" in line:
       break
     if save:
-      cert.append(line)
+      cert_buffer.append(line)
     if "--BEGIN CERTIFICATE--" in line:
       save = True
-  cert = "".join(cert).decode('base64')
+  cert = "".join(cert_buffer).decode('base64')
   return cert
 
 

@@ -357,6 +357,8 @@ endif # TURBINE_ENABLED != false
 
 include $(BUILD_SYSTEM)/java_common.mk
 
+include $(BUILD_SYSTEM)/sdk_check.mk
+
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_HAS_RS_SOURCES := $(if $(renderscript_sources),true)
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_RS_SOURCE_INTERMEDIATES_DIR := $(intermediates.COMMON)/renderscript
 
@@ -557,11 +559,17 @@ else
 full_classes_jarjar_jar := $(full_classes_processed_jar)
 endif
 
-$(eval $(call copy-one-file,$(full_classes_jarjar_jar),$(full_classes_jar)))
+#######################################
+LOCAL_JETIFIER_INPUT_FILE := $(full_classes_jarjar_jar)
 
-LOCAL_FULL_CLASSES_PRE_JACOCO_JAR := $(full_classes_jar)
+include $(BUILD_SYSTEM)/jetifier.mk
+#######################################
+
+$(eval $(call copy-one-file,$(LOCAL_JETIFIER_OUTPUT_FILE),$(full_classes_jar)))
 
 #######################################
+LOCAL_FULL_CLASSES_PRE_JACOCO_JAR := $(full_classes_jar)
+
 include $(BUILD_SYSTEM)/jacoco.mk
 #######################################
 

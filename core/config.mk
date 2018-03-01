@@ -202,6 +202,11 @@ else
 JAVA_TMPDIR_ARG :=
 endif
 
+# Default to remove the org.apache.http.legacy from bootclasspath
+ifeq ($(REMOVE_OAHL_FROM_BCP),)
+REMOVE_OAHL_FROM_BCP := true
+endif
+
 # ###############################################################
 # Include sub-configuration files
 # ###############################################################
@@ -584,6 +589,7 @@ MAKEPARALLEL := $(prebuilt_build_tools_bin)/makeparallel
 SOONG_JAVAC_WRAPPER := $(SOONG_HOST_OUT_EXECUTABLES)/soong_javac_wrapper
 SOONG_ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/soong_zip
 MERGE_ZIPS := $(SOONG_HOST_OUT_EXECUTABLES)/merge_zips
+XMLLINT := $(SOONG_HOST_OUT_EXECUTABLES)/xmllint
 ZIP2ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/zip2zip
 ZIPTIME := $(prebuilt_build_tools_bin)/ziptime
 
@@ -675,6 +681,8 @@ RELOCATION_PACKER := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/relocation
 
 FINDBUGS_DIR := external/owasp/sanitizer/tools/findbugs/bin
 FINDBUGS := $(FINDBUGS_DIR)/findbugs
+
+JETIFIER := prebuilts/sdk/tools/jetifier/jetifier-standalone/bin/jetifier-standalone
 
 # Tool to merge AndroidManifest.xmls
 ANDROID_MANIFEST_MERGER_CLASSPATH := \
