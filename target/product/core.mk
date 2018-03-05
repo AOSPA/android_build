@@ -58,6 +58,7 @@ PRODUCT_PACKAGES += \
     StorageManager \
     Telecom \
     TeleService \
+    Traceur \
     VpnDialogs \
     vr \
     MmsService
