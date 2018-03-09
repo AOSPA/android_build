@@ -2481,7 +2481,7 @@ endif
 # $1: root directory
 # $2: add prefix
 define fs_config
-(cd $(1); find . -type d | sed 's,$$,/,'; find . \! -type d) | cut -c 3- | sort | sed 's,^,$(2),' | $(HOST_OUT_EXECUTABLES)/fs_config -C -D $(TARGET_OUT) -S $(SELINUX_FC)
+(cd $(1); find . -type d | sed 's,$$,/,'; find . \! -type d) | cut -c 3- | sort | sed 's,^,$(2),' | $(HOST_OUT_EXECUTABLES)/fs_config -C -D $(TARGET_OUT) -S $(SELINUX_FC) -R "$(2)"
 endef
 
 # Depending on the various images guarantees that the underlying
@@ -3231,3 +3231,9 @@ include $(BUILD_SYSTEM)/product-graph.mk
 ifneq ($(sdk_repo_goal),)
 include $(TOPDIR)development/build/tools/sdk_repo.mk
 endif
+
+#------------------------------------------------------------------
+# Find lsdump paths
+FIND_LSDUMPS_FILE := $(PRODUCT_OUT)/lsdump_paths.txt
+$(FIND_LSDUMPS_FILE) : $(LSDUMP_PATHS)
+	$(hide) rm -rf $@ && echo "$^" > $@
