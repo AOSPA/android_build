@@ -24,7 +24,6 @@
 #     DEFAULT_APP_TARGET_SDK
 #     BUILD_ID
 #     BUILD_NUMBER
-#     BUILD_DATETIME
 #     PLATFORM_SECURITY_PATCH
 #     PLATFORM_VNDK_VERSION
 #     PLATFORM_SYSTEMSDK_VERSIONS
@@ -235,7 +234,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-      PLATFORM_SECURITY_PATCH := 2018-03-05
+      PLATFORM_SECURITY_PATCH := 2018-04-05
 endif
 
 ifndef PLATFORM_BASE_OS
@@ -267,6 +266,12 @@ else
 DATE := date -d @$(BUILD_DATETIME)
 endif
 
+# Everything should be using BUILD_DATETIME_FROM_FILE instead.
+# BUILD_DATETIME and DATE can be removed once BUILD_NUMBER moves
+# to soong_ui.
+BUILD_DATETIME :=
+
+HAS_BUILD_NUMBER := true
 ifndef BUILD_NUMBER
   # BUILD_NUMBER should be set to the source control value that
   # represents the current state of the source code.  E.g., a
@@ -278,6 +283,7 @@ ifndef BUILD_NUMBER
   # from this date/time" value.  Make it start with a non-digit so that
   # anyone trying to parse it as an integer will probably get "0".
   BUILD_NUMBER := eng.$(shell echo $${USER:0:6}).$(shell $(DATE) +%Y%m%d.%H%M%S)
+  HAS_BUILD_NUMBER := false
 endif
 
 ifndef PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION

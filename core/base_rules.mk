@@ -494,6 +494,17 @@ endif
 endif
 endif
 
+# For modules tagged as tests but lacking a suite tag, set null-suite as the default.
+# We only support adding a default suite to native tests, native benchmarks, and instrumentation tests.
+# This is because they are the only tests we currently auto-generate test configs for.
+ifneq ($(filter $(my_module_tags),tests),)
+ifndef LOCAL_COMPATIBILITY_SUITE
+ifneq ($(filter NATIVE_TESTS NATIVE_BENCHMARK APPS, $(LOCAL_MODULE_CLASS)),)
+LOCAL_COMPATIBILITY_SUITE := null-suite
+endif
+endif
+endif
+
 ###########################################################
 ## Compatibility suite files.
 ###########################################################
@@ -654,6 +665,9 @@ ALL_MODULES.$(my_register_name).EXPLICITLY_REQUIRED := \
 ALL_MODULES.$(my_register_name).TARGET_REQUIRED := \
     $(strip $(ALL_MODULES.$(my_register_name).TARGET_REQUIRED)\
         $(LOCAL_TARGET_REQUIRED_MODULES))
+ALL_MODULES.$(my_register_name).HOST_REQUIRED := \
+    $(strip $(ALL_MODULES.$(my_register_name).HOST_REQUIRED)\
+        $(LOCAL_HOST_REQUIRED_MODULES))
 ALL_MODULES.$(my_register_name).EVENT_LOG_TAGS := \
     $(ALL_MODULES.$(my_register_name).EVENT_LOG_TAGS) $(event_log_tags)
 ALL_MODULES.$(my_register_name).MAKEFILE := \

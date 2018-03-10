@@ -180,7 +180,6 @@ ifneq ($(LOCAL_SDK_VERSION),)
   my_ndk_stl_include_path :=
   my_ndk_stl_shared_lib_fullpath :=
   my_ndk_stl_static_lib :=
-  my_ndk_cpp_std_version :=
   my_cpu_variant := $(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)CPU_ABI)
   ifeq (mips32r6,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH_VARIANT))
     my_cpu_variant := mips32r6
@@ -220,8 +219,6 @@ ifneq ($(LOCAL_SDK_VERSION),)
     endif
 
     my_ldlibs += -ldl
-
-    my_ndk_cpp_std_version := c++11
   else # LOCAL_NDK_STL_VARIANT must be none
     # Do nothing.
   endif
@@ -358,6 +355,21 @@ else ifeq ($(my_clang),)
     my_clang := true
 endif
 
+my_sdclang := $(strip $(LOCAL_SDCLANG))
+my_sdclang_2 := $(strip $(LOCAL_SDCLANG_2))
+ifeq ($(my_sdclang),true)
+    ifeq ($(my_sdclang_2),true)
+        $(error LOCAL_SDCLANG and LOCAL_SDCLANG_2 can not be set to true at the same time!)
+    endif
+endif
+ifeq ($(SDCLANG),true)
+    ifeq ($(my_sdclang),)
+        ifneq ($(my_sdclang_2),true)
+            my_sdclang := true
+        endif
+    endif
+endif
+
 ifeq ($(LOCAL_C_STD),)
     my_c_std_version := $(DEFAULT_C_STD_VERSION)
 else ifeq ($(LOCAL_C_STD),experimental)
@@ -379,11 +391,6 @@ ifneq ($(my_clang),true)
     # __cxa_throw_bad_array_length, which is not a valid C++ RT ABI).
     # http://b/25022512
     my_cpp_std_version := $(DEFAULT_GCC_CPP_STD_VERSION)
-endif
-
-ifdef LOCAL_SDK_VERSION
-    # The NDK handles this itself.
-    my_cpp_std_version := $(my_ndk_cpp_std_version)
 endif
 
 ifdef LOCAL_IS_HOST_MODULE
@@ -517,6 +524,22 @@ my_target_global_cflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)CLANG_$(my_prefix)GLOBA
 my_target_global_conlyflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)CLANG_$(my_prefix)GLOBAL_CONLYFLAGS) $(my_c_std_conlyflags)
 my_target_global_cppflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)CLANG_$(my_prefix)GLOBAL_CPPFLAGS) $(my_cpp_std_cppflags)
 my_target_global_ldflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)CLANG_$(my_prefix)GLOBAL_LDFLAGS)
+ifeq ($(my_sdclang),true)
+    ifeq ($(strip $(my_cc)),)
+        my_cc := $(SDCLANG_PATH)/clang
+    endif
+    ifeq ($(strip $(my_cxx)),)
+        my_cxx := $(SDCLANG_PATH)/clang++
+    endif
+endif
+ifeq ($(my_sdclang_2),true)
+    ifeq ($(strip $(my_cc)),)
+        my_cc := $(SDCLANG_PATH_2)/clang
+    endif
+    ifeq ($(strip $(my_cxx)),)
+        my_cxx := $(SDCLANG_PATH_2)/clang++
+    endif
+endif
 else
 my_target_global_cflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)GLOBAL_CFLAGS)
 my_target_global_conlyflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)GLOBAL_CONLYFLAGS) $(my_c_std_conlyflags)
@@ -616,6 +639,9 @@ ifeq ($(strip $(my_cc)),)
   endif
   my_cc := $(my_cc_wrapper) $(my_cc)
 endif
+
+SYNTAX_TOOLS_PREFIX := \
+    $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/libexec
 
 ifneq ($(LOCAL_NO_STATIC_ANALYZER),true)
   my_cc := CCC_CC=$(CLANG) CLANG=$(CLANG) \

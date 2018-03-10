@@ -60,12 +60,22 @@ include $(BUILD_SYSTEM)/clang/config.mk
 # without changing the command line every time.  Avoids rebuilds
 # when using ninja.
 $(shell mkdir -p $(OUT_DIR) && \
-    echo -n $(BUILD_NUMBER) > $(OUT_DIR)/build_number.txt && \
-    echo -n $(BUILD_DATETIME) > $(OUT_DIR)/build_date.txt)
+    echo -n $(BUILD_NUMBER) > $(OUT_DIR)/build_number.txt)
+BUILD_NUMBER_FILE := $(OUT_DIR)/build_number.txt
+
 ifeq ($(HOST_OS),darwin)
 DATE_FROM_FILE := date -r $(BUILD_DATETIME_FROM_FILE)
 else
 DATE_FROM_FILE := date -d @$(BUILD_DATETIME_FROM_FILE)
+endif
+
+# Pick a reasonable string to use to identify files.
+ifeq ($(strip $(HAS_BUILD_NUMBER)),false)
+  # BUILD_NUMBER has a timestamp in it, which means that
+  # it will change every time.  Pick a stable value.
+  FILE_NAME_TAG := eng.$(USER)
+else
+  FILE_NAME_TAG := $(file <$(BUILD_NUMBER_FILE))
 endif
 
 # Make an empty directory, which can be used to make empty jars
@@ -612,6 +622,31 @@ $(foreach m,$(ALL_MODULES), \
 endef
 $(call add-all-host-to-target-required-modules-deps)
 
+# Sets up dependencies such that whenever a target module is installed,
+# any host modules listed in $(ALL_MODULES.$(m).HOST_REQUIRED) will also be installed
+define add-all-target-to-host-required-modules-deps
+$(foreach m,$(ALL_MODULES), \
+  $(eval req_mods := $(ALL_MODULES.$(m).HOST_REQUIRED))\
+  $(if $(req_mods), \
+    $(eval req_files := )\
+    $(foreach req_mod,$(req_mods), \
+      $(eval req_file := $(filter $(HOST_OUT)/%, $(call module-installed-files,$(req_mod)))) \
+      $(if $(strip $(req_file)),\
+        ,\
+        $(error $(m).LOCAL_HOST_REQUIRED_MODULES : illegal value $(req_mod) : not a host module. If you want to specify target modules to be required to be installed along with your target module, add those module names to LOCAL_REQUIRED_MODULES instead)\
+      )\
+      $(eval req_files := $(req_files)$(space)$(req_file))\
+    )\
+    $(eval req_files := $(strip $(req_files)))\
+    $(eval mod_files := $(filter $(TARGET_OUT_ROOT)/%, $(call module-installed-files,$(m))))\
+    $(eval mod_files := $(filter-out $(req_files),$(mod_files)))\
+    $(if $(mod_files),\
+      $(eval $(call add-required-deps, $(mod_files),$(req_files))) \
+    )\
+  )\
+)
+endef
+$(call add-all-target-to-host-required-modules-deps)
 
 t_m :=
 h_m :=

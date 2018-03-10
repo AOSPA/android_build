@@ -71,22 +71,23 @@ ifneq ($(LOCAL_SDK_VERSION),)
   else ifeq ($(LOCAL_SDK_VERSION)$(TARGET_BUILD_APPS),test_current)
     LOCAL_JAVA_LIBRARIES := android_test_stubs_current $(LOCAL_JAVA_LIBRARIES)
     $(full_target): PRIVATE_BOOTCLASSPATH := $(call java-lib-files, android_test_stubs_current)
+  else ifeq ($(LOCAL_SDK_VERSION)$(TARGET_BUILD_APPS),core_current)
+    LOCAL_JAVA_LIBRARIES := core.current.stubs $(LOCAL_JAVA_LIBRARIES)
+    $(full_target): PRIVATE_BOOTCLASSPATH := $(call java-lib-files, core.current.stubs)
   else
-    ifneq (,$(call has-system-sdk-version,$(LOCAL_SDK_VERSION)))
-      ifeq (,$(TARGET_BUILD_APPS))
-        LOCAL_JAVA_LIBRARIES := system_sdk_v$(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION)) $(LOCAL_JAVA_LIBRARIES)
-        $(full_target): PRIVATE_BOOTCLASSPATH := $(call java-lib-files, system_sdk_v$(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION)))
-      else
-        LOCAL_JAVA_LIBRARIES := sdk_v$(LOCAL_SDK_VERSION) $(LOCAL_JAVA_LIBRARIES)
-        $(full_target): PRIVATE_BOOTCLASSPATH := $(call java-lib-files, sdk_v$(LOCAL_SDK_VERSION))
-      endif
-    else
-      LOCAL_JAVA_LIBRARIES := sdk_v$(LOCAL_SDK_VERSION) $(LOCAL_JAVA_LIBRARIES)
-      $(full_target): PRIVATE_BOOTCLASSPATH := $(call java-lib-files, sdk_v$(LOCAL_SDK_VERSION))
-    endif
+    # core_<ver> is subset of <ver>. Instead of defining a prebuilt lib for core_<ver>,
+    # use the stub for <ver> when building for apps.
+    _version := $(patsubst core_%,%,$(LOCAL_SDK_VERSION))
+    LOCAL_JAVA_LIBRARIES := sdk_v$(_version) $(LOCAL_JAVA_LIBRARIES)
+    $(full_target): PRIVATE_BOOTCLASSPATH := $(call java-lib-files, sdk_v$(_version))
+    _version :=
   endif
 else
-  LOCAL_JAVA_LIBRARIES := core-oj core-libart ext framework $(LOCAL_JAVA_LIBRARIES)
+  ifeq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
+    LOCAL_JAVA_LIBRARIES := core-oj core-libart
+  else
+    LOCAL_JAVA_LIBRARIES := core-oj core-libart ext framework $(LOCAL_JAVA_LIBRARIES)
+  endif
   $(full_target): PRIVATE_BOOTCLASSPATH := $(call java-lib-files, core-oj):$(call java-lib-files, core-libart)
 endif  # LOCAL_SDK_VERSION
 LOCAL_JAVA_LIBRARIES := $(sort $(LOCAL_JAVA_LIBRARIES))

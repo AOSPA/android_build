@@ -58,11 +58,6 @@ include $(BUILD_SYSTEM)/java_common.mk
 # Run build/make/tools/java-layers.py for more details.
 layers_file := $(addprefix $(LOCAL_PATH)/, $(LOCAL_JAVA_LAYERS_FILE))
 
-# If error prone is enabled then add LOCAL_ERROR_PRONE_FLAGS to LOCAL_JAVACFLAGS
-ifeq ($(RUN_ERROR_PRONE),true)
-LOCAL_JAVACFLAGS += $(LOCAL_ERROR_PRONE_FLAGS)
-endif
-
 # List of dependencies for anything that needs all java sources in place
 java_sources_deps := \
     $(java_sources) \
@@ -99,13 +94,19 @@ $(full_classes_combined_jar): $(full_classes_compiled_jar) \
                               $(full_static_java_libs) | $(MERGE_ZIPS)
 	$(if $(PRIVATE_JAR_MANIFEST), $(hide) sed -e "s/%BUILD_NUMBER%/$(BUILD_NUMBER_FROM_FILE)/" \
             $(PRIVATE_JAR_MANIFEST) > $(dir $@)/manifest.mf)
-	$(MERGE_ZIPS) -j $(if $(PRIVATE_JAR_MANIFEST),-m $(dir $@)/manifest.mf) \
+	$(MERGE_ZIPS) -j --ignore-duplicates $(if $(PRIVATE_JAR_MANIFEST),-m $(dir $@)/manifest.mf) \
             -stripDir META-INF -zipToNotStrip $< $@ $< $(call reverse-list,$(PRIVATE_STATIC_JAVA_LIBRARIES))
+
+#######################################
+LOCAL_JETIFIER_INPUT_FILE := $(full_classes_combined_jar)
+
+include $(BUILD_SYSTEM)/jetifier.mk
+#######################################
 
 # Run jarjar if necessary, otherwise just copy the file.
 ifneq ($(strip $(LOCAL_JARJAR_RULES)),)
 $(full_classes_jarjar_jar): PRIVATE_JARJAR_RULES := $(LOCAL_JARJAR_RULES)
-$(full_classes_jarjar_jar): $(full_classes_combined_jar) $(LOCAL_JARJAR_RULES) | $(JARJAR)
+$(full_classes_jarjar_jar): $(LOCAL_JETIFIER_OUTPUT_FILE) $(LOCAL_JARJAR_RULES) | $(JARJAR)
 	@echo JarJar: $@
 	$(hide) $(JAVA) -jar $(JARJAR) process $(PRIVATE_JARJAR_RULES) $< $@
 else
@@ -113,9 +114,9 @@ full_classes_jarjar_jar := $(full_classes_combined_jar)
 endif
 
 
+#######################################
 LOCAL_FULL_CLASSES_PRE_JACOCO_JAR := $(full_classes_jarjar_jar)
 
-#######################################
 include $(BUILD_SYSTEM)/jacoco.mk
 #######################################
 
