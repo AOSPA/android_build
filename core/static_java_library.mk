@@ -119,10 +119,17 @@ endif
 endif
 
 ifdef LOCAL_USE_AAPT2
-$(intermediates.COMMON)/export_proguard_flags: $(addprefix $(LOCAL_PATH)/,$(LOCAL_EXPORT_PROGUARD_FLAG_FILES))
+import_proguard_flag_files := $(strip $(foreach l,$(LOCAL_STATIC_ANDROID_LIBRARIES),\
+    $(call intermediates-dir-for,JAVA_LIBRARIES,$(l),,COMMON)/export_proguard_flags))
+$(intermediates.COMMON)/export_proguard_flags: $(import_proguard_flag_files) $(addprefix $(LOCAL_PATH)/,$(LOCAL_EXPORT_PROGUARD_FLAG_FILES))
 	@echo "Export proguard flags: $@"
 	rm -f $@
-	cat $+ >$@
+	touch $@
+	for f in $+; do \
+		echo -e "\n# including $$f" >>$@; \
+		cat $$f >>$@; \
+	done
+import_proguard_flag_files :=
 endif
 
 # add --non-constant-id to prevent inlining constants.
@@ -159,7 +166,7 @@ renderscript_target_api := $(LOCAL_RENDERSCRIPT_TARGET_API)
 else
 ifneq (,$(LOCAL_SDK_VERSION))
 # Set target-api for LOCAL_SDK_VERSIONs other than current.
-ifneq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
+ifneq (,$(filter-out current system_current test_current core_current, $(LOCAL_SDK_VERSION)))
 renderscript_target_api := $(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION))
 endif
 endif  # LOCAL_SDK_VERSION is set

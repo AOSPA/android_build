@@ -281,6 +281,11 @@ ifneq ($(filter cfi,$(my_sanitize)),)
         my_ldflags += -Wl,--version-script,build/soong/cc/config/cfi_exports.map
         LOCAL_ADDITIONAL_DEPENDENCIES += build/soong/cc/config/cfi_exports.map
   endif
+  ifneq ($(filter true,$(my_sdclang) $(my_sdclang2)),)
+    my_ldflags := $(filter-out -Wl,-plugin-opt,O1 -Wl,-m,aarch64_elf64_le_vec,$(my_ldflags))
+    my_cflags += -fuse-ld=qcld
+    my_ldflags += -fuse-ld=qcld
+  endif
 endif
 
 # If local or global modules need ASAN, add linker flags.

@@ -115,6 +115,9 @@ include $(BUILD_SYSTEM)/math.mk
 # Various mappings to avoid hard-coding paths all over the place
 include $(BUILD_SYSTEM)/pathmap.mk
 
+# Allow projects to define their own globally-available variables
+include $(BUILD_SYSTEM)/project_definitions.mk
+
 # ###############################################################
 # Build system internal files
 # ###############################################################
@@ -197,6 +200,11 @@ ifdef TMPDIR
 JAVA_TMPDIR_ARG := -Djava.io.tmpdir=$(TMPDIR)
 else
 JAVA_TMPDIR_ARG :=
+endif
+
+# Default to remove the org.apache.http.legacy from bootclasspath
+ifeq ($(REMOVE_OAHL_FROM_BCP),)
+REMOVE_OAHL_FROM_BCP := true
 endif
 
 # ###############################################################
@@ -414,31 +422,9 @@ ifeq ($(strip $(WITH_STATIC_ANALYZER)),0)
   WITH_STATIC_ANALYZER :=
 endif
 
-# define clang/llvm versions and base directory.
-include $(BUILD_SYSTEM)/clang/versions.mk
-
 # Unset WITH_TIDY_ONLY if global WITH_TIDY_ONLY is not true nor 1.
 ifeq (,$(filter 1 true,$(WITH_TIDY_ONLY)))
   WITH_TIDY_ONLY :=
-endif
-
-PATH_TO_CLANG_TIDY := \
-    $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/bin/clang-tidy
-ifeq ($(wildcard $(PATH_TO_CLANG_TIDY)),)
-  ifneq (,$(filter 1 true,$(WITH_TIDY)))
-    $(warning *** Disable WITH_TIDY because $(PATH_TO_CLANG_TIDY) does not exist)
-  endif
-  PATH_TO_CLANG_TIDY :=
-endif
-
-# Disable WITH_STATIC_ANALYZER if tool can't be found
-SYNTAX_TOOLS_PREFIX := \
-    $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/tools/scan-build/libexec
-ifneq ($(strip $(WITH_STATIC_ANALYZER)),)
-  ifeq ($(wildcard $(SYNTAX_TOOLS_PREFIX)/ccc-analyzer),)
-    $(warning *** Disable WITH_STATIC_ANALYZER because $(SYNTAX_TOOLS_PREFIX)/ccc-analyzer does not exist)
-    WITH_STATIC_ANALYZER :=
-  endif
 endif
 
 # Pick a Java compiler.
@@ -603,6 +589,7 @@ MAKEPARALLEL := $(prebuilt_build_tools_bin)/makeparallel
 SOONG_JAVAC_WRAPPER := $(SOONG_HOST_OUT_EXECUTABLES)/soong_javac_wrapper
 SOONG_ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/soong_zip
 MERGE_ZIPS := $(SOONG_HOST_OUT_EXECUTABLES)/merge_zips
+XMLLINT := $(SOONG_HOST_OUT_EXECUTABLES)/xmllint
 ZIP2ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/zip2zip
 ZIPTIME := $(prebuilt_build_tools_bin)/ziptime
 
@@ -694,6 +681,8 @@ RELOCATION_PACKER := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/relocation
 
 FINDBUGS_DIR := external/owasp/sanitizer/tools/findbugs/bin
 FINDBUGS := $(FINDBUGS_DIR)/findbugs
+
+JETIFIER := prebuilts/sdk/tools/jetifier/jetifier-standalone/bin/jetifier-standalone
 
 # Tool to merge AndroidManifest.xmls
 ANDROID_MANIFEST_MERGER_CLASSPATH := \
@@ -798,6 +787,14 @@ $(foreach req,$(requirements),$(eval $(req)_OVERRIDE ?=))
 
 requirements :=
 
+# BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED can be true only if early-mount of
+# partitions is supported. But the early-mount must be supported for full
+# treble products, and so BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED should be set
+# by default for full treble products.
+ifeq ($(PRODUCT_FULL_TREBLE),true)
+  BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED ?= true
+endif
+
 # If PRODUCT_USE_VNDK is true and BOARD_VNDK_VERSION is not defined yet,
 # BOARD_VNDK_VERSION will be set to "current" as default.
 # PRODUCT_USE_VNDK will be true in Android-P or later launching devices.
@@ -839,7 +836,38 @@ else
 endif
 
 BUILD_NUMBER_FROM_FILE := $$(cat $(OUT_DIR)/build_number.txt)
-BUILD_DATETIME_FROM_FILE := $$(cat $(OUT_DIR)/build_date.txt)
+BUILD_DATETIME_FROM_FILE := $$(cat $(BUILD_DATETIME_FILE))
+
+# SEPolicy versions
+
+# PLATFORM_SEPOLICY_VERSION is a number of the form "NN.m" with "NN" mapping to
+# PLATFORM_SDK_VERSION and "m" as a minor number which allows for SELinux
+# changes independent of PLATFORM_SDK_VERSION.  This value will be set to
+# 10000.0 to represent tip-of-tree development that is inherently unstable and
+# thus designed not to work with any shipping vendor policy.  This is similar in
+# spirit to how DEFAULT_APP_TARGET_SDK is set.
+# The minor version ('m' component) must be updated every time a platform release
+# is made which breaks compatibility with the previous platform sepolicy version,
+# not just on every increase in PLATFORM_SDK_VERSION.  The minor version should
+# be reset to 0 on every bump of the PLATFORM_SDK_VERSION.
+sepolicy_major_vers := 27
+sepolicy_minor_vers := 0
+
+ifneq ($(sepolicy_major_vers), $(PLATFORM_SDK_VERSION))
+$(error sepolicy_major_version does not match PLATFORM_SDK_VERSION, please update.)
+endif
+ifneq (REL,$(PLATFORM_VERSION_CODENAME))
+    sepolicy_major_vers := 10000
+    sepolicy_minor_vers := 0
+endif
+PLATFORM_SEPOLICY_VERSION := $(join $(addsuffix .,$(sepolicy_major_vers)), $(sepolicy_minor_vers))
+sepolicy_major_vers :=
+sepolicy_minor_vers :=
+
+# A list of SEPolicy versions, besides PLATFORM_SEPOLICY_VERSION, that the framework supports.
+PLATFORM_SEPOLICY_COMPAT_VERSIONS := \
+    26.0 \
+    27.0
 
 # ###############################################################
 # Set up final options.
@@ -923,8 +951,8 @@ TARGET_AVAILABLE_SDK_VERSIONS := $(addprefix system_,$(call numerically_sort,\
     $(wildcard $(HISTORICAL_SDK_VERSIONS_ROOT)/*/android_system.jar)))) \
     $(TARGET_AVAILABLE_SDK_VERSIONS)
 
-# We don't have prebuilt test_current SDK yet.
-TARGET_AVAILABLE_SDK_VERSIONS := test_current $(TARGET_AVAILABLE_SDK_VERSIONS)
+# We don't have prebuilt test_current and core_current SDK yet.
+TARGET_AVAILABLE_SDK_VERSIONS := test_current core_current $(TARGET_AVAILABLE_SDK_VERSIONS)
 
 TARGET_SDK_VERSIONS_WITHOUT_JAVA_18_SUPPORT := $(call numbers_less_than,24,$(TARGET_AVAILABLE_SDK_VERSIONS))
 TARGET_SDK_VERSIONS_WITHOUT_JAVA_19_SUPPORT := $(call numbers_less_than,27,$(TARGET_AVAILABLE_SDK_VERSIONS))

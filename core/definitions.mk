@@ -1255,6 +1255,8 @@ define transform-cpp-to-o
 $(if $(PRIVATE_TIDY_CHECKS),$(clang-tidy-cpp))
 $(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
   $(transform-cpp-to-o-compiler-args) \
+  $(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS)) \
+  $(if $(findstring $(SDCLANG_PATH_2),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS_2)) \
   -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
 endef
 endif
@@ -1303,6 +1305,8 @@ define transform-c-to-o
 $(if $(PRIVATE_TIDY_CHECKS),$(clang-tidy-c))
 $(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
   $(transform-c-to-o-compiler-args) \
+  $(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS)) \
+  $(if $(findstring $(SDCLANG_PATH_2),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS_2)) \
   -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
 endef
 endif
@@ -1312,6 +1316,8 @@ define transform-s-to-o
 @mkdir -p $(dir $@)
 $(RELATIVE_PWD) $(PRIVATE_CC) \
   $(call transform-c-or-s-to-o-compiler-args, $(PRIVATE_ASFLAGS)) \
+  $(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS)) \
+  $(if $(findstring $(SDCLANG_PATH_2),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS_2)) \
   -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
 endef
 
@@ -2601,11 +2607,12 @@ endef
 #
 define uncompress-dexs
 $(hide) if (zipinfo $@ '*.dex' 2>/dev/null | grep -v ' stor ' >/dev/null) ; then \
-  rm -rf $(dir $@)uncompresseddexs && mkdir $(dir $@)uncompresseddexs; \
-  unzip -q $@ '*.dex' -d $(dir $@)uncompresseddexs && \
+  tmpdir=$@.tmpdir; \
+  rm -rf $$tmpdir && mkdir $$tmpdir; \
+  unzip -q $@ '*.dex' -d $$tmpdir && \
   zip -qd $@ '*.dex' && \
-  ( cd $(dir $@)uncompresseddexs && find . -type f | sort | zip -qD -X -0 ../$(notdir $@) -@ ) && \
-  rm -rf $(dir $@)uncompresseddexs; \
+  ( cd $$tmpdir && find . -type f | sort | zip -qD -X -0 ../$(notdir $@) -@ ) && \
+  rm -rf $$tmpdir; \
   fi
 endef
 
@@ -2685,9 +2692,9 @@ endef
 # $(1): source file
 # $(2): destination file, must end with .xml.
 define copy-xml-file-checked
-$(2): $(1)
+$(2): $(1) $(XMLLINT)
 	@echo "Copy xml: $$@"
-	$(hide) xmllint $$< >/dev/null  # Don't print the xml file to stdout.
+	$(hide) $(XMLLINT) $$< >/dev/null  # Don't print the xml file to stdout.
 	$$(copy-file-to-target)
 endef
 
@@ -3473,3 +3480,24 @@ define get-numeric-sdk-version
 $(filter-out current,\
   $(if $(call has-system-sdk-version,$(1)),$(patsubst system_%,%,$(1)),$(1)))
 endef
+
+# Convert to lower case without requiring a shell, which isn't cacheable.
+to-lower=$(subst A,a,$(subst B,b,$(subst C,c,$(subst D,d,$(subst E,e,$(subst F,f,$(subst G,g,$(subst H,h,$(subst I,i,$(subst J,j,$(subst K,k,$(subst L,l,$(subst M,m,$(subst N,n,$(subst O,o,$(subst P,p,$(subst Q,q,$(subst R,r,$(subst S,s,$(subst T,t,$(subst U,u,$(subst V,v,$(subst W,w,$(subst X,x,$(subst Y,y,$(subst Z,z,$1))))))))))))))))))))))))))
+
+# Convert to upper case without requiring a shell, which isn't cacheable.
+to-upper=$(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,$(subst x,X,$(subst y,Y,$(subst z,Z,$1))))))))))))))))))))))))))
+
+# Sanity-check to-lower and to-upper
+lower := abcdefghijklmnopqrstuvwxyz-_
+upper := ABCDEFGHIJKLMNOPQRSTUVWXYZ-_
+
+ifneq ($(lower),$(call to-lower,$(upper)))
+  $(error to-lower sanity check failure)
+endif
+
+ifneq ($(upper),$(call to-upper,$(lower)))
+  $(error to-upper sanity check failure)
+endif
+
+lower :=
+upper :=

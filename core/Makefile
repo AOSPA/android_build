@@ -4,15 +4,6 @@
 # intermedites-dir-for
 LOCAL_PATH := $(BUILD_SYSTEM)
 
-# Pick a reasonable string to use to identify files.
-ifneq (,$(filter eng.%,$(BUILD_NUMBER)))
-  # BUILD_NUMBER has a timestamp in it, which means that
-  # it will change every time.  Pick a stable value.
-  FILE_NAME_TAG := eng.$(USER)
-else
-  FILE_NAME_TAG := $(BUILD_NUMBER)
-endif
-
 # -----------------------------------------------------------------
 # Define rules to copy PRODUCT_COPY_FILES defined by the product.
 # PRODUCT_COPY_FILES contains words like <source file>:<dest file>[:<owner>].
@@ -123,6 +114,24 @@ ifeq ($(BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED), true)
 endif
 
 # -----------------------------------------------------------------
+# FINAL_VENDOR_DEFAULT_PROPERTIES will be installed in vendor/default.prop if
+# property_overrides_split_enabled is true. Otherwise it will be installed in
+# ROOT/default.prop.
+ifdef BOARD_VNDK_VERSION
+  ifeq ($(BOARD_VNDK_VERSION),current)
+    FINAL_VENDOR_DEFAULT_PROPERTIES := ro.vndk.version=$(PLATFORM_VNDK_VERSION)
+  else
+    FINAL_VENDOR_DEFAULT_PROPERTIES := ro.vndk.version=$(BOARD_VNDK_VERSION)
+  endif
+else
+  FINAL_VENDOR_DEFAULT_PROPERTIES :=
+endif
+FINAL_VENDOR_DEFAULT_PROPERTIES += \
+    $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
+FINAL_VENDOR_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
+    $(FINAL_VENDOR_DEFAULT_PROPERTIES),=)
+
+# -----------------------------------------------------------------
 # prop.default
 ifdef property_overrides_split_enabled
 INSTALLED_DEFAULT_PROP_TARGET := $(TARGET_OUT)/etc/prop.default
@@ -139,7 +148,7 @@ FINAL_DEFAULT_PROPERTIES := \
     $(call collapse-pairs, $(PRODUCT_SYSTEM_DEFAULT_PROPERTIES))
 ifndef property_overrides_split_enabled
   FINAL_DEFAULT_PROPERTIES += \
-      $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
+      $(call collapse-pairs, $(FINAL_VENDOR_DEFAULT_PROPERTIES))
 endif
 FINAL_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
     $(FINAL_DEFAULT_PROPERTIES),=)
@@ -173,20 +182,6 @@ INSTALLED_VENDOR_DEFAULT_PROP_TARGET :=
 ifdef property_overrides_split_enabled
 INSTALLED_VENDOR_DEFAULT_PROP_TARGET := $(TARGET_OUT_VENDOR)/default.prop
 ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_VENDOR_DEFAULT_PROP_TARGET)
-
-ifdef BOARD_VNDK_VERSION
-  ifeq ($(BOARD_VNDK_VERSION),current)
-    FINAL_VENDOR_DEFAULT_PROPERTIES := ro.vndk.version=$(PLATFORM_VNDK_VERSION)
-  else
-    FINAL_VENDOR_DEFAULT_PROPERTIES := ro.vndk.version=$(BOARD_VNDK_VERSION)
-  endif
-else
-  FINAL_VENDOR_DEFAULT_PROPERTIES :=
-endif
-FINAL_VENDOR_DEFAULT_PROPERTIES += \
-    $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
-FINAL_VENDOR_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
-    $(FINAL_VENDOR_DEFAULT_PROPERTIES),=)
 
 $(INSTALLED_VENDOR_DEFAULT_PROP_TARGET): $(INSTALLED_DEFAULT_PROP_TARGET)
 	@echo Target buildinfo: $@
@@ -234,28 +229,37 @@ $(intermediate_system_build_prop): PRIVATE_BUILD_DESC := $(build_desc)
 
 # The string used to uniquely identify the combined build and product; used by the OTA server.
 ifeq (,$(strip $(BUILD_FINGERPRINT)))
-  ifneq ($(filter eng.%,$(BUILD_NUMBER)),)
-    BF_BUILD_NUMBER := $(USER)$(shell $(DATE) +%m%d%H%M)
+  ifeq ($(strip $(HAS_BUILD_NUMBER)),false)
+    BF_BUILD_NUMBER := $(USER)$$($(DATE_FROM_FILE) +%m%d%H%M)
   else
-    BF_BUILD_NUMBER := $(BUILD_NUMBER)
+    BF_BUILD_NUMBER := $(file <$(BUILD_NUMBER_FILE))
   endif
   BUILD_FINGERPRINT := $(PRODUCT_BRAND)/$(TARGET_PRODUCT)/$(TARGET_DEVICE):$(PLATFORM_VERSION)/$(BUILD_ID)/$(BF_BUILD_NUMBER):$(TARGET_BUILD_VARIANT)/$(BUILD_VERSION_TAGS)
 endif
-ifneq ($(words $(BUILD_FINGERPRINT)),1)
-  $(error BUILD_FINGERPRINT cannot contain spaces: "$(BUILD_FINGERPRINT)")
-endif
+# unset it for safety.
+BF_BUILD_NUMBER :=
 
-$(shell mkdir -p $(PRODUCT_OUT) && echo $(BUILD_FINGERPRINT) > $(PRODUCT_OUT)/build_fingerprint.txt)
-BUILD_FINGERPRINT_FROM_FILE := $$(cat $(PRODUCT_OUT)/build_fingerprint.txt)
+BUILD_FINGERPRINT_FILE := $(PRODUCT_OUT)/build_fingerprint.txt
+ifneq (,$(shell mkdir -p $(PRODUCT_OUT) && echo $(BUILD_FINGERPRINT) >$(BUILD_FINGERPRINT_FILE) && grep " " $(BUILD_FINGERPRINT_FILE)))
+  $(error BUILD_FINGERPRINT cannot contain spaces: "$(file <$(BUILD_FINGERPRINT_FILE))")
+endif
+BUILD_FINGERPRINT_FROM_FILE := $$(cat $(BUILD_FINGERPRINT_FILE))
+# unset it for safety.
+BUILD_FINGERPRINT :=
 
 # The string used to uniquely identify the system build; used by the OTA server.
 # This purposefully excludes any product-specific variables.
 ifeq (,$(strip $(BUILD_THUMBPRINT)))
-  BUILD_THUMBPRINT := $(PLATFORM_VERSION)/$(BUILD_ID)/$(BUILD_NUMBER):$(TARGET_BUILD_VARIANT)/$(BUILD_VERSION_TAGS)
+  BUILD_THUMBPRINT := $(PLATFORM_VERSION)/$(BUILD_ID)/$(BUILD_NUMBER_FROM_FILE):$(TARGET_BUILD_VARIANT)/$(BUILD_VERSION_TAGS)
 endif
-ifneq ($(words $(BUILD_THUMBPRINT)),1)
-  $(error BUILD_THUMBPRINT cannot contain spaces: "$(BUILD_THUMBPRINT)")
+
+BUILD_THUMBPRINT_FILE := $(PRODUCT_OUT)/build_thumbprint.txt
+ifneq (,$(shell mkdir -p $(PRODUCT_OUT) && echo $(BUILD_THUMBPRINT) >$(BUILD_THUMBPRINT_FILE) && grep " " $(BUILD_THUMBPRINT_FILE)))
+  $(error BUILD_THUMBPRINT cannot contain spaces: "$(file <$(BUILD_THUMBPRINT_FILE))")
 endif
+BUILD_THUMBPRINT_FROM_FILE := $$(cat $(BUILD_THUMBPRINT_FILE))
+# unset it for safety.
+BUILD_THUMBPRINT :=
 
 KNOWN_OEM_THUMBPRINT_PROPERTIES := \
     ro.product.brand \
@@ -344,7 +348,7 @@ endif
 			PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION="$(PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION)" \
 			BUILD_VERSION_TAGS="$(BUILD_VERSION_TAGS)" \
 			BUILD_FINGERPRINT="$(BUILD_FINGERPRINT_FROM_FILE)" \
-			$(if $(OEM_THUMBPRINT_PROPERTIES),BUILD_THUMBPRINT="$(BUILD_THUMBPRINT)") \
+			$(if $(OEM_THUMBPRINT_PROPERTIES),BUILD_THUMBPRINT="$(BUILD_THUMBPRINT_FROM_FILE)") \
 			TARGET_CPU_ABI_LIST="$(TARGET_CPU_ABI_LIST)" \
 			TARGET_CPU_ABI_LIST_32_BIT="$(TARGET_CPU_ABI_LIST_32_BIT)" \
 			TARGET_CPU_ABI_LIST_64_BIT="$(TARGET_CPU_ABI_LIST_64_BIT)" \
@@ -407,6 +411,9 @@ $(INSTALLED_VENDOR_BUILD_PROP_TARGET): $(VENDOR_BUILDINFO_SH) $(intermediate_sys
 	$(hide) echo ro.vendor.build.date=`$(DATE_FROM_FILE)`>>$@
 	$(hide) echo ro.vendor.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
 	$(hide) echo ro.vendor.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
+	$(hide) echo ro.vendor.product.cpu.abilist="$(TARGET_CPU_ABI_LIST)">>$@
+	$(hide) echo ro.vendor.product.cpu.abilist32="$(TARGET_CPU_ABI_LIST_32_BIT)">>$@
+	$(hide) echo ro.vendor.product.cpu.abilist64="$(TARGET_CPU_ABI_LIST_64_BIT)">>$@
 	$(hide) TARGET_DEVICE="$(TARGET_DEVICE)" \
 			PRODUCT_NAME="$(TARGET_PRODUCT)" \
 			PRODUCT_BRAND="$(PRODUCT_BRAND)" \
@@ -2056,17 +2063,6 @@ endif
 
 endif
 
-# Convert to lower case without requiring a shell, which isn't cacheable.
-to-lower = $(subst A,a,$(subst B,b,$(subst C,c,$(subst D,d,$(subst E,e,$(subst F,f,$(subst G,g,\
-$(subst H,h,$(subst I,i,$(subst J,j,$(subst K,k,$(subst L,l,$(subst M,m,$(subst N,n,$(subst O,o,\
-$(subst P,p,$(subst Q,q,$(subst R,r,$(subst S,s,$(subst T,t,$(subst U,u,$(subst V,v,$(subst W,w,\
-$(subst X,x,$(subst Y,y,$(subst Z,z,$1))))))))))))))))))))))))))
-# Convert to upper case without requiring a shell, which isn't cacheable.
-to-upper=$(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,\
-$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,\
-$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,\
-$(subst x,X,$(subst y,Y,$(subst z,Z,$1))))))))))))))))))))))))))
-
 # -----------------------------------------------------------------
 # vbmeta image
 ifeq ($(BOARD_AVB_ENABLE),true)
@@ -2375,18 +2371,18 @@ OTATOOLS_DEPS := \
   system/extras/verity/build_verity_metadata.py \
   system/extras/ext4_utils/mke2fs.conf \
   external/avb/test/data/testkey_rsa4096.pem \
-  $(shell find system/update_engine/scripts -name \*.pyc -prune -o -type f -print | sort) \
-  $(shell find build/target/product/security -type f -name \*.x509.pem -o -name \*.pk8 -o \
-      -name verity_key | sort) \
-  $(shell find device $(wildcard vendor) -type f -name \*.pk8 -o -name verifiedboot\* -o \
-      -name \*.x509.pem -o -name oem\*.prop | sort)
+  $(sort $(shell find system/update_engine/scripts -name \*.pyc -prune -o -type f -print)) \
+  $(sort $(shell find build/target/product/security -type f -name \*.x509.pem -o -name \*.pk8 -o \
+      -name verity_key)) \
+  $(sort $(shell find device $(wildcard vendor) -type f -name \*.pk8 -o -name verifiedboot\* -o \
+      -name \*.x509.pem -o -name oem\*.prop))
 
 OTATOOLS_RELEASETOOLS := \
-  $(shell find build/make/tools/releasetools -name \*.pyc -prune -o -type f | sort)
+  $(sort $(shell find build/make/tools/releasetools -name \*.pyc -prune -o -type f))
 
 ifeq (true,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VBOOT))
 OTATOOLS_DEPS += \
-  $(shell find external/vboot_reference/tests/devkeys -type f | sort)
+  $(sort $(shell find external/vboot_reference/tests/devkeys -type f))
 endif
 
 $(BUILT_OTATOOLS_PACKAGE): $(OTATOOLS) $(OTATOOLS_DEPS) $(OTATOOLS_RELEASETOOLS) | $(ACP)

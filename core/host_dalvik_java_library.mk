@@ -67,6 +67,8 @@ all_java_sources := $(java_sources)
 
 include $(BUILD_SYSTEM)/java_common.mk
 
+include $(BUILD_SYSTEM)/sdk_check.mk
+
 $(cleantarget): PRIVATE_CLEAN_FILES += $(intermediates.COMMON)
 
 # List of dependencies for anything that needs all java sources in place
@@ -134,7 +136,7 @@ $(full_classes_combined_jar): $(full_classes_compiled_jar) \
                               $(full_static_java_libs)  | $(MERGE_ZIPS)
 	$(if $(PRIVATE_JAR_MANIFEST), $(hide) sed -e "s/%BUILD_NUMBER%/$(BUILD_NUMBER_FROM_FILE)/" \
             $(PRIVATE_JAR_MANIFEST) > $(dir $@)/manifest.mf)
-	$(MERGE_ZIPS) -j $(if $(PRIVATE_JAR_MANIFEST),-m $(dir $@)/manifest.mf) \
+	$(MERGE_ZIPS) -j --ignore-duplicates $(if $(PRIVATE_JAR_MANIFEST),-m $(dir $@)/manifest.mf) \
             $(if $(PRIVATE_DONT_DELETE_JAR_META_INF),,-stripDir META-INF -zipToNotStrip $<) \
             $@ $< $(call reverse-list,$(PRIVATE_STATIC_JAVA_LIBRARIES))
 
@@ -193,7 +195,7 @@ $(LOCAL_BUILT_MODULE): $(built_dex) $(java_resource_sources)
 
 endif # !LOCAL_IS_STATIC_JAVA_LIBRARY
 
-ifneq (,$(filter-out current system_current test_current, $(LOCAL_SDK_VERSION)))
+ifneq (,$(filter-out current system_current test_current core_current, $(LOCAL_SDK_VERSION)))
   my_default_app_target_sdk := $(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION))
   my_sdk_version := $(call get-numeric-sdk-version,$(LOCAL_SDK_VERSION))
 else
