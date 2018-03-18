@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 #
+# Copyright (c) 2018, The Linux Foundation. All rights reserved.
+# Not a Contribution.
+#
 # Copyright (C) 2008 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -88,6 +91,9 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
   -e  (--extra_script)  <file>
       Insert the contents of file at the end of the update script.
 
+  --prextra_script  <file>
+      Insert the contents of file at the bengining of the update script.
+
   -2  (--two_step)
       Generate a 'two-step' OTA package, where recovery is updated
       first, so that any changes made to the system partition are done
@@ -98,6 +104,9 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
       support for file-based OTA since O. Block-based OTA will be used by
       default for all non-A/B devices. Keeping this flag here to not break
       existing callers.
+
+  --block_all
+     All partitions will be block level update.
 
   -b  (--binary)  <file>
       Use the given binary as the update-binary in the output package,
@@ -151,6 +160,7 @@ import zipfile
 import common
 import edify_generator
 import sparse_img
+import build_image
 
 OPTIONS = common.OPTIONS
 OPTIONS.package_key = None
@@ -161,12 +171,14 @@ OPTIONS.wipe_user_data = False
 OPTIONS.downgrade = False
 OPTIONS.timestamp = False
 OPTIONS.extra_script = None
+OPTIONS.prextra_script = None
 OPTIONS.worker_threads = multiprocessing.cpu_count() // 2
 if OPTIONS.worker_threads == 0:
   OPTIONS.worker_threads = 1
 OPTIONS.two_step = False
 OPTIONS.no_signing = False
 OPTIONS.block_based = True
+OPTIONS.block_all = False
 OPTIONS.updater_binary = None
 OPTIONS.oem_source = None
 OPTIONS.oem_no_mount = False
@@ -290,22 +302,30 @@ def CalculateFingerprint(oem_props, oem_dict, info_dict):
       GetOemProperty("ro.product.device", oem_props, oem_dict, info_dict),
       GetBuildProp("ro.build.thumbprint", info_dict))
 
-
-def GetImage(which, tmpdir):
+def GetImage(which, tmpdir, where="IMAGES"):
   """Returns an image object suitable for passing to BlockImageDiff.
 
   'which' partition must be "system" or "vendor". A prebuilt image and file
   map must already exist in tmpdir.
   """
 
-  assert which in ("system", "vendor")
+  if not OPTIONS.block_all:
+    assert which in ("system", "vendor")
 
-  path = os.path.join(tmpdir, "IMAGES", which + ".img")
-  mappath = os.path.join(tmpdir, "IMAGES", which + ".map")
+    path = os.path.join(tmpdir, where, which + ".img")
+  else:
+    if which in ("system", "vendor"):
+      path = os.path.join(tmpdir, where, which + ".img")
+    else:
+      path = os.path.join(tmpdir, where, which)
+
+  mappath = os.path.join(tmpdir, where, which + ".map")
 
   # The image and map files must have been created prior to calling
   # ota_from_target_files.py (since LMP).
-  assert os.path.exists(path) and os.path.exists(mappath)
+  assert os.path.exists(path)
+  if not os.path.exists(mappath):
+    mappath = None
 
   # Bug: http://b/20939131
   # In ext4 filesystems, block 0 might be changed even being mounted
@@ -313,7 +333,28 @@ def GetImage(which, tmpdir):
   # target unconditionally. Note that they are still part of care_map.
   clobbered_blocks = "0"
 
-  return sparse_img.SparseImage(path, mappath, clobbered_blocks)
+  import traceback
+  try:
+    return sparse_img.SparseImage(path, mappath, clobbered_blocks)
+  except:
+    sys.stdout.write("\033[1;31m") # output color in RED
+    print("WARNING :: image '%s' is not a sparse image, convert it to sparse!!!"%(which))
+    print(">>>%s<<<"%(traceback.format_exc()))
+    sys.stdout.write("\033[0;0m") # output color reset
+    img = path
+    path = os.path.join(tmpdir, which+".sparse")
+    fileSize = os.path.getsize(img)
+    if(fileSize%4096 != 0):
+      fileSize = int((fileSize+4095)/4096)*4096
+      cmd = ["truncate", "-s", str(fileSize),  img]
+      (_, exit_code) = build_image.RunCommand(cmd)
+      if exit_code != 0:
+        raise Exception('GetImage %s failed'%(img))
+      cmd = ["img2simg", img, path]
+      (_, exit_code) = build_image.RunCommand(cmd)
+      if exit_code != 0:
+        raise Exception('GetImage %s failed'%(img))
+      return sparse_img.SparseImage(path, mappath, clobbered_blocks)
 
 
 def AddCompatibilityArchive(target_zip, output_zip, system_included=True,
@@ -401,7 +442,8 @@ def WriteFullOTAPackage(input_zip, output_zip):
       metadata=metadata,
       info_dict=OPTIONS.info_dict)
 
-  assert HasRecoveryPatch(input_zip)
+  if(not OPTIONS.block_all):
+    assert HasRecoveryPatch(input_zip)
 
   metadata["ota-type"] = "BLOCK"
 
@@ -431,8 +473,8 @@ def WriteFullOTAPackage(input_zip, output_zip):
   #       set up system to update recovery partition on first boot
   #    complete script normally
   #    (allow recovery to mark itself finished and reboot)
-
-  recovery_img = common.GetBootableImage("recovery.img", "recovery.img",
+  if(not OPTIONS.block_all):
+    recovery_img = common.GetBootableImage("recovery.img", "recovery.img",
                                          OPTIONS.input_tmp, "RECOVERY")
   if OPTIONS.two_step:
     if not OPTIONS.info_dict.get("multistage_support", None):
@@ -479,6 +521,9 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 
   script.ShowProgress(system_progress, 0)
 
+  if OPTIONS.prextra_script is not None:
+    script.AppendExtra(OPTIONS.prextra_script)
+
   # Full OTA is done as an "incremental" against an empty source image. This
   # has the effect of writing new data from the package to the entire
   # partition, but lets us reuse the updater code that writes incrementals to
@@ -488,8 +533,18 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   system_diff = common.BlockDifference("system", system_tgt, src=None)
   system_diff.WriteScript(script, output_zip)
 
-  boot_img = common.GetBootableImage(
+  if(not OPTIONS.block_all):
+    boot_img = common.GetBootableImage(
       "boot.img", "boot.img", OPTIONS.input_tmp, "BOOT")
+  else:
+    import glob
+    for rimg in glob.glob(os.path.join(OPTIONS.input_tmp,"BLOCK","*")):
+      rname = os.path.basename(rimg)
+      rimg_tgt = GetImage(rname, OPTIONS.input_tmp, "BLOCK")
+      rimg_tgt.ResetFileMap()
+      rimg_diff = common.BlockDifference(rname, rimg_tgt, src=None)
+      rimg_diff.WriteScript(script, output_zip)
+
 
   if HasVendorPartition(input_zip):
     script.ShowProgress(0.1, 0)
@@ -499,11 +554,12 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
     vendor_diff = common.BlockDifference("vendor", vendor_tgt)
     vendor_diff.WriteScript(script, output_zip)
 
-  common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
-  common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
+  if(not OPTIONS.block_all):
+    common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
+    common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
 
-  script.ShowProgress(0.05, 5)
-  script.WriteRawImage("/boot", "boot.img")
+    script.ShowProgress(0.05, 5)
+    script.WriteRawImage("/boot", "boot.img")
 
   script.ShowProgress(0.2, 10)
   device_specific.FullOTA_InstallEnd()
@@ -634,15 +690,16 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
   metadata["post-build-incremental"] = GetBuildProp(
       "ro.build.version.incremental", OPTIONS.target_info_dict)
 
-  source_boot = common.GetBootableImage(
+  if(not OPTIONS.block_all):
+    source_boot = common.GetBootableImage(
       "/tmp/boot.img", "boot.img", OPTIONS.source_tmp, "BOOT",
       OPTIONS.source_info_dict)
-  target_boot = common.GetBootableImage(
+    target_boot = common.GetBootableImage(
       "/tmp/boot.img", "boot.img", OPTIONS.target_tmp, "BOOT")
-  updating_boot = (not OPTIONS.two_step and
+    updating_boot = (not OPTIONS.two_step and
                    (source_boot.data != target_boot.data))
 
-  target_recovery = common.GetBootableImage(
+    target_recovery = common.GetBootableImage(
       "/tmp/recovery.img", "recovery.img", OPTIONS.target_tmp, "RECOVERY")
 
   system_src = GetImage("system", OPTIONS.source_tmp)
@@ -742,6 +799,9 @@ else if get_stage("%(bcb_dev)s") != "3/3" then
   script.Print("Source: %s" % (source_fp,))
   script.Print("Target: %s" % (target_fp,))
 
+  if OPTIONS.prextra_script is not None:
+    script.AppendExtra(OPTIONS.prextra_script)
+
   script.Print("Verifying current system...")
 
   device_specific.IncrementalOTA_VerifyBegin()
@@ -780,7 +840,7 @@ else if get_stage("%(bcb_dev)s") != "3/3" then
   if vendor_diff:
     size.append(vendor_diff.required_cache)
 
-  if updating_boot:
+  if (not OPTIONS.block_all) and updating_boot:
     boot_type, boot_device = common.GetTypeAndDevice(
         "/boot", OPTIONS.source_info_dict)
     d = common.Difference(target_boot, source_boot)
@@ -835,13 +895,34 @@ else
   if vendor_diff:
     vendor_diff.WriteScript(script, output_zip, progress=0.1)
 
+  if OPTIONS.block_all:
+      import glob
+      for rimg in glob.glob(os.path.join(OPTIONS.target_tmp,"BLOCK","*")):
+        rname = os.path.basename(rimg)
+        cmd=["diff", rimg, os.path.join(OPTIONS.source_tmp,"BLOCK", rname)]
+        (_, exit_code) = build_image.RunCommand(cmd)
+        if(exit_code == 0):
+          print("%s image unchanged; skipping."%(rname))
+          continue
+        rimg_src = GetImage(rname, OPTIONS.source_tmp, "BLOCK")
+        rimg_tgt = GetImage(rname, OPTIONS.target_tmp, "BLOCK")
+        rimg_tgt.ResetFileMap()
+        rimg_diff = common.BlockDifference(rname, rimg_tgt, rimg_src,
+                                           False,
+                                           version=blockimgdiff_version,
+                                           disable_imgdiff=False)
+        script.Print("Verifying current %s..."%(rname))
+        rimg_diff.WriteVerifyScript(script)
+        rimg_diff.WriteScript(script, output_zip)
+
+
   if OPTIONS.two_step:
     common.ZipWriteStr(output_zip, "boot.img", target_boot.data)
     script.WriteRawImage("/boot", "boot.img")
     print("writing full boot image (forced by two-step mode)")
 
   if not OPTIONS.two_step:
-    if updating_boot:
+    if (not OPTIONS.block_all) and updating_boot:
       if include_full_boot:
         print("boot image changed; including full.")
         script.Print("Installing boot image...")
@@ -1284,6 +1365,8 @@ def main(argv):
       OPTIONS.oem_no_mount = True
     elif o in ("-e", "--extra_script"):
       OPTIONS.extra_script = a
+    elif o == "--prextra_script":
+      OPTIONS.prextra_script = a
     elif o in ("-t", "--worker_threads"):
       if a.isdigit():
         OPTIONS.worker_threads = int(a)
@@ -1298,6 +1381,10 @@ def main(argv):
       OPTIONS.verify = True
     elif o == "--block":
       OPTIONS.block_based = True
+    elif o == "--block_all":
+      OPTIONS.block_based = True
+      OPTIONS.block_all = True
+      UNZIP_PATTERN.append("BLOCK/*")
     elif o in ("-b", "--binary"):
       OPTIONS.updater_binary = a
     elif o in ("--no_fallback_to_full",):
@@ -1334,10 +1421,12 @@ def main(argv):
                                  "downgrade",
                                  "override_timestamp",
                                  "extra_script=",
+                                 "prextra_script=",
                                  "worker_threads=",
                                  "two_step",
                                  "no_signing",
                                  "block",
+                                 "block_all",
                                  "binary=",
                                  "oem_settings=",
                                  "oem_no_mount",
@@ -1416,6 +1505,9 @@ def main(argv):
 
   if OPTIONS.extra_script is not None:
     OPTIONS.extra_script = open(OPTIONS.extra_script).read()
+
+  if OPTIONS.prextra_script is not None:
+    OPTIONS.prextra_script = open(OPTIONS.prextra_script).read()
 
   if OPTIONS.extracted_input is not None:
     OPTIONS.input_tmp = OPTIONS.extracted_input
