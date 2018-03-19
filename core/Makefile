@@ -1458,7 +1458,8 @@ INTERNAL_SYSTEMIMAGE_FILES := $(filter $(TARGET_OUT)/%, \
     $(ALL_GENERATED_SOURCES) \
     $(ALL_DEFAULT_INSTALLED_MODULES) \
     $(PDK_FUSION_SYSIMG_FILES) \
-    $(RECOVERY_RESOURCE_ZIP))
+    $(RECOVERY_RESOURCE_ZIP)) \
+    $(PDK_FUSION_SYMLINK_STAMP)
 
 FULL_SYSTEMIMAGE_DEPS := $(INTERNAL_SYSTEMIMAGE_FILES) $(INTERNAL_USERIMAGES_DEPS)
 
@@ -1695,7 +1696,8 @@ ifneq ($(PDK_PLATFORM_ZIP_PRODUCT_BINARIES),)
 endif
 	@# Add dex-preopt files and config.
 	$(if $(PRIVATE_DEX_FILES),$(hide) cd $(OUT_DIR) && zip -qryX $(patsubst $(OUT_DIR)/%,%,$@ $(PRIVATE_DEX_FILES)))
-	$(hide) zip -qryXj $@ $(PRIVATE_ODEX_CONFIG)
+	$(hide) touch $(PRODUCT_OUT)/pdk.mk
+	$(hide) zip -qryXj $@ $(PRIVATE_ODEX_CONFIG) $(PRODUCT_OUT)/pdk.mk
 
 .PHONY: platform
 platform: $(INSTALLED_PLATFORM_ZIP)
@@ -1902,7 +1904,8 @@ ifdef BOARD_USES_SYSTEM_OTHER
 INTERNAL_SYSTEMOTHERIMAGE_FILES := \
     $(filter $(TARGET_OUT_SYSTEM_OTHER)/%,\
       $(ALL_DEFAULT_INSTALLED_MODULES)\
-      $(ALL_PDK_FUSION_FILES))
+      $(ALL_PDK_FUSION_FILES)) \
+    $(PDK_FUSION_SYMLINK_STAMP)
 
 INSTALLED_FILES_FILE_SYSTEMOTHER := $(PRODUCT_OUT)/installed-files-system-other.txt
 $(INSTALLED_FILES_FILE_SYSTEMOTHER) : $(INTERNAL_SYSTEMOTHERIMAGE_FILES) $(FILESLIST)
@@ -1949,7 +1952,8 @@ ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
 INTERNAL_VENDORIMAGE_FILES := \
     $(filter $(TARGET_OUT_VENDOR)/%,\
       $(ALL_DEFAULT_INSTALLED_MODULES)\
-      $(ALL_PDK_FUSION_FILES))
+      $(ALL_PDK_FUSION_FILES)) \
+    $(PDK_FUSION_SYMLINK_STAMP)
 
 # platform.zip depends on $(INTERNAL_VENDORIMAGE_FILES).
 $(INSTALLED_PLATFORM_ZIP) : $(INTERNAL_VENDORIMAGE_FILES)
@@ -2000,7 +2004,8 @@ ifdef BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE
 INTERNAL_PRODUCTIMAGE_FILES := \
     $(filter $(TARGET_OUT_PRODUCT)/%,\
       $(ALL_DEFAULT_INSTALLED_MODULES)\
-      $(ALL_PDK_FUSION_FILES))
+      $(ALL_PDK_FUSION_FILES)) \
+    $(PDK_FUSION_SYMLINK_STAMP)
 
 # platform.zip depends on $(INTERNAL_PRODUCTIMAGE_FILES).
 $(INSTALLED_PLATFORM_ZIP) : $(INTERNAL_PRODUCTIMAGE_FILES)
@@ -2481,7 +2486,7 @@ endif
 # $1: root directory
 # $2: add prefix
 define fs_config
-(cd $(1); find . -type d | sed 's,$$,/,'; find . \! -type d) | cut -c 3- | sort | sed 's,^,$(2),' | $(HOST_OUT_EXECUTABLES)/fs_config -C -D $(TARGET_OUT) -S $(SELINUX_FC)
+(cd $(1); find . -type d | sed 's,$$,/,'; find . \! -type d) | cut -c 3- | sort | sed 's,^,$(2),' | $(HOST_OUT_EXECUTABLES)/fs_config -C -D $(TARGET_OUT) -S $(SELINUX_FC) -R "$(2)"
 endef
 
 # Depending on the various images guarantees that the underlying
@@ -3231,3 +3236,9 @@ include $(BUILD_SYSTEM)/product-graph.mk
 ifneq ($(sdk_repo_goal),)
 include $(TOPDIR)development/build/tools/sdk_repo.mk
 endif
+
+#------------------------------------------------------------------
+# Find lsdump paths
+FIND_LSDUMPS_FILE := $(PRODUCT_OUT)/lsdump_paths.txt
+$(FIND_LSDUMPS_FILE) : $(LSDUMP_PATHS)
+	$(hide) rm -rf $@ && echo "$^" > $@

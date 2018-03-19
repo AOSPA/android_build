@@ -955,6 +955,193 @@ def GetPackageMetadata(target_info, source_info=None):
   return metadata
 
 
+class StreamingPropertyFiles(object):
+  """Computes the ota-streaming-property-files string for streaming A/B OTA.
+
+  Computing the final property-files string requires two passes. Because doing
+  the whole package signing (with signapk.jar) will possibly reorder the ZIP
+  entries, which may in turn invalidate earlier computed ZIP entry offset/size
+  values.
+
+  This class provides functions to be called for each pass. The general flow is
+  as follows.
+
+    property_files = StreamingPropertyFiles()
+    # The first pass, which writes placeholders before doing initial signing.
+    property_files.Compute()
+    SignOutput()
+
+    # The second pass, by replacing the placeholders with actual data.
+    property_files.Finalize()
+    SignOutput()
+
+  And the caller can additionally verify the final result.
+
+    property_files.Verify()
+  """
+
+  def __init__(self):
+    self.required = (
+        # payload.bin and payload_properties.txt must exist.
+        'payload.bin',
+        'payload_properties.txt',
+    )
+    self.optional = (
+        # care_map.txt is available only if dm-verity is enabled.
+        'care_map.txt',
+        # compatibility.zip is available only if target supports Treble.
+        'compatibility.zip',
+    )
+
+  def Compute(self, input_zip):
+    """Computes and returns a property-files string with placeholders.
+
+    We reserve extra space for the offset and size of the metadata entry itself,
+    although we don't know the final values until the package gets signed.
+
+    Args:
+      input_zip: The input ZIP file.
+
+    Returns:
+      A string with placeholders for the metadata offset/size info, e.g.
+      "payload.bin:679:343,payload_properties.txt:378:45,metadata:        ".
+    """
+    return self._GetPropertyFilesString(input_zip, reserve_space=True)
+
+  def Finalize(self, input_zip, reserved_length):
+    """Finalizes a property-files string with actual METADATA offset/size info.
+
+    The input ZIP file has been signed, with the ZIP entries in the desired
+    place (signapk.jar will possibly reorder the ZIP entries). Now we compute
+    the ZIP entry offsets and construct the property-files string with actual
+    data. Note that during this process, we must pad the property-files string
+    to the reserved length, so that the METADATA entry size remains the same.
+    Otherwise the entries' offsets and sizes may change again.
+
+    Args:
+      input_zip: The input ZIP file.
+      reserved_length: The reserved length of the property-files string during
+          the call to Compute(). The final string must be no more than this
+          size.
+
+    Returns:
+      A property-files string including the metadata offset/size info, e.g.
+      "payload.bin:679:343,payload_properties.txt:378:45,metadata:69:379  ".
+
+    Raises:
+      AssertionError: If the reserved length is insufficient to hold the final
+          string.
+    """
+    result = self._GetPropertyFilesString(input_zip, reserve_space=False)
+    assert len(result) <= reserved_length, \
+        'Insufficient reserved space: reserved={}, actual={}'.format(
+            reserved_length, len(result))
+    result += ' ' * (reserved_length - len(result))
+    return result
+
+  def Verify(self, input_zip, expected):
+    """Verifies the input ZIP file contains the expected property-files string.
+
+    Args:
+      input_zip: The input ZIP file.
+      expected: The property-files string that's computed from Finalize().
+
+    Raises:
+      AssertionError: On finding a mismatch.
+    """
+    actual = self._GetPropertyFilesString(input_zip)
+    assert actual == expected, \
+        "Mismatching streaming metadata: {} vs {}.".format(actual, expected)
+
+  def _GetPropertyFilesString(self, zip_file, reserve_space=False):
+    """Constructs the property-files string per request."""
+
+    def ComputeEntryOffsetSize(name):
+      """Computes the zip entry offset and size."""
+      info = zip_file.getinfo(name)
+      offset = info.header_offset + len(info.FileHeader())
+      size = info.file_size
+      return '%s:%d:%d' % (os.path.basename(name), offset, size)
+
+    tokens = []
+    for entry in self.required:
+      tokens.append(ComputeEntryOffsetSize(entry))
+    for entry in self.optional:
+      if entry in zip_file.namelist():
+        tokens.append(ComputeEntryOffsetSize(entry))
+
+    # 'META-INF/com/android/metadata' is required. We don't know its actual
+    # offset and length (as well as the values for other entries). So we reserve
+    # 10-byte as a placeholder, which is to cover the space for metadata entry
+    # ('xx:xxx', since it's ZIP_STORED which should appear at the beginning of
+    # the zip), as well as the possible value changes in other entries.
+    if reserve_space:
+      tokens.append('metadata:' + ' ' * 10)
+    else:
+      tokens.append(ComputeEntryOffsetSize(METADATA_NAME))
+
+    return ','.join(tokens)
+
+
+def FinalizeMetadata(metadata, input_file, output_file):
+  """Finalizes the metadata and signs an A/B OTA package.
+
+  In order to stream an A/B OTA package, we need 'ota-streaming-property-files'
+  that contains the offsets and sizes for the ZIP entries. An example
+  property-files string is as follows.
+
+    "payload.bin:679:343,payload_properties.txt:378:45,metadata:69:379"
+
+  OTA server can pass down this string, in addition to the package URL, to the
+  system update client. System update client can then fetch individual ZIP
+  entries (ZIP_STORED) directly at the given offset of the URL.
+
+  Args:
+    metadata: The metadata dict for the package.
+    input_file: The input ZIP filename that doesn't contain the package METADATA
+        entry yet.
+    output_file: The final output ZIP filename.
+  """
+  output_zip = zipfile.ZipFile(
+      input_file, 'a', compression=zipfile.ZIP_DEFLATED)
+
+  property_files = StreamingPropertyFiles()
+
+  # Write the current metadata entry with placeholders.
+  metadata['ota-streaming-property-files'] = property_files.Compute(output_zip)
+  WriteMetadata(metadata, output_zip)
+  common.ZipClose(output_zip)
+
+  # SignOutput(), which in turn calls signapk.jar, will possibly reorder the
+  # ZIP entries, as well as padding the entry headers. We do a preliminary
+  # signing (with an incomplete metadata entry) to allow that to happen. Then
+  # compute the ZIP entry offsets, write back the final metadata and do the
+  # final signing.
+  prelim_signing = common.MakeTempFile(suffix='.zip')
+  SignOutput(input_file, prelim_signing)
+
+  # Open the signed zip. Compute the final metadata that's needed for streaming.
+  with zipfile.ZipFile(prelim_signing, 'r') as prelim_signing_zip:
+    expected_length = len(metadata['ota-streaming-property-files'])
+    metadata['ota-streaming-property-files'] = property_files.Finalize(
+        prelim_signing_zip, expected_length)
+
+  # Replace the METADATA entry.
+  common.ZipDelete(prelim_signing, METADATA_NAME)
+  output_zip = zipfile.ZipFile(prelim_signing, 'a',
+                               compression=zipfile.ZIP_DEFLATED)
+  WriteMetadata(metadata, output_zip)
+  common.ZipClose(output_zip)
+
+  # Re-sign the package after updating the metadata entry.
+  SignOutput(prelim_signing, output_file)
+
+  # Reopen the final signed zip to double check the streaming metadata.
+  with zipfile.ZipFile(output_file, 'r') as output_zip:
+    property_files.Verify(
+        output_zip, metadata['ota-streaming-property-files'].strip())
+
+
 def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
   target_info = BuildInfo(OPTIONS.target_info_dict, OPTIONS.oem_dicts)
   source_info = BuildInfo(OPTIONS.source_info_dict, OPTIONS.oem_dicts)
@@ -1248,8 +1435,11 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
   target_file = common.MakeTempFile(prefix="targetfiles-", suffix=".zip")
   target_zip = zipfile.ZipFile(target_file, 'w', allowZip64=True)
 
-  input_tmp, input_zip = common.UnzipTemp(input_file, UNZIP_PATTERN)
-  for info in input_zip.infolist():
+  input_tmp = common.UnzipTemp(input_file, UNZIP_PATTERN)
+  with zipfile.ZipFile(input_file, 'r') as input_zip:
+    infolist = input_zip.infolist()
+
+  for info in infolist:
     unzipped_file = os.path.join(input_tmp, *info.filename.split('/'))
     if info.filename == 'IMAGES/system_other.img':
       common.ZipWrite(target_zip, unzipped_file, arcname='IMAGES/system.img')
@@ -1266,7 +1456,6 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
     elif info.filename.startswith(('META/', 'IMAGES/')):
       common.ZipWrite(target_zip, unzipped_file, arcname=info.filename)
 
-  common.ZipClose(input_zip)
   common.ZipClose(target_zip)
 
   return target_file
@@ -1299,61 +1488,10 @@ def GetTargetFilesZipWithoutPostinstallConfig(input_file):
 
 def WriteABOTAPackageWithBrilloScript(target_file, output_file,
                                       source_file=None):
-  """Generate an Android OTA package that has A/B update payload."""
-
-  def ComputeStreamingMetadata(zip_file, reserve_space=False,
-                               expected_length=None):
-    """Compute the streaming metadata for a given zip.
-
-    When 'reserve_space' is True, we reserve extra space for the offset and
-    length of the metadata entry itself, although we don't know the final
-    values until the package gets signed. This function will be called again
-    after signing. We then write the actual values and pad the string to the
-    length we set earlier. Note that we can't use the actual length of the
-    metadata entry in the second run. Otherwise the offsets for other entries
-    will be changing again.
-    """
-
-    def ComputeEntryOffsetSize(name):
-      """Compute the zip entry offset and size."""
-      info = zip_file.getinfo(name)
-      offset = info.header_offset + len(info.FileHeader())
-      size = info.file_size
-      return '%s:%d:%d' % (os.path.basename(name), offset, size)
-
-    # payload.bin and payload_properties.txt must exist.
-    offsets = [ComputeEntryOffsetSize('payload.bin'),
-               ComputeEntryOffsetSize('payload_properties.txt')]
-
-    # care_map.txt is available only if dm-verity is enabled.
-    if 'care_map.txt' in zip_file.namelist():
-      offsets.append(ComputeEntryOffsetSize('care_map.txt'))
-
-    if 'compatibility.zip' in zip_file.namelist():
-      offsets.append(ComputeEntryOffsetSize('compatibility.zip'))
-
-    # 'META-INF/com/android/metadata' is required. We don't know its actual
-    # offset and length (as well as the values for other entries). So we
-    # reserve 10-byte as a placeholder, which is to cover the space for metadata
-    # entry ('xx:xxx', since it's ZIP_STORED which should appear at the
-    # beginning of the zip), as well as the possible value changes in other
-    # entries.
-    if reserve_space:
-      offsets.append('metadata:' + ' ' * 10)
-    else:
-      offsets.append(ComputeEntryOffsetSize(METADATA_NAME))
-
-    value = ','.join(offsets)
-    if expected_length is not None:
-      assert len(value) <= expected_length, \
-          'Insufficient reserved space: reserved=%d, actual=%d' % (
-              expected_length, len(value))
-      value += ' ' * (expected_length - len(value))
-    return value
-
+  """Generates an Android OTA package that has A/B update payload."""
   # Stage the output zip package for package signing.
-  temp_zip_file = tempfile.NamedTemporaryFile()
-  output_zip = zipfile.ZipFile(temp_zip_file, "w",
+  staging_file = common.MakeTempFile(suffix='.zip')
+  output_zip = zipfile.ZipFile(staging_file, "w",
                                compression=zipfile.ZIP_DEFLATED)
 
   if source_file is not None:
@@ -1417,54 +1555,16 @@ def WriteABOTAPackageWithBrilloScript(target_file, output_file,
     else:
       print("Warning: cannot find care map file in target_file package")
 
-  # source_info must be None for full OTAs.
-  if source_file is None:
-    assert source_info is None
-
   AddCompatibilityArchiveIfTrebleEnabled(
       target_zip, output_zip, target_info, source_info)
 
   common.ZipClose(target_zip)
 
-  # Write the current metadata entry with placeholders.
-  metadata['ota-streaming-property-files'] = ComputeStreamingMetadata(
-      output_zip, reserve_space=True)
-  WriteMetadata(metadata, output_zip)
+  # We haven't written the metadata entry yet, which will be handled in
+  # FinalizeMetadata().
   common.ZipClose(output_zip)
 
-  # SignOutput(), which in turn calls signapk.jar, will possibly reorder the
-  # ZIP entries, as well as padding the entry headers. We do a preliminary
-  # signing (with an incomplete metadata entry) to allow that to happen. Then
-  # compute the ZIP entry offsets, write back the final metadata and do the
-  # final signing.
-  prelim_signing = common.MakeTempFile(suffix='.zip')
-  SignOutput(temp_zip_file.name, prelim_signing)
-  common.ZipClose(temp_zip_file)
-
-  # Open the signed zip. Compute the final metadata that's needed for streaming.
-  prelim_signing_zip = zipfile.ZipFile(prelim_signing, 'r')
-  expected_length = len(metadata['ota-streaming-property-files'])
-  metadata['ota-streaming-property-files'] = ComputeStreamingMetadata(
-      prelim_signing_zip, reserve_space=False, expected_length=expected_length)
-  common.ZipClose(prelim_signing_zip)
-
-  # Replace the METADATA entry.
-  common.ZipDelete(prelim_signing, METADATA_NAME)
-  output_zip = zipfile.ZipFile(prelim_signing, 'a',
-                               compression=zipfile.ZIP_DEFLATED)
-  WriteMetadata(metadata, output_zip)
-  common.ZipClose(output_zip)
-
-  # Re-sign the package after updating the metadata entry.
-  SignOutput(prelim_signing, output_file)
-
-  # Reopen the final signed zip to double check the streaming metadata.
-  output_zip = zipfile.ZipFile(output_file, 'r')
-  actual = metadata['ota-streaming-property-files'].strip()
-  expected = ComputeStreamingMetadata(output_zip)
-  assert actual == expected, \
-      "Mismatching streaming metadata: %s vs %s." % (actual, expected)
-  common.ZipClose(output_zip)
+  FinalizeMetadata(metadata, staging_file, output_file)
 
 
 def main(argv):
@@ -1643,11 +1743,9 @@ def main(argv):
 
   if OPTIONS.extracted_input is not None:
     OPTIONS.input_tmp = OPTIONS.extracted_input
-    input_zip = zipfile.ZipFile(args[0], "r")
   else:
     print("unzipping target target-files...")
-    OPTIONS.input_tmp, input_zip = common.UnzipTemp(
-        args[0], UNZIP_PATTERN)
+    OPTIONS.input_tmp = common.UnzipTemp(args[0], UNZIP_PATTERN)
   OPTIONS.target_tmp = OPTIONS.input_tmp
 
   # If the caller explicitly specified the device-specific extensions path via
@@ -1679,16 +1777,17 @@ def main(argv):
 
   # Generate a full OTA.
   if OPTIONS.incremental_source is None:
-    WriteFullOTAPackage(input_zip, output_zip)
+    with zipfile.ZipFile(args[0], 'r') as input_zip:
+      WriteFullOTAPackage(input_zip, output_zip)
 
   # Generate an incremental OTA.
   else:
     print("unzipping source target-files...")
-    OPTIONS.source_tmp, source_zip = common.UnzipTemp(
-        OPTIONS.incremental_source,
-        UNZIP_PATTERN)
-
-    WriteBlockIncrementalOTAPackage(input_zip, source_zip, output_zip)
+    OPTIONS.source_tmp = common.UnzipTemp(
+        OPTIONS.incremental_source, UNZIP_PATTERN)
+    with zipfile.ZipFile(args[0], 'r') as input_zip, \
+        zipfile.ZipFile(OPTIONS.incremental_source, 'r') as source_zip:
+      WriteBlockIncrementalOTAPackage(input_zip, source_zip, output_zip)
 
     if OPTIONS.log_diff:
       with open(OPTIONS.log_diff, 'w') as out_file:
@@ -1696,7 +1795,6 @@ def main(argv):
         target_files_diff.recursiveDiff(
             '', OPTIONS.source_tmp, OPTIONS.input_tmp, out_file)
 
-  common.ZipClose(input_zip)
   common.ZipClose(output_zip)
 
   # Sign the generated zip package unless no_signing is specified.
