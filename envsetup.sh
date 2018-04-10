@@ -1598,6 +1598,15 @@ function _wrap_build()
 
 function make()
 {
+    marker=$ANDROID_BUILD_TOP/out/marker-hidl
+    if [ -f "$marker" ]
+        then
+        echo "Skipping hidl generation"
+    else
+        _wrap_build $(get_make_command hidl-gen) hidl-gen ALLOW_MISSING_DEPENDENCIES=true
+        source $ANDROID_BUILD_TOP/device/qcom/common/vendor_hal_makefile_generator.sh
+        touch $marker
+    fi
     _wrap_build $(get_make_command "$@") "$@"
 }
 
