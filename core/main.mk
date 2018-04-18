@@ -52,6 +52,10 @@ ifneq ($(filter $(dont_bother_goals), $(MAKECMDGOALS)),)
 dont_bother := true
 endif
 
+.KATI_READONLY := SOONG_CONFIG_NAMESPACES
+.KATI_READONLY := $(foreach n,$(SOONG_CONFIG_NAMESPACES),SOONG_CONFIG_$(n))
+.KATI_READONLY := $(foreach n,$(SOONG_CONFIG_NAMESPACES),$(foreach k,$(SOONG_CONFIG_$(n)),SOONG_CONFIG_$(n)_$(k)))
+
 include $(SOONG_MAKEVARS_MK)
 
 include $(BUILD_SYSTEM)/clang/config.mk
@@ -891,6 +895,9 @@ ifdef FULL_BUILD
   # by the appropriate product definition file, which was included
   # by product_config.mk.
   product_MODULES := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES)
+ifdef BOARD_VNDK_VERSION
+  product_MODULES += vndk_package
+endif
   # Filter out the overridden packages before doing expansion
   product_MODULES := $(filter-out $(foreach p, $(product_MODULES), \
       $(PACKAGES.$(p).OVERRIDES)), $(product_MODULES))
