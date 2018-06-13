@@ -358,11 +358,11 @@ def GetImage(which, tmpdir, where="IMAGES"):
       (_, exit_code) = build_image.RunCommand(cmd)
       if exit_code != 0:
         raise Exception('GetImage %s failed'%(img))
-      cmd = ["img2simg", img, path]
-      (_, exit_code) = build_image.RunCommand(cmd)
-      if exit_code != 0:
-        raise Exception('GetImage %s failed'%(img))
-      return sparse_img.SparseImage(path, mappath, clobbered_blocks)
+    cmd = ["img2simg", img, path]
+    (_, exit_code) = build_image.RunCommand(cmd)
+    if exit_code != 0:
+      raise Exception('GetImage %s failed'%(img))
+    return sparse_img.SparseImage(path, mappath, clobbered_blocks)
 
 def CopyInstallTools(output_zip):
   oldcwd = os.getcwd()
