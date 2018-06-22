@@ -85,6 +85,9 @@ BOARD_FLASH_BLOCK_SIZE := 512
 TARGET_USERIMAGES_SPARSE_EXT_DISABLED := true
 DEVICE_MATRIX_FILE   := device/generic/goldfish/compatibility_matrix.xml
 
+# Android generic system image always create metadata partition
+BOARD_USES_METADATA_PARTITION := true
+
 # Set this to create /cache mount point for non-A/B devices that mounts /cache.
 # The partition size doesn't matter, just to make build pass.
 BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE := ext4
@@ -116,10 +119,6 @@ BOARD_VNDK_VERSION := current
 # TODO(jiyong) These might be SoC specific.
 BOARD_ROOT_EXTRA_FOLDERS += firmware firmware/radio persist
 BOARD_ROOT_EXTRA_SYMLINKS := /vendor/lib/dsp:/dsp
-
-# TODO(b/79781913): This is a temporary mount pointer for FBE.
-#   Will be remove after the FBE change the placement.
-BOARD_ROOT_EXTRA_FOLDERS += metadata
 
 # TODO(b/36764215): remove this setting when the generic system image
 # no longer has QCOM-specific directories under /.
