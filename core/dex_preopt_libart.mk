@@ -98,10 +98,13 @@ LIBART_TARGET_BOOT_ART_VDEX_FILES += boot.vdex
 # If we use a boot image profile.
 my_use_profile_for_boot_image := $(PRODUCT_USE_PROFILE_FOR_BOOT_IMAGE)
 ifeq (,$(my_use_profile_for_boot_image))
+# Skip if not building the framework (e.g. embedded config)
+ifneq (,$(LIBART_TARGET_BOOT_DEX_FILES))
 # If not set, set the default to true if we are not a PDK build. PDK builds
 # can't build the profile since they don't have frameworks/base.
 ifneq (true,$(TARGET_BUILD_PDK))
 my_use_profile_for_boot_image := true
+endif
 endif
 endif
 
