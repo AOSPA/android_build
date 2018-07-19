@@ -282,9 +282,10 @@ ifneq ($(filter cfi,$(my_sanitize)),)
         LOCAL_ADDITIONAL_DEPENDENCIES += build/soong/cc/config/cfi_exports.map
   endif
   ifneq ($(filter true,$(my_sdclang) $(my_sdclang2)),)
-    my_ldflags := $(filter-out -Wl,-plugin-opt,O1 -Wl,-m,aarch64_elf64_le_vec,$(my_ldflags))
+    SDCLANG_UNKNOWN_FLAGS := -Wl,-plugin-opt,O1
+    my_ldflags := $(filter-out $(SDCLANG_UNKNOWN_FLAGS),$(my_ldflags))
     my_cflags += -fuse-ld=qcld
-    my_ldflags += -fuse-ld=qcld
+    my_ldflags += -fuse-ld=qcld -Wl,-m,aarch64linux_androideabi
   endif
 endif
 

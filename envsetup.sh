@@ -1658,6 +1658,7 @@ function _wrap_build()
     return $ret
 }
 
+
 function make()
 {
     call_hook ${FUNCNAME[0]} $@
@@ -1673,6 +1674,12 @@ function make()
         return $RET
     fi
     source $ANDROID_BUILD_TOP/device/qcom/common/vendor_hal_makefile_generator.sh
+    RET=$?
+    if [ $RET -ne 0 ]; then
+        echo -n "${color_failed}#### HAL file .bp generation failed dure to incpomaptible HAL files , please check above error log"
+        echo " ####${color_reset}"
+        return $RET
+    fi
     _wrap_build $(get_make_command "$@") "$@"
 }
 
