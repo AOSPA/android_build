@@ -2988,6 +2988,7 @@ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
 	   -k $(KEY_CERT_PAIR) \
            $(extra_ota_args) \
 	   --backup=$(backuptool) \
+	   --system_root_build=$(BOARD_BUILD_SYSTEM_ROOT_IMAGE) \
 	   $(if $(OEM_OTA_CONFIG), -o $(OEM_OTA_CONFIG)) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
 
