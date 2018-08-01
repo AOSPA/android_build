@@ -28,10 +28,9 @@ $(foreach m,$(my_modules),\
 
 # Ignore unknown installed files on partial builds
 my_missing_files :=
-# These warnings are too noisy, silence them for now.
-#ifneq ($(ALLOW_MISSING_DEPENDENCIES),true)
-#my_missing_files = $(shell $(call echo-warning,$(my_makefile),$(my_package_name): Unknown installed file for module '$(1)'))
-#endif
+ifneq ($(ALLOW_MISSING_DEPENDENCIES),true)
+my_missing_files = $(shell $(call echo-warning,$(my_makefile),$(my_package_name): Unknown installed file for module '$(1)'))
+endif
 
 # Iterate over modules' built files and installed files;
 # Calculate the dest files in the output zip file.

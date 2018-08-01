@@ -301,7 +301,6 @@ function printconfig()
 
 function set_stuff_for_environment()
 {
-    settitle
     setpaths
     set_sequence_number
 
@@ -316,24 +315,15 @@ function set_sequence_number()
     export BUILD_ENV_SEQUENCE_NUMBER=13
 }
 
-function settitle()
-{
-    # This used to be opt-out with STAY_OFF_MY_LAWN, but this breaks folks
-    # actually using PROMPT_COMMAND (https://issuetracker.google.com/38402256),
-    # and the attempt to set the title doesn't do anything for the default
-    # window manager in debian right now, so switch it to opt-in for anyone
-    # who actually wants this.
-    if [ "$ANDROID_BUILD_SET_WINDOW_TITLE" = "true" ]; then
-        local arch=$(gettargetarch)
-        local product=$TARGET_PRODUCT
-        local variant=$TARGET_BUILD_VARIANT
-        local apps=$TARGET_BUILD_APPS
-        if [ -z "$apps" ]; then
-            export PROMPT_COMMAND="echo -ne \"\033]0;[${arch}-${product}-${variant}] ${USER}@${HOSTNAME}: ${PWD}\007\""
-        else
-            export PROMPT_COMMAND="echo -ne \"\033]0;[$arch $apps $variant] ${USER}@${HOSTNAME}: ${PWD}\007\""
-        fi
-    fi
+# Takes a command name, and check if it's in ENVSETUP_NO_COMPLETION or not.
+function should_add_completion() {
+    local cmd="$1"
+    case :"$ENVSETUP_NO_COMPLETION": in
+    *:"$cmd":*)
+        return 1
+        ;;
+    esac
+    return 0
 }
 
 function addcompletions()
@@ -350,15 +340,19 @@ function addcompletions()
         return
     fi
 
-    dir="sdk/bash_completion"
-    if [ -d ${dir} ]; then
-        for f in `/bin/ls ${dir}/[a-z]*.bash 2> /dev/null`; do
-            echo "including $f"
+    # Completion can be disabled selectively to allow users to use non-standard completion.
+    # e.g.
+    # ENVSETUP_NO_COMPLETION=adb # -> disable adb completion
+    # ENVSETUP_NO_COMPLETION=adb:bit # -> disable adb and bit completion
+    for f in system/core/adb/adb.bash system/core/fastboot/fastboot.bash; do
+        if [ -f "$f" ] && should_add_completion $(basename "$f" .bash) ; then
             . $f
-        done
-    fi
+        fi
+    done
 
-    complete -C "bit --tab" bit
+    if should_add_completion bit ; then
+        complete -C "bit --tab" bit
+    fi
 }
 
 function choosetype()
@@ -544,14 +538,6 @@ function add_lunch_combo()
     LUNCH_MENU_CHOICES=(${LUNCH_MENU_CHOICES[@]} $new_combo)
 }
 
-# add the default one here
-add_lunch_combo aosp_arm-eng
-add_lunch_combo aosp_arm64-eng
-add_lunch_combo aosp_mips-eng
-add_lunch_combo aosp_mips64-eng
-add_lunch_combo aosp_x86-eng
-add_lunch_combo aosp_x86_64-eng
-
 function print_lunch_menu()
 {
     local uname=$(uname)
@@ -562,7 +548,7 @@ function print_lunch_menu()
 
     local i=1
     local choice
-    for choice in ${LUNCH_MENU_CHOICES[@]}
+    for choice in $(TARGET_BUILD_APPS= LUNCH_MENU_CHOICES="${LUNCH_MENU_CHOICES[@]}" get_build_var COMMON_LUNCH_CHOICES)
     do
         echo "     $i. $choice"
         i=$(($i+1))
@@ -590,9 +576,10 @@ function lunch()
         selection=aosp_arm-eng
     elif (echo -n $answer | grep -q -e "^[0-9][0-9]*$")
     then
-        if [ $answer -le ${#LUNCH_MENU_CHOICES[@]} ]
+        local choices=($(TARGET_BUILD_APPS= LUNCH_MENU_CHOICES="${LUNCH_MENU_CHOICES[@]}" get_build_var COMMON_LUNCH_CHOICES))
+        if [ $answer -le ${#choices[@]} ]
         then
-            selection=${LUNCH_MENU_CHOICES[$(($answer-1))]}
+            selection=${choices[$(($answer-1))]}
         fi
     else
         selection=$answer
@@ -643,6 +630,7 @@ function lunch()
     destroy_build_var_cache
 }
 
+unset COMMON_LUNCH_CHOICES_CACHE
 # Tab completion for lunch.
 function _lunch()
 {
@@ -651,7 +639,11 @@ function _lunch()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    COMPREPLY=( $(compgen -W "${LUNCH_MENU_CHOICES[*]}" -- ${cur}) )
+    if [ -z "$COMMON_LUNCH_CHOICES_CACHE" ]; then
+        COMMON_LUNCH_CHOICES_CACHE=$(TARGET_BUILD_APPS= LUNCH_MENU_CHOICES="${LUNCH_MENU_CHOICES[@]}" get_build_var COMMON_LUNCH_CHOICES)
+    fi
+
+    COMPREPLY=( $(compgen -W "${COMMON_LUNCH_CHOICES_CACHE}" -- ${cur}) )
     return 0
 }
 complete -F _lunch lunch
@@ -809,6 +801,7 @@ function findmakefile()
         \cd ..
     done
     \cd $HERE
+    return 1
 }
 
 function mm()
@@ -951,7 +944,7 @@ function mma()
       echo "Couldn't locate the top of the tree.  Try setting TOP."
       return 1
     fi
-    local M=$(findmakefile)
+    local M=$(findmakefile || echo $(realpath $PWD)/Android.mk)
     # Remove the path to top as the makefilepath needs to be relative
     local M=`echo $M|sed 's:'$T'/::'`
     local MODULES_IN_PATHS=MODULES-IN-$(dirname ${M})
@@ -1061,28 +1054,6 @@ function qpid() {
     fi
 }
 
-function pid()
-{
-    local prepend=''
-    local append=''
-    if [ "$1" = "--exact" ]; then
-        prepend=' '
-        append='$'
-        shift
-    fi
-    local EXE="$1"
-    if [ "$EXE" ] ; then
-        local PID=`adb shell ps \
-            | tr -d '\r' \
-            | \grep "$prepend$EXE$append" \
-            | sed -e 's/^[^ ]* *\([0-9]*\).*$/\1/'`
-        echo "$PID"
-    else
-        echo "usage: pid [--exact] <process name>"
-        return 255
-    fi
-}
-
 # coredump_setup - enable core dumps globally for any process
 #                  that has the core-file-size limit set correctly
 #
@@ -1167,53 +1138,6 @@ function core()
 function systemstack()
 {
     stacks system_server
-}
-
-function stacks()
-{
-    if [[ $1 =~ ^[0-9]+$ ]] ; then
-        local PID="$1"
-    elif [ "$1" ] ; then
-        local PIDLIST="$(pid $1)"
-        if [[ $PIDLIST =~ ^[0-9]+$ ]] ; then
-            local PID="$PIDLIST"
-        elif [ "$PIDLIST" ] ; then
-            echo "more than one process: $1"
-        else
-            echo "no such process: $1"
-        fi
-    else
-        echo "usage: stacks [pid|process name]"
-    fi
-
-    if [ "$PID" ] ; then
-        # Determine whether the process is native
-        if adb shell ls -l /proc/$PID/exe | grep -q /system/bin/app_process ; then
-            # Dump stacks of Dalvik process
-            local TRACES=/data/anr/traces.txt
-            local ORIG=/data/anr/traces.orig
-            local TMP=/data/anr/traces.tmp
-
-            # Keep original traces to avoid clobbering
-            adb shell mv $TRACES $ORIG
-
-            # Make sure we have a usable file
-            adb shell touch $TRACES
-            adb shell chmod 666 $TRACES
-
-            # Dump stacks and wait for dump to finish
-            adb shell kill -3 $PID
-            adb shell notify $TRACES >/dev/null
-
-            # Restore original stacks, and show current output
-            adb shell mv $TRACES $TMP
-            adb shell mv $ORIG $TRACES
-            adb shell cat $TMP
-        else
-            # Dump stacks of native process
-            adb shell debuggerd -b $PID
-        fi
-    fi
 }
 
 # Read the ELF header from /proc/$PID/exe to determine if the process is

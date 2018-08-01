@@ -28,12 +28,14 @@ intermediates.COMMON := $(call local-intermediates-dir,COMMON)
 
 my_res_package :=
 
+# Process Support Library dependencies.
+include $(BUILD_SYSTEM)/support_libraries.mk
+
+include $(BUILD_SYSTEM)/force_aapt2.mk
+
 ifdef LOCAL_AAPT2_ONLY
 LOCAL_USE_AAPT2 := true
 endif
-
-# Process Support Library dependencies.
-include $(BUILD_SYSTEM)/support_libraries.mk
 
 # Hack to build static Java library with Android resource
 # See bug 5714516
@@ -44,8 +46,8 @@ ifdef LOCAL_RESOURCE_DIR
 need_compile_res := true
 LOCAL_RESOURCE_DIR := $(foreach d,$(LOCAL_RESOURCE_DIR),$(call clean-path,$(d)))
 endif
-ifdef LOCAL_USE_AAPT2
-ifneq ($(LOCAL_STATIC_ANDROID_LIBRARIES),)
+ifeq ($(LOCAL_USE_AAPT2),true)
+ifneq ($(strip $(LOCAL_STATIC_ANDROID_LIBRARIES) $(LOCAL_STATIC_JAVA_AAR_LIBRARIES)),)
 need_compile_res := true
 endif
 endif
@@ -82,7 +84,7 @@ LOCAL_PROGUARD_FLAGS := $(addprefix -include ,$(proguard_options_file)) $(LOCAL_
 R_file_stamp := $(intermediates.COMMON)/src/R.stamp
 LOCAL_INTERMEDIATE_TARGETS += $(R_file_stamp)
 
-ifdef LOCAL_USE_AAPT2
+ifeq ($(LOCAL_USE_AAPT2),true)
 # For library we treat all the resource equal with no overlay.
 my_res_resources := $(all_resources)
 my_overlay_resources :=
@@ -110,15 +112,15 @@ framework_res_package_export :=
 ifneq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
 ifneq ($(filter-out current system_current test_current,$(LOCAL_SDK_RES_VERSION))$(if $(TARGET_BUILD_APPS),$(filter current system_current test_current,$(LOCAL_SDK_RES_VERSION))),)
 framework_res_package_export := \
-    $(HISTORICAL_SDK_VERSIONS_ROOT)/$(LOCAL_SDK_RES_VERSION)/android.jar
+    $(call resolve-prebuilt-sdk-jar-path,$(LOCAL_SDK_RES_VERSION))
 else
 framework_res_package_export := \
     $(call intermediates-dir-for,APPS,framework-res,,COMMON)/package-export.apk
 endif
 endif
 
-ifdef LOCAL_USE_AAPT2
-import_proguard_flag_files := $(strip $(foreach l,$(LOCAL_STATIC_ANDROID_LIBRARIES),\
+ifeq ($(LOCAL_USE_AAPT2),true)
+import_proguard_flag_files := $(strip $(foreach l,$(LOCAL_STATIC_ANDROID_LIBRARIES) $(LOCAL_STATIC_JAVA_AAR_LIBRARIES),\
     $(call intermediates-dir-for,JAVA_LIBRARIES,$(l),,COMMON)/export_proguard_flags))
 $(intermediates.COMMON)/export_proguard_flags: $(import_proguard_flag_files) $(addprefix $(LOCAL_PATH)/,$(LOCAL_EXPORT_PROGUARD_FLAG_FILES))
 	@echo "Export proguard flags: $@"
@@ -140,7 +142,7 @@ $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_MANIFEST_INSTRUMENTATION_FOR := $(LOCAL_M
 
 # add --non-constant-id to prevent inlining constants.
 # AAR needs text symbol file R.txt.
-ifdef LOCAL_USE_AAPT2
+ifeq ($(LOCAL_USE_AAPT2),true)
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_AAPT_FLAGS := $(LOCAL_AAPT_FLAGS) --static-lib --output-text-symbols $(intermediates.COMMON)/R.txt
 ifndef LOCAL_AAPT_NAMESPACES
   $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_AAPT_FLAGS += --no-static-lib-packages
@@ -168,10 +170,10 @@ $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_PROGUARD_OPTIONS_FILE := $(proguard_optio
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_MANIFEST_PACKAGE_NAME :=
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_MANIFEST_INSTRUMENTATION_FOR :=
 
-ifdef LOCAL_USE_AAPT2
+ifeq ($(LOCAL_USE_AAPT2),true)
   # One more level with name res so we can zip up the flat resources that can be linked by apps.
   my_compiled_res_base_dir := $(intermediates.COMMON)/flat-res/res
-  ifneq (,$(renderscript_target_api))
+  ifneq (,$(filter-out current,$(renderscript_target_api)))
     ifneq ($(call math_gt_or_eq,$(renderscript_target_api),21),true)
       my_generated_res_zips := $(rs_generated_res_zip)
     endif  # renderscript_target_api < 21

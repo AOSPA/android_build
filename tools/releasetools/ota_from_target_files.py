@@ -15,54 +15,12 @@
 # limitations under the License.
 
 """
-Given a target-files zipfile, produces an OTA package that installs
-that build.  An incremental OTA is produced if -i is given, otherwise
-a full OTA is produced.
+Given a target-files zipfile, produces an OTA package that installs that build.
+An incremental OTA is produced if -i is given, otherwise a full OTA is produced.
 
-Usage:  ota_from_target_files [flags] input_target_files output_ota_package
+Usage:  ota_from_target_files [options] input_target_files output_ota_package
 
-  -k (--package_key) <key> Key to use to sign the package (default is
-      the value of default_system_dev_certificate from the input
-      target-files's META/misc_info.txt, or
-      "build/target/product/security/testkey" if that value is not
-      specified).
-
-      For incremental OTAs, the default value is based on the source
-      target-file, not the target build.
-
-  -i  (--incremental_from)  <file>
-      Generate an incremental OTA using the given target-files zip as
-      the starting build.
-
-  --full_radio
-      When generating an incremental OTA, always include a full copy of
-      radio image. This option is only meaningful when -i is specified,
-      because a full radio is always included in a full OTA if applicable.
-
-  --full_bootloader
-      Similar to --full_radio. When generating an incremental OTA, always
-      include a full copy of bootloader image.
-
-  --verify
-      Remount and verify the checksums of the files written to the system and
-      vendor (if used) partitions. Non-A/B incremental OTAs only.
-
-  -o  (--oem_settings)  <main_file[,additional_files...]>
-      Comma seperated list of files used to specify the expected OEM-specific
-      properties on the OEM partition of the intended device. Multiple expected
-      values can be used by providing multiple files. Only the first dict will
-      be used to compute fingerprint, while the rest will be used to assert
-      OEM-specific properties.
-
-  --oem_no_mount
-      For devices with OEM-specific properties but without an OEM partition,
-      do not mount the OEM partition in the updater-script. This should be
-      very rarely used, since it's expected to have a dedicated OEM partition
-      for OEM-specific properties. Only meaningful when -o is specified.
-
-  --wipe_user_data
-      Generate an OTA package that will wipe the user data partition
-      when installed.
+Common options that apply to both of non-A/B and A/B OTAs
 
   --downgrade
       Intentionally generate an incremental OTA that updates from a newer build
@@ -72,6 +30,19 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
       be included in the metadata file. The update-binary in the source build
       will be used in the OTA package, unless --binary flag is specified. Please
       also check the comment for --override_timestamp below.
+
+  -i  (--incremental_from) <file>
+      Generate an incremental OTA using the given target-files zip as the
+      starting build.
+
+  -k  (--package_key) <key>
+      Key to use to sign the package (default is the value of
+      default_system_dev_certificate from the input target-files's
+      META/misc_info.txt, or "build/target/product/security/testkey" if that
+      value is not specified).
+
+      For incremental OTAs, the default value is based on the source
+      target-file, not the target build.
 
   --override_timestamp
       Intentionally generate an incremental OTA that updates from a newer build
@@ -89,13 +60,70 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
       based on timestamp) with the same "ota-downgrade=yes" flag, with the
       difference being whether "ota-wipe=yes" is set.
 
-  -e  (--extra_script)  <file>
+  --wipe_user_data
+      Generate an OTA package that will wipe the user data partition when
+      installed.
+
+Non-A/B OTA specific options
+
+  -b  (--binary) <file>
+      Use the given binary as the update-binary in the output package, instead
+      of the binary in the build's target_files. Use for development only.
+
+  --block
+      Generate a block-based OTA for non-A/B device. We have deprecated the
+      support for file-based OTA since O. Block-based OTA will be used by
+      default for all non-A/B devices. Keeping this flag here to not break
+      existing callers.
+
+  -e  (--extra_script) <file>
       Insert the contents of file at the end of the update script.
 
+  --full_bootloader
+      Similar to --full_radio. When generating an incremental OTA, always
+      include a full copy of bootloader image.
+
+  --full_radio
+      When generating an incremental OTA, always include a full copy of radio
+      image. This option is only meaningful when -i is specified, because a full
+      radio is always included in a full OTA if applicable.
+
+  --log_diff <file>
+      Generate a log file that shows the differences in the source and target
+      builds for an incremental package. This option is only meaningful when -i
+      is specified.
+
+  -o  (--oem_settings) <main_file[,additional_files...]>
+      Comma seperated list of files used to specify the expected OEM-specific
+      properties on the OEM partition of the intended device. Multiple expected
+      values can be used by providing multiple files. Only the first dict will
+      be used to compute fingerprint, while the rest will be used to assert
+      OEM-specific properties.
+
+  --oem_no_mount
+      For devices with OEM-specific properties but without an OEM partition, do
+      not mount the OEM partition in the updater-script. This should be very
+      rarely used, since it's expected to have a dedicated OEM partition for
+      OEM-specific properties. Only meaningful when -o is specified.
+
+  --stash_threshold <float>
+      Specify the threshold that will be used to compute the maximum allowed
+      stash size (defaults to 0.8).
+
+  -t  (--worker_threads) <int>
+      Specify the number of worker-threads that will be used when generating
+      patches for incremental updates (defaults to 3).
+
+  --verify
+      Verify the checksums of the updated system and vendor (if any) partitions.
+      Non-A/B incremental OTAs only.
+
   -2  (--two_step)
-      Generate a 'two-step' OTA package, where recovery is updated
-      first, so that any changes made to the system partition are done
-      using the new recovery (new kernel, etc.).
+      Generate a 'two-step' OTA package, where recovery is updated first, so
+      that any changes made to the system partition are done using the new
+      recovery (new kernel, etc.).
+
+A/B OTA specific options
 
   --include_secondary
       Additionally include the payload for secondary slot images (default:
@@ -114,30 +142,6 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
 
       Due to the special install procedure, the secondary payload will be always
       generated as a full payload.
-
-  --block
-      Generate a block-based OTA for non-A/B device. We have deprecated the
-      support for file-based OTA since O. Block-based OTA will be used by
-      default for all non-A/B devices. Keeping this flag here to not break
-      existing callers.
-
-  -b  (--binary)  <file>
-      Use the given binary as the update-binary in the output package,
-      instead of the binary in the build's target_files.  Use for
-      development only.
-
-  -t  (--worker_threads) <int>
-      Specifies the number of worker-threads that will be used when
-      generating patches for incremental updates (defaults to 3).
-
-  --stash_threshold <float>
-      Specifies the threshold that will be used to compute the maximum
-      allowed stash size (defaults to 0.8).
-
-  --log_diff <file>
-      Generate a log file that shows the differences in the source and target
-      builds for an incremental package. This option is only meaningful when
-      -i is specified.
 
   --payload_signer <signer>
       Specify the signer when signing the payload and metadata for A/B OTAs.
@@ -246,12 +250,14 @@ class BuildInfo(object):
   def __init__(self, info_dict, oem_dicts):
     """Initializes a BuildInfo instance with the given dicts.
 
+    Note that it only wraps up the given dicts, without making copies.
+
     Arguments:
       info_dict: The build-time info dict.
       oem_dicts: A list of OEM dicts (which is parsed from --oem_settings). Note
           that it always uses the first dict to calculate the fingerprint or the
           device name. The rest would be used for asserting OEM properties only
-          (e.g.  one package can be installed on one of these devices).
+          (e.g. one package can be installed on one of these devices).
     """
     self.info_dict = info_dict
     self.oem_dicts = oem_dicts
@@ -285,8 +291,14 @@ class BuildInfo(object):
   def __getitem__(self, key):
     return self.info_dict[key]
 
+  def __setitem__(self, key, value):
+    self.info_dict[key] = value
+
   def get(self, key, default=None):
     return self.info_dict.get(key, default)
+
+  def items(self):
+    return self.info_dict.items()
 
   def GetBuildProp(self, prop):
     """Returns the inquired build property."""
@@ -1020,7 +1032,7 @@ class PropertyFiles(object):
       A string with placeholders for the metadata offset/size info, e.g.
       "payload.bin:679:343,payload_properties.txt:378:45,metadata:        ".
     """
-    return self._GetPropertyFilesString(input_zip, reserve_space=True)
+    return self.GetPropertyFilesString(input_zip, reserve_space=True)
 
   class InsufficientSpaceException(Exception):
     pass
@@ -1049,7 +1061,7 @@ class PropertyFiles(object):
       InsufficientSpaceException: If the reserved length is insufficient to hold
           the final string.
     """
-    result = self._GetPropertyFilesString(input_zip, reserve_space=False)
+    result = self.GetPropertyFilesString(input_zip, reserve_space=False)
     if len(result) > reserved_length:
       raise self.InsufficientSpaceException(
           'Insufficient reserved space: reserved={}, actual={}'.format(
@@ -1068,12 +1080,22 @@ class PropertyFiles(object):
     Raises:
       AssertionError: On finding a mismatch.
     """
-    actual = self._GetPropertyFilesString(input_zip)
+    actual = self.GetPropertyFilesString(input_zip)
     assert actual == expected, \
         "Mismatching streaming metadata: {} vs {}.".format(actual, expected)
 
-  def _GetPropertyFilesString(self, zip_file, reserve_space=False):
-    """Constructs the property-files string per request."""
+  def GetPropertyFilesString(self, zip_file, reserve_space=False):
+    """
+    Constructs the property-files string per request.
+
+    Args:
+      zip_file: The input ZIP file.
+      reserved_length: The reserved length of the property-files string.
+
+    Returns:
+      A property-files string including the metadata offset/size info, e.g.
+      "payload.bin:679:343,payload_properties.txt:378:45,metadata:     ".
+    """
 
     def ComputeEntryOffsetSize(name):
       """Computes the zip entry offset and size."""
@@ -1503,10 +1525,16 @@ else if get_stage("%(bcb_dev)s") != "3/3" then
 
       common.ZipWriteStr(output_zip, "patch/boot.img.p", d)
 
+      # TODO(b/110106408): Remove after properly handling the SHA-1 embedded in
+      # the filename argument in updater code. Prior to that, explicitly list
+      # the SHA-1 of the source image, in case the updater tries to find a
+      # matching backup from /cache. Similarly for the call to
+      # script.ApplyPatch() below.
       script.PatchCheck("%s:%s:%d:%s:%d:%s" %
                         (boot_type, boot_device,
                          source_boot.size, source_boot.sha1,
-                         target_boot.size, target_boot.sha1))
+                         target_boot.size, target_boot.sha1),
+                        source_boot.sha1)
       size.append(target_boot.size)
 
   if size:
@@ -1629,9 +1657,15 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
   target_file = common.MakeTempFile(prefix="targetfiles-", suffix=".zip")
   target_zip = zipfile.ZipFile(target_file, 'w', allowZip64=True)
 
-  input_tmp = common.UnzipTemp(input_file, UNZIP_PATTERN)
   with zipfile.ZipFile(input_file, 'r') as input_zip:
     infolist = input_zip.infolist()
+    namelist = input_zip.namelist()
+
+  # Additionally unzip 'RADIO/*' if exists.
+  unzip_pattern = UNZIP_PATTERN[:]
+  if any([entry.startswith('RADIO/') for entry in namelist]):
+    unzip_pattern.append('RADIO/*')
+  input_tmp = common.UnzipTemp(input_file, unzip_pattern)
 
   for info in infolist:
     unzipped_file = os.path.join(input_tmp, *info.filename.split('/'))
@@ -1647,7 +1681,7 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
     elif skip_postinstall and info.filename == POSTINSTALL_CONFIG:
       pass
 
-    elif info.filename.startswith(('META/', 'IMAGES/')):
+    elif info.filename.startswith(('META/', 'IMAGES/', 'RADIO/')):
       common.ZipWrite(target_zip, unzipped_file, arcname=info.filename)
 
   common.ZipClose(target_zip)

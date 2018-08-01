@@ -23,22 +23,50 @@
 # and the .mk suffix) of the product makefile, "<product_name>:" can be
 # omitted.
 
-# Search for AndroidProducts.mks in the given dir.
-# $(1): the path to the dir
-define _search-android-products-files-in-dir
-$(sort $(shell test -d $(1) && find -L $(1) \
-  -maxdepth 6 \
-  -name .git -prune \
-  -o -name AndroidProducts.mk -print))
-endef
-
 #
 # Returns the list of all AndroidProducts.mk files.
 # $(call ) isn't necessary.
 #
 define _find-android-products-files
-$(foreach d, device vendor product,$(call _search-android-products-files-in-dir,$(d))) \
+$(file <$(OUT_DIR)/.module_paths/AndroidProducts.mk.list) \
   $(SRC_TARGET_DIR)/product/AndroidProducts.mk
+endef
+
+#
+# For entries returned by get-product-makefiles, decode an entry to a short
+# product name. These either may be in the form of <name>:path/to/file.mk or
+# path/to/<name>.mk
+# $(1): The entry to decode
+#
+# Returns two words:
+#   <name> <file>
+#
+define _decode-product-name
+$(strip \
+  $(eval _cpm_words := $(subst :,$(space),$(1))) \
+  $(if $(word 2,$(_cpm_words)), \
+    $(wordlist 1,2,$(_cpm_words)), \
+    $(basename $(notdir $(1))) $(1)))
+endef
+
+#
+# Validates the new common lunch choices -- ensures that they're in an
+# appropriate form, and are paired with definitions of their products.
+# $(1): The new list of COMMON_LUNCH_CHOICES
+# $(2): The new list of PRODUCT_MAKEFILES
+#
+define _validate-common-lunch-choices
+$(strip $(foreach choice,$(1),\
+  $(eval _parts := $(subst -,$(space),$(choice))) \
+  $(if $(call math_lt,$(words $(_parts)),2), \
+    $(error $(LOCAL_DIR): $(choice): Invalid lunch choice)) \
+  $(if $(call math_gt_or_eq,$(words $(_parts)),4), \
+    $(error $(LOCAL_DIR): $(choice): Invalid lunch choice)) \
+  $(if $(filter-out eng userdebug user,$(word 2,$(_parts))), \
+    $(error $(LOCAL_DIR): $(choice): Invalid variant: $(word 2,$(_parts)))) \
+  $(if $(filter-out $(foreach p,$(2),$(call _decode-product-name,$(p))),$(word 1,$(_parts))), \
+    $(error $(LOCAL_DIR): $(word 1,$(_parts)): Product not defined in this file)) \
+  ))
 endef
 
 #
@@ -46,16 +74,26 @@ endef
 # variables set in the given AndroidProducts.mk files.
 # $(1): the list of AndroidProducts.mk files.
 #
+# As a side-effect, COMMON_LUNCH_CHOICES will be set to a
+# union of all of the COMMON_LUNCH_CHOICES definitions within
+# each AndroidProducts.mk file.
+#
 define get-product-makefiles
 $(sort \
+  $(eval _COMMON_LUNCH_CHOICES :=) \
   $(foreach f,$(1), \
     $(eval PRODUCT_MAKEFILES :=) \
+    $(eval COMMON_LUNCH_CHOICES :=) \
     $(eval LOCAL_DIR := $(patsubst %/,%,$(dir $(f)))) \
     $(eval include $(f)) \
+    $(call _validate-common-lunch-choices,$(COMMON_LUNCH_CHOICES),$(PRODUCT_MAKEFILES)) \
+    $(eval _COMMON_LUNCH_CHOICES += $(COMMON_LUNCH_CHOICES)) \
     $(PRODUCT_MAKEFILES) \
    ) \
   $(eval PRODUCT_MAKEFILES :=) \
   $(eval LOCAL_DIR :=) \
+  $(eval COMMON_LUNCH_CHOICES := $(sort $(_COMMON_LUNCH_CHOICES) $(LUNCH_MENU_CHOICES))) \
+  $(eval _COMMON_LUNCH_CHOICES :=) \
  )
 endef
 
@@ -81,6 +119,7 @@ _product_var_list := \
     PRODUCT_AAPT_PREBUILT_DPI \
     PRODUCT_PACKAGES \
     PRODUCT_PACKAGES_DEBUG \
+    PRODUCT_PACKAGES_DEBUG_ASAN \
     PRODUCT_PACKAGES_ENG \
     PRODUCT_PACKAGES_TESTS \
     PRODUCT_DEVICE \
@@ -158,6 +197,9 @@ _product_var_list := \
     PRODUCT_CFI_EXCLUDE_PATHS \
     PRODUCT_COMPATIBLE_PROPERTY_OVERRIDE \
     PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE \
+    PRODUCT_USE_LOGICAL_PARTITIONS \
+    PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS \
+    PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST \
 
 define dump-product
 $(info ==== $(1) ====)\
@@ -173,10 +215,14 @@ endef
 #
 # $(1): product to inherit
 #
-# Does three things:
+# To be called from product makefiles, and is later evaluated during the import-nodes
+# call below. It does three things:
 #  1. Inherits all of the variables from $1.
 #  2. Records the inheritance in the .INHERITS_FROM variable
-#  3. Records that we've visited this node, in ALL_PRODUCTS
+#  3. Records the calling makefile in PARENT_PRODUCT_FILES
+#
+# (2) and (3) can be used together to reconstruct the include hierarchy
+# See e.g. product-graph.mk for an example of this.
 #
 define inherit-product
   $(if $(findstring ../,$(1)),\
@@ -184,13 +230,32 @@ define inherit-product
     $(eval np := $(strip $(1))))\
   $(foreach v,$(_product_var_list), \
       $(eval $(v) := $($(v)) $(INHERIT_TAG)$(np))) \
-  $(eval inherit_var := \
-      PRODUCTS.$(strip $(word 1,$(_include_stack))).INHERITS_FROM) \
+  $(eval current_mk := $(strip $(word 1,$(_include_stack)))) \
+  $(eval inherit_var := PRODUCTS.$(current_mk).INHERITS_FROM) \
   $(eval $(inherit_var) := $(sort $($(inherit_var)) $(np))) \
-  $(eval inherit_var:=) \
-  $(eval ALL_PRODUCTS := $(sort $(ALL_PRODUCTS) $(word 1,$(_include_stack))))
+  $(eval PARENT_PRODUCT_FILES := $(sort $(PARENT_PRODUCT_FILES) $(current_mk)))
 endef
 
+# Specifies a number of path prefixes, relative to PRODUCT_OUT, where the
+# product makefile hierarchy rooted in the current node places its artifacts.
+# Creating artifacts outside the specified paths will cause a build-time error.
+define require-artifacts-in-path
+  $(eval current_mk := $(strip $(word 1,$(_include_stack)))) \
+  $(eval PRODUCTS.$(current_mk).ARTIFACT_PATH_REQUIREMENTS := $(strip $(1))) \
+  $(eval PRODUCTS.$(current_mk).ARTIFACT_PATH_WHITELIST := $(strip $(2))) \
+  $(eval ARTIFACT_PATH_REQUIREMENT_PRODUCTS := \
+    $(sort $(ARTIFACT_PATH_REQUIREMENT_PRODUCTS) $(current_mk)))
+endef
+
+# Makes including non-existant modules in PRODUCT_PACKAGES an error.
+# $(1): whitelist of non-existant modules to allow.
+define enforce-product-packages-exist
+  $(eval current_mk := $(strip $(word 1,$(_include_stack)))) \
+  $(eval PRODUCTS.$(current_mk).PRODUCT_ENFORCE_PACKAGES_EXIST := true) \
+  $(eval PRODUCTS.$(current_mk).PRODUCT_ENFORCE_PACKAGES_EXIST_WHITELIST := $(1)) \
+  $(eval .KATI_READONLY := PRODUCTS.$(current_mk).PRODUCT_ENFORCE_PACKAGES_EXIST) \
+  $(eval .KATI_READONLY := PRODUCTS.$(current_mk).PRODUCT_ENFORCE_PACKAGES_EXIST_WHITELIST)
+endef
 
 #
 # Do inherit-product only if $(1) exists
@@ -320,6 +385,13 @@ _product_stash_var_list += \
 	DEFAULT_SYSTEM_DEV_CERTIFICATE \
 	WITH_DEXPREOPT \
 	WITH_DEXPREOPT_BOOT_IMG_AND_SYSTEM_SERVER_ONLY
+
+# Logical partitions related variables.
+_product_stash_var_list += \
+	BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE \
+	BOARD_VENDORIMAGE_PARTITION_RESERVED_SIZE \
+	BOARD_SUPER_PARTITION_SIZE \
+	BOARD_SUPER_PARTITION_PARTITION_LIST \
 
 #
 # Mark the variables in _product_stash_var_list as readonly

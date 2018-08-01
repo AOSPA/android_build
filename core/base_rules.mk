@@ -31,6 +31,7 @@ LOCAL_MODULE := $(strip $(LOCAL_MODULE))
 ifeq ($(LOCAL_MODULE),)
   $(error $(LOCAL_PATH): LOCAL_MODULE is not defined)
 endif
+$(call verify-module-name)
 
 LOCAL_IS_HOST_MODULE := $(strip $(LOCAL_IS_HOST_MODULE))
 LOCAL_IS_AUX_MODULE := $(strip $(LOCAL_IS_AUX_MODULE))
@@ -423,7 +424,7 @@ my_init_rc_installed := $(foreach rc,$(my_init_rc_pairs),$(call word-colon,2,$(r
 # Make sure we only set up the copy rules once, even if another arch variant
 # shares a common LOCAL_INIT_RC.
 my_init_rc_new_pairs := $(filter-out $(ALL_INIT_RC_INSTALLED_PAIRS),$(my_init_rc_pairs))
-my_init_rc_new_installed := $(call copy-many-files,$(my_init_rc_new_pairs))
+my_init_rc_new_installed := $(call copy-many-init-script-files-checked,$(my_init_rc_new_pairs))
 ALL_INIT_RC_INSTALLED_PAIRS += $(my_init_rc_new_pairs)
 
 $(my_all_targets) : $(my_init_rc_installed)
@@ -437,6 +438,30 @@ $(foreach symlink,$(my_installed_symlinks),\
 
 $(my_all_targets) : | $(my_installed_symlinks)
 
+endif # !LOCAL_UNINSTALLABLE_MODULE
+
+###########################################################
+## VINTF manifest fragment goals
+###########################################################
+
+my_vintf_installed:=
+my_vintf_pairs:=
+ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
+ifndef LOCAL_IS_HOST_MODULE
+ifneq ($(strip $(LOCAL_VINTF_FRAGMENTS)),)
+
+my_vintf_pairs := $(foreach xml,$(LOCAL_VINTF_FRAGMENTS),$(LOCAL_PATH)/$(xml):$(TARGET_OUT$(partition_tag)_ETC)/vintf/manifest/$(notdir $(xml)))
+my_vintf_installed := $(foreach xml,$(my_vintf_pairs),$(call word-colon,2,$(xml)))
+
+# Only set up copy rules once, even if another arch variant shares it
+my_vintf_new_pairs := $(filter-out $(ALL_VINTF_MANIFEST_FRAGMENTS_LIST),$(my_vintf_pairs))
+my_vintf_new_installed := $(call copy-many-vintf-manifest-files-checked,$(my_vintf_pairs))
+
+ALL_VINTF_MANIFEST_FRAGMENTS_LIST += $(my_vintf_new_pairs)
+
+$(my_all_targets) : $(my_vintf_installed)
+endif # LOCAL_VINTF_FRAGMENTS
+endif # !LOCAL_IS_HOST_MODULE
 endif # !LOCAL_UNINSTALLABLE_MODULE
 
 ###########################################################
@@ -522,10 +547,6 @@ ifeq ($(LOCAL_MODULE_CLASS),NATIVE_TESTS)
   is_native := true
   multi_arch := true
 endif
-ifeq ($(LOCAL_MODULE_CLASS),NATIVE_BENCHMARK)
-  is_native := true
-  multi_arch := true
-endif
 ifdef LOCAL_MULTILIB
   multi_arch := true
 endif
@@ -537,7 +558,8 @@ multi_arch :=
 # The module itself.
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
   $(eval my_compat_dist_$(suite) := $(foreach dir, $(call compatibility_suite_dirs,$(suite),$(arch_dir)), \
-    $(LOCAL_BUILT_MODULE):$(dir)/$(my_installed_module_stem))))
+    $(LOCAL_BUILT_MODULE):$(dir)/$(my_installed_module_stem))) \
+  $(eval my_compat_dist_config_$(suite) := ))
 
 # Make sure we only add the files once for multilib modules.
 ifndef $(my_prefix)$(LOCAL_MODULE_CLASS)_$(LOCAL_MODULE)_compat_files
@@ -584,7 +606,7 @@ is_instrumentation_test :=
 
 ifneq (,$(test_config))
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
-  $(eval my_compat_dist_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
+  $(eval my_compat_dist_config_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
     $(test_config):$(dir)/$(LOCAL_MODULE).config)))
 endif
 
@@ -592,14 +614,14 @@ test_config :=
 
 ifneq (,$(wildcard $(LOCAL_PATH)/DynamicConfig.xml))
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
-  $(eval my_compat_dist_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
+  $(eval my_compat_dist_config_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
     $(LOCAL_PATH)/DynamicConfig.xml:$(dir)/$(LOCAL_MODULE).dynamic)))
 endif
 
 ifneq (,$(wildcard $(LOCAL_PATH)/$(LOCAL_MODULE)_*.config))
 $(foreach extra_config, $(wildcard $(LOCAL_PATH)/$(LOCAL_MODULE)_*.config), \
   $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
-    $(eval my_compat_dist_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
+    $(eval my_compat_dist_config_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
       $(extra_config):$(dir)/$(notdir $(extra_config))))))
 endif
 endif # $(my_prefix)$(LOCAL_MODULE_CLASS)_$(LOCAL_MODULE)_compat_files
@@ -618,8 +640,17 @@ arch_dir :=
 is_native :=
 
 $(call create-suite-dependencies)
+$(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
+  $(eval my_compat_dist_config_$(suite) := ))
 
 endif  # LOCAL_COMPATIBILITY_SUITE
+
+###########################################################
+## Add test module to ALL_DISABLED_PRESUBMIT_TESTS if LOCAL_PRESUBMIT_DISABLED is set to true.
+###########################################################
+ifeq ($(LOCAL_PRESUBMIT_DISABLED),true)
+  ALL_DISABLED_PRESUBMIT_TESTS += $(LOCAL_MODULE)
+endif  # LOCAL_PRESUBMIT_DISABLED
 
 ###########################################################
 ## Register with ALL_MODULES
@@ -643,11 +674,11 @@ ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
 ALL_MODULES.$(my_register_name).INSTALLED := \
     $(strip $(ALL_MODULES.$(my_register_name).INSTALLED) \
     $(LOCAL_INSTALLED_MODULE) $(my_init_rc_installed) $(my_installed_symlinks) \
-    $(my_installed_test_data))
+    $(my_installed_test_data) $(my_vintf_installed))
 ALL_MODULES.$(my_register_name).BUILT_INSTALLED := \
     $(strip $(ALL_MODULES.$(my_register_name).BUILT_INSTALLED) \
     $(LOCAL_BUILT_MODULE):$(LOCAL_INSTALLED_MODULE) \
-    $(my_init_rc_pairs) $(my_test_data_pairs))
+    $(my_init_rc_pairs) $(my_test_data_pairs) $(my_vintf_pairs))
 endif
 ifdef LOCAL_PICKUP_FILES
 # Files or directories ready to pick up by the build system
@@ -655,11 +686,32 @@ ifdef LOCAL_PICKUP_FILES
 ALL_MODULES.$(my_register_name).PICKUP_FILES := \
     $(ALL_MODULES.$(my_register_name).PICKUP_FILES) $(LOCAL_PICKUP_FILES)
 endif
+
 my_required_modules := $(LOCAL_REQUIRED_MODULES) \
     $(LOCAL_REQUIRED_MODULES_$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH))
 ifdef LOCAL_IS_HOST_MODULE
 my_required_modules += $(LOCAL_REQUIRED_MODULES_$($(my_prefix)OS))
 endif
+
+###############################################################################
+## When compiling against the VNDK, add the .vendor suffix to required modules.
+###############################################################################
+ifneq ($(LOCAL_USE_VNDK),)
+  ####################################################
+  ## Soong modules may be built twice, once for /system
+  ## and once for /vendor. If we're using the VNDK,
+  ## switch all soong libraries over to the /vendor
+  ## variant.
+  ####################################################
+  ifneq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
+    # We don't do this renaming for soong-defined modules since they already
+    # have correct names (with .vendor suffix when necessary) in their
+    # LOCAL_*_LIBRARIES.
+    my_required_modules := $(foreach l,$(my_required_modules),\
+      $(if $(SPLIT_VENDOR.SHARED_LIBRARIES.$(l)),$(l).vendor,$(l)))
+  endif
+endif
+
 ALL_MODULES.$(my_register_name).REQUIRED := \
     $(strip $(ALL_MODULES.$(my_register_name).REQUIRED) $(my_required_modules))
 ALL_MODULES.$(my_register_name).EXPLICITLY_REQUIRED := \
@@ -744,8 +796,10 @@ ifneq (,$(filter $(my_module_tags),tests))
 $(j_or_n)-$(h_or_t)-tests $(j_or_n)-tests $(h_or_t)-tests : $(my_checked_module)
 endif
 $(LOCAL_MODULE)-$(h_or_hc_or_t) : $(my_all_targets)
+.PHONY: $(LOCAL_MODULE)-$(h_or_hc_or_t)
 ifeq ($(j_or_n),native)
 $(LOCAL_MODULE)-$(h_or_hc_or_t)$(my_32_64_bit_suffix) : $(my_all_targets)
+.PHONY: $(LOCAL_MODULE)-$(h_or_hc_or_t)$(my_32_64_bit_suffix)
 endif
 endif
 

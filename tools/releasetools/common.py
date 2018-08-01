@@ -109,6 +109,7 @@ class ErrorCode(object):
   TUNE_PARTITION_FAILURE = 3007
   APPLY_PATCH_FAILURE = 3008
 
+
 class ExternalError(RuntimeError):
   pass
 
@@ -596,11 +597,12 @@ def UnzipTemp(filename, pattern=None):
     cmd = ["unzip", "-o", "-q", filename, "-d", dirname]
     if pattern is not None:
       cmd.extend(pattern)
-    p = Run(cmd, stdout=subprocess.PIPE)
-    p.communicate()
+    p = Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdoutdata, _ = p.communicate()
     if p.returncode != 0:
-      raise ExternalError("failed to unzip input target-files \"%s\"" %
-                          (filename,))
+      raise ExternalError(
+          "Failed to unzip input target-files \"{}\":\n{}".format(
+              filename, stdoutdata))
 
   tmp = MakeTempDir(prefix="targetfiles-")
   m = re.match(r"^(.*[.]zip)\+(.*[.]zip)$", filename, re.IGNORECASE)
@@ -652,11 +654,24 @@ def GetSparseImage(which, tmpdir, input_zip, allow_shared_blocks):
   # if they contain all zeros. We can't reconstruct such a file from its block
   # list. Tag such entries accordingly. (Bug: 65213616)
   for entry in image.file_map:
-    # "/system/framework/am.jar" => "SYSTEM/framework/am.jar".
-    arcname = string.replace(entry, which, which.upper(), 1)[1:]
     # Skip artificial names, such as "__ZERO", "__NONZERO-1".
-    if arcname not in input_zip.namelist():
+    if not entry.startswith('/'):
       continue
+
+    # "/system/framework/am.jar" => "SYSTEM/framework/am.jar". Note that when
+    # using system_root_image, the filename listed in system.map may contain an
+    # additional leading slash (i.e. "//system/framework/am.jar"). Using lstrip
+    # to get consistent results.
+    arcname = string.replace(entry, which, which.upper(), 1).lstrip('/')
+
+    # Special handling another case with system_root_image, where files not
+    # under /system (e.g. "/sbin/charger") are packed under ROOT/ in a
+    # target_files.zip.
+    if which == 'system' and not arcname.startswith('SYSTEM'):
+      arcname = 'ROOT/' + arcname
+
+    assert arcname in input_zip.namelist(), \
+        "Failed to find the ZIP entry for {}".format(entry)
 
     info = input_zip.getinfo(arcname)
     ranges = image.file_map[entry]
@@ -723,18 +738,31 @@ def GetKeyPasswords(keylist):
 
 
 def GetMinSdkVersion(apk_name):
-  """Get the minSdkVersion delared in the APK. This can be both a decimal number
-  (API Level) or a codename.
+  """Gets the minSdkVersion declared in the APK.
+
+  It calls 'aapt' to query the embedded minSdkVersion from the given APK file.
+  This can be both a decimal number (API Level) or a codename.
+
+  Args:
+    apk_name: The APK filename.
+
+  Returns:
+    The parsed SDK version string.
+
+  Raises:
+    ExternalError: On failing to obtain the min SDK version.
   """
+  proc = Run(
+      ["aapt", "dump", "badging", apk_name], stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE)
+  stdoutdata, stderrdata = proc.communicate()
+  if proc.returncode != 0:
+    raise ExternalError(
+        "Failed to obtain minSdkVersion: aapt return code {}:\n{}\n{}".format(
+            proc.returncode, stdoutdata, stderrdata))
 
-  p = Run(["aapt", "dump", "badging", apk_name], stdout=subprocess.PIPE)
-  output, err = p.communicate()
-  if err:
-    raise ExternalError("Failed to obtain minSdkVersion: aapt return code %s"
-        % (p.returncode,))
-
-  for line in output.split("\n"):
-    # Looking for lines such as sdkVersion:'23' or sdkVersion:'M'
+  for line in stdoutdata.split("\n"):
+    # Looking for lines such as sdkVersion:'23' or sdkVersion:'M'.
     m = re.match(r'sdkVersion:\'([^\']*)\'', line)
     if m:
       return m.group(1)
@@ -742,11 +770,20 @@ def GetMinSdkVersion(apk_name):
 
 
 def GetMinSdkVersionInt(apk_name, codename_to_api_level_map):
-  """Get the minSdkVersion declared in the APK as a number (API Level). If
-  minSdkVersion is set to a codename, it is translated to a number using the
-  provided map.
-  """
+  """Returns the minSdkVersion declared in the APK as a number (API Level).
 
+  If minSdkVersion is set to a codename, it is translated to a number using the
+  provided map.
+
+  Args:
+    apk_name: The APK filename.
+
+  Returns:
+    The parsed SDK version number.
+
+  Raises:
+    ExternalError: On failing to get the min SDK version number.
+  """
   version = GetMinSdkVersion(apk_name)
   try:
     return int(version)
@@ -755,8 +792,9 @@ def GetMinSdkVersionInt(apk_name, codename_to_api_level_map):
     if version in codename_to_api_level_map:
       return codename_to_api_level_map[version]
     else:
-      raise ExternalError("Unknown minSdkVersion: '%s'. Known codenames: %s"
-                          % (version, codename_to_api_level_map))
+      raise ExternalError(
+          "Unknown minSdkVersion: '{}'. Known codenames: {}".format(
+              version, codename_to_api_level_map))
 
 
 def SignFile(input_name, output_name, key, password, min_api_level=None,
@@ -800,12 +838,15 @@ def SignFile(input_name, output_name, key, password, min_api_level=None,
               key + OPTIONS.private_key_suffix,
               input_name, output_name])
 
-  p = Run(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+  p = Run(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+          stderr=subprocess.STDOUT)
   if password is not None:
     password += "\n"
-  p.communicate(password)
+  stdoutdata, _ = p.communicate(password)
   if p.returncode != 0:
-    raise ExternalError("signapk.jar failed: return code %s" % (p.returncode,))
+    raise ExternalError(
+        "Failed to run signapk.jar: return code {}:\n{}".format(
+            p.returncode, stdoutdata))
 
 
 def CheckSize(data, target, info_dict):
@@ -938,17 +979,18 @@ def ReadApkCerts(tf_zip):
 
 
 COMMON_DOCSTRING = """
-  -p  (--path)  <dir>
-      Prepend <dir>/bin to the list of places to search for binaries
-      run by this script, and expect to find jars in <dir>/framework.
+Global options
+
+  -p  (--path) <dir>
+      Prepend <dir>/bin to the list of places to search for binaries run by this
+      script, and expect to find jars in <dir>/framework.
 
   -s  (--device_specific) <file>
-      Path to the python module containing device-specific
-      releasetools code.
+      Path to the Python module containing device-specific releasetools code.
 
-  -x  (--extra)  <key=value>
-      Add a key/value pair to the 'extras' dict, which device-specific
-      extension code may look at.
+  -x  (--extra) <key=value>
+      Add a key/value pair to the 'extras' dict, which device-specific extension
+      code may look at.
 
   -v  (--verbose)
       Show command lines being executed.
@@ -1716,10 +1758,11 @@ class BlockDifference(object):
                     '--output={}.new.dat.br'.format(self.path),
                     '{}.new.dat'.format(self.path)]
       print("Compressing {}.new.dat with brotli".format(self.partition))
-      p = Run(brotli_cmd, stdout=subprocess.PIPE)
-      p.communicate()
-      assert p.returncode == 0,\
-          'compression of {}.new.dat failed'.format(self.partition)
+      p = Run(brotli_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+      stdoutdata, _ = p.communicate()
+      assert p.returncode == 0, \
+          'Failed to compress {}.new.dat with brotli:\n{}'.format(
+              self.partition, stdoutdata)
 
       new_data_name = '{}.new.dat.br'.format(self.partition)
       ZipWrite(output_zip,

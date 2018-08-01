@@ -14,6 +14,11 @@ ifeq ($(LOCAL_MODULE_CLASS),GYP)
   notice_file :=
 endif
 
+ifeq ($(LOCAL_MODULE_CLASS),FAKE)
+  # We ignore NOTICE files for modules of type FAKE.
+  notice_file :=
+endif
+
 # Soong generates stub libraries that don't need NOTICE files
 ifdef LOCAL_NO_NOTICE_FILE
   ifneq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
@@ -34,6 +39,10 @@ endif
 endif
 
 ifdef notice_file
+
+ifdef my_register_name
+ALL_MODULES.$(my_register_name).NOTICES := $(ALL_MODULES.$(my_register_name).NOTICES) $(notice_file)
+endif
 
 # This relies on the name of the directory in PRODUCT_OUT matching where
 # it's installed on the target - i.e. system, data, etc.  This does

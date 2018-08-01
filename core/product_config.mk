@@ -195,18 +195,13 @@ all_named_products :=
 current_product_makefile :=
 all_product_makefiles :=
 $(foreach f, $(all_product_configs),\
-    $(eval _cpm_words := $(subst :,$(space),$(f)))\
+    $(eval _cpm_words := $(call _decode-product-name,$(f)))\
     $(eval _cpm_word1 := $(word 1,$(_cpm_words)))\
     $(eval _cpm_word2 := $(word 2,$(_cpm_words)))\
-    $(if $(_cpm_word2),\
-        $(eval all_product_makefiles += $(_cpm_word2))\
-        $(eval all_named_products += $(_cpm_word1))\
-        $(if $(filter $(TARGET_PRODUCT),$(_cpm_word1)),\
-            $(eval current_product_makefile += $(_cpm_word2)),),\
-        $(eval all_product_makefiles += $(f))\
-        $(eval all_named_products += $(basename $(notdir $(f))))\
-        $(if $(filter $(TARGET_PRODUCT),$(basename $(notdir $(f)))),\
-            $(eval current_product_makefile += $(f)),)))
+    $(eval all_product_makefiles += $(_cpm_word2))\
+    $(eval all_named_products += $(_cpm_word1))\
+    $(if $(filter $(TARGET_PRODUCT),$(_cpm_word1)),\
+        $(eval current_product_makefile += $(_cpm_word2)),))
 _cpm_words :=
 _cpm_word1 :=
 _cpm_word2 :=
@@ -238,6 +233,12 @@ $(error Product "$(TARGET_PRODUCT)" ambiguous: matches $(current_product_makefil
 endif
 $(call import-products, $(current_product_makefile))
 endif  # Import all or just the current product makefile
+
+# Import all the products that have made artifact path requirements, so that we can verify
+# the artifacts they produce.
+$(foreach makefile,$(ARTIFACT_PATH_REQUIREMENT_PRODUCTS),\
+  $(if $(filter-out $(makefile),$(PRODUCTS)),$(eval $(call import-products,$(makefile))))\
+)
 
 # Sanity check
 $(check-all-products)
@@ -505,3 +506,8 @@ PRODUCT_COMPATIBLE_PROPERTY_OVERRIDE := \
 # Whether the whitelist of actionable compatible properties should be disabled or not
 PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE))
+
+# Logical and Resizable Partitions feature flag.
+PRODUCT_USE_LOGICAL_PARTITIONS := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_LOGICAL_PARTITIONS))
+.KATI_READONLY := PRODUCT_USE_LOGICAL_PARTITIONS
