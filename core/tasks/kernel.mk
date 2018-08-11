@@ -35,10 +35,12 @@ KERNEL_CONFIG_OVERRIDE := CONFIG_ANDROID_BINDER_IPC_32BIT=y
 endif
 endif
 
+BUILD_TOP := $(shell pwd)
+
 ifeq ($(KERNEL_ARCH),arm64)
-KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-androidkernel-
+KERNEL_CROSS_COMPILE := $(BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-androidkernel-
 else ifeq ($(KERNEL_ARCH),arm)
-KERNEL_CROSS_COMPILE := $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-
+KERNEL_CROSS_COMPILE := $(BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-
 else
 $(error The target Kernel architecture is not supported)
 endif
@@ -68,7 +70,7 @@ KERNEL_CFLAGS := KCFLAGS=-mno-android
 endif
 
 ifeq ($(HOST_OS),darwin)
-    MAKE_FLAGS += C_INCLUDE_PATH=$(ANDROID_BUILD_TOP)/external/elfutils/src/libelf/
+    MAKE_FLAGS += C_INCLUDE_PATH=$(BUILD_TOP)/external/elfutils/src/libelf/
 endif
 
 # Initialize CCACHE as an empty argument.
@@ -81,7 +83,7 @@ ifneq ($(filter-out false,$(USE_CCACHE)),)
 
     # Use the prebuilt one if host doesn't have ccache installed.
     ifeq ($(CCACHE),)
-        CCACHE := $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache
+        CCACHE := $(BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache
         # Check that the executable is here.
         CCACHE := $(strip $(wildcard $(CCACHE)))
     endif
@@ -141,7 +143,7 @@ fi
 endef
 
 ifeq ($(HOST_OS),darwin)
-  MAKE_FLAGS += C_INCLUDE_PATH=$(ANDROID_BUILD_TOP)/build/core/combo/include/arch/darwin-x86/
+  MAKE_FLAGS += C_INCLUDE_PATH=$(BUILD_TOP)/build/core/combo/include/arch/darwin-x86/
 endif
 
 $(KERNEL_OUT):
