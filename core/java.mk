@@ -15,10 +15,6 @@ endif
 endif # !PDK_JAVA
 endif #PDK
 
-ifndef LOCAL_USE_R8
-LOCAL_USE_R8 := $(USE_R8)
-endif
-
 LOCAL_NO_STANDARD_LIBRARIES:=$(strip $(LOCAL_NO_STANDARD_LIBRARIES))
 LOCAL_SDK_VERSION:=$(strip $(LOCAL_SDK_VERSION))
 
@@ -73,12 +69,12 @@ full_classes_header_jar := $(intermediates.COMMON)/classes-header.jar
 full_classes_compiled_jar := $(intermediates.COMMON)/classes-full-debug.jar
 full_classes_processed_jar := $(intermediates.COMMON)/classes-processed.jar
 full_classes_jarjar_jar := $(intermediates.COMMON)/classes-jarjar.jar
-full_classes_proguard_jar := $(intermediates.COMMON)/classes-proguard.jar
 full_classes_combined_jar := $(intermediates.COMMON)/classes-combined.jar
 built_dex_intermediate := $(intermediates.COMMON)/dex/classes.dex
 built_dex_hiddenapi := $(intermediates.COMMON)/dex-hiddenapi/classes.dex
 full_classes_stubs_jar := $(intermediates.COMMON)/stubs.jar
 java_source_list_file := $(intermediates.COMMON)/java-source-list
+greylist_txt := $(intermediates.COMMON)/greylist.txt
 
 
 ifeq ($(LOCAL_MODULE_CLASS)$(LOCAL_SRC_FILES)$(LOCAL_STATIC_JAVA_LIBRARIES)$(LOCAL_SOURCE_FILES_ALL_GENERATED),APPS)
@@ -96,7 +92,6 @@ LOCAL_INTERMEDIATE_TARGETS += \
     $(full_classes_jarjar_jar) \
     $(full_classes_jar) \
     $(full_classes_combined_jar) \
-    $(full_classes_proguard_jar) \
     $(built_dex_intermediate) \
     $(built_dex) \
     $(full_classes_stubs_jar) \
@@ -308,6 +303,7 @@ $(full_classes_compiled_jar): \
 
 javac-check : $(full_classes_compiled_jar)
 javac-check-$(LOCAL_MODULE) : $(full_classes_compiled_jar)
+.PHONY: javac-check-$(LOCAL_MODULE)
 
 $(full_classes_combined_jar): PRIVATE_DONT_DELETE_JAR_META_INF := $(LOCAL_DONT_DELETE_JAR_META_INF)
 $(full_classes_combined_jar): $(full_classes_compiled_jar) \
@@ -403,12 +399,7 @@ else
 endif
 endif
 
-ifeq ($(USE_R8),true)
-proguard_jars_prefix := -libraryjars
-else
-proguard_jars_prefix := -systemjars
-endif
-legacy_proguard_flags := $(addprefix $(proguard_jars_prefix) ,$(my_proguard_sdk_raise) \
+legacy_proguard_flags := $(addprefix -libraryjars ,$(my_proguard_sdk_raise) \
   $(filter-out $(my_proguard_sdk_raise), \
     $(full_java_bootclasspath_libs) \
     $(full_shared_java_header_libs)))
@@ -462,21 +453,20 @@ legacy_proguard_flags := -injars  $(link_instr_classes_jar) \
     -applymapping $(link_instr_intermediates_dir.COMMON)/proguard_dictionary \
     -verbose \
     $(legacy_proguard_flags)
+legacy_proguard_lib_deps += \
+  $(link_instr_classes_jar) \
+  $(link_instr_intermediates_dir.COMMON)/proguard_options \
+  $(link_instr_intermediates_dir.COMMON)/proguard_dictionary \
 
 # Sometimes (test + main app) uses different keep rules from the main app -
 # apply the main app's dictionary anyway.
 legacy_proguard_flags += -ignorewarnings
 
-# Make sure we run Proguard on the main app first
-$(full_classes_proguard_jar) : $(link_instr_intermediates_dir.COMMON)/proguard.classes.jar
-
 endif # no obfuscation
 endif # LOCAL_INSTRUMENTATION_FOR
 
 proguard_flag_files := $(addprefix $(LOCAL_PATH)/, $(LOCAL_PROGUARD_FLAG_FILES))
-ifeq ($(LOCAL_USE_R8),true)
 proguard_flag_files += $(addprefix $(LOCAL_PATH)/, $(LOCAL_R8_FLAG_FILES))
-endif # LOCAL_USE_R8
 LOCAL_PROGUARD_FLAGS += $(addprefix -include , $(proguard_flag_files))
 
 ifdef LOCAL_TEST_MODULE_TO_PROGUARD_WITH
@@ -486,54 +476,34 @@ extra_input_jar :=
 endif
 
 ifneq ($(filter obfuscation,$(LOCAL_PROGUARD_ENABLED)),)
-ifneq ($(LOCAL_USE_R8),true)
-  $(full_classes_proguard_jar): .KATI_IMPLICIT_OUTPUTS := $(proguard_dictionary) $(proguard_configuration)
-else
   $(built_dex_intermediate): .KATI_IMPLICIT_OUTPUTS := $(proguard_dictionary) $(proguard_configuration)
 endif
-endif
-
-# If R8 is not enabled run Proguard.
-ifneq ($(LOCAL_USE_R8),true)
-# Changes to these dependencies need to be replicated below when using R8
-# instead of Proguard + dx.
-$(full_classes_proguard_jar): PRIVATE_EXTRA_INPUT_JAR := $(extra_input_jar)
-$(full_classes_proguard_jar): PRIVATE_PROGUARD_FLAGS := $(legacy_proguard_flags) $(common_proguard_flags) $(LOCAL_PROGUARD_FLAGS)
-$(full_classes_proguard_jar) : $(full_classes_pre_proguard_jar) $(extra_input_jar) $(my_proguard_sdk_raise) $(common_proguard_flag_files) $(proguard_flag_files) $(legacy_proguard_lib_deps) | $(PROGUARD)
-	$(call transform-jar-to-proguard)
-else # !LOCAL_USE_R8
-# Running R8 instead of Proguard, proguarded jar is actually the pre-Proguarded jar.
-full_classes_proguard_jar := $(full_classes_pre_proguard_jar)
-endif # !LOCAL_USE_R8
 
 else  # LOCAL_PROGUARD_ENABLED not defined
 proguard_flag_files :=
-full_classes_proguard_jar := $(full_classes_pre_proguard_jar)
 endif # LOCAL_PROGUARD_ENABLED defined
 
 ifneq ($(LOCAL_IS_STATIC_JAVA_LIBRARY),true)
 $(built_dex_intermediate): PRIVATE_DX_FLAGS := $(LOCAL_DX_FLAGS)
 
-my_r8 :=
 ifdef LOCAL_PROGUARD_ENABLED
-ifeq ($(LOCAL_USE_R8),true)
-# These are the dependencies for the proguarded jar when running
-# Proguard + dx. They are used for the generated dex when using R8, as
-# R8 does Proguard + dx
-my_r8 := true
-$(built_dex_intermediate): PRIVATE_EXTRA_INPUT_JAR := $(extra_input_jar)
-$(built_dex_intermediate): PRIVATE_PROGUARD_FLAGS := $(legacy_proguard_flags) $(common_proguard_flags) $(LOCAL_PROGUARD_FLAGS)
-$(built_dex_intermediate) : $(full_classes_proguard_jar) $(extra_input_jar) $(my_proguard_sdk_raise) $(common_proguard_flag_files) $(proguard_flag_files) $(legacy_proguard_lib_deps) $(R8_COMPAT_PROGUARD)
+  $(built_dex_intermediate): PRIVATE_EXTRA_INPUT_JAR := $(extra_input_jar)
+  $(built_dex_intermediate): PRIVATE_PROGUARD_FLAGS := $(legacy_proguard_flags) $(common_proguard_flags) $(LOCAL_PROGUARD_FLAGS)
+  $(built_dex_intermediate) : $(full_classes_pre_proguard_jar) $(extra_input_jar) $(my_proguard_sdk_raise) $(common_proguard_flag_files) $(proguard_flag_files) $(legacy_proguard_lib_deps) $(R8_COMPAT_PROGUARD)
 	$(transform-jar-to-dex-r8)
-endif # LOCAL_USE_R8
-endif # LOCAL_PROGUARD_ENABLED
-
-ifndef my_r8
-$(built_dex_intermediate): $(full_classes_proguard_jar) $(DX) $(ZIP2ZIP)
+else # !LOCAL_PROGUARD_ENABLED
+  $(built_dex_intermediate): $(full_classes_pre_proguard_jar) $(DX) $(ZIP2ZIP)
 	$(transform-classes.jar-to-dex)
 endif
 
 ifneq ($(filter $(LOCAL_MODULE),$(PRODUCT_BOOT_JARS)),) # is_boot_jar
+  # Derive API greylist from the classes jar.
+  # We use full_classes_pre_proguard_jar here, as that is what is converted to
+  # dex later on. The difference is academic currently, as we don't proguard any
+  # bootclasspath code at the moment. If we were to do that, we should add keep
+  # rules for all members with the @UnsupportedAppUsage annotation.
+  $(eval $(call hiddenapi-generate-greylist-txt,$(full_classes_pre_proguard_jar),$(greylist_txt)))
+  LOCAL_INTERMEDIATE_TARGETS += $(greylist_txt)
   $(eval $(call hiddenapi-copy-dex-files,$(built_dex_intermediate),$(built_dex_hiddenapi)))
   built_dex_copy_from := $(built_dex_hiddenapi)
 else # !is_boot_jar
@@ -566,6 +536,7 @@ ALL_FINDBUGS_FILES += $(findbugs_xml)
 findbugs_html := $(PRODUCT_OUT)/findbugs/$(LOCAL_MODULE).html
 $(findbugs_html) : PRIVATE_XML_FILE := $(findbugs_xml)
 $(LOCAL_MODULE)-findbugs : $(findbugs_html)
+.PHONY: $(LOCAL_MODULE)-findbugs
 $(findbugs_html) : $(findbugs_xml)
 	@mkdir -p $(dir $@)
 	@echo ConvertXmlToText: $@

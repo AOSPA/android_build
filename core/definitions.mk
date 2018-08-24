@@ -742,18 +742,6 @@ define exported-sdk-libs-files
 $(foreach lib,$(1),$(call intermediates-dir-for,JAVA_LIBRARIES,$(lib),,COMMON)/exported-sdk-libs)
 endef
 
-# Fix manifest
-# $(1): input manifest path
-# $(2): output manifest path
-# $(3): min sdk version
-# $(4): (optional) exported-sdk-libs file
-define fix-manifest
-$(MANIFEST_FIXER) \
---minSdkVersion $(3) \
-$(if $(4),$$(cat $(4) | sort -u | sed -e 's/^/\ --uses-library\ /' | tr '\n' ' ')) \
-$(1) $(2)
-endef
-
 ###########################################################
 ## Returns true if $(1) and $(2) are equal.  Returns
 ## the empty string if they are not equal.
@@ -808,8 +796,8 @@ endef
 
 define collapse-pairs
 $(eval _cpSEP := $(strip $(if $(2),$(2),=)))\
-$(subst $(space)$(_cpSEP)$(space),$(_cpSEP),$(strip \
-    $(subst $(_cpSEP), $(_cpSEP) ,$(1))))
+$(strip $(subst $(space)$(_cpSEP)$(space),$(_cpSEP),$(strip \
+    $(subst $(_cpSEP), $(_cpSEP) ,$(1)))$(space)))
 endef
 
 ###########################################################
@@ -1967,13 +1955,13 @@ $(hide) $(PRIVATE_CXX) \
 	-Wl,--whole-archive \
 	$(PRIVATE_ALL_WHOLE_STATIC_LIBRARIES) \
 	-Wl,--no-whole-archive \
-	$(filter-out %libcompiler_rt.a,$(filter-out %libc_nomalloc.a,$(filter-out %libc.a,$(PRIVATE_ALL_STATIC_LIBRARIES)))) \
+	$(filter-out %libcompiler_rt.hwasan.a %libc_nomalloc.hwasan.a %libc.hwasan.a %libcompiler_rt.a %libc_nomalloc.a %libc.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
 	-Wl,--start-group \
-	$(filter %libc.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
-	$(filter %libc_nomalloc.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
+	$(filter %libc.a %libc.hwasan.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
+	$(filter %libc_nomalloc.a %libc_nomalloc.hwasan.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
 	$(if $(filter true,$(NATIVE_COVERAGE)),$(PRIVATE_TARGET_COVERAGE_LIB)) \
 	$(PRIVATE_TARGET_LIBATOMIC) \
-	$(filter %libcompiler_rt.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
+	$(filter %libcompiler_rt.a %libcompiler_rt.hwasan.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
 	$(PRIVATE_TARGET_LIBGCC) \
 	-Wl,--end-group \
 	$(PRIVATE_TARGET_CRTEND_O)
@@ -2132,7 +2120,9 @@ endef
 # $(2): the base dir of the output file path
 # Returns: the compiled output file path
 define aapt2-compiled-resource-out-file
-$(eval _p_w := $(strip $(subst /,$(space),$(dir $(1)))))$(2)/$(subst $(space),/,$(_p_w))_$(if $(filter values%,$(lastword $(_p_w))),$(patsubst %.xml,%.arsc,$(notdir $(1))),$(notdir $(1))).flat
+$(strip \
+  $(eval _p_w := $(strip $(subst /,$(space),$(dir $(call clean-path,$(1))))))
+  $(2)/$(subst $(space),/,$(_p_w))_$(if $(filter values%,$(lastword $(_p_w))),$(patsubst %.xml,%.arsc,$(notdir $(1))),$(notdir $(1))).flat)
 endef
 
 define aapt2-link
@@ -2563,6 +2553,34 @@ $(hide) \
   mv $@.compressed $@;
 endef
 
+ifeq ($(HOST_OS),linux)
+# Runs appcompat and store logs in $(PRODUCT_OUT)/appcompat
+define extract-package
+$(if $(filter aapt2, $(1)), \
+  $(AAPT2) dump resources $@ | awk -F ' |=' '/^Package/{print $$3}' >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log &&, \
+  $(AAPT) dump badging $@ | awk -F \' '/^package/{print $$2}' >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log &&)
+endef
+define appcompat-header
+$(hide) \
+  mkdir -p $(PRODUCT_OUT)/appcompat && \
+  rm -f $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log && \
+  echo -n "Package name: " >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log && \
+  $(call extract-package, $(1)) \
+  echo "Module name in Android tree: $(PRIVATE_MODULE)" >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log && \
+  echo "Local path in Android tree: $(PRIVATE_PATH)" >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log && \
+  echo "Install path on $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT): $(PRIVATE_INSTALLED_MODULE)" >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log && \
+  echo >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log
+endef
+define run-appcompat
+$(hide) \
+  echo "appcompat.sh output:" >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log && \
+  art/tools/veridex/appcompat.sh --dex-file=$@ 2>&1 >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log
+endef
+else
+appcompat-header =
+run-appcompat =
+endif  # HOST_OS == linux
+
 # Remove dynamic timestamps from packages
 #
 define remove-timestamps-from-package
@@ -2861,6 +2879,19 @@ $(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): \
     PRIVATE_DEX_INPUTS := $$(PRIVATE_DEX_INPUTS) $(1)
 endef
 
+# Generate a greylist.txt from a classes.jar
+define hiddenapi-generate-greylist-txt
+ifneq (,$(wildcard frameworks/base))
+# Only generate this target if we're in a tree with frameworks/base present.
+$(2): $(1) $(CLASS2GREYLIST) $(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST)
+	$(CLASS2GREYLIST) --public-api-list $(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST) $(1) > $(2)
+
+$(INTERNAL_PLATFORM_HIDDENAPI_LIGHT_GREYLIST): $(2)
+$(INTERNAL_PLATFORM_HIDDENAPI_LIGHT_GREYLIST): \
+    PRIVATE_GREYLIST_INPUTS := $$(PRIVATE_GREYLIST_INPUTS) $(2)
+endif
+endef
+
 # File names for intermediate dex files of `hiddenapi-copy-soong-jar`.
 hiddenapi-soong-input-dex = $(dir $(1))/hiddenapi/dex-input/classes.dex
 hiddenapi-soong-output-dex = $(dir $(1))/hiddenapi/dex-output/classes.dex
@@ -2883,22 +2914,6 @@ $(2): $(1) $(call hiddenapi-soong-output-dex,$(2)) | $(SOONG_ZIP) $(MERGE_ZIPS)
 	$(SOONG_ZIP) -o $${OUTPUT_JAR} -C $${OUTPUT_DIR} -D $${OUTPUT_DIR}
 	$(MERGE_ZIPS) -D -zipToNotStrip $${OUTPUT_JAR} -stripFile "classes*.dex" $(2) $${OUTPUT_JAR} $(1)
 endef
-
-###########################################################
-## Commands to call Proguard
-###########################################################
-ifdef TARGET_OPENJDK9
-define transform-jar-to-proguard
-@echo Skipping Proguard: $< $@
-$(hide) cp '$<' $@
-endef
-else
-define transform-jar-to-proguard
-@echo Proguard: $@
-$(hide) $(PROGUARD) -injars $< -outjars $@ $(PRIVATE_PROGUARD_FLAGS) \
-    $(addprefix -injars , $(PRIVATE_EXTRA_INPUT_JAR))
-endef
-endif
 
 
 ###########################################################

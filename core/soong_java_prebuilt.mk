@@ -19,19 +19,10 @@ full_classes_jar := $(intermediates.COMMON)/classes.jar
 full_classes_pre_proguard_jar := $(intermediates.COMMON)/classes-pre-proguard.jar
 full_classes_header_jar := $(intermediates.COMMON)/classes-header.jar
 common_javalib.jar := $(intermediates.COMMON)/javalib.jar
+greylist_txt := $(intermediates.COMMON)/greylist.txt
 
 $(eval $(call copy-one-file,$(LOCAL_PREBUILT_MODULE_FILE),$(full_classes_jar)))
 $(eval $(call copy-one-file,$(LOCAL_PREBUILT_MODULE_FILE),$(full_classes_pre_proguard_jar)))
-
-ifdef LOCAL_DROIDDOC_STUBS_SRCJAR
-$(eval $(call copy-one-file,$(LOCAL_DROIDDOC_STUBS_SRCJAR),$(OUT_DOCS)/$(LOCAL_MODULE)-stubs.srcjar))
-ALL_DOCS += $(OUT_DOCS)/$(LOCAL_MODULE)-stubs.srcjar
-endif
-
-ifdef LOCAL_DROIDDOC_DOC_ZIP
-$(eval $(call copy-one-file,$(LOCAL_DROIDDOC_DOC_ZIP),$(OUT_DOCS)/$(LOCAL_MODULE)-docs.zip))
-$(call dist-for-goals,docs,$(OUT_DOCS)/$(LOCAL_MODULE)-docs.zip)
-endif
 
 ifdef LOCAL_SOONG_JACOCO_REPORT_CLASSES_JAR
   $(eval $(call copy-one-file,$(LOCAL_SOONG_JACOCO_REPORT_CLASSES_JAR),\
@@ -82,6 +73,11 @@ ifdef LOCAL_SOONG_DEX_JAR
   ifneq ($(LOCAL_UNINSTALLABLE_MODULE),true)
     ifndef LOCAL_IS_HOST_MODULE
       ifneq ($(filter $(LOCAL_MODULE),$(PRODUCT_BOOT_JARS)),)  # is_boot_jar
+        # Derive greylist from classes.jar.
+        # We use full_classes_jar here, which is the post-proguard jar (on the basis that we also
+        # have a full_classes_pre_proguard_jar). This is consistent with the equivalent code in
+        # java.mk.
+        $(eval $(call hiddenapi-generate-greylist-txt,$(full_classes_jar),$(greylist_txt)))
         $(eval $(call hiddenapi-copy-soong-jar,$(LOCAL_SOONG_DEX_JAR),$(common_javalib.jar)))
       else # !is_boot_jar
         $(eval $(call copy-one-file,$(LOCAL_SOONG_DEX_JAR),$(common_javalib.jar)))
@@ -131,6 +127,7 @@ endif  # LOCAL_SOONG_DEX_JAR
 
 javac-check : $(full_classes_jar)
 javac-check-$(LOCAL_MODULE) : $(full_classes_jar)
+.PHONY: javac-check-$(LOCAL_MODULE)
 
 ifndef LOCAL_IS_HOST_MODULE
 ifeq ($(LOCAL_SDK_VERSION),system_current)
@@ -164,3 +161,5 @@ $(my_exported_sdk_libs_file):
 	$(if $(PRIVATE_EXPORTED_SDK_LIBS),\
 		$(hide) echo $(PRIVATE_EXPORTED_SDK_LIBS) | tr ' ' '\n' > $@,\
 		$(hide) touch $@)
+
+SOONG_ALREADY_CONV := $(SOONG_ALREADY_CONV) $(LOCAL_MODULE)

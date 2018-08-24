@@ -697,16 +697,10 @@ def AddCompatibilityArchiveIfTrebleEnabled(target_zip, output_zip, target_info,
   if not HasTrebleEnabled(target_zip, target_info):
     return
 
-  # We don't support OEM thumbprint in Treble world (which calculates
-  # fingerprints in a different way as shown in CalculateFingerprint()).
-  assert not target_info.oem_props
-
   # Full OTA carries the info for system/vendor both.
   if source_info is None:
     AddCompatibilityArchive(True, True)
     return
-
-  assert not source_info.oem_props
 
   source_fp = source_info.fingerprint
   target_fp = target_info.fingerprint
@@ -833,7 +827,8 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
                                      allow_shared_blocks)
   system_tgt.ResetFileMap()
   system_diff = common.BlockDifference("system", system_tgt, src=None)
-  system_diff.WriteScript(script, output_zip)
+  system_diff.WriteScript(script, output_zip,
+                          write_verify_script=OPTIONS.verify)
 
   boot_img = common.GetBootableImage(
       "boot.img", "boot.img", OPTIONS.input_tmp, "BOOT")
@@ -845,7 +840,8 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
                                        allow_shared_blocks)
     vendor_tgt.ResetFileMap()
     vendor_diff = common.BlockDifference("vendor", vendor_tgt)
-    vendor_diff.WriteScript(script, output_zip)
+    vendor_diff.WriteScript(script, output_zip,
+                            write_verify_script=OPTIONS.verify)
 
   AddCompatibilityArchiveIfTrebleEnabled(input_zip, output_zip, target_info)
 
@@ -1565,10 +1561,12 @@ else
   device_specific.IncrementalOTA_InstallBegin()
 
   system_diff.WriteScript(script, output_zip,
-                          progress=0.8 if vendor_diff else 0.9)
+                          progress=0.8 if vendor_diff else 0.9,
+                          write_verify_script=OPTIONS.verify)
 
   if vendor_diff:
-    vendor_diff.WriteScript(script, output_zip, progress=0.1)
+    vendor_diff.WriteScript(script, output_zip, progress=0.1,
+                            write_verify_script=OPTIONS.verify)
 
   if OPTIONS.two_step:
     common.ZipWriteStr(output_zip, "boot.img", target_boot.data)

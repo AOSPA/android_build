@@ -105,6 +105,8 @@ $(OUT_DIR)/products/$(strip $(1)).txt: $(this_makefile)
 	$(hide) echo 'PRODUCT_DEFAULT_PROPERTY_OVERRIDES=$$(PRODUCTS.$(strip $(1)).PRODUCT_DEFAULT_PROPERTY_OVERRIDES)' >> $$@
 	$(hide) echo 'PRODUCT_SYSTEM_DEFAULT_PROPERTIES=$$(PRODUCTS.$(strip $(1)).PRODUCT_SYSTEM_DEFAULT_PROPERTIES)' >> $$@
 	$(hide) echo 'PRODUCT_PRODUCT_PROPERTIES=$$(PRODUCTS.$(strip $(1)).PRODUCT_PRODUCT_PROPERTIES)' >> $$@
+	$(hide) echo 'PRODUCT_PRODUCT_SERVICES_PROPERTIES=$$(PRODUCTS.$(strip $(1)).PRODUCT_PRODUCT_SERVICES_PROPERTIES)' >> $$@
+	$(hide) echo 'PRODUCT_ODM_PROPERTIES=$$(PRODUCTS.$(strip $(1)).PRODUCT_ODM_PROPERTIES)' >> $$@
 	$(hide) echo 'PRODUCT_CHARACTERISTICS=$$(PRODUCTS.$(strip $(1)).PRODUCT_CHARACTERISTICS)' >> $$@
 	$(hide) echo 'PRODUCT_COPY_FILES=$$(PRODUCTS.$(strip $(1)).PRODUCT_COPY_FILES)' >> $$@
 	$(hide) echo 'PRODUCT_OTA_PUBLIC_KEYS=$$(PRODUCTS.$(strip $(1)).PRODUCT_OTA_PUBLIC_KEYS)' >> $$@
@@ -144,3 +146,4 @@ $(products_svg): $(products_graph) $(product_debug_files)
 	dot -Tsvg -Nshape=box -o $@ $<
 
 product-graph: $(products_pdf) $(products_svg)
+.PHONY: product-graph

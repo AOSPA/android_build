@@ -243,11 +243,6 @@ $(foreach makefile,$(ARTIFACT_PATH_REQUIREMENT_PRODUCTS),\
 # Sanity check
 $(check-all-products)
 
-ifneq ($(filter dump-products, $(MAKECMDGOALS)),)
-$(dump-products)
-$(error done)
-endif
-
 # Convert a short name like "sooner" into the path to the product
 # file defining that product.
 #
@@ -372,6 +367,14 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES := \
 PRODUCT_PRODUCT_PROPERTIES := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PRODUCT_PROPERTIES))
 .KATI_READONLY := PRODUCT_PRODUCT_PROPERTIES
+
+
+# A list of property assignments, like "key = value", with zero or more
+# whitespace characters on either side of the '='.
+# used for adding properties to build.prop of product partition
+PRODUCT_PRODUCT_SERVICES_PROPERTIES := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PRODUCT_SERVICES_PROPERTIES))
+.KATI_READONLY := PRODUCT_PRODUCT_SERVICES_PROPERTIES
 
 # Should we use the default resources or add any product specific overlays
 PRODUCT_PACKAGE_OVERLAYS := \
@@ -511,3 +514,24 @@ PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE := \
 PRODUCT_USE_LOGICAL_PARTITIONS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_LOGICAL_PARTITIONS))
 .KATI_READONLY := PRODUCT_USE_LOGICAL_PARTITIONS
+
+# All requirements of PRODUCT_USE_LOGICAL_PARTITIONS falls back to
+# PRODUCT_USE_LOGICAL_PARTITIONS if not defined.
+PRODUCT_USE_DYNAMIC_PARTITION_SIZE := $(or \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_DYNAMIC_PARTITION_SIZE)),\
+    $(PRODUCT_USE_LOGICAL_PARTITIONS))
+.KATI_READONLY := PRODUCT_USE_DYNAMIC_PARTITION_SIZE
+PRODUCT_BUILD_SUPER_PARTITION := $(or \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_BUILD_SUPER_PARTITION)),\
+    $(PRODUCT_USE_LOGICAL_PARTITIONS))
+.KATI_READONLY := PRODUCT_BUILD_SUPER_PARTITION
+PRODUCT_USE_FASTBOOTD := $(or \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_FASTBOOTD)),\
+    $(PRODUCT_USE_LOGICAL_PARTITIONS))
+.KATI_READONLY := PRODUCT_USE_FASTBOOTD
+
+# List of modules that should be forcefully unmarked from being LOCAL_PRODUCT_MODULE, and hence
+# installed on /system directory by default.
+PRODUCT_FORCE_PRODUCT_MODULES_TO_SYSTEM_PARTITION := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_FORCE_PRODUCT_MODULES_TO_SYSTEM_PARTITION))
+.KATI_READONLY := PRODUCT_FORCE_PRODUCT_MODULES_TO_SYSTEM_PARTITION

@@ -167,14 +167,6 @@ BUILD_HOST_DALVIK_STATIC_JAVA_LIBRARY := $(BUILD_SYSTEM)/host_dalvik_static_java
 BUILD_HOST_TEST_CONFIG := $(BUILD_SYSTEM)/host_test_config.mk
 BUILD_TARGET_TEST_CONFIG := $(BUILD_SYSTEM)/target_test_config.mk
 
-INSTRUMENTATION_TEST_CONFIG_TEMPLATE := $(BUILD_SYSTEM)/instrumentation_test_config_template.xml
-NATIVE_BENCHMARK_TEST_CONFIG_TEMPLATE := $(BUILD_SYSTEM)/native_benchmark_test_config_template.xml
-NATIVE_TEST_CONFIG_TEMPLATE := $(BUILD_SYSTEM)/native_test_config_template.xml
-EMPTY_TEST_CONFIG := $(BUILD_SYSTEM)/empty_test_config.xml
-
-# Tool to generate TradeFed test config file automatically.
-AUTOGEN_TEST_CONFIG_SCRIPT := build/make/tools/auto_gen_test_config.py
-
 # ###############################################################
 # Parse out any modifier targets.
 # ###############################################################
@@ -588,12 +580,6 @@ USE_PREBUILT_SDK_TOOLS_IN_PLACE := true
 USE_D8 := true
 .KATI_READONLY := USE_D8
 
-# Default R8 behavior when USE_R8 is not specified.
-ifndef USE_R8
-  USE_R8 := true
-endif
-.KATI_READONLY := USE_R8
-
 #
 # Tools that are prebuilts for TARGET_BUILD_APPS
 #
@@ -665,10 +651,7 @@ else
 BREAKPAD_GENERATE_SYMBOLS := false
 endif
 PROTOC := $(HOST_OUT_EXECUTABLES)/aprotoc$(HOST_EXECUTABLE_SUFFIX)
-NANOPB_SRCS := external/nanopb-c/generator/protoc-gen-nanopb \
-    $(wildcard external/nanopb-c/generator/*.py \
-               external/nanopb-c/generator/google/*.py \
-               external/nanopb-c/generator/proto/*.py)
+NANOPB_SRCS := $(HOST_OUT_EXECUTABLES)/protoc-gen-nanopb
 VTSC := $(HOST_OUT_EXECUTABLES)/vtsc$(HOST_EXECUTABLE_SUFFIX)
 MKBOOTFS := $(HOST_OUT_EXECUTABLES)/mkbootfs$(HOST_EXECUTABLE_SUFFIX)
 MINIGZIP := $(HOST_OUT_EXECUTABLES)/minigzip$(HOST_EXECUTABLE_SUFFIX)
@@ -707,6 +690,7 @@ JARJAR := $(HOST_OUT_JAVA_LIBRARIES)/jarjar.jar
 DATA_BINDING_COMPILER := $(HOST_OUT_JAVA_LIBRARIES)/databinding-compiler.jar
 FAT16COPY := build/make/tools/fat16copy.py
 CHECK_LINK_TYPE := build/make/tools/check_link_type.py
+UUIDGEN := build/make/tools/uuidgen.py
 
 PROGUARD := external/proguard/bin/proguard.sh
 JAVATAGS := build/make/tools/java-event-log-tags.py
@@ -725,6 +709,7 @@ BRILLO_UPDATE_PAYLOAD := $(HOST_OUT_EXECUTABLES)/brillo_update_payload
 DEXDUMP := $(HOST_OUT_EXECUTABLES)/dexdump2$(BUILD_EXECUTABLE_SUFFIX)
 PROFMAN := $(HOST_OUT_EXECUTABLES)/profman
 HIDDENAPI := $(HOST_OUT_EXECUTABLES)/hiddenapi
+CLASS2GREYLIST := $(HOST_OUT_EXECUTABLES)/class2greylist
 
 FINDBUGS_DIR := external/owasp/sanitizer/tools/findbugs/bin
 FINDBUGS := $(FINDBUGS_DIR)/findbugs
@@ -861,11 +846,6 @@ endif
 
 
 ifdef PRODUCT_SHIPPING_API_LEVEL
-  ifneq ($(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),27),)
-    ifneq ($(TARGET_USES_MKE2FS),true)
-      $(error When PRODUCT_SHIPPING_API_LEVEL >= 27, TARGET_USES_MKE2FS must be true)
-    endif
-  endif
   ifneq ($(call numbers_less_than,$(PRODUCT_SHIPPING_API_LEVEL),$(BOARD_SYSTEMSDK_VERSIONS)),)
     $(error BOARD_SYSTEMSDK_VERSIONS ($(BOARD_SYSTEMSDK_VERSIONS)) must all be greater than or equal to PRODUCT_SHIPPING_API_LEVEL ($(PRODUCT_SHIPPING_API_LEVEL)))
   endif
@@ -879,6 +859,11 @@ ifdef PRODUCT_SHIPPING_API_LEVEL
       ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE), true)
         $(error When PRODUCT_SHIPPING_API_LEVEL >= 28, BOARD_BUILD_SYSTEM_ROOT_IMAGE must be true)
       endif
+    endif
+  endif
+  ifneq ($(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),29),)
+    ifneq ($(BOARD_OTA_FRAMEWORK_VBMETA_VERSION_OVERRIDE),)
+      $(error When PRODUCT_SHIPPING_API_LEVEL >= 29, BOARD_OTA_FRAMEWORK_VBMETA_VERSION_OVERRIDE cannot be set)
     endif
   endif
 endif
@@ -924,20 +909,43 @@ sepolicy_minor_vers :=
 # A list of SEPolicy versions, besides PLATFORM_SEPOLICY_VERSION, that the framework supports.
 PLATFORM_SEPOLICY_COMPAT_VERSIONS := \
     26.0 \
-    27.0
+    27.0 \
+    28.0 \
 
 .KATI_READONLY := \
     PLATFORM_SEPOLICY_COMPAT_VERSIONS \
     PLATFORM_SEPOLICY_VERSION \
     TOT_SEPOLICY_VERSION \
 
-ifndef USE_LOGICAL_PARTITIONS
-  USE_LOGICAL_PARTITIONS := $(PRODUCT_USE_LOGICAL_PARTITIONS)
+# If true, kernel configuration requirements are present in OTA package (and will be enforced
+# during OTA). Otherwise, kernel configuration requirements are enforced in VTS.
+# Devices that checks the running kernel (instead of the kernel in OTA package) should not
+# set this variable to prevent OTA failures.
+ifndef PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
+  PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS :=
+  ifdef PRODUCT_SHIPPING_API_LEVEL
+    ifeq (true,$(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),29))
+      PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := true
+    endif
+  endif
 endif
-.KATI_READONLY := USE_LOGICAL_PARTITIONS
+.KATI_READONLY := PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
 
-ifeq ($(USE_LOGICAL_PARTITIONS),true)
+ifeq ($(PRODUCT_USE_LOGICAL_PARTITIONS),true)
+    requirements := \
+        PRODUCT_USE_DYNAMIC_PARTITION_SIZE \
+        PRODUCT_BUILD_SUPER_PARTITION \
+        PRODUCT_USE_FASTBOOTD \
+
+    $(foreach req,$(requirements),$(if $(filter false,$($(req))),\
+        $(error PRODUCT_USE_LOGICAL_PARTITIONS requires $(req) to be true)))
+
+    requirements :=
+
   BOARD_KERNEL_CMDLINE += androidboot.logical_partitions=1
+endif
+
+ifeq ($(PRODUCT_USE_DYNAMIC_PARTITION_SIZE),true)
 
 ifneq ($(BOARD_SYSTEMIMAGE_PARTITION_SIZE),)
 ifneq ($(BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE),)
@@ -953,7 +961,41 @@ $(error Should not define BOARD_VENDORIMAGE_PARTITION_SIZE and \
 endif
 endif
 
-endif # USE_LOGICAL_PARTITIONS
+ifneq ($(BOARD_ODMIMAGE_PARTITION_SIZE),)
+ifneq ($(BOARD_ODMIMAGE_PARTITION_RESERVED_SIZE),)
+$(error Should not define BOARD_ODMIMAGE_PARTITION_SIZE and \
+    BOARD_ODMIMAGE_PARTITION_RESERVED_SIZE together)
+endif
+endif
+
+ifneq ($(BOARD_PRODUCTIMAGE_PARTITION_SIZE),)
+ifneq ($(BOARD_PRODUCTIMAGE_PARTITION_RESERVED_SIZE),)
+$(error Should not define BOARD_PRODUCTIMAGE_PARTITION_SIZE and \
+    BOARD_PRODUCTIMAGE_PARTITION_RESERVED_SIZE together)
+endif
+endif
+
+ifneq ($(BOARD_PRODUCT_SERVICESIMAGE_PARTITION_SIZE),)
+ifneq ($(BOARD_PRODUCT_SERVICESIMAGE_PARTITION_RESERVED_SIZE),)
+$(error Should not define BOARD_PRODUCT_SERVICESIMAGE_PARTITION_SIZE and \
+    BOARD_PRODUCT_SERVICESIMAGE_PARTITION_RESERVED_SIZE together)
+endif
+endif
+
+endif # PRODUCT_USE_DYNAMIC_PARTITION_SIZE
+
+ifeq ($(PRODUCT_BUILD_SUPER_PARTITION),true)
+ifdef BOARD_SUPER_PARTITION_PARTITION_LIST
+# BOARD_SUPER_PARTITION_PARTITION_LIST: a list of the following tokens
+valid_super_partition_list := system vendor product product_services
+ifneq (,$(filter-out $(valid_super_partition_list),$(BOARD_SUPER_PARTITION_PARTITION_LIST)))
+$(error BOARD_SUPER_PARTITION_PARTITION_LIST contains invalid partition name \
+		($(filter-out $(valid_super_partition_list),$(BOARD_SUPER_PARTITION_PARTITION_LIST))). \
+        Valid names are $(valid_super_partition_list))
+endif
+valid_super_partition_list :=
+endif # BOARD_SUPER_PARTITION_PARTITION_LIST
+endif # PRODUCT_BUILD_SUPER_PARTITION
 
 # ###############################################################
 # Set up final options.
@@ -1124,6 +1166,8 @@ dont_bother_goals := out \
     bptimage-nodeps \
     vnod vendorimage-nodeps \
     pnod productimage-nodeps \
+    psnod productservicesimage-nodeps \
+    onod odmimage-nodeps \
     systemotherimage-nodeps \
     ramdisk-nodeps \
     bootimage-nodeps \

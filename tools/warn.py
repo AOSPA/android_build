@@ -75,6 +75,7 @@ Use option --gencsv to output warning counts in CSV format.
 #   emit_js_data():
 
 import argparse
+import cgi
 import csv
 import multiprocessing
 import os
@@ -2548,7 +2549,6 @@ project_list = [
     simple_project_pattern('system/extras/iotop'),
     simple_project_pattern('system/extras/libfec'),
     simple_project_pattern('system/extras/memory_replay'),
-    simple_project_pattern('system/extras/micro_bench'),
     simple_project_pattern('system/extras/mmap-perf'),
     simple_project_pattern('system/extras/multinetwork'),
     simple_project_pattern('system/extras/perfprofd'),
@@ -3149,6 +3149,14 @@ def emit_const_string_array(name, array):
   print '];'
 
 
+# Emit a JavaScript const string array for HTML.
+def emit_const_html_string_array(name, array):
+  print 'const ' + name + ' = ['
+  for s in array:
+    print '"' + cgi.escape(strip_escape_string(s)) + '",'
+  print '];'
+
+
 # Emit a JavaScript const object array.
 def emit_const_object_array(name, array):
   print 'const ' + name + ' = ['
@@ -3167,11 +3175,11 @@ def emit_js_data():
   emit_const_string_array('ProjectNames', project_names)
   emit_const_int_array('WarnPatternsSeverity',
                        [w['severity'] for w in warn_patterns])
-  emit_const_string_array('WarnPatternsDescription',
-                          [w['description'] for w in warn_patterns])
-  emit_const_string_array('WarnPatternsOption',
-                          [w['option'] for w in warn_patterns])
-  emit_const_string_array('WarningMessages', warning_messages)
+  emit_const_html_string_array('WarnPatternsDescription',
+                               [w['description'] for w in warn_patterns])
+  emit_const_html_string_array('WarnPatternsOption',
+                               [w['option'] for w in warn_patterns])
+  emit_const_html_string_array('WarningMessages', warning_messages)
   emit_const_object_array('Warnings', warning_records)
 
 draw_table_javascript = """
