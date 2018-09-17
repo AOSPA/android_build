@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "eb9b7818_615bdb67",
+        "filename": "core/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 2911,
+      "author": {
+        "id": 1000126
+      },
+      "writtenOn": "2018-09-17T12:45:54Z",
+      "side": 1,
+      "message": "TODO: FIXME",
+      "range": {
+        "startLine": 2911,
+        "startChar": 9,
+        "endLine": 2911,
+        "endChar": 22
+      },
+      "revId": "34e271021b76d1737885d8611981265ce26c18e6",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad",
+      "unresolved": false
+    }
+  ]
+}
