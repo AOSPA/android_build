@@ -147,6 +147,11 @@ $(error Building on a 32-bit x86 host is not supported: $(UNAME)!)
 endif
 endif
 
+ifeq ($(HOST_OS),darwin)
+  # Mac no longer supports 32-bit executables
+  HOST_2ND_ARCH :=
+endif
+
 BUILD_ARCH := $(HOST_ARCH)
 BUILD_2ND_ARCH := $(HOST_2ND_ARCH)
 
@@ -181,6 +186,7 @@ TARGET_COPY_OUT_OEM := oem
 TARGET_COPY_OUT_ODM := odm
 TARGET_COPY_OUT_PRODUCT := product
 TARGET_COPY_OUT_PRODUCT_SERVICES := product_services
+TARGET_COPY_OUT_RAMDISK := ramdisk
 TARGET_COPY_OUT_ROOT := root
 TARGET_COPY_OUT_RECOVERY := recovery
 
@@ -236,7 +242,7 @@ TARGET_COPY_OUT_ODM := $(_odm_path_placeholder)
 #################################################################
 # Set up minimal BOOTCLASSPATH list of jars to build/execute
 # java code with dalvikvm/art.
-TARGET_CORE_JARS := core-oj core-libart conscrypt okhttp bouncycastle apache-xml
+TARGET_CORE_JARS := core-oj core-libart core-simple conscrypt okhttp bouncycastle apache-xml
 ifeq ($(EMMA_INSTRUMENT),true)
   ifneq ($(EMMA_INSTRUMENT_STATIC),true)
     # For instrumented build, if Jacoco is not being included statically
@@ -320,6 +326,12 @@ endif
 CHANGES_URL :=
 
 ###########################################
+# Now we can substitute with the real value of TARGET_COPY_OUT_RAMDISK
+ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+TARGET_COPY_OUT_RAMDISK := $(TARGET_COPY_OUT_ROOT)
+endif
+
+###########################################
 # Now we can substitute with the real value of TARGET_COPY_OUT_VENDOR
 ifeq ($(TARGET_COPY_OUT_VENDOR),$(_vendor_path_placeholder))
 TARGET_COPY_OUT_VENDOR := system/vendor
@@ -370,7 +382,7 @@ TARGET_COPY_OUT_PRODUCT_SERVICES := system/product_services
 else ifeq ($(filter product_services system/product_services,$(TARGET_COPY_OUT_PRODUCT_SERVICES)),)
 $(error TARGET_COPY_OUT_PRODUCT_SERVICES must be either 'product_services' or 'system/product_services', seeing '$(TARGET_COPY_OUT_PRODUCT_SERVICES)'.)
 endif
-PRODUCT_SERVICES_COPY_FILES := $(subst $(_product_services_path_placeholder),$(TARGET_COPY_OUT_PRODUCT_SERVICES),$(PRODUCT_SERVICES_COPY_FILES))
+PRODUCT_COPY_FILES := $(subst $(_product_services_path_placeholder),$(TARGET_COPY_OUT_PRODUCT_SERVICES),$(PRODUCT_COPY_FILES))
 
 BOARD_USES_PRODUCT_SERVICESIMAGE :=
 ifdef BOARD_PREBUILT_PRODUCT_SERVICESIMAGE
@@ -974,11 +986,11 @@ $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_APPS_PRIVILEGED := $(TARGET_OUT_
 
 TARGET_OUT_PRODUCT_SERVICES := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_PRODUCT_SERVICES)
 ifneq ($(filter address,$(SANITIZE_TARGET)),)
-target_out_product_services_shared_libraries_base := $(PRODUCT_SERVICES_OUT)/$(TARGET_COPY_OUT_ASAN)/product_services
+target_out_product_services_shared_libraries_base := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_ASAN)/product_services
 ifeq ($(SANITIZE_LITE),true)
 # When using SANITIZE_LITE, APKs must not be packaged with sanitized libraries, as they will not
 # work with unsanitized app_process. For simplicity, generate APKs into /data/asan/.
-target_out_product_services_app_base := $(PRODUCT_SERVICES_OUT)/$(TARGET_COPY_OUT_ASAN)/product_services
+target_out_product_services_app_base := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_ASAN)/product_services
 else
 target_out_product_services_app_base := $(TARGET_OUT_PRODUCT_SERVICES)
 endif
@@ -1025,6 +1037,9 @@ TARGET_OUT_COVERAGE := $(PRODUCT_OUT)/coverage
   TARGET_ROOT_OUT_SBIN_UNSTRIPPED \
   TARGET_ROOT_OUT_BIN_UNSTRIPPED \
   TARGET_OUT_COVERAGE
+
+TARGET_RAMDISK_OUT := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_RAMDISK)
+TARGET_RAMDISK_OUT_UNSTRIPPED := $(TARGET_OUT_UNSTRIPPED)
 
 TARGET_ROOT_OUT := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_ROOT)
 TARGET_ROOT_OUT_BIN := $(TARGET_ROOT_OUT)/bin
