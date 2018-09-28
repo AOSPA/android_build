@@ -72,9 +72,13 @@ OPTIONS.replace_verity_public_key = False
 OPTIONS.replace_verity_private_key = False
 OPTIONS.is_signing = False
 
-
 # Partitions that should have their care_map added to META/care_map.txt.
-PARTITIONS_WITH_CARE_MAP = ('system', 'vendor', 'product')
+PARTITIONS_WITH_CARE_MAP = ('system', 'vendor', 'product', 'product_services',
+                            'odm')
+# Use a fixed timestamp (01/01/2009 00:00:00 UTC) for files when packaging
+# images. (b/24377993, b/80600931)
+FIXED_FILE_TIMESTAMP = (datetime.datetime(2009, 1, 1, 0, 0, 0, 0, None)
+                        - datetime.datetime.utcfromtimestamp(0)).total_seconds()
 
 
 class OutputFile(object):
@@ -93,7 +97,6 @@ class OutputFile(object):
   def Write(self):
     if self._output_zip:
       common.ZipWrite(self._output_zip, self.name, self._zip_name)
-
 
 def GetCareMap(which, imgname):
   """Returns the care_map string for the given partition.
@@ -196,6 +199,40 @@ def AddProduct(output_zip):
   return img.name
 
 
+def AddProductServices(output_zip):
+  """Turn the contents of PRODUCT_SERVICES into a product_services image and
+  store it in output_zip."""
+
+  img = OutputFile(output_zip, OPTIONS.input_tmp, "IMAGES",
+                   "product_services.img")
+  if os.path.exists(img.input_name):
+    print("product_services.img already exists; no need to rebuild...")
+    return img.input_name
+
+  block_list = OutputFile(
+      output_zip, OPTIONS.input_tmp, "IMAGES", "product_services.map")
+  CreateImage(
+      OPTIONS.input_tmp, OPTIONS.info_dict, "product_services", img,
+      block_list=block_list)
+  return img.name
+
+
+def AddOdm(output_zip):
+  """Turn the contents of ODM into an odm image and store it in output_zip."""
+
+  img = OutputFile(output_zip, OPTIONS.input_tmp, "IMAGES", "odm.img")
+  if os.path.exists(img.input_name):
+    print("odm.img already exists; no need to rebuild...")
+    return img.input_name
+
+  block_list = OutputFile(
+      output_zip, OPTIONS.input_tmp, "IMAGES", "odm.map")
+  CreateImage(
+      OPTIONS.input_tmp, OPTIONS.info_dict, "odm", img,
+      block_list=block_list)
+  return img.name
+
+
 def AddDtbo(output_zip):
   """Adds the DTBO image.
 
@@ -241,11 +278,7 @@ def CreateImage(input_dir, info_dict, what, output_file, block_list=None):
   if fstab and mount_point in fstab:
     image_props["fs_type"] = fstab[mount_point].fs_type
 
-  # Use a fixed timestamp (01/01/2009) when packaging the image.
-  # Bug: 24377993
-  epoch = datetime.datetime.fromtimestamp(0)
-  timestamp = (datetime.datetime(2009, 1, 1) - epoch).total_seconds()
-  image_props["timestamp"] = int(timestamp)
+  image_props["timestamp"] = FIXED_FILE_TIMESTAMP
 
   if what == "system":
     fs_config_prefix = ""
@@ -319,11 +352,7 @@ def AddUserdata(output_zip):
 
   print("creating userdata.img...")
 
-  # Use a fixed timestamp (01/01/2009) when packaging the image.
-  # Bug: 24377993
-  epoch = datetime.datetime.fromtimestamp(0)
-  timestamp = (datetime.datetime(2009, 1, 1) - epoch).total_seconds()
-  image_props["timestamp"] = int(timestamp)
+  image_props["timestamp"] = FIXED_FILE_TIMESTAMP
 
   if OPTIONS.info_dict.get("userdata_img_with_data") == "true":
     user_dir = os.path.join(OPTIONS.input_tmp, "DATA")
@@ -340,29 +369,26 @@ def AddUserdata(output_zip):
   img.Write()
 
 
-def AppendVBMetaArgsForPartition(cmd, partition, img_path, public_key_dir):
-  if not img_path:
-    return
+def AppendVBMetaArgsForPartition(cmd, partition, image):
+  """Appends the VBMeta arguments for partition.
 
+  It sets up the VBMeta argument by including the partition descriptor from the
+  given 'image', or by configuring the partition as a chained partition.
+
+  Args:
+    cmd: A list of command args that will be used to generate the vbmeta image.
+        The argument for the partition will be appended to the list.
+    partition: The name of the partition (e.g. "system").
+    image: The path to the partition image.
+  """
   # Check if chain partition is used.
   key_path = OPTIONS.info_dict.get("avb_" + partition + "_key_path")
   if key_path:
-    # extract public key in AVB format to be included in vbmeta.img
-    avbtool = os.getenv('AVBTOOL') or OPTIONS.info_dict["avb_avbtool"]
-    public_key_path = os.path.join(public_key_dir, "%s.avbpubkey" % partition)
-    p = common.Run([avbtool, "extract_public_key", "--key", key_path,
-                    "--output", public_key_path],
-                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    p.communicate()
-    assert p.returncode == 0, \
-        "avbtool extract_public_key fail for partition: %r" % partition
-
-    rollback_index_location = OPTIONS.info_dict[
-        "avb_" + partition + "_rollback_index_location"]
-    cmd.extend(["--chain_partition", "%s:%s:%s" % (
-        partition, rollback_index_location, public_key_path)])
+    chained_partition_arg = common.GetAvbChainedPartitionArg(
+        partition, OPTIONS.info_dict)
+    cmd.extend(["--chain_partition", chained_partition_arg])
   else:
-    cmd.extend(["--include_descriptors_from_image", img_path])
+    cmd.extend(["--include_descriptors_from_image", image])
 
 
 def AddVBMeta(output_zip, partitions):
@@ -371,8 +397,8 @@ def AddVBMeta(output_zip, partitions):
   Args:
     output_zip: The output zip file, which needs to be already open.
     partitions: A dict that's keyed by partition names with image paths as
-        values. Only valid partition names are accepted, which include 'boot',
-        'recovery', 'system', 'vendor', 'dtbo'.
+        values. Only valid partition names are accepted, as listed in
+        common.AVB_PARTITIONS.
   """
   img = OutputFile(output_zip, OPTIONS.input_tmp, "IMAGES", "vbmeta.img")
   if os.path.exists(img.input_name):
@@ -383,13 +409,12 @@ def AddVBMeta(output_zip, partitions):
   cmd = [avbtool, "make_vbmeta_image", "--output", img.name]
   common.AppendAVBSigningArgs(cmd, "vbmeta")
 
-  public_key_dir = common.MakeTempDir(prefix="avbpubkey-")
   for partition, path in partitions.items():
-    assert partition in common.AVB_PARTITIONS, 'Unknown partition: %s' % (
-        partition,)
-    assert os.path.exists(path), 'Failed to find %s for partition %s' % (
-        path, partition)
-    AppendVBMetaArgsForPartition(cmd, partition, path, public_key_dir)
+    assert partition in common.AVB_PARTITIONS, \
+        'Unknown partition: {}'.format(partition)
+    assert os.path.exists(path), \
+        'Failed to find {} for {}'.format(path, partition)
+    AppendVBMetaArgsForPartition(cmd, partition, path)
 
   args = OPTIONS.info_dict.get("avb_vbmeta_args")
   if args and args.strip():
@@ -469,11 +494,7 @@ def AddCache(output_zip):
 
   print("creating cache.img...")
 
-  # Use a fixed timestamp (01/01/2009) when packaging the image.
-  # Bug: 24377993
-  epoch = datetime.datetime.fromtimestamp(0)
-  timestamp = (datetime.datetime(2009, 1, 1) - epoch).total_seconds()
-  image_props["timestamp"] = int(timestamp)
+  image_props["timestamp"] = FIXED_FILE_TIMESTAMP
 
   user_dir = common.MakeTempDir()
 
@@ -524,7 +545,7 @@ def AddCareMapTxtForAbOta(output_zip, ab_partitions, image_paths):
 
   Args:
     output_zip: The output zip file (needs to be already open), or None to
-        write images to OPTIONS.input_tmp/.
+        write care_map.txt to OPTIONS.input_tmp/.
     ab_partitions: The list of A/B partitions.
     image_paths: A map from the partition name to the image path.
   """
@@ -542,15 +563,32 @@ def AddCareMapTxtForAbOta(output_zip, ab_partitions, image_paths):
       assert os.path.exists(image_path)
       care_map_list += GetCareMap(partition, image_path)
 
-  if care_map_list:
-    care_map_path = "META/care_map.txt"
-    if output_zip and care_map_path not in output_zip.namelist():
-      common.ZipWriteStr(output_zip, care_map_path, '\n'.join(care_map_list))
-    else:
-      with open(os.path.join(OPTIONS.input_tmp, care_map_path), 'w') as fp:
-        fp.write('\n'.join(care_map_list))
-      if output_zip:
-        OPTIONS.replace_updated_files_list.append(care_map_path)
+  if not care_map_list:
+    return
+
+  # Converts the list into proto buf message by calling care_map_generator; and
+  # writes the result to a temp file.
+  temp_care_map_text = common.MakeTempFile(prefix="caremap_text-",
+                                           suffix=".txt")
+  with open(temp_care_map_text, 'w') as text_file:
+    text_file.write('\n'.join(care_map_list))
+
+  temp_care_map = common.MakeTempFile(prefix="caremap-", suffix=".txt")
+  care_map_gen_cmd = (["care_map_generator", temp_care_map_text, temp_care_map])
+  p = common.Run(care_map_gen_cmd, stdout=subprocess.PIPE,
+                 stderr=subprocess.STDOUT)
+  output, _ = p.communicate()
+  assert p.returncode == 0, "Failed to generate the care_map proto message."
+  if OPTIONS.verbose:
+    print(output.rstrip())
+
+  care_map_path = "META/care_map.txt"
+  if output_zip and care_map_path not in output_zip.namelist():
+    common.ZipWrite(output_zip, temp_care_map, arcname=care_map_path)
+  else:
+    shutil.copy(temp_care_map, os.path.join(OPTIONS.input_tmp, care_map_path))
+    if output_zip:
+      OPTIONS.replace_updated_files_list.append(care_map_path)
 
 
 def AddPackRadioImages(output_zip, images):
@@ -628,16 +666,25 @@ def AddImagesToTargetFiles(filename):
 
   has_recovery = OPTIONS.info_dict.get("no_recovery") != "true"
 
-  # {vendor,product}.img is unlike system.img or system_other.img. Because it
-  # could be built from source, or dropped into target_files.zip as a prebuilt
-  # blob. We consider either of them as {vendor,product}.img being available,
-  # which could be used when generating vbmeta.img for AVB.
+  # {vendor,odm,product,product_services}.img are unlike system.img or
+  # system_other.img. Because it could be built from source, or dropped into
+  # target_files.zip as a prebuilt blob. We consider either of them as
+  # {vendor,product,product_services}.img being available, which could be
+  # used when generating vbmeta.img for AVB.
   has_vendor = (os.path.isdir(os.path.join(OPTIONS.input_tmp, "VENDOR")) or
                 os.path.exists(os.path.join(OPTIONS.input_tmp, "IMAGES",
                                             "vendor.img")))
+  has_odm = (os.path.isdir(os.path.join(OPTIONS.input_tmp, "ODM")) or
+                 os.path.exists(os.path.join(OPTIONS.input_tmp, "IMAGES",
+                                             "odm.img")))
   has_product = (os.path.isdir(os.path.join(OPTIONS.input_tmp, "PRODUCT")) or
                  os.path.exists(os.path.join(OPTIONS.input_tmp, "IMAGES",
                                              "product.img")))
+  has_product_services = (os.path.isdir(os.path.join(OPTIONS.input_tmp,
+                                                     "PRODUCT_SERVICES")) or
+                          os.path.exists(os.path.join(OPTIONS.input_tmp,
+                                                      "IMAGES",
+                                                      "product_services.img")))
   has_system_other = os.path.isdir(os.path.join(OPTIONS.input_tmp,
                                                 "SYSTEM_OTHER"))
 
@@ -713,6 +760,14 @@ def AddImagesToTargetFiles(filename):
   if has_product:
     banner("product")
     partitions['product'] = AddProduct(output_zip)
+
+  if has_product_services:
+    banner("product_services")
+    partitions['product_services'] = AddProductServices(output_zip)
+
+  if has_odm:
+    banner("odm")
+    partitions['odm'] = AddOdm(output_zip)
 
   if has_system_other:
     banner("system_other")

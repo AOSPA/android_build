@@ -1,4 +1,6 @@
-# Copyright (C) 2016 The Android Open Source Project
+#!/usr/bin/env python
+#
+# Copyright 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ifneq ($(wildcard test/sts/README.md),)
-test_suite_name := sts
-test_suite_tradefed := sts-tradefed
-test_suite_readme := test/sts/README.md
+from __future__ import print_function
+import sys
+import uuid
 
-include $(BUILD_SYSTEM)/tasks/tools/compatibility.mk
+def uuidgen(name):
+    return uuid.uuid5(uuid.uuid5(uuid.NAMESPACE_URL, "android.com"), name)
 
-.PHONY: sts
-sts: $(compatibility_zip)
-$(call dist-for-goals, sts, $(compatibility_zip))
-endif
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: uuidgen.py <name>")
+        sys.exit(1)
+    name = sys.argv[1]
+    print(uuidgen(name))

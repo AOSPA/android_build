@@ -180,6 +180,7 @@ TARGET_COPY_OUT_ASAN := $(TARGET_COPY_OUT_DATA)/asan
 TARGET_COPY_OUT_OEM := oem
 TARGET_COPY_OUT_ODM := odm
 TARGET_COPY_OUT_PRODUCT := product
+TARGET_COPY_OUT_PRODUCT_SERVICES := product_services
 TARGET_COPY_OUT_ROOT := root
 TARGET_COPY_OUT_RECOVERY := recovery
 
@@ -208,6 +209,28 @@ TARGET_COPY_OUT_VENDOR := $(_vendor_path_placeholder)
 # We'll substitute with the real value after loading BoardConfig.mk.
 _product_path_placeholder := ||PRODUCT-PATH-PH||
 TARGET_COPY_OUT_PRODUCT := $(_product_path_placeholder)
+###########################################
+
+###########################################
+# Define TARGET_COPY_OUT_PRODUCT_SERVICES to a placeholder, for at this point
+# we don't know if the device wants to build a separate product_services.img
+# or just build product stuff into system.img.
+# A device can set up TARGET_COPY_OUT_PRODUCT_SERVICES to "product_services" in its
+# BoardConfig.mk.
+# We'll substitute with the real value after loading BoardConfig.mk.
+_product_services_path_placeholder := ||PRODUCT_SERVICES-PATH-PH||
+TARGET_COPY_OUT_PRODUCT_SERVICES := $(_product_services_path_placeholder)
+###########################################
+
+###########################################
+# Define TARGET_COPY_OUT_ODM to a placeholder, for at this point
+# we don't know if the device wants to build a separate odm.img
+# or just build odm stuff into vendor.img.
+# A device can set up TARGET_COPY_OUT_ODM to "odm" in its
+# BoardConfig.mk.
+# We'll substitute with the real value after loading BoardConfig.mk.
+_odm_path_placeholder := ||ODM-PATH-PH||
+TARGET_COPY_OUT_ODM := $(_odm_path_placeholder)
 ###########################################
 
 #################################################################
@@ -290,8 +313,7 @@ $(foreach var,$(vars), \
 
 CHANGES_URL := https://android.googlesource.com/platform/build/+/master/Changes.md
 
-# "" is equivalent to true currently.
-ifeq ($(BUILD_BROKEN_ANDROIDMK_EXPORTS),false)
+ifneq ($(BUILD_BROKEN_ANDROIDMK_EXPORTS),true)
 $(KATI_obsolete_export It is a global setting. See $(CHANGES_URL)#export_keyword)
 endif
 
@@ -339,6 +361,50 @@ ifeq ($(TARGET_COPY_OUT_PRODUCT),product)
 BOARD_USES_PRODUCTIMAGE := true
 else ifdef BOARD_USES_PRODUCTIMAGE
 $(error TARGET_COPY_OUT_PRODUCT must be set to 'product' to use a product image)
+endif
+
+###########################################
+# Now we can substitute with the real value of TARGET_COPY_OUT_PRODUCT_SERVICES
+ifeq ($(TARGET_COPY_OUT_PRODUCT_SERVICES),$(_product_services_path_placeholder))
+TARGET_COPY_OUT_PRODUCT_SERVICES := system/product_services
+else ifeq ($(filter product_services system/product_services,$(TARGET_COPY_OUT_PRODUCT_SERVICES)),)
+$(error TARGET_COPY_OUT_PRODUCT_SERVICES must be either 'product_services' or 'system/product_services', seeing '$(TARGET_COPY_OUT_PRODUCT_SERVICES)'.)
+endif
+PRODUCT_SERVICES_COPY_FILES := $(subst $(_product_services_path_placeholder),$(TARGET_COPY_OUT_PRODUCT_SERVICES),$(PRODUCT_SERVICES_COPY_FILES))
+
+BOARD_USES_PRODUCT_SERVICESIMAGE :=
+ifdef BOARD_PREBUILT_PRODUCT_SERVICESIMAGE
+BOARD_USES_PRODUCT_SERVICESIMAGE := true
+endif
+ifdef BOARD_PRODUCT_SERVICESIMAGE_FILE_SYSTEM_TYPE
+BOARD_USES_PRODUCT_SERVICESIMAGE := true
+endif
+ifeq ($(TARGET_COPY_OUT_PRODUCT_SERVICES),product_services)
+BOARD_USES_PRODUCT_SERVICESIMAGE := true
+else ifdef BOARD_USES_PRODUCT_SERVICESIMAGE
+$(error TARGET_COPY_OUT_PRODUCT_SERVICES must be set to 'product_services' to use a product_services image)
+endif
+
+###########################################
+# Now we can substitute with the real value of TARGET_COPY_OUT_ODM
+ifeq ($(TARGET_COPY_OUT_ODM),$(_odm_path_placeholder))
+TARGET_COPY_OUT_ODM := vendor/odm
+else ifeq ($(filter odm vendor/odm,$(TARGET_COPY_OUT_ODM)),)
+$(error TARGET_COPY_OUT_ODM must be either 'odm' or 'vendor/odm', seeing '$(TARGET_COPY_OUT_ODM)'.)
+endif
+PRODUCT_COPY_FILES := $(subst $(_odm_path_placeholder),$(TARGET_COPY_OUT_ODM),$(PRODUCT_COPY_FILES))
+
+BOARD_USES_ODMIMAGE :=
+ifdef BOARD_PREBUILT_ODMIMAGE
+BOARD_USES_ODMIMAGE := true
+endif
+ifdef BOARD_ODMIMAGE_FILE_SYSTEM_TYPE
+BOARD_USES_ODMIMAGE := true
+endif
+ifeq ($(TARGET_COPY_OUT_ODM),odm)
+BOARD_USES_ODMIMAGE := true
+else ifdef BOARD_USES_ODMIMAGE
+$(error TARGET_COPY_OUT_ODM must be set to 'odm' to use an odm image)
 endif
 
 ###########################################
@@ -805,32 +871,58 @@ $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_OEM_APPS := $(TARGET_OUT_OEM_APPS)
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_OEM_APPS \
 
 TARGET_OUT_ODM := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_ODM)
-TARGET_OUT_ODM_EXECUTABLES := $(TARGET_OUT_ODM)/bin
-ifeq ($(TARGET_IS_64_BIT),true)
-TARGET_OUT_ODM_SHARED_LIBRARIES := $(TARGET_OUT_ODM)/lib64
+ifneq ($(filter address,$(SANITIZE_TARGET)),)
+target_out_odm_shared_libraries_base := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_ASAN)/odm
+ifeq ($(SANITIZE_LITE),true)
+# When using SANITIZE_LITE, APKs must not be packaged with sanitized libraries, as they will not
+# work with unsanitized app_process. For simplicity, generate APKs into /data/asan/.
+target_out_odm_app_base := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_ASAN)/odm
 else
-TARGET_OUT_ODM_SHARED_LIBRARIES := $(TARGET_OUT_ODM)/lib
+target_out_odm_app_base := $(TARGET_OUT_ODM)
 endif
-TARGET_OUT_ODM_APPS := $(TARGET_OUT_ODM)/app
+else
+target_out_odm_shared_libraries_base := $(TARGET_OUT_ODM)
+target_out_odm_app_base := $(TARGET_OUT_ODM)
+endif
+
+TARGET_OUT_ODM_EXECUTABLES := $(TARGET_OUT_ODM)/bin
+TARGET_OUT_ODM_OPTIONAL_EXECUTABLES := $(TARGET_OUT_ODM)/xbin
+ifeq ($(TARGET_IS_64_BIT),true)
+TARGET_OUT_ODM_SHARED_LIBRARIES := $(target_out_odm_shared_libraries_base)/lib64
+else
+TARGET_OUT_ODM_SHARED_LIBRARIES := $(target_out_odm_shared_libraries_base)/lib
+endif
+TARGET_OUT_ODM_RENDERSCRIPT_BITCODE := $(TARGET_OUT_ODM_SHARED_LIBRARIES)
+TARGET_OUT_ODM_JAVA_LIBRARIES := $(TARGET_OUT_ODM)/framework
+TARGET_OUT_ODM_APPS := $(target_out_odm_app_base)/app
+TARGET_OUT_ODM_APPS_PRIVILEGED := $(target_out_odm_app_base)/priv-app
 TARGET_OUT_ODM_ETC := $(TARGET_OUT_ODM)/etc
 .KATI_READONLY := \
   TARGET_OUT_ODM \
   TARGET_OUT_ODM_EXECUTABLES \
+  TARGET_OUT_ODM_OPTIONAL_EXECUTABLES \
   TARGET_OUT_ODM_SHARED_LIBRARIES \
+  TARGET_OUT_ODM_RENDERSCRIPT_BITCODE \
+  TARGET_OUT_ODM_JAVA_LIBRARIES \
   TARGET_OUT_ODM_APPS \
+  TARGET_OUT_ODM_APPS_PRIVILEGED \
   TARGET_OUT_ODM_ETC
 
 $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_EXECUTABLES := $(TARGET_OUT_ODM_EXECUTABLES)
 ifeq ($(TARGET_TRANSLATE_2ND_ARCH),true)
-$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_SHARED_LIBRARIES := $(TARGET_OUT_ODM)/lib/$(TARGET_2ND_ARCH)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_SHARED_LIBRARIES := $(target_out_odm_shared_libraries_base)/lib/$(TARGET_2ND_ARCH)
 else
-$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_SHARED_LIBRARIES := $(TARGET_OUT_ODM)/lib
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_SHARED_LIBRARIES := $(target_out_odm_shared_libraries_base)/lib
 endif
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_RENDERSCRIPT_BITCODE := $($(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_SHARED_LIBRARIES)
 $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_APPS := $(TARGET_OUT_ODM_APPS)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_APPS_PRIVILEGED := $(TARGET_OUT_ODM_APPS_PRIVILEGED)
 .KATI_READONLY := \
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_EXECUTABLES \
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_SHARED_LIBRARIES \
-  $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_APPS
+  $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_RENDERSCRIPT_BITCODE \
+  $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_APPS \
+  $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_ODM_APPS_PRIVILEGED
 
 TARGET_OUT_PRODUCT := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_PRODUCT)
 TARGET_OUT_PRODUCT_EXECUTABLES := $(TARGET_OUT_PRODUCT)/bin
@@ -879,6 +971,39 @@ $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_APPS_PRIVILEGED := $(TARGET_OUT_
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_SHARED_LIBRARIES \
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_APPS \
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_APPS_PRIVILEGED
+
+TARGET_OUT_PRODUCT_SERVICES := $(PRODUCT_OUT)/$(TARGET_COPY_OUT_PRODUCT_SERVICES)
+ifneq ($(filter address,$(SANITIZE_TARGET)),)
+target_out_product_services_shared_libraries_base := $(PRODUCT_SERVICES_OUT)/$(TARGET_COPY_OUT_ASAN)/product_services
+ifeq ($(SANITIZE_LITE),true)
+# When using SANITIZE_LITE, APKs must not be packaged with sanitized libraries, as they will not
+# work with unsanitized app_process. For simplicity, generate APKs into /data/asan/.
+target_out_product_services_app_base := $(PRODUCT_SERVICES_OUT)/$(TARGET_COPY_OUT_ASAN)/product_services
+else
+target_out_product_services_app_base := $(TARGET_OUT_PRODUCT_SERVICES)
+endif
+else
+target_out_product_services_shared_libraries_base := $(TARGET_OUT_PRODUCT_SERVICES)
+target_out_product_services_app_base := $(TARGET_OUT_PRODUCT_SERVICES)
+endif
+
+ifeq ($(TARGET_IS_64_BIT),true)
+TARGET_OUT_PRODUCT_SERVICES_SHARED_LIBRARIES := $(target_out_product_services_shared_libraries_base)/lib64
+else
+TARGET_OUT_PRODUCT_SERVICES_SHARED_LIBRARIES := $(target_out_product_services_shared_libraries_base)/lib
+endif
+TARGET_OUT_PRODUCT_SERVICES_JAVA_LIBRARIES:= $(TARGET_OUT_PRODUCT_SERVICES)/framework
+TARGET_OUT_PRODUCT_SERVICES_APPS := $(target_out_product_services_app_base)/app
+TARGET_OUT_PRODUCT_SERVICES_APPS_PRIVILEGED := $(target_out_product_services_app_base)/priv-app
+TARGET_OUT_PRODUCT_SERVICES_ETC := $(TARGET_OUT_PRODUCT_SERVICES)/etc
+
+ifeq ($(TARGET_TRANSLATE_2ND_ARCH),true)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_SERVICES_SHARED_LIBRARIES := $(target_out_product_services_shared_libraries_base)/lib/$(TARGET_2ND_ARCH)
+else
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_SERVICES_SHARED_LIBRARIES := $(target_out_product_services_shared_libraries_base)/lib
+endif
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_SERVICES_APPS := $(TARGET_OUT_PRODUCT_SERVICES_APPS)
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_PRODUCT_SERVICES_APPS_PRIVILEGED := $(TARGET_OUT_PRODUCT_SERVICES_APPS_PRIVILEGED)
 
 TARGET_OUT_BREAKPAD := $(PRODUCT_OUT)/breakpad
 .KATI_READONLY := TARGET_OUT_BREAKPAD

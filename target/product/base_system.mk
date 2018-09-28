@@ -201,7 +201,9 @@ PRODUCT_PACKAGES += \
     ndc \
     netd \
     org.apache.http.legacy \
+    PackageInstaller \
     perfetto \
+    PermissionController \
     ping \
     ping6 \
     platform.xml \
@@ -247,6 +249,7 @@ PRODUCT_PACKAGES += \
     voip-common \
     vold \
     WallpaperBackup \
+    watchdogd \
     wificond \
     wifi-service \
     wm \
@@ -292,7 +295,7 @@ ifeq ($(REMOVE_ATB_FROM_BCP),true)
 PRODUCT_PACKAGES += framework-atb-backward-compatibility
 PRODUCT_BOOT_JARS += framework-atb-backward-compatibility
 else
-PRODUCT_BOOT_JARS += android.test.base
+PRODUCT_BOOT_JARS += android.test.base.impl
 endif
 
 PRODUCT_COPY_FILES += system/core/rootdir/init.zygote32.rc:root/init.zygote32.rc
@@ -305,13 +308,15 @@ PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     iotop \
     logpersist.start \
-    micro_bench \
     perfprofd \
     procrank \
     showmap \
     sqlite3 \
     strace \
-    sanitizer-status
+    sanitizer-status \
+    unwind_info \
+    unwind_reg_info \
+    unwind_symbols \
 
 # The set of packages whose code can be loaded by the system server.
 PRODUCT_SYSTEM_SERVER_APPS += \

@@ -17,15 +17,18 @@
 # Base modules and settings for recovery.
 PRODUCT_PACKAGES += \
     adbd.recovery \
+    android.hardware.health@2.0-impl-default.recovery \
+    init_second_stage.recovery \
     ld.config.recovery.txt \
     linker.recovery \
     recovery \
     shell_and_utilities_recovery \
+    watchdogd.recovery \
 
 # Base modules and settings for the vendor partition.
 PRODUCT_PACKAGES += \
     android.hardware.cas@1.0-service \
-    android.hardware.configstore@1.1-service \
+    android.hardware.configstore@1.2-service \
     android.hardware.media.omx@1.0-service \
     fs_config_files_nonsystem \
     fs_config_dirs_nonsystem \

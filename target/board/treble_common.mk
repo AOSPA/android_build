@@ -34,7 +34,9 @@ TARGET_NO_KERNEL := true
 TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
 TARGET_USERIMAGES_SPARSE_EXT_DISABLED := false
-TARGET_USES_MKE2FS := true
+
+# Enable dyanmic system image size and reserved 64MB in it.
+BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE := 67108864
 
 # Generic AOSP image always requires separate vendor.img
 TARGET_COPY_OUT_VENDOR := vendor
@@ -59,5 +61,3 @@ ifeq ($(BOARD_AVB_ENABLE),true)
 $(error BOARD_AVB_ENABLE cannot be set for Treble GSI)
 endif
 BOARD_BUILD_DISABLED_VBMETAIMAGE := true
-
-BUILD_BROKEN_DUP_RULES := false

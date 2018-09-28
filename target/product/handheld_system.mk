@@ -67,6 +67,7 @@ PRODUCT_PACKAGES += \
     Music \
     MusicFX \
     OneTimeInitializer \
+    OsuLogin \
     PacProcessor \
     PrintRecommendationService \
     PrintSpooler \

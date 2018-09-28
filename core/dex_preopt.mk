@@ -97,29 +97,44 @@ hiddenapi_stubs_jar = $(call intermediates-dir-for,JAVA_LIBRARIES,$(1),,COMMON)/
 # Public API stubs
 HIDDENAPI_STUBS := \
     $(call hiddenapi_stubs_jar,android_stubs_current) \
-    $(call hiddenapi_stubs_jar,android.test.base.stubs) \
-    $(call hiddenapi_stubs_jar,android.test.mock.stubs) \
-    $(call hiddenapi_stubs_jar,android.test.runner.stubs)
+    $(call hiddenapi_stubs_jar,android.test.base.stubs)
 
 # System API stubs
-HIDDENAPI_STUBS += \
+HIDDENAPI_STUBS_SYSTEM := \
     $(call hiddenapi_stubs_jar,android_system_stubs_current)
 
 # Test API stubs
-HIDDENAPI_STUBS += \
+HIDDENAPI_STUBS_TEST := \
     $(call hiddenapi_stubs_jar,android_test_stubs_current)
+
+# Allow products to define their own stubs for custom product jars that apps can use.
+ifdef PRODUCT_HIDDENAPI_STUBS
+  HIDDENAPI_STUBS += $(foreach stub,$(PRODUCT_HIDDENAPI_STUBS), $(call hiddenapi_stubs_jar,$(stub)))
+endif
+
+ifdef PRODUCT_HIDDENAPI_STUBS_SYSTEM
+  HIDDENAPI_STUBS_SYSTEM += $(foreach stub,$(PRODUCT_HIDDENAPI_STUBS_SYSTEM), $(call hiddenapi_stubs_jar,$(stub)))
+endif
+
+ifdef PRODUCT_HIDDENAPI_STUBS_TEST
+  HIDDENAPI_STUBS_TEST += $(foreach stub,$(PRODUCT_HIDDENAPI_STUBS_TEST), $(call hiddenapi_stubs_jar,$(stub)))
+endif
 
 # Singleton rule which applies $(HIDDENAPI) on all boot class path dex files.
 # Inputs are filled with `hiddenapi-copy-dex-files` rules.
-$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): \
-    PRIVATE_HIDDENAPI_STUBS := $(HIDDENAPI_STUBS)
+$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): PRIVATE_HIDDENAPI_STUBS := $(HIDDENAPI_STUBS)
+$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): PRIVATE_HIDDENAPI_STUBS_SYSTEM := $(HIDDENAPI_STUBS_SYSTEM)
+$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): PRIVATE_HIDDENAPI_STUBS_TEST := $(HIDDENAPI_STUBS_TEST)
 $(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): \
     .KATI_IMPLICIT_OUTPUTS := $(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST)
-$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): $(HIDDENAPI) $(HIDDENAPI_STUBS)
+$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): $(HIDDENAPI) $(HIDDENAPI_STUBS) \
+                                             $(HIDDENAPI_STUBS_SYSTEM) $(HIDDENAPI_STUBS_TEST)
 	for INPUT_DEX in $(PRIVATE_DEX_INPUTS); do \
 		find `dirname $${INPUT_DEX}` -maxdepth 1 -name "classes*.dex"; \
 	done | sort | sed 's/^/--boot-dex=/' | xargs $(HIDDENAPI) list \
-	    $(addprefix --stub-dex=,$(PRIVATE_HIDDENAPI_STUBS)) \
+	    --stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS)) \
+	    --stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS_SYSTEM)) \
+	    --stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS_TEST)) \
 	    --out-public=$(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST) \
 	    --out-private=$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST)
 
