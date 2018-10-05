@@ -285,6 +285,17 @@ class BuildInfo(object):
     return self._fingerprint
 
   @property
+  def vendor_fingerprint(self):
+    if "vendor.build.prop" not in self.info_dict:
+      return None
+    vendor_build_prop = self.info_dict["vendor.build.prop"]
+    if "ro.vendor.build.fingerprint" in vendor_build_prop:
+      return vendor_build_prop["ro.vendor.build.fingerprint"]
+    if "ro.vendor.build.thumbprint" in vendor_build_prop:
+      return vendor_build_prop["ro.vendor.build.thumbprint"]
+    return None
+
+  @property
   def oem_props(self):
     return self._oem_props
 
@@ -706,11 +717,14 @@ def AddCompatibilityArchiveIfTrebleEnabled(target_zip, output_zip, target_info,
   target_fp = target_info.fingerprint
   system_updated = source_fp != target_fp
 
-  source_fp_vendor = source_info.GetVendorBuildProp(
-      "ro.vendor.build.fingerprint")
-  target_fp_vendor = target_info.GetVendorBuildProp(
-      "ro.vendor.build.fingerprint")
-  vendor_updated = source_fp_vendor != target_fp_vendor
+  source_fp_vendor = source_info.vendor_fingerprint
+  target_fp_vendor = target_info.vendor_fingerprint
+  # vendor build fingerprints could be possibly blacklisted at build time. For
+  # such a case, we consider the vendor images being changed.
+  if source_fp_vendor is None or target_fp_vendor is None:
+    vendor_updated = True
+  else:
+    vendor_updated = source_fp_vendor != target_fp_vendor
 
   AddCompatibilityArchive(system_updated, vendor_updated)
 
@@ -1096,7 +1110,9 @@ class PropertyFiles(object):
     def ComputeEntryOffsetSize(name):
       """Computes the zip entry offset and size."""
       info = zip_file.getinfo(name)
-      offset = info.header_offset + len(info.FileHeader())
+      offset = info.header_offset
+      offset += zipfile.sizeFileHeader
+      offset += len(info.extra) + len(info.filename)
       size = info.file_size
       return '%s:%d:%d' % (os.path.basename(name), offset, size)
 
@@ -1220,7 +1236,9 @@ class AbOtaPropertyFiles(StreamingPropertyFiles):
     payload, till the end of 'medatada_signature_message'.
     """
     payload_info = input_zip.getinfo('payload.bin')
-    payload_offset = payload_info.header_offset + len(payload_info.FileHeader())
+    payload_offset = payload_info.header_offset
+    payload_offset += zipfile.sizeFileHeader
+    payload_offset += len(payload_info.extra) + len(payload_info.filename)
     payload_size = payload_info.file_size
 
     with input_zip.open('payload.bin', 'r') as payload_fp:
@@ -1519,18 +1537,14 @@ else if get_stage("%(bcb_dev)s") != "3/3" then
       print("boot      target: %d  source: %d  diff: %d" % (
           target_boot.size, source_boot.size, len(d)))
 
-      common.ZipWriteStr(output_zip, "patch/boot.img.p", d)
+      common.ZipWriteStr(output_zip, "boot.img.p", d)
 
-      # TODO(b/110106408): Remove after properly handling the SHA-1 embedded in
-      # the filename argument in updater code. Prior to that, explicitly list
-      # the SHA-1 of the source image, in case the updater tries to find a
-      # matching backup from /cache. Similarly for the call to
-      # script.ApplyPatch() below.
-      script.PatchCheck("%s:%s:%d:%s:%d:%s" %
-                        (boot_type, boot_device,
-                         source_boot.size, source_boot.sha1,
-                         target_boot.size, target_boot.sha1),
-                        source_boot.sha1)
+      script.PatchPartitionCheck(
+          "{}:{}:{}:{}".format(
+              boot_type, boot_device, target_boot.size, target_boot.sha1),
+          "{}:{}:{}:{}".format(
+              boot_type, boot_device, source_boot.size, source_boot.sha1))
+
       size.append(target_boot.size)
 
   if size:
@@ -1586,13 +1600,12 @@ else
         print("boot image changed; including patch.")
         script.Print("Patching boot image...")
         script.ShowProgress(0.1, 10)
-        script.ApplyPatch("%s:%s:%d:%s:%d:%s"
-                          % (boot_type, boot_device,
-                             source_boot.size, source_boot.sha1,
-                             target_boot.size, target_boot.sha1),
-                          "-",
-                          target_boot.size, target_boot.sha1,
-                          source_boot.sha1, "patch/boot.img.p")
+        script.PatchPartition(
+            '{}:{}:{}:{}'.format(
+                boot_type, boot_device, target_boot.size, target_boot.sha1),
+            '{}:{}:{}:{}'.format(
+                boot_type, boot_device, source_boot.size, source_boot.sha1),
+            'boot.img.p')
     else:
       print("boot image unchanged; skipping.")
 

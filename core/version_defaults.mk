@@ -256,7 +256,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-      PLATFORM_SECURITY_PATCH := 2018-10-05
+      PLATFORM_SECURITY_PATCH := 2018-11-05
 endif
 .KATI_READONLY := PLATFORM_SECURITY_PATCH
 
@@ -325,8 +325,8 @@ endif
 
 ifndef PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION
   # Used to set minimum supported target sdk version. Apps targeting sdk
-  # version lower than the set value will fail to install and run on android
-  # device.
-  PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION := 17
+  # version lower than the set value will result in a warning being shown
+  # when any activity from the app is started.
+  PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION := 23
 endif
 .KATI_READONLY := PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION

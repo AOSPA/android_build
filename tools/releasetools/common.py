@@ -149,9 +149,41 @@ def CloseInheritedPipes():
       pass
 
 
-def LoadInfoDict(input_file, input_dir=None):
-  """Read and parse the META/misc_info.txt key/value pairs from the
-  input target files and return a dict."""
+def LoadInfoDict(input_file, repacking=False):
+  """Loads the key/value pairs from the given input target_files.
+
+  It reads `META/misc_info.txt` file in the target_files input, does sanity
+  checks and returns the parsed key/value pairs for to the given build. It's
+  usually called early when working on input target_files files, e.g. when
+  generating OTAs, or signing builds. Note that the function may be called
+  against an old target_files file (i.e. from past dessert releases). So the
+  property parsing needs to be backward compatible.
+
+  In a `META/misc_info.txt`, a few properties are stored as links to the files
+  in the PRODUCT_OUT directory. It works fine with the build system. However,
+  they are no longer available when (re)generating images from target_files zip.
+  When `repacking` is True, redirect these properties to the actual files in the
+  unzipped directory.
+
+  Args:
+    input_file: The input target_files file, which could be an open
+        zipfile.ZipFile instance, or a str for the dir that contains the files
+        unzipped from a target_files file.
+    repacking: Whether it's trying repack an target_files file after loading the
+        info dict (default: False). If so, it will rewrite a few loaded
+        properties (e.g. selinux_fc, root_dir) to point to the actual files in
+        target_files file. When doing repacking, `input_file` must be a dir.
+
+  Returns:
+    A dict that contains the parsed key/value pairs.
+
+  Raises:
+    AssertionError: On invalid input arguments.
+    ValueError: On malformed input values.
+  """
+  if repacking:
+    assert isinstance(input_file, str), \
+        "input_file must be a path str when doing repacking"
 
   def read_helper(fn):
     if isinstance(input_file, zipfile.ZipFile):
@@ -168,44 +200,33 @@ def LoadInfoDict(input_file, input_dir=None):
   try:
     d = LoadDictionaryFromLines(read_helper("META/misc_info.txt").split("\n"))
   except KeyError:
-    raise ValueError("can't find META/misc_info.txt in input target-files")
+    raise ValueError("Failed to find META/misc_info.txt in input target-files")
 
-  assert "recovery_api_version" in d
-  assert "fstab_version" in d
+  if "recovery_api_version" not in d:
+    raise ValueError("Failed to find 'recovery_api_version'")
+  if "fstab_version" not in d:
+    raise ValueError("Failed to find 'fstab_version'")
 
-  # A few properties are stored as links to the files in the out/ directory.
-  # It works fine with the build system. However, they are no longer available
-  # when (re)generating from target_files zip. If input_dir is not None, we
-  # are doing repacking. Redirect those properties to the actual files in the
-  # unzipped directory.
-  if input_dir is not None:
-    # We carry a copy of file_contexts.bin under META/. If not available,
-    # search BOOT/RAMDISK/. Note that sometimes we may need a different file
-    # to build images than the one running on device, such as when enabling
-    # system_root_image. In that case, we must have the one for image
-    # generation copied to META/.
+  if repacking:
+    # We carry a copy of file_contexts.bin under META/. If not available, search
+    # BOOT/RAMDISK/. Note that sometimes we may need a different file to build
+    # images than the one running on device, in that case, we must have the one
+    # for image generation copied to META/.
     fc_basename = os.path.basename(d.get("selinux_fc", "file_contexts"))
-    fc_config = os.path.join(input_dir, "META", fc_basename)
-    if d.get("system_root_image") == "true":
-      assert os.path.exists(fc_config)
-    if not os.path.exists(fc_config):
-      fc_config = os.path.join(input_dir, "BOOT", "RAMDISK", fc_basename)
-      if not os.path.exists(fc_config):
-        fc_config = None
+    fc_config = os.path.join(input_file, "META", fc_basename)
+    assert os.path.exists(fc_config)
 
-    if fc_config:
-      d["selinux_fc"] = fc_config
+    d["selinux_fc"] = fc_config
 
-    # Similarly we need to redirect "root_dir" and "root_fs_config".
-    if d.get("system_root_image") == "true":
-      d["root_dir"] = os.path.join(input_dir, "ROOT")
-      d["root_fs_config"] = os.path.join(
-          input_dir, "META", "root_filesystem_config.txt")
+    # Similarly we need to redirect "root_dir", and "root_fs_config".
+    d["root_dir"] = os.path.join(input_file, "ROOT")
+    d["root_fs_config"] = os.path.join(
+        input_file, "META", "root_filesystem_config.txt")
 
     # Redirect {system,vendor}_base_fs_file.
     if "system_base_fs_file" in d:
       basename = os.path.basename(d["system_base_fs_file"])
-      system_base_fs_file = os.path.join(input_dir, "META", basename)
+      system_base_fs_file = os.path.join(input_file, "META", basename)
       if os.path.exists(system_base_fs_file):
         d["system_base_fs_file"] = system_base_fs_file
       else:
@@ -215,7 +236,7 @@ def LoadInfoDict(input_file, input_dir=None):
 
     if "vendor_base_fs_file" in d:
       basename = os.path.basename(d["vendor_base_fs_file"])
-      vendor_base_fs_file = os.path.join(input_dir, "META", basename)
+      vendor_base_fs_file = os.path.join(input_file, "META", basename)
       if os.path.exists(vendor_base_fs_file):
         d["vendor_base_fs_file"] = vendor_base_fs_file
       else:
@@ -237,15 +258,35 @@ def LoadInfoDict(input_file, input_dir=None):
   makeint("boot_size")
   makeint("fstab_version")
 
+  # We changed recovery.fstab path in Q, from ../RAMDISK/etc/recovery.fstab to
+  # ../RAMDISK/system/etc/recovery.fstab. LoadInfoDict() has to handle both
+  # cases, since it may load the info_dict from an old build (e.g. when
+  # generating incremental OTAs from that build).
   system_root_image = d.get("system_root_image") == "true"
   if d.get("no_recovery") != "true":
     recovery_fstab_path = "RECOVERY/RAMDISK/system/etc/recovery.fstab"
+    if isinstance(input_file, zipfile.ZipFile):
+      if recovery_fstab_path not in input_file.namelist():
+        recovery_fstab_path = "RECOVERY/RAMDISK/etc/recovery.fstab"
+    else:
+      path = os.path.join(input_file, *recovery_fstab_path.split("/"))
+      if not os.path.exists(path):
+        recovery_fstab_path = "RECOVERY/RAMDISK/etc/recovery.fstab"
     d["fstab"] = LoadRecoveryFSTab(
         read_helper, d["fstab_version"], recovery_fstab_path, system_root_image)
+
   elif d.get("recovery_as_boot") == "true":
     recovery_fstab_path = "BOOT/RAMDISK/system/etc/recovery.fstab"
+    if isinstance(input_file, zipfile.ZipFile):
+      if recovery_fstab_path not in input_file.namelist():
+        recovery_fstab_path = "BOOT/RAMDISK/etc/recovery.fstab"
+    else:
+      path = os.path.join(input_file, *recovery_fstab_path.split("/"))
+      if not os.path.exists(path):
+        recovery_fstab_path = "BOOT/RAMDISK/etc/recovery.fstab"
     d["fstab"] = LoadRecoveryFSTab(
         read_helper, d["fstab_version"], recovery_fstab_path, system_root_image)
+
   else:
     d["fstab"] = None
 
@@ -367,7 +408,7 @@ def AppendAVBSigningArgs(cmd, partition):
     cmd.extend(["--key", key_path, "--algorithm", algorithm])
   avb_salt = OPTIONS.info_dict.get("avb_salt")
   # make_vbmeta_image doesn't like "--salt" (and it's not needed).
-  if avb_salt and partition != "vbmeta":
+  if avb_salt and not partition.startswith("vbmeta"):
     cmd.extend(["--salt", avb_salt])
 
 
@@ -693,15 +734,14 @@ def GetSparseImage(which, tmpdir, input_zip, allow_shared_blocks):
     if not entry.startswith('/'):
       continue
 
-    # "/system/framework/am.jar" => "SYSTEM/framework/am.jar". Note that when
-    # using system_root_image, the filename listed in system.map may contain an
-    # additional leading slash (i.e. "//system/framework/am.jar"). Using lstrip
-    # to get consistent results.
+    # "/system/framework/am.jar" => "SYSTEM/framework/am.jar". Note that the
+    # filename listed in system.map may contain an additional leading slash
+    # (i.e. "//system/framework/am.jar"). Using lstrip to get consistent
+    # results.
     arcname = string.replace(entry, which, which.upper(), 1).lstrip('/')
 
-    # Special handling another case with system_root_image, where files not
-    # under /system (e.g. "/sbin/charger") are packed under ROOT/ in a
-    # target_files.zip.
+    # Special handling another case, where files not under /system
+    # (e.g. "/sbin/charger") are packed under ROOT/ in a target_files.zip.
     if which == 'system' and not arcname.startswith('SYSTEM'):
       arcname = 'ROOT/' + arcname
 

@@ -144,11 +144,49 @@ else
 endif
 FINAL_VENDOR_DEFAULT_PROPERTIES += \
     $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
+
+# Although these variables are prefixed with TARGET_RECOVERY_, they are also needed under charger
+# mode (via libminui).
+ifdef TARGET_RECOVERY_DEFAULT_ROTATION
+FINAL_VENDOR_DEFAULT_PROPERTIES += \
+    ro.minui.default_rotation=$(TARGET_RECOVERY_DEFAULT_ROTATION)
+endif
+ifdef TARGET_RECOVERY_OVERSCAN_PERCENT
+FINAL_VENDOR_DEFAULT_PROPERTIES += \
+    ro.minui.overscan_percent=$(TARGET_RECOVERY_OVERSCAN_PERCENT)
+endif
+ifdef TARGET_RECOVERY_PIXEL_FORMAT
+FINAL_VENDOR_DEFAULT_PROPERTIES += \
+    ro.minui.pixel_format=$(TARGET_RECOVERY_PIXEL_FORMAT)
+endif
 FINAL_VENDOR_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
     $(FINAL_VENDOR_DEFAULT_PROPERTIES),=)
 
 # -----------------------------------------------------------------
 # prop.default
+
+BUILDINFO_SH := build/make/tools/buildinfo.sh
+BUILDINFO_COMMON_SH := build/make/tools/buildinfo_common.sh
+# Generates a set of common build system properties to a file.
+# $(1): Partition name
+# $(2): Output file name
+define generate-common-build-props
+	BUILD_FINGERPRINT="$(BUILD_FINGERPRINT_FROM_FILE)" \
+	BUILD_ID="$(BUILD_ID)" \
+	BUILD_NUMBER="$(BUILD_NUMBER_FROM_FILE)" \
+	BUILD_VERSION_TAGS="$(BUILD_VERSION_TAGS)" \
+	DATE="$(DATE_FROM_FILE)" \
+	PLATFORM_SDK_VERSION="$(PLATFORM_SDK_VERSION)" \
+	PLATFORM_VERSION="$(PLATFORM_VERSION)" \
+	PRODUCT_BRAND="$(PRODUCT_BRAND)" \
+	PRODUCT_MANUFACTURER="$(PRODUCT_MANUFACTURER)" \
+	PRODUCT_MODEL="$(PRODUCT_MODEL)" \
+	PRODUCT_NAME="$(TARGET_PRODUCT)" \
+	TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
+	TARGET_DEVICE="$(TARGET_DEVICE)" \
+	bash $(BUILDINFO_COMMON_SH) "$(1)" >> $(2)
+endef
+
 ifdef property_overrides_split_enabled
 INSTALLED_DEFAULT_PROP_TARGET := $(TARGET_OUT)/etc/prop.default
 INSTALLED_DEFAULT_PROP_OLD_TARGET := $(TARGET_ROOT_OUT)/default.prop
@@ -171,7 +209,7 @@ FINAL_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
 
 intermediate_system_build_prop := $(call intermediates-dir-for,ETC,system_build_prop)/build.prop
 
-$(INSTALLED_DEFAULT_PROP_TARGET): $(intermediate_system_build_prop)
+$(INSTALLED_DEFAULT_PROP_TARGET): $(BUILDINFO_COMMON_SH) $(intermediate_system_build_prop)
 	@echo Target buildinfo: $@
 	@mkdir -p $(dir $@)
 	@rm -f $@
@@ -183,9 +221,7 @@ $(INSTALLED_DEFAULT_PROP_TARGET): $(intermediate_system_build_prop)
 	$(hide) echo "#" >> $@; \
 	        echo "# BOOTIMAGE_BUILD_PROPERTIES" >> $@; \
 	        echo "#" >> $@;
-	$(hide) echo ro.bootimage.build.date=`$(DATE_FROM_FILE)`>>$@
-	$(hide) echo ro.bootimage.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
-	$(hide) echo ro.bootimage.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
+	$(hide) $(call generate-common-build-props,bootimage,$@)
 	$(hide) build/make/tools/post_process_props.py $@
 ifdef property_overrides_split_enabled
 	$(hide) mkdir -p $(TARGET_ROOT_OUT)
@@ -308,9 +344,6 @@ define get-default-product-locale
 $(strip $(subst _,-, $(firstword $(1))))
 endef
 
-BUILDINFO_SH := build/make/tools/buildinfo.sh
-DEVICE_BUILDINFO_SH := build/make/tools/device_buildinfo.sh
-
 # TARGET_BUILD_FLAVOR and ro.build.flavor are used only by the test
 # harness to distinguish builds. Only add _asan for a sanitized build
 # if it isn't already a part of the flavor (via a dedicated lunch
@@ -327,7 +360,7 @@ system_prop_file := $(TARGET_SYSTEM_PROP)
 else
 system_prop_file := $(wildcard $(TARGET_DEVICE_DIR)/system.prop)
 endif
-$(intermediate_system_build_prop): $(BUILDINFO_SH) $(INTERNAL_BUILD_ID_MAKEFILE) $(BUILD_SYSTEM)/version_defaults.mk $(system_prop_file) $(INSTALLED_ANDROID_INFO_TXT_TARGET)
+$(intermediate_system_build_prop): $(BUILDINFO_SH) $(BUILDINFO_COMMON_SH) $(INTERNAL_BUILD_ID_MAKEFILE) $(BUILD_SYSTEM)/version_defaults.mk $(system_prop_file) $(INSTALLED_ANDROID_INFO_TXT_TARGET)
 	@echo Target buildinfo: $@
 	@mkdir -p $(dir $@)
 	$(hide) echo > $@
@@ -338,6 +371,7 @@ ifneq ($(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OEM_PROPERTIES),)
 	$(hide) $(foreach prop,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OEM_PROPERTIES), \
 		echo "import /oem/oem.prop $(prop)" >> $@;)
 endif
+	$(hide) $(call generate-common-build-props,system,$@)
 	$(hide) TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
 			TARGET_BUILD_FLAVOR="$(TARGET_BUILD_FLAVOR)" \
 			TARGET_DEVICE="$(TARGET_DEVICE)" \
@@ -419,32 +453,18 @@ FINAL_VENDOR_BUILD_PROPERTIES := $(call uniq-pairs-by-first-component, \
     $(FINAL_VENDOR_BUILD_PROPERTIES),=)
 endif  # property_overrides_split_enabled
 
-$(INSTALLED_VENDOR_BUILD_PROP_TARGET): $(DEVICE_BUILDINFO_SH) $(intermediate_system_build_prop)
+$(INSTALLED_VENDOR_BUILD_PROP_TARGET): $(BUILDINFO_COMMON_SH) $(intermediate_system_build_prop)
 	@echo Target vendor buildinfo: $@
 	@mkdir -p $(dir $@)
 	$(hide) echo > $@
 	$(hide) grep 'ro.product.first_api_level' $(intermediate_system_build_prop) >> $@ || true
-	$(hide) echo ro.vendor.build.date=`$(DATE_FROM_FILE)`>>$@
-	$(hide) echo ro.vendor.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
-	$(hide) echo ro.vendor.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
 	$(hide) echo ro.vendor.build.security_patch="$(VENDOR_SECURITY_PATCH)">>$@
 	$(hide) echo ro.vendor.product.cpu.abilist="$(TARGET_CPU_ABI_LIST)">>$@
 	$(hide) echo ro.vendor.product.cpu.abilist32="$(TARGET_CPU_ABI_LIST_32_BIT)">>$@
 	$(hide) echo ro.vendor.product.cpu.abilist64="$(TARGET_CPU_ABI_LIST_64_BIT)">>$@
-	$(hide) TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
-			BUILD_ID="$(BUILD_ID)" \
-			BUILD_NUMBER="$(BUILD_NUMBER_FROM_FILE)" \
-			PLATFORM_VERSION="$(PLATFORM_VERSION)" \
-			PLATFORM_SDK_VERSION="$(PLATFORM_SDK_VERSION)" \
-			BUILD_VERSION_TAGS="$(BUILD_VERSION_TAGS)" \
-			TARGET_DEVICE="$(TARGET_DEVICE)" \
-			PRODUCT_NAME="$(TARGET_PRODUCT)" \
-			PRODUCT_BRAND="$(PRODUCT_BRAND)" \
-			PRODUCT_MODEL="$(PRODUCT_MODEL)" \
-			PRODUCT_MANUFACTURER="$(PRODUCT_MANUFACTURER)" \
-			TARGET_BOOTLOADER_BOARD_NAME="$(TARGET_BOOTLOADER_BOARD_NAME)" \
-			TARGET_BOARD_PLATFORM="$(TARGET_BOARD_PLATFORM)" \
-	        bash $(DEVICE_BUILDINFO_SH) "vendor" >> $@
+	$(hide) echo ro.product.board="$(TARGET_BOOTLOADER_BOARD_NAME)">>$@
+	$(hide) echo ro.board.platform="$(TARGET_BOARD_PLATFORM)">>$@
+	$(hide) $(call generate-common-build-props,vendor,$@)
 ifdef property_overrides_split_enabled
 	$(hide) echo "#" >> $@; \
 	        echo "# ADDITIONAL VENDOR BUILD PROPERTIES" >> $@; \
@@ -464,14 +484,12 @@ FINAL_PRODUCT_PROPERTIES += \
 FINAL_PRODUCT_PROPERTIES := $(call uniq-pairs-by-first-component, \
     $(FINAL_PRODUCT_PROPERTIES),=)
 
-$(INSTALLED_PRODUCT_BUILD_PROP_TARGET):
+$(INSTALLED_PRODUCT_BUILD_PROP_TARGET): $(BUILDINFO_COMMON_SH)
 	@echo Target product buildinfo: $@
 	@mkdir -p $(dir $@)
 	$(hide) echo > $@
 ifdef BOARD_USES_PRODUCTIMAGE
-	$(hide) echo ro.product.build.date=`$(DATE_FROM_FILE)`>>$@
-	$(hide) echo ro.product.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
-	$(hide) echo ro.product.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
+	$(hide) $(call generate-common-build-props,product,$@)
 endif  # BOARD_USES_PRODUCTIMAGE
 	$(hide) echo "#" >> $@; \
 	        echo "# ADDITIONAL PRODUCT PROPERTIES" >> $@; \
@@ -490,24 +508,14 @@ FINAL_ODM_BUILD_PROPERTIES += \
 FINAL_ODM_BUILD_PROPERTIES := $(call uniq-pairs-by-first-component, \
     $(FINAL_ODM_BUILD_PROPERTIES),=)
 
-$(INSTALLED_ODM_BUILD_PROP_TARGET): $(DEVICE_BUILDINFO_SH)
+$(INSTALLED_ODM_BUILD_PROP_TARGET): $(BUILDINFO_COMMON_SH)
 	@echo Target odm buildinfo: $@
 	@mkdir -p $(dir $@)
 	$(hide) echo > $@
-	$(hide) echo ro.odm.build.date=`$(DATE_FROM_FILE)`>>$@
-	$(hide) echo ro.odm.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
-	$(hide) echo ro.odm.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
 	$(hide) echo ro.odm.product.cpu.abilist="$(TARGET_CPU_ABI_LIST)">>$@
 	$(hide) echo ro.odm.product.cpu.abilist32="$(TARGET_CPU_ABI_LIST_32_BIT)">>$@
 	$(hide) echo ro.odm.product.cpu.abilist64="$(TARGET_CPU_ABI_LIST_64_BIT)">>$@
-	$(hide) TARGET_DEVICE="$(TARGET_DEVICE)" \
-			PRODUCT_NAME="$(TARGET_PRODUCT)" \
-			PRODUCT_BRAND="$(PRODUCT_BRAND)" \
-			PRODUCT_MODEL="$(PRODUCT_MODEL)" \
-			PRODUCT_MANUFACTURER="$(PRODUCT_MANUFACTURER)" \
-			TARGET_BOOTLOADER_BOARD_NAME="$(TARGET_BOOTLOADER_BOARD_NAME)" \
-			TARGET_BOARD_PLATFORM="$(TARGET_BOARD_PLATFORM)" \
-	        bash $(DEVICE_BUILDINFO_SH) "odm" >> $@
+	$(hide) $(call generate-common-build-props,odm,$@)
 	$(hide) echo "#" >> $@; \
 	        echo "# ADDITIONAL ODM BUILD PROPERTIES" >> $@; \
 	        echo "#" >> $@;
@@ -525,14 +533,12 @@ FINAL_PRODUCT_SERVICES_PROPERTIES += \
 FINAL_PRODUCT_SERVICES_PROPERTIES := $(call uniq-pairs-by-first-component, \
     $(FINAL_PRODUCT_SERVICES_PROPERTIES),=)
 
-$(INSTALLED_PRODUCT_SERVICES_BUILD_PROP_TARGET):
+$(INSTALLED_PRODUCT_SERVICES_BUILD_PROP_TARGET): $(BUILDINFO_COMMON_SH)
 	@echo Target product_services buildinfo: $@
 	@mkdir -p $(dir $@)
 	$(hide) echo > $@
 ifdef BOARD_USES_PRODUCT_SERVICESIMAGE
-	$(hide) echo ro.product_services.build.date=`$(DATE_FROM_FILE)`>>$@
-	$(hide) echo ro.product_services.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
-	$(hide) echo ro.product_services.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
+	$(hide) $(call generate-common-build-props,product_services,$@)
 endif  # BOARD_USES_PRODUCT_SERVICESIMAGE
 	$(hide) echo "#" >> $@; \
 	        echo "# ADDITIONAL PRODUCT_SERVICES PROPERTIES" >> $@; \
@@ -754,15 +760,15 @@ else
 endif
 
 # -----------------------------------------------------------------
-# the ramdisk
-INTERNAL_RAMDISK_FILES := $(filter $(TARGET_ROOT_OUT)/%, \
+# the root dir
+INTERNAL_ROOT_FILES := $(filter $(TARGET_ROOT_OUT)/%, \
 	$(ALL_GENERATED_SOURCES) \
 	$(ALL_DEFAULT_INSTALLED_MODULES))
 
 INSTALLED_FILES_FILE_ROOT := $(PRODUCT_OUT)/installed-files-root.txt
 INSTALLED_FILES_JSON_ROOT := $(INSTALLED_FILES_FILE_ROOT:.txt=.json)
 $(INSTALLED_FILES_FILE_ROOT): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_ROOT)
-$(INSTALLED_FILES_FILE_ROOT) : $(INTERNAL_RAMDISK_FILES) $(FILESLIST)
+$(INSTALLED_FILES_FILE_ROOT) : $(INTERNAL_ROOT_FILES) $(FILESLIST)
 	@echo Installed file list: $@
 	@mkdir -p $(dir $@)
 	@rm -f $@
@@ -771,18 +777,35 @@ $(INSTALLED_FILES_FILE_ROOT) : $(INTERNAL_RAMDISK_FILES) $(FILESLIST)
 
 $(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE_ROOT))
 
+# -----------------------------------------------------------------
+# the ramdisk
+INTERNAL_RAMDISK_FILES := $(filter $(TARGET_RAMDISK_OUT)/%, \
+	$(ALL_GENERATED_SOURCES) \
+	$(ALL_DEFAULT_INSTALLED_MODULES))
+
+INSTALLED_FILES_FILE_RAMDISK := $(PRODUCT_OUT)/installed-files-ramdisk.txt
+INSTALLED_FILES_JSON_RAMDISK := $(INSTALLED_FILES_FILE_RAMDISK:.txt=.json)
+$(INSTALLED_FILES_FILE_RAMDISK): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_RAMDISK)
+$(INSTALLED_FILES_FILE_RAMDISK) : $(INTERNAL_RAMDISK_FILES) $(FILESLIST)
+	@echo Installed file list: $@
+	@mkdir -p $(dir $@)
+	@rm -f $@
+	$(hide) $(FILESLIST) $(TARGET_RAMDISK_OUT) > $(@:.txt=.json)
+	$(hide) build/make/tools/fileslist_util.py -c $(@:.txt=.json) > $@
+
+$(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE_RAMDISK))
 BUILT_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk.img
 
 # We just build this directly to the install location.
 INSTALLED_RAMDISK_TARGET := $(BUILT_RAMDISK_TARGET)
-$(INSTALLED_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_RAMDISK_FILES) $(INSTALLED_FILES_FILE_ROOT) | $(MINIGZIP)
+$(INSTALLED_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_RAMDISK_FILES) $(INSTALLED_FILES_FILE_RAMDISK) | $(MINIGZIP)
 	$(call pretty,"Target ram disk: $@")
-	$(hide) $(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_ROOT_OUT) | $(MINIGZIP) > $@
+	$(hide) $(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_RAMDISK_OUT) | $(MINIGZIP) > $@
 
 .PHONY: ramdisk-nodeps
 ramdisk-nodeps: $(MKBOOTFS) | $(MINIGZIP)
 	@echo "make $@: ignoring dependencies"
-	$(hide) $(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_ROOT_OUT) | $(MINIGZIP) > $(INSTALLED_RAMDISK_TARGET)
+	$(hide) $(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_RAMDISK_OUT) | $(MINIGZIP) > $(INSTALLED_RAMDISK_TARGET)
 
 INSTALLED_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot.img
 
@@ -958,10 +981,11 @@ $(2) $(3): PRIVATE_DIR := $(5)
 $(2) : $(3)
 $(3) : $(6) $(BUILD_SYSTEM)/Makefile build/make/tools/generate-notice-files.py
 	build/make/tools/generate-notice-files.py --text-output $(2) \
-		$(if $(filter $(1),xml_excluded_vendor_product),-e vendor$(comma)product --xml-output, \
+		$(if $(filter $(1),xml_excluded_extra_partitions),-e vendor$(comma)product$(comma)product_services --xml-output, \
 		  $(if $(filter $(1),xml_vendor),-i vendor --xml-output, \
 		    $(if $(filter $(1),xml_product),-i product --xml-output, \
-		      --html-output))) $(3) \
+		      $(if $(filter $(1),xml_product_services),-i product_services --xml-output, \
+		        --html-output)))) $(3) \
 		-t $$(PRIVATE_MESSAGE) -s $$(PRIVATE_DIR)/src
 notice_files: $(2) $(3)
 endef
@@ -992,6 +1016,11 @@ target_product_notice_file_txt := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PRODUCT.txt
 target_product_notice_file_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PRODUCT.xml
 target_product_notice_file_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PRODUCT.xml.gz
 installed_product_notice_xml_gz := $(TARGET_OUT_PRODUCT)/etc/NOTICE.xml.gz
+
+target_product_services_notice_file_txt := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PRODUCT_SERVICES.txt
+target_product_services_notice_file_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PRODUCT_SERVICES.xml
+target_product_services_notice_file_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PRODUCT_SERVICES.xml.gz
+installed_product_services_notice_xml_gz := $(TARGET_OUT_PRODUCT_SERVICES)/etc/NOTICE.xml.gz
 endif
 
 ifndef TARGET_BUILD_APPS
@@ -1000,7 +1029,7 @@ winpthreads_notice_file := $(TARGET_OUT_NOTICE_FILES)/src/winpthreads.txt
 pdk_fusion_notice_files := $(filter $(TARGET_OUT_NOTICE_FILES)/%, $(ALL_PDK_FUSION_FILES))
 
 ifdef target_vendor_notice_file_xml_gz
-$(eval $(call combine-notice-files, xml_excluded_vendor_product, \
+$(eval $(call combine-notice-files, xml_excluded_extra_partitions, \
 			$(target_notice_file_txt), \
 			$(target_notice_file_html_or_xml), \
 			"Notices for files contained in the filesystem images in this directory:", \
@@ -1017,6 +1046,14 @@ $(eval $(call combine-notice-files, xml_product, \
 			$(target_product_notice_file_txt), \
 			$(target_product_notice_file_xml), \
 			"Notices for files contained in the product filesystem image in this directory:", \
+			$(TARGET_OUT_NOTICE_FILES), \
+			$(target_notice_file_html_or_xml)))
+endif
+ifdef target_product_services_notice_file_txt
+$(eval $(call combine-notice-files, xml_product_services, \
+			$(target_product_services_notice_file_txt), \
+			$(target_product_services_notice_file_xml), \
+			"Notices for files contained in the product_services filesystem image in this directory:", \
 			$(TARGET_OUT_NOTICE_FILES), \
 			$(target_notice_file_html_or_xml)))
 endif
@@ -1063,6 +1100,14 @@ $(installed_product_notice_xml_gz): $(target_product_notice_file_xml_gz)
 	$(copy-file-to-target)
 endif
 
+ifdef target_product_services_notice_file_xml_gz
+# Install the product html file at /product_services/etc/NOTICE.xml.gz.
+$(target_product_services_notice_file_xml_gz): $(target_product_services_notice_file_xml) | $(MINIGZIP)
+	$(hide) $(MINIGZIP) -9 < $< > $@
+$(installed_product_services_notice_xml_gz): $(target_product_services_notice_file_xml_gz)
+	$(copy-file-to-target)
+endif
+
 # if we've been run my mm, mmm, etc, don't reinstall this every time
 ifeq ($(ONE_SHOT_MAKEFILE),)
   ALL_DEFAULT_INSTALLED_MODULES += $(installed_notice_html_or_xml_gz)
@@ -1071,6 +1116,9 @@ ifeq ($(ONE_SHOT_MAKEFILE),)
   endif
   ifdef target_product_notice_file_xml_gz
     ALL_DEFAULT_INSTALLED_MODULES += $(installed_product_notice_xml_gz)
+  endif
+  ifdef target_product_services_notice_file_xml_gz
+    ALL_DEFAULT_INSTALLED_MODULES += $(installed_product_services_notice_xml_gz)
   endif
 endif
 endif  # TARGET_BUILD_APPS
@@ -1355,8 +1403,8 @@ $(if $(BOARD_AVB_ENABLE),\
 $(if $(filter true,$(BOARD_USES_RECOVERY_AS_BOOT)),\
     $(hide) echo "recovery_as_boot=true" >> $(1))
 $(if $(filter true,$(BOARD_BUILD_SYSTEM_ROOT_IMAGE)),\
-    $(hide) echo "system_root_image=true" >> $(1)
-    $(hide) echo "root_dir=$(TARGET_ROOT_OUT)" >> $(1))
+    $(hide) echo "system_root_image=true" >> $(1))
+$(hide) echo "root_dir=$(TARGET_ROOT_OUT)" >> $(1)
 $(if $(PRODUCT_USE_DYNAMIC_PARTITION_SIZE),$(hide) echo "use_dynamic_partition_size=true" >> $(1))
 $(if $(3),$(hide) $(foreach kv,$(3),echo "$(kv)" >> $(1);))
 endef
@@ -1442,15 +1490,26 @@ recovery_kernel := $(INSTALLED_KERNEL_TARGET) # same as a non-recovery system
 recovery_ramdisk := $(PRODUCT_OUT)/ramdisk-recovery.img
 recovery_resources_common := $(call include-path-for, recovery)/res
 
-# Set recovery_density to the density bucket of the device.
-recovery_density := unknown
+# Set recovery_density to a density bucket based on PRODUCT_AAPT_PREF_CONFIG if set. Otherwise use
+# the default medium density.
 ifneq (,$(PRODUCT_AAPT_PREF_CONFIG))
-# If PRODUCT_AAPT_PREF_CONFIG includes a dpi bucket, then use that value.
+# If PRODUCT_AAPT_PREF_CONFIG includes a non-numeric dpi bucket, always perfer that value.
 recovery_density := $(filter %dpi,$(PRODUCT_AAPT_PREF_CONFIG))
-else
-# Otherwise, use the default medium density.
-recovery_densities := mdpi
+ifeq (,$(filter xxxhdpi xxhdpi xhdpi hdpi mdpi,$(recovery_density)))
+recovery_density_value := $(patsubst %dpi,%,$(recovery_density))
+# Map the numeric dpi value to a bucket. We roughly use the medium point between the primary
+# densities to split buckets.
+# ------160------240------320----------480------------640------
+#       mdpi     hdpi    xhdpi        xxhdpi        xxxhdpi
+recovery_density := $(strip \
+  $(or $(if $(filter $(shell echo $$(($(recovery_density_value) >= 560))),1),xxxhdpi),\
+       $(if $(filter $(shell echo $$(($(recovery_density_value) >= 400))),1),xxhdpi),\
+       $(if $(filter $(shell echo $$(($(recovery_density_value) >= 280))),1),xhdpi),\
+       $(if $(filter $(shell echo $$(($(recovery_density_value) >= 200))),1),hdpi,mdpi)))
 endif
+else # PRODUCT_AAPT_PREF_CONFIG is empty
+recovery_density := mdpi
+endif # PRODUCT_AAPT_PREF_CONFIG
 
 ifneq (,$(wildcard $(recovery_resources_common)-$(recovery_density)))
 recovery_resources_common := $(recovery_resources_common)-$(recovery_density)
@@ -1458,12 +1517,10 @@ else
 recovery_resources_common := $(recovery_resources_common)-xhdpi
 endif
 
-# Select the 18x32 font on high-density devices (xhdpi and up); and
-# the 12x22 font on other devices.  Note that the font selected here
-# can be overridden for a particular device by putting a font.png in
-# its private recovery resources.
-
-ifneq (,$(filter xxxhdpi 560dpi xxhdpi 400dpi xhdpi,$(recovery_density)))
+# Select the 18x32 font on high-density devices (xhdpi and up); and the 12x22 font on other devices.
+# Note that the font selected here can be overridden for a particular device by putting a font.png
+# in its private recovery resources.
+ifneq (,$(filter xxxhdpi xxhdpi xhdpi,$(recovery_density)))
 recovery_font := $(call include-path-for, recovery)/fonts/18x32.png
 else
 recovery_font := $(call include-path-for, recovery)/fonts/12x22.png
@@ -1515,9 +1572,6 @@ endif
 INSTALLED_RECOVERY_BUILD_PROP_TARGET := $(TARGET_RECOVERY_ROOT_OUT)/prop.default
 
 $(INSTALLED_RECOVERY_BUILD_PROP_TARGET): PRIVATE_RECOVERY_UI_PROPERTIES := \
-    TARGET_RECOVERY_DEFAULT_ROTATION:default_rotation \
-    TARGET_RECOVERY_OVERSCAN_PERCENT:overscan_percent \
-    TARGET_RECOVERY_PIXEL_FORMAT:pixel_format \
     TARGET_RECOVERY_UI_ANIMATION_FPS:animation_fps \
     TARGET_RECOVERY_UI_MARGIN_HEIGHT:margin_height \
     TARGET_RECOVERY_UI_MARGIN_WIDTH:margin_width \
@@ -1611,6 +1665,8 @@ define build-recoveryimage-target
   # Copying baseline ramdisk...
   # Use rsync because "cp -Rf" fails to overwrite broken symlinks on Mac.
   $(hide) rsync -a --exclude=sdcard $(IGNORE_RECOVERY_SEPOLICY) $(IGNORE_CACHE_LINK) $(TARGET_ROOT_OUT) $(TARGET_RECOVERY_OUT)
+  $(if $(filter true,$(BOARD_BUILD_SYSTEM_ROOT_IMAGE)),, \
+    $(hide) rsync -a $(TARGET_RAMDISK_OUT)/* $(TARGET_RECOVERY_ROOT_OUT)/)
   # Modifying ramdisk contents...
   $(if $(BOARD_RECOVERY_KERNEL_MODULES), \
     $(call build-image-kernel-modules,$(BOARD_RECOVERY_KERNEL_MODULES),$(TARGET_RECOVERY_ROOT_OUT),,$(call intermediates-dir-for,PACKAGING,depmod_recovery)))
@@ -1662,7 +1718,12 @@ endif
 ifeq (true,$(BOARD_AVB_ENABLE))
 $(INSTALLED_BOOTIMAGE_TARGET) : $(AVBTOOL) $(BOARD_AVB_BOOT_KEY_PATH)
 endif
+ifdef BOARD_INCLUDE_RECOVERY_DTBO
+$(INSTALLED_BOOTIMAGE_TARGET): $(BOARD_PREBUILT_DTBOIMAGE)
+endif
+
 $(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
+		$(INTERNAL_ROOT_FILES) \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INTERNAL_RECOVERYIMAGE_FILES) \
 		$(recovery_initrc) $(recovery_sepolicy) $(recovery_kernel) \
@@ -1673,11 +1734,16 @@ $(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 		$(RECOVERY_INSTALL_OTA_KEYS) \
 		$(BOARD_RECOVERY_KERNEL_MODULES) \
 		$(DEPMOD)
-		$(call pretty,"Target boot image from recovery: $@")
-		$(call build-recoveryimage-target, $@)
+	$(call pretty,"Target boot image from recovery: $@")
+	$(call build-recoveryimage-target, $@)
+endif # BOARD_USES_RECOVERY_AS_BOOT
+
+ifdef BOARD_INCLUDE_RECOVERY_DTBO
+$(INSTALLED_RECOVERYIMAGE_TARGET): $(BOARD_PREBUILT_DTBOIMAGE)
 endif
 
 $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
+		$(INTERNAL_ROOT_FILES) \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INSTALLED_BOOTIMAGE_TARGET) \
 		$(INTERNAL_RECOVERYIMAGE_FILES) \
@@ -1689,7 +1755,7 @@ $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 		$(RECOVERY_INSTALL_OTA_KEYS) \
 		$(BOARD_RECOVERY_KERNEL_MODULES) \
 		$(DEPMOD)
-		$(call build-recoveryimage-target, $@)
+	$(call build-recoveryimage-target, $@)
 
 ifdef RECOVERY_RESOURCE_ZIP
 $(RECOVERY_RESOURCE_ZIP): $(INSTALLED_RECOVERYIMAGE_TARGET) | $(ZIPTIME)
@@ -1743,11 +1809,7 @@ ifneq (,$(filter address, $(SANITIZE_TARGET)))
   endif
 endif
 
-# When building a system root image, also add the ramdisk image as a dependency
-# to ensure all files in it are built before it is created.
-ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-  FULL_SYSTEMIMAGE_DEPS += $(INTERNAL_RAMDISK_FILES) $(INSTALLED_FILES_FILE_ROOT)
-endif
+FULL_SYSTEMIMAGE_DEPS += $(INTERNAL_ROOT_FILES) $(INSTALLED_FILES_FILE_ROOT)
 
 # -----------------------------------------------------------------
 # Final System VINTF manifest including fragments. This is not assembled
@@ -2570,7 +2632,15 @@ $(INSTALLED_DTBOIMAGE_TARGET): $(BOARD_PREBUILT_DTBOIMAGE)
 	cp $(BOARD_PREBUILT_DTBOIMAGE) $@
 endif
 
-endif
+endif # BOARD_PREBUILT_DTBOIMAGE
+
+# Returns a list of image targets corresponding to the given list of partitions. For example, it
+# returns "$(INSTALLED_PRODUCTIMAGE_TARGET)" for "product", or "$(INSTALLED_SYSTEMIMAGE_TARGET)
+# $(INSTALLED_VENDORIMAGE_TARGET)" for "system vendor".
+# (1): list of partitions like "system", "vendor" or "system product product_services".
+define images-for-partitions
+$(strip $(foreach item,$(1),$(INSTALLED_$(call to-upper,$(item))IMAGE_TARGET)))
+endef
 
 # -----------------------------------------------------------------
 # vbmeta image
@@ -2587,8 +2657,14 @@ BOARD_AVB_ALGORITHM := SHA256_RSA4096
 BOARD_AVB_KEY_PATH := external/avb/test/data/testkey_rsa4096.pem
 endif
 
-INTERNAL_AVB_SIGNING_ARGS := \
-    --algorithm $(BOARD_AVB_ALGORITHM) --key $(BOARD_AVB_KEY_PATH)
+INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES := \
+    $(BOARD_AVB_VBMETA_MAINLINE) \
+    $(BOARD_AVB_VBMETA_VENDOR)
+
+# Not allowing the same partition to appear in multiple groups.
+ifneq ($(words $(sort $(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES))),$(words $(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES)))
+  $(error BOARD_AVB_VBMETA_MAINLINE and BOARD_AVB_VBMETA_VENDOR cannot have duplicates)
+endif
 
 BOOT_FOOTER_ARGS := BOARD_AVB_BOOT_ADD_HASH_FOOTER_ARGS
 DTBO_FOOTER_ARGS := BOARD_AVB_DTBO_ADD_HASH_FOOTER_ARGS
@@ -2599,11 +2675,11 @@ PRODUCT_FOOTER_ARGS := BOARD_AVB_PRODUCT_ADD_HASHTREE_FOOTER_ARGS
 PRODUCT_SERVICES_FOOTER_ARGS := BOARD_AVB_PRODUCT_SERVICES_ADD_HASHTREE_FOOTER_ARGS
 ODM_FOOTER_ARGS := BOARD_AVB_ODM_ADD_HASHTREE_FOOTER_ARGS
 
-# Check and set required build variables for a chain partition.
-# $(1): the partition to enable AVB chain, e.g., BOOT or SYSTEM.
-define check-and-set-avb-chain-args
-$(eval PART := $(1))
-$(eval part=$(call to-lower,$(PART)))
+# Helper function that checks and sets required build variables for an AVB chained partition.
+# $(1): the partition to enable AVB chain, e.g., boot or system or vbmeta_mainline.
+define _check-and-set-avb-chain-args
+$(eval part := $(1))
+$(eval PART=$(call to-upper,$(part)))
 
 $(eval _key_path := BOARD_AVB_$(PART)_KEY_PATH)
 $(eval _signing_algorithm := BOARD_AVB_$(PART)_ALGORITHM)
@@ -2622,73 +2698,67 @@ $(eval $(_signing_args) := \
 $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
     --chain_partition $(part):$($(_rollback_index_location)):$(AVB_CHAIN_KEY_DIR)/$(part).avbpubkey)
 
-# Set rollback_index via footer args
-$(eval _footer_args := $(PART)_FOOTER_ARGS)
-$(eval $($(_footer_args)) += --rollback_index $($(_rollback_index)))
+# Set rollback_index via footer args for non-chained vbmeta image. Chained vbmeta image will pick up
+# the index via a separate flag (e.g. BOARD_AVB_VBMETA_MAINLINE_ROLLBACK_INDEX).
+$(if $(filter $(part),$(part:vbmeta_%=%)),\
+    $(eval _footer_args := $(PART)_FOOTER_ARGS) \
+    $(eval $($(_footer_args)) += --rollback_index $($(_rollback_index))))
+endef
+
+# Checks and sets the required build variables for an AVB partition. The partition will be
+# configured as a chained partition, if BOARD_AVB_<partition>_KEY_PATH is defined. Otherwise the
+# image descriptor will be included into vbmeta.img, unless it has been already added to any chained
+# VBMeta image.
+# $(1): Partition name, e.g. boot or system.
+define check-and-set-avb-args
+$(eval _in_chained_vbmeta := $(filter $(1),$(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES)))
+$(if $(BOARD_AVB_$(call to-upper,$(1))_KEY_PATH),\
+    $(if $(_in_chained_vbmeta),\
+        $(error Chaining partition "$(1)" in chained VBMeta image is not supported)) \
+    $(call _check-and-set-avb-chain-args,$(1)),\
+    $(if $(_in_chained_vbmeta),,\
+        $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
+            --include_descriptors_from_image $(call images-for-partitions,$(1)))))
 endef
 
 ifdef INSTALLED_BOOTIMAGE_TARGET
-ifdef BOARD_AVB_BOOT_KEY_PATH
-$(eval $(call check-and-set-avb-chain-args,BOOT))
-else
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-    --include_descriptors_from_image $(INSTALLED_BOOTIMAGE_TARGET)
-endif
+$(eval $(call check-and-set-avb-args,boot))
 endif
 
-ifdef BOARD_AVB_SYSTEM_KEY_PATH
-$(eval $(call check-and-set-avb-chain-args,SYSTEM))
-else
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-    --include_descriptors_from_image $(INSTALLED_SYSTEMIMAGE_TARGET)
-endif
+$(eval $(call check-and-set-avb-args,system))
 
 ifdef INSTALLED_VENDORIMAGE_TARGET
-ifdef BOARD_AVB_VENDOR_KEY_PATH
-$(eval $(call check-and-set-avb-chain-args,VENDOR))
-else
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-    --include_descriptors_from_image $(INSTALLED_VENDORIMAGE_TARGET)
-endif
+$(eval $(call check-and-set-avb-args,vendor))
 endif
 
 ifdef INSTALLED_PRODUCTIMAGE_TARGET
-ifdef BOARD_AVB_PRODUCT_KEY_PATH
-$(eval $(call check-and-set-avb-chain-args,PRODUCT))
-else
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-    --include_descriptors_from_image $(INSTALLED_PRODUCTIMAGE_TARGET)
+$(eval $(call check-and-set-avb-args,product))
 endif
+
+ifdef INSTALLED_PRODUCT_SERVICESIMAGE_TARGET
+$(eval $(call check-and-set-avb-args,product_services))
 endif
 
 ifdef INSTALLED_ODMIMAGE_TARGET
-ifdef BOARD_AVB_ODM_KEY_PATH
-$(eval $(call check-and-set-avb-chain-args,ODM))
-else
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-    --include_descriptors_from_image $(INSTALLED_ODMIMAGE_TARGET)
-endif
+$(eval $(call check-and-set-avb-args,odm))
 endif
 
 ifdef INSTALLED_DTBOIMAGE_TARGET
-ifdef BOARD_AVB_DTBO_KEY_PATH
-$(eval $(call check-and-set-avb-chain-args,DTBO))
-else
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-    --include_descriptors_from_image $(INSTALLED_DTBOIMAGE_TARGET)
-endif
+$(eval $(call check-and-set-avb-args,dtbo))
 endif
 
 ifdef INSTALLED_RECOVERYIMAGE_TARGET
-ifdef BOARD_AVB_RECOVERY_KEY_PATH
-$(eval $(call check-and-set-avb-chain-args,RECOVERY))
-else
-INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-    --include_descriptors_from_image $(INSTALLED_RECOVERYIMAGE_TARGET)
-endif
+$(eval $(call check-and-set-avb-args,recovery))
 endif
 
-BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --padding_size 4096
+# Not using INSTALLED_VBMETA_MAINLINEIMAGE_TARGET as it won't be set yet.
+ifdef BOARD_AVB_VBMETA_MAINLINE
+$(eval $(call check-and-set-avb-args,vbmeta_mainline))
+endif
+
+ifdef BOARD_AVB_VBMETA_VENDOR
+$(eval $(call check-and-set-avb-args,vbmeta_vendor))
+endif
 
 # Add kernel cmdline descriptor for kernel to mount system.img as root with
 # dm-verity. This works when system.img is either chained or not-chained:
@@ -2700,16 +2770,28 @@ ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
 BOARD_AVB_SYSTEM_ADD_HASHTREE_FOOTER_ARGS += --setup_as_rootfs_from_kernel
 endif
 
+BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --padding_size 4096
+BOARD_AVB_MAKE_VBMETA_MAINLINE_IMAGE_ARGS += --padding_size 4096
+BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += --padding_size 4096
+
+ifeq (eng,$(filter eng, $(TARGET_BUILD_VARIANT)))
+BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --set_hashtree_disabled_flag
+BOARD_AVB_MAKE_VBMETA_MAINLINE_IMAGE_ARGS += --set_hashtree_disabled_flag
+BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += --set_hashtree_disabled_flag
+endif
+
 ifdef BOARD_AVB_ROLLBACK_INDEX
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --rollback_index $(BOARD_AVB_ROLLBACK_INDEX)
 endif
 
-ifeq (eng,$(filter eng, $(TARGET_BUILD_VARIANT)))
-BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --set_hashtree_disabled_flag
+ifdef BOARD_AVB_VBMETA_MAINLINE_ROLLBACK_INDEX
+BOARD_AVB_MAKE_VBMETA_MAINLINE_IMAGE_ARGS += \
+    --rollback_index $(BOARD_AVB_VBMETA_MAINLINE_ROLLBACK_INDEX)
 endif
 
-ifndef BOARD_BOOTIMAGE_PARTITION_SIZE
-  $(error BOARD_BOOTIMAGE_PARTITION_SIZE must be set for BOARD_AVB_ENABLE)
+ifdef BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX
+BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += \
+    --rollback_index $(BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX)
 endif
 
 # $(1): the directory to extract public keys to
@@ -2738,7 +2820,49 @@ define extract-avb-chain-public-keys
   $(if $(BOARD_AVB_RECOVERY_KEY_PATH),\
     $(hide) $(AVBTOOL) extract_public_key --key $(BOARD_AVB_RECOVERY_KEY_PATH) \
       --output $(1)/recovery.avbpubkey)
+  $(if $(BOARD_AVB_VBMETA_MAINLINE_KEY_PATH),\
+    $(hide) $(AVBTOOL) extract_public_key --key $(BOARD_AVB_VBMETA_MAINLINE_KEY_PATH) \
+        --output $(1)/vbmeta_mainline.avbpubkey)
+  $(if $(BOARD_AVB_VBMETA_VENDOR_KEY_PATH),\
+    $(hide) $(AVBTOOL) extract_public_key --key $(BOARD_AVB_VBMETA_VENDOR_KEY_PATH) \
+        --output $(1)/vbmeta_vendor.avbpubkey)
 endef
+
+# Builds a chained VBMeta image. This VBMeta image will contain the descriptors for the partitions
+# specified in BOARD_AVB_VBMETA_<NAME>. The built VBMeta image will be included into the top-level
+# vbmeta image as a chained partition. For example, if a target defines `BOARD_AVB_VBMETA_MAINLINE
+# := system product_services`, `vbmeta_mainline.img` will be created that includes the descriptors
+# for `system.img` and `product_services.img`. `vbmeta_mainline.img` itself will be included into
+# `vbmeta.img` as a chained partition.
+# $(1): VBMeta image name, such as "vbmeta_mainline", "vbmeta_vendor" etc.
+# $(2): Output filename.
+define build-chained-vbmeta-image
+  $(call pretty,"Target chained vbmeta image: $@")
+  $(hide) $(AVBTOOL) make_vbmeta_image \
+      $(INTERNAL_AVB_$(call to-upper,$(1))_SIGNING_ARGS) \
+      $(BOARD_AVB_MAKE_$(call to-upper,$(1))_IMAGE_ARGS) \
+      $(foreach image,$(BOARD_AVB_$(call to-upper,$(1))), \
+          --include_descriptors_from_image $(call images-for-partitions,$(image))) \
+      --output $@
+endef
+
+ifdef BOARD_AVB_VBMETA_MAINLINE
+INSTALLED_VBMETA_MAINLINEIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta_mainline.img
+$(INSTALLED_VBMETA_MAINLINEIMAGE_TARGET): \
+		$(AVBTOOL) \
+		$(call images-for-partitions,$(BOARD_AVB_VBMETA_MAINLINE)) \
+		$(BOARD_AVB_VBMETA_MAINLINE_KEY_PATH)
+	$(call build-chained-vbmeta-image,vbmeta_mainline)
+endif
+
+ifdef BOARD_AVB_VBMETA_VENDOR
+INSTALLED_VBMETA_VENDORIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta_vendor.img
+$(INSTALLED_VBMETA_VENDORIMAGE_TARGET): \
+		$(AVBTOOL) \
+		$(call images-for-partitions,$(BOARD_AVB_VBMETA_VENDOR)) \
+		$(BOARD_AVB_VBMETA_VENDOR_KEY_PATH)
+	$(call build-chained-vbmeta-image,vbmeta_vendor)
+endif
 
 define build-vbmetaimage-target
   $(call pretty,"Target vbmeta image: $(INSTALLED_VBMETAIMAGE_TARGET)")
@@ -2746,13 +2870,16 @@ define build-vbmetaimage-target
   $(call extract-avb-chain-public-keys, $(AVB_CHAIN_KEY_DIR))
   $(hide) $(AVBTOOL) make_vbmeta_image \
     $(INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS) \
-    $(INTERNAL_AVB_SIGNING_ARGS) \
+    $(PRIVATE_AVB_VBMETA_SIGNING_ARGS) \
     $(BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS) \
     --output $@
   $(hide) rm -rf $(AVB_CHAIN_KEY_DIR)
 endef
 
 INSTALLED_VBMETAIMAGE_TARGET := $(BUILT_VBMETAIMAGE_TARGET)
+$(INSTALLED_VBMETAIMAGE_TARGET): PRIVATE_AVB_VBMETA_SIGNING_ARGS := \
+    --algorithm $(BOARD_AVB_ALGORITHM) --key $(BOARD_AVB_KEY_PATH)
+
 $(INSTALLED_VBMETAIMAGE_TARGET): \
 		$(AVBTOOL) \
 		$(INSTALLED_BOOTIMAGE_TARGET) \
@@ -2763,6 +2890,10 @@ $(INSTALLED_VBMETAIMAGE_TARGET): \
 		$(INSTALLED_ODMIMAGE_TARGET) \
 		$(INSTALLED_DTBOIMAGE_TARGET) \
 		$(INSTALLED_RECOVERYIMAGE_TARGET) \
+		$(INSTALLED_VBMETA_MAINLINEIMAGE_TARGET) \
+		$(INSTALLED_VBMETA_VENDORIMAGE_TARGET) \
+		$(BOARD_AVB_VBMETA_MAINLINE_KEY_PATH) \
+		$(BOARD_AVB_VBMETA_VENDOR_KEY_PATH) \
 		$(BOARD_AVB_KEY_PATH)
 	$(build-vbmetaimage-target)
 
@@ -2770,26 +2901,10 @@ $(INSTALLED_VBMETAIMAGE_TARGET): \
 vbmetaimage-nodeps:
 	$(build-vbmetaimage-target)
 
-else ifeq (true,$(BOARD_BUILD_DISABLED_VBMETAIMAGE))
-BUILT_DISABLED_VBMETAIMAGE := $(PRODUCT_OUT)/vbmeta.img
-
-INSTALLED_VBMETAIMAGE_TARGET := $(BUILT_DISABLED_VBMETAIMAGE)
-$(INSTALLED_VBMETAIMAGE_TARGET): $(AVBTOOL)
-	$(hide) $(AVBTOOL) make_vbmeta_image \
-	  --flag 2 --padding_size 4096 --output $@
-
 endif # BOARD_AVB_ENABLE
 
 # -----------------------------------------------------------------
 # super partition image
-
-# Returns a list of image targets corresponding to the given list of partitions. For example, it
-# returns "$(INSTALLED_PRODUCTIMAGE_TARGET)" for "product", or "$(INSTALLED_SYSTEMIMAGE_TARGET)
-# $(INSTALLED_VENDORIMAGE_TARGET)" for "system vendor".
-# (1): list of partitions like "system", "vendor" or "system product product_services".
-define images-for-partitions
-$(strip $(foreach item,$(1),$(INSTALLED_$(call to-upper,$(item))IMAGE_TARGET)))
-endef
 
 # (1): list of items like "system", "vendor", "product", "product_services"
 # return: map each item into a command ( wrapped in $$() ) that reads the size
@@ -2812,32 +2927,42 @@ $(INSTALLED_SUPERIMAGE_TARGET): $(call images-for-partitions,$(BOARD_SUPER_PARTI
 # bootloader fastboot should always mark _a slot as bootable.
 ifeq ($(AB_OTA_UPDATER),true)
 $(INSTALLED_SUPERIMAGE_TARGET) $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): PRIVATE_PARTITION_SUFFIX=_a
-$(INSTALLED_SUPERIMAGE_TARGET) $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): PRIVATE_METADATA_SLOTS=2
-else
-$(INSTALLED_SUPERIMAGE_TARGET) $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): PRIVATE_METADATA_SLOTS=1
 endif # AB_OTA_UPDATER
 
-$(INSTALLED_SUPERIMAGE_TARGET): $(HOST_OUT_EXECUTABLES)/lpmake
-	$< \
-		--sparse \
-		--metadata-size 65536 \
-		--metadata-slots $(PRIVATE_METADATA_SLOTS) \
-		--device-size $(BOARD_SUPER_PARTITION_SIZE) \
-		--output $@ \
-		$(foreach name,$(BOARD_SUPER_PARTITION_PARTITION_LIST), \
-			--partition $(name)$(PRIVATE_PARTITION_SUFFIX):$$($(UUIDGEN) $(name)$(PRIVATE_PARTITION_SUFFIX)):readonly:$(call read-size-of-partitions,$(name)) \
-			--image $(name)$(PRIVATE_PARTITION_SUFFIX)=$(call images-for-partitions,$(name)))
+$(INSTALLED_SUPERIMAGE_TARGET) $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): $(LPMAKE)
+
+# $(1): slot A suffix (_a or empty)
+# $(2): include images or not (true or empty)
+define build-superimage-target-args
+  $(if $(2), --sparse) \
+  --metadata-size 65536 \
+  --metadata-slots $(if $(1),2,1) \
+  --device-size $(BOARD_SUPER_PARTITION_SIZE) \
+  $(foreach name,$(BOARD_SUPER_PARTITION_PARTITION_LIST), \
+    --partition $(name)$(1):$$($(UUIDGEN) $(name)$(1)):readonly:$(if $(2),$(call read-size-of-partitions,$(name)),0) \
+    $(if $(2), --image $(name)$(1)=$(call images-for-partitions,$(name))) \
+    $(if $(1), --partition $(name)_b:$$($(UUIDGEN) $(name)_b):readonly:0) \
+  )
+endef
+
+# $(1): output image path
+# $(2): slot A suffix (_a or empty)
+# $(3): include images or not (true or empty)
+define build-superimage-target
+  $(HOST_OUT_EXECUTABLES)/lpmake \
+    $(call build-superimage-target-args,$(2),$(3)) \
+    --output $(1)
+endef
+
+$(INSTALLED_SUPERIMAGE_TARGET):
+	$(call pretty,"Target super fs image: $@")
+	$(call build-superimage-target,$@,$(PRIVATE_PARTITION_SUFFIX),true)
 
 $(call dist-for-goals,dist_files,$(INSTALLED_SUPERIMAGE_TARGET))
 
-$(INSTALLED_SUPERIMAGE_EMPTY_TARGET): $(HOST_OUT_EXECUTABLES)/lpmake
-	$< \
-		--metadata-size 65536 \
-		--metadata-slots $(PRIVATE_METADATA_SLOTS) \
-		--device-size $(BOARD_SUPER_PARTITION_SIZE) \
-		--output $@ \
-		$(foreach name,$(BOARD_SUPER_PARTITION_PARTITION_LIST), \
-			--partition $(name)$(PRIVATE_PARTITION_SUFFIX):$$($(UUIDGEN) $(name)$(PRIVATE_SUPER_PARTITION_SUFFIX)):readonly:0)
+$(INSTALLED_SUPERIMAGE_EMPTY_TARGET):
+	$(call pretty,"Target empty super fs image: $@")
+	$(call build-superimage-target,$@,$(PRIVATE_PARTITION_SUFFIX))
 
 $(call dist-for-goals,dist_files,$(INSTALLED_SUPERIMAGE_EMPTY_TARGET))
 
@@ -2929,7 +3054,7 @@ OTATOOLS :=  $(HOST_OUT_EXECUTABLES)/minigzip \
   $(HOST_OUT_JAVA_LIBRARIES)/BootSignature.jar \
   $(HOST_OUT_JAVA_LIBRARIES)/VeritySigner.jar \
   $(HOST_OUT_EXECUTABLES)/mke2fs \
-  $(HOST_OUT_EXECUTABLES)/mkuserimg_mke2fs.sh \
+  $(HOST_OUT_EXECUTABLES)/mkuserimg_mke2fs \
   $(HOST_OUT_EXECUTABLES)/e2fsdroid \
   $(HOST_OUT_EXECUTABLES)/mksquashfsimage.sh \
   $(HOST_OUT_EXECUTABLES)/mksquashfs \
@@ -2949,6 +3074,7 @@ OTATOOLS :=  $(HOST_OUT_EXECUTABLES)/minigzip \
   $(HOST_OUT_EXECUTABLES)/lib/shflags/shflags \
   $(HOST_OUT_EXECUTABLES)/delta_generator \
   $(HOST_OUT_EXECUTABLES)/care_map_generator \
+  $(LPMAKE) \
   $(AVBTOOL) \
   $(BLK_ALLOC_TO_BASE_FS) \
   $(BROTLI) \
@@ -2989,7 +3115,9 @@ OTATOOLS += \
   $(HOST_LIBRARY_PATH)/libsparse-host$(HOST_SHLIB_SUFFIX) \
   $(HOST_LIBRARY_PATH)/libbase$(HOST_SHLIB_SUFFIX) \
   $(HOST_LIBRARY_PATH)/libpcre2$(HOST_SHLIB_SUFFIX) \
-  $(HOST_LIBRARY_PATH)/libbrotli$(HOST_SHLIB_SUFFIX)
+  $(HOST_LIBRARY_PATH)/libbrotli$(HOST_SHLIB_SUFFIX) \
+  $(HOST_LIBRARY_PATH)/liblp$(HOST_SHLIB_SUFFIX) \
+  $(HOST_LIBRARY_PATH)/libext4_utils$(HOST_SHLIB_SUFFIX)
 
 
 .PHONY: otatools
@@ -3131,17 +3259,20 @@ $(BUILT_TARGET_FILES_PACKAGE): \
 		$(INSTALLED_ANDROID_INFO_TXT_TARGET) \
 		$(INSTALLED_KERNEL_TARGET) \
 		$(INSTALLED_2NDBOOTLOADER_TARGET) \
+		$(BOARD_PREBUILT_DTBOIMAGE) \
 		$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_BASE_FS_PATH) \
 		$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VENDOR_BASE_FS_PATH) \
 		$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PRODUCT_BASE_FS_PATH) \
 		$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PRODUCT_SERVICES_BASE_FS_PATH) \
 		$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ODM_BASE_FS_PATH) \
+		$(LPMAKE) \
 		$(SELINUX_FC) \
 		$(APKCERTS_FILE) \
 		$(SOONG_ZIP) \
 		$(HOST_OUT_EXECUTABLES)/fs_config \
 		$(HOST_OUT_EXECUTABLES)/imgdiff \
 		$(HOST_OUT_EXECUTABLES)/bsdiff \
+		$(HOST_OUT_EXECUTABLES)/care_map_generator \
 		$(BUILD_IMAGE_SRCS) \
 		$(BUILT_ASSEMBLED_SYSTEM_MANIFEST) \
 		$(BUILT_ASSEMBLED_VENDOR_MANIFEST) \
@@ -3167,7 +3298,7 @@ ifdef INSTALLED_2NDBOOTLOADER_TARGET
 	$(hide) cp $(INSTALLED_2NDBOOTLOADER_TARGET) $(zip_root)/$(PRIVATE_RECOVERY_OUT)/second
 endif
 ifdef BOARD_INCLUDE_RECOVERY_DTBO
-	$(hide) cp $(INSTALLED_DTBOIMAGE_TARGET) $(zip_root)/$(PRIVATE_RECOVERY_OUT)/recovery_dtbo
+	$(hide) cp $(BOARD_PREBUILT_DTBOIMAGE) $(zip_root)/$(PRIVATE_RECOVERY_OUT)/recovery_dtbo
 endif
 ifdef INTERNAL_KERNEL_CMDLINE
 	$(hide) echo "$(INTERNAL_KERNEL_CMDLINE)" > $(zip_root)/$(PRIVATE_RECOVERY_OUT)/cmdline
@@ -3181,13 +3312,12 @@ endif
 endif # INSTALLED_RECOVERYIMAGE_TARGET defined or BOARD_USES_RECOVERY_AS_BOOT is true
 	@# Components of the boot image
 	$(hide) mkdir -p $(zip_root)/BOOT
-ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
 	$(hide) mkdir -p $(zip_root)/ROOT
 	$(hide) $(call package_files-copy-root, \
 		$(TARGET_ROOT_OUT),$(zip_root)/ROOT)
-else
+ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
 	$(hide) $(call package_files-copy-root, \
-		$(TARGET_ROOT_OUT),$(zip_root)/BOOT/RAMDISK)
+		$(TARGET_RAMDISK_OUT),$(zip_root)/BOOT/RAMDISK)
 endif
 	@# If we are using recovery as boot, this is already done when processing recovery.
 ifneq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
@@ -3339,6 +3469,20 @@ ifdef BOARD_AVB_RECOVERY_KEY_PATH
 	$(hide) echo "avb_recovery_algorithm=$(BOARD_AVB_RECOVERY_ALGORITHM)" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo "avb_recovery_rollback_index_location=$(BOARD_AVB_RECOVERY_ROLLBACK_INDEX_LOCATION)" >> $(zip_root)/META/misc_info.txt
 endif # BOARD_AVB_RECOVERY_KEY_PATH
+ifneq (,$(strip $(BOARD_AVB_VBMETA_MAINLINE)))
+	$(hide) echo "avb_vbmeta_mainline=$(BOARD_AVB_VBMETA_MAINLINE)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "avb_vbmeta_mainline_args=$(BOARD_AVB_MAKE_VBMETA_MAINLINE_IMAGE_ARGS)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "avb_vbmeta_mainline_key_path=$(BOARD_AVB_VBMETA_MAINLINE_KEY_PATH)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "avb_vbmeta_mainline_algorithm=$(BOARD_AVB_VBMETA_MAINLINE_ALGORITHM)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "avb_vbmeta_mainline_rollback_index_location=$(BOARD_AVB_VBMETA_MAINLINE_ROLLBACK_INDEX_LOCATION)" >> $(zip_root)/META/misc_info.txt
+endif # BOARD_AVB_VBMETA_MAINLINE
+ifneq (,$(strip $(BOARD_AVB_VBMETA_VENDOR)))
+	$(hide) echo "avb_vbmeta_vendor=$(BOARD_AVB_VBMETA_VENDOR)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "avb_vbmeta_vendor_args=$(BOARD_AVB_MAKE_VBMETA_MAINLINE_IMAGE_ARGS)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "avb_vbmeta_vendor_key_path=$(BOARD_AVB_VBMETA_VENDOR_KEY_PATH)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "avb_vbmeta_vendor_algorithm=$(BOARD_AVB_VBMETA_VENDOR_ALGORITHM)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "avb_vbmeta_vendor_rollback_index_location=$(BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION)" >> $(zip_root)/META/misc_info.txt
+endif # BOARD_AVB_VBMETA_VENDOR_KEY_PATH
 endif # BOARD_AVB_ENABLE
 ifdef BOARD_BPT_INPUT_FILES
 	$(hide) echo "board_bpt_enable=true" >> $(zip_root)/META/misc_info.txt
@@ -3374,14 +3518,6 @@ endif
 ifeq ($(BREAKPAD_GENERATE_SYMBOLS),true)
 	@# If breakpad symbols have been generated, add them to the zip.
 	$(hide) $(ACP) -r $(TARGET_OUT_BREAKPAD) $(zip_root)/BREAKPAD
-endif
-# BOARD_BUILD_DISABLED_VBMETAIMAGE is used to build a special vbmeta.img
-# that disables AVB verification. The content is fixed and we can just copy
-# it to $(zip_root)/IMAGES without passing some info into misc_info.txt for
-# regeneration.
-ifeq (true,$(BOARD_BUILD_DISABLED_VBMETAIMAGE))
-	$(hide) mkdir -p $(zip_root)/IMAGES
-	$(hide) cp $(INSTALLED_VBMETAIMAGE_TARGET) $(zip_root)/IMAGES/
 endif
 ifdef BOARD_PREBUILT_VENDORIMAGE
 	$(hide) mkdir -p $(zip_root)/IMAGES
@@ -3438,10 +3574,10 @@ endif
 ifdef BOARD_ODMIMAGE_FILE_SYSTEM_TYPE
 	$(hide) $(call fs_config,$(zip_root)/ODM,odm/) > $(zip_root)/META/odm_filesystem_config.txt
 endif
-ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-	@# When using BOARD_BUILD_SYSTEM_ROOT_IMAGE, ROOT always contains the files for the root under
-	@# normal boot. BOOT/RAMDISK exists only if additionally using BOARD_USES_RECOVERY_AS_BOOT.
+	@# ROOT always contains the files for the root under normal boot.
 	$(hide) $(call fs_config,$(zip_root)/ROOT,) > $(zip_root)/META/root_filesystem_config.txt
+ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+	@# BOOT/RAMDISK exists only if additionally using BOARD_USES_RECOVERY_AS_BOOT.
 ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
 	$(hide) $(call fs_config,$(zip_root)/BOOT/RAMDISK,) > $(zip_root)/META/boot_filesystem_config.txt
 endif
@@ -3462,6 +3598,13 @@ ifdef BUILT_ASSEMBLED_VENDOR_MANIFEST
 endif
 ifdef BUILT_VENDOR_MATRIX
 	$(hide) cp $(BUILT_VENDOR_MATRIX) $(zip_root)/META/vendor_matrix.xml
+endif
+ifdef BOARD_SUPER_PARTITION_SIZE
+	$(hide) echo "super_size=$(BOARD_SUPER_PARTITION_SIZE)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "lpmake=$(notdir $(LPMAKE))" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo -n "lpmake_args=" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo $(call build-superimage-target-args,$(if $(filter true,$(AB_OTA_UPDATER)),_a,)) \
+	    >> $(zip_root)/META/misc_info.txt
 endif
 
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \

@@ -24,9 +24,11 @@ PRODUCT_PACKAGES += \
     android.hidl.manager-V1.0-java \
     android.hidl.memory@1.0-impl \
     android.hidl.memory@1.0-impl.vendor \
+    android.system.suspend@1.0-service \
     android.test.base \
     android.test.mock \
     android.test.runner \
+    apexd \
     applypatch \
     appops \
     app_process \
@@ -108,6 +110,7 @@ PRODUCT_PACKAGES += \
     libaudiopolicyservice \
     libaudioutils \
     libbinder \
+    libbinder_ndk \
     libc \
     libcamera2ndk \
     libcamera_client \
@@ -270,9 +273,7 @@ PRODUCT_BOOT_JARS := \
     framework \
     telephony-common \
     voip-common \
-    ims-common \
-    android.hidl.base-V1.0-java \
-    android.hidl.manager-V1.0-java
+    ims-common
 
 # Add the compatibility library that is needed when org.apache.http.legacy
 # is removed from the bootclasspath.

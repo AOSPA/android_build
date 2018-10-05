@@ -902,18 +902,31 @@ $(foreach lt,$(ALL_LINK_TYPES),\
 # Of the modules defined by the component makefiles,
 # determine what we actually want to build.
 
+
+# Expand a list of modules to the modules that they override (if any)
+# $(1): The list of modules.
+define module-overrides
+$(foreach m,$(1),$(PACKAGES.$(m).OVERRIDES) $(EXECUTABLES.$(m).OVERRIDES))
+endef
+
 ###########################################################
 ## Expand a module name list with REQUIRED modules
 ###########################################################
 # $(1): The variable name that holds the initial module name list.
 #       the variable will be modified to hold the expanded results.
 # $(2): The initial module name list.
+# $(3): The list of overridden modules.
 # Returns empty string (maybe with some whitespaces).
 define expand-required-modules
 $(eval _erm_req := $(foreach m,$(2),$(ALL_MODULES.$(m).REQUIRED))) \
-$(eval _erm_new_modules := $(sort $(filter-out $($(1)),$(_erm_req))))\
-$(if $(_erm_new_modules),$(eval $(1) += $(_erm_new_modules))\
-  $(call expand-required-modules,$(1),$(_erm_new_modules)))
+$(eval _erm_new_modules := $(sort $(filter-out $($(1)),$(_erm_req)))) \
+$(eval _erm_new_overrides := $(call module-overrides,$(_erm_new_modules))) \
+$(eval _erm_all_overrides := $(3) $(_erm_new_overrides)) \
+$(eval _erm_new_modules := $(filter-out $(_erm_all_overrides), $(_erm_new_modules))) \
+$(eval $(1) := $(filter-out $(_erm_new_overrides),$($(1)))) \
+$(eval $(1) += $(_erm_new_modules)) \
+$(if $(_erm_new_modules),\
+  $(call expand-required-modules,$(1),$(_erm_new_modules),$(_erm_all_overrides)))
 endef
 
 # Transforms paths relative to PRODUCT_OUT to absolute paths.
@@ -922,7 +935,9 @@ endef
 define resolve-product-relative-paths
   $(subst $(_vendor_path_placeholder),$(TARGET_COPY_OUT_VENDOR),\
     $(subst $(_product_path_placeholder),$(TARGET_COPY_OUT_PRODUCT),\
-      $(foreach p,$(1),$(call append-path,$(PRODUCT_OUT),$(p)$(2)))))
+      $(subst $(_product_services_path_placeholder),$(TARGET_COPY_OUT_PRODUCT_SERVICES),\
+        $(subst $(_odm_path_placeholder),$(TARGET_COPY_OUT_ODM),\
+          $(foreach p,$(1),$(call append-path,$(PRODUCT_OUT),$(p)$(2)))))))
 endef
 
 # Lists most of the files a particular product installs, including:
@@ -942,11 +957,16 @@ endef
 # $(1): product makefile
 define product-installed-files
   $(eval _mk := $(strip $(1))) \
-  $(eval _pif_modules := $(PRODUCTS.$(_mk).PRODUCT_PACKAGES)) \
-  $(if $(BOARD_VNDK_VERSION),$(eval _pif_modules += vndk_package)) \
+  $(eval _pif_modules := \
+    $(PRODUCTS.$(_mk).PRODUCT_PACKAGES) \
+    $(if $(filter eng,$(tags_to_install)),$(PRODUCTS.$(_mk).PRODUCT_PACKAGES_ENG)) \
+    $(if $(filter debug,$(tags_to_install)),$(PRODUCTS.$(_mk).PRODUCT_PACKAGES_DEBUG)) \
+    $(if $(filter tests,$(tags_to_install)),$(PRODUCTS.$(_mk).PRODUCT_PACKAGES_TESTS)) \
+    $(if $(filter asan,$(tags_to_install)),$(PRODUCTS.$(_mk).PRODUCT_PACKAGES_DEBUG_ASAN)) \
+    $(if $(BOARD_VNDK_VERSION),vndk_package) \
+  ) \
   $(eval ### Filter out the overridden packages and executables before doing expansion) \
-  $(eval _pif_overrides := $(foreach p, $(_pif_modules), $(PACKAGES.$(p).OVERRIDES))) \
-  $(eval _pif_overrides += $(foreach m, $(_pif_modules), $(EXECUTABLES.$(m).OVERRIDES))) \
+  $(eval _pif_overrides := $(call module-overrides,$(_pif_modules))) \
   $(eval _pif_modules := $(filter-out $(_pif_overrides), $(_pif_modules))) \
   $(eval ### Resolve the :32 :64 module name) \
   $(eval _pif_modules_32 := $(patsubst %:32,%,$(filter %:32, $(_pif_modules)))) \
@@ -958,7 +978,7 @@ define product-installed-files
   $(eval ### For the rest we add both) \
   $(eval _pif_modules += $(call get-32-bit-modules, $(_pif_modules_rest))) \
   $(eval _pif_modules += $(_pif_modules_rest)) \
-  $(call expand-required-modules,_pif_modules,$(_pif_modules)) \
+  $(call expand-required-modules,_pif_modules,$(_pif_modules),$(_pif_overrides)) \
   $(call module-installed-files, $(_pif_modules)) \
   $(call resolve-product-relative-paths,\
     $(foreach cf,$(PRODUCTS.$(_mk).PRODUCT_COPY_FILES),$(call word-colon,2,$(cf))))
@@ -1039,42 +1059,14 @@ ifeq (0,1)
   $(error done)
 endif
 
-eng_MODULES := $(sort \
-        $(call get-tagged-modules,eng) \
-        $(call module-installed-files, $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_ENG)) \
-    )
-debug_MODULES := $(sort \
-        $(call get-tagged-modules,debug) \
-        $(call module-installed-files, $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_DEBUG)) \
-    )
-tests_MODULES := $(sort \
-        $(call get-tagged-modules,tests) \
-        $(call module-installed-files, $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_TESTS)) \
-    )
-asan_MODULES := $(sort \
-        $(call module-installed-files, $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_DEBUG_ASAN)) \
-    )
-
 # TODO: Remove the 3 places in the tree that use ALL_DEFAULT_INSTALLED_MODULES
 # and get rid of it from this list.
 modules_to_install := $(sort \
     $(ALL_DEFAULT_INSTALLED_MODULES) \
     $(product_FILES) \
-    $(foreach tag,$(tags_to_install),$($(tag)_MODULES)) \
+    $(call get-tagged-modules,$(tags_to_install)) \
     $(CUSTOM_MODULES) \
   )
-
-# Some packages may override others using LOCAL_OVERRIDES_PACKAGES.
-# Filter out (do not install) any overridden packages.
-overridden_packages := $(call get-package-overrides,$(modules_to_install))
-ifdef overridden_packages
-#  old_modules_to_install := $(modules_to_install)
-  modules_to_install := \
-      $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk %/$(p).odex %/$(p).vdex), \
-          $(modules_to_install))
-endif
-#$(error filtered out
-#           $(filter-out $(modules_to_install),$(old_modules_to_install)))
 
 # Don't include any GNU General Public License shared objects or static
 # libraries in SDK images.  GPL executables (not static/dynamic libraries)
@@ -1251,6 +1243,10 @@ droidcore: files \
     $(INSTALLED_FILES_JSON_PRODUCT_SERVICES) \
     $(INSTALLED_FILES_FILE_SYSTEMOTHER) \
     $(INSTALLED_FILES_JSON_SYSTEMOTHER) \
+    $(INSTALLED_FILES_FILE_RAMDISK) \
+    $(INSTALLED_FILES_JSON_RAMDISK) \
+    $(INSTALLED_FILES_FILE_ROOT) \
+    $(INSTALLED_FILES_JSON_ROOT) \
     $(INSTALLED_FILES_FILE_RECOVERY) \
     $(INSTALLED_FILES_JSON_RECOVERY) \
     soong_docs
@@ -1258,6 +1254,7 @@ droidcore: files \
 # dist_files only for putting your library into the dist directory with a full build.
 .PHONY: dist_files
 
+.PHONY: apps_only
 ifneq ($(TARGET_BUILD_APPS),)
   # If this build is just for apps, only build apps and not the full system by default.
 
@@ -1294,7 +1291,6 @@ ifneq ($(TARGET_BUILD_APPS),)
   $(COVERAGE_ZIP) : $(apps_only_installed_files)
   $(call dist-for-goals,apps_only, $(COVERAGE_ZIP))
 
-.PHONY: apps_only
 apps_only: $(unbundled_build_modules)
 
 droid_targets: apps_only
@@ -1350,10 +1346,15 @@ else # TARGET_BUILD_APPS
   endif
   endif
 
-  ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+  $(call dist-for-goals, droidcore, \
+    $(INSTALLED_FILES_FILE_ROOT) \
+    $(INSTALLED_FILES_JSON_ROOT) \
+  )
+
+  ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
     $(call dist-for-goals, droidcore, \
-      $(INSTALLED_FILES_FILE_ROOT) \
-      $(INSTALLED_FILES_JSON_ROOT) \
+      $(INSTALLED_FILES_FILE_RAMDISK) \
+      $(INSTALLED_FILES_JSON_RAMDISK) \
     )
   endif
 
@@ -1380,7 +1381,7 @@ endif # TARGET_BUILD_APPS
 .PHONY: docs
 docs: $(ALL_DOCS)
 
-.PHONY: sdk
+.PHONY: sdk win_sdk winsdk-tools
 ALL_SDK_TARGETS := $(INTERNAL_SDK_TARGET)
 sdk: $(ALL_SDK_TARGETS)
 $(call dist-for-goals,sdk win_sdk, \

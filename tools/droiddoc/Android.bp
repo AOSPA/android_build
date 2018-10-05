@@ -1,5 +1,4 @@
-//
-// Copyright (C) 2008 The Android Open Source Project
+// Copyright (C) 2013 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
 
-// the signapk tool (a .jar application used to sign packages)
-// ============================================================
-java_library_host {
-    name: "signapk",
-    srcs: ["src/**/*.java"],
-    manifest: "SignApk.mf",
-    static_libs: [
-        "apksig",
-        "bouncycastle-unbundled",
-        "bouncycastle-bcpkix-unbundled",
-        "conscrypt-nojarjar",
-    ],
-
-    required: ["libconscrypt_openjdk_jni"],
+droiddoc_exported_dir {
+    name: "droiddoc-templates-pdk",
+    path: "templates-pdk",
 }
