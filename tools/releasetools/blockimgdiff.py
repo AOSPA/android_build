@@ -23,7 +23,6 @@ import multiprocessing
 import os
 import os.path
 import re
-import subprocess
 import sys
 import threading
 from collections import deque, OrderedDict
@@ -31,7 +30,6 @@ from hashlib import sha1
 
 import common
 from rangelib import RangeSet
-
 
 __all__ = ["EmptyImage", "DataImage", "BlockImageDiff"]
 
@@ -44,11 +42,10 @@ def compute_patch(srcfile, tgtfile, imgdiff=False):
 
   # Don't dump the bsdiff/imgdiff commands, which are not useful for the case
   # here, since they contain temp filenames only.
-  p = common.Run(cmd, verbose=False, stdout=subprocess.PIPE,
-                 stderr=subprocess.STDOUT)
-  output, _ = p.communicate()
+  proc = common.Run(cmd, verbose=False)
+  output, _ = proc.communicate()
 
-  if p.returncode != 0:
+  if proc.returncode != 0:
     raise ValueError(output)
 
   with open(patchfile, 'rb') as f:
@@ -649,6 +646,14 @@ class BlockImageDiff(object):
 
     self.touched_src_sha1 = self.src.RangeSha1(self.touched_src_ranges)
 
+    if self.tgt.hashtree_info:
+      out.append("compute_hash_tree {} {} {} {} {}\n".format(
+          self.tgt.hashtree_info.hashtree_range.to_string_raw(),
+          self.tgt.hashtree_info.filesystem_range.to_string_raw(),
+          self.tgt.hashtree_info.hash_algorithm,
+          self.tgt.hashtree_info.salt,
+          self.tgt.hashtree_info.root_hash))
+
     # Zero out extended blocks as a workaround for bug 20881595.
     if self.tgt.extended:
       assert (WriteSplitTransfers(out, "zero", self.tgt.extended) ==
@@ -984,6 +989,12 @@ class BlockImageDiff(object):
       # been touched, and touch all the blocks written by this
       # transfer.
       for s, e in xf.tgt_ranges:
+        for i in range(s, e):
+          assert touched[i] == 0
+          touched[i] = 1
+
+    if self.tgt.hashtree_info:
+      for s, e in self.tgt.hashtree_info.hashtree_range:
         for i in range(s, e):
           assert touched[i] == 0
           touched[i] = 1
@@ -1481,9 +1492,9 @@ class BlockImageDiff(object):
                "--block-limit={}".format(max_blocks_per_transfer),
                "--split-info=" + patch_info_file,
                src_file, tgt_file, patch_file]
-        p = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        imgdiff_output, _ = p.communicate()
-        assert p.returncode == 0, \
+        proc = common.Run(cmd)
+        imgdiff_output, _ = proc.communicate()
+        assert proc.returncode == 0, \
             "Failed to create imgdiff patch between {} and {}:\n{}".format(
                 src_name, tgt_name, imgdiff_output)
 
@@ -1531,6 +1542,9 @@ class BlockImageDiff(object):
         # "__COPY" domain includes all the blocks not contained in any
         # file and that need to be copied unconditionally to the target.
         AddTransfer(tgt_fn, None, tgt_ranges, empty, "new", self.transfers)
+        continue
+
+      elif tgt_fn == "__HASHTREE":
         continue
 
       elif tgt_fn in self.src.file_map:

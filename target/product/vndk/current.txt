@@ -29,6 +29,7 @@ VNDK-SP: libRS_internal.so
 VNDK-SP: libbacktrace.so
 VNDK-SP: libbase.so
 VNDK-SP: libbcinfo.so
+VNDK-SP: libbinderthreadstate.so
 VNDK-SP: libblas.so
 VNDK-SP: libc++.so
 VNDK-SP: libcompiler_rt.so
@@ -51,6 +52,7 @@ VNDK-core: android.frameworks.schedulerservice@1.0.so
 VNDK-core: android.frameworks.sensorservice@1.0.so
 VNDK-core: android.frameworks.stats@1.0.so
 VNDK-core: android.frameworks.vr.composer@1.0.so
+VNDK-core: android.hardware.atrace@1.0.so
 VNDK-core: android.hardware.audio.common-util.so
 VNDK-core: android.hardware.audio.common@2.0.so
 VNDK-core: android.hardware.audio.common@2.0-util.so
@@ -103,7 +105,7 @@ VNDK-core: android.hardware.graphics.bufferqueue@1.0.so
 VNDK-core: android.hardware.graphics.composer@2.1.so
 VNDK-core: android.hardware.graphics.composer@2.2.so
 VNDK-core: android.hardware.graphics.composer@2.3.so
-VNDK-core: android.hardware.health.filesystem@1.0.so
+VNDK-core: android.hardware.health.storage@1.0.so
 VNDK-core: android.hardware.health@1.0.so
 VNDK-core: android.hardware.health@2.0.so
 VNDK-core: android.hardware.ir@1.0.so
@@ -117,6 +119,7 @@ VNDK-core: android.hardware.media@1.0.so
 VNDK-core: android.hardware.memtrack@1.0.so
 VNDK-core: android.hardware.neuralnetworks@1.0.so
 VNDK-core: android.hardware.neuralnetworks@1.1.so
+VNDK-core: android.hardware.neuralnetworks@1.2.so
 VNDK-core: android.hardware.nfc@1.0.so
 VNDK-core: android.hardware.nfc@1.1.so
 VNDK-core: android.hardware.oemlock@1.0.so
@@ -258,6 +261,7 @@ VNDK-core: libxml2.so
 VNDK-core: libyuv.so
 VNDK-core: libziparchive.so
 VNDK-private: libbacktrace.so
+VNDK-private: libbinderthreadstate.so
 VNDK-private: libblas.so
 VNDK-private: libcompiler_rt.so
 VNDK-private: libft2.so

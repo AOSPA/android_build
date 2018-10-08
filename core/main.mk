@@ -317,8 +317,6 @@ ifeq (true,$(strip $(enable_target_debugging)))
   ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
   # Enable Dalvik lock contention logging.
   ADDITIONAL_BUILD_PROPERTIES += dalvik.vm.lockprof.threshold=500
-  # Include the debugging/testing OTA keys in this build.
-  INCLUDE_TEST_OTA_KEYS := true
 else # !enable_target_debugging
   # Target is less debuggable and adbd is off by default
   ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=0
@@ -1053,12 +1051,6 @@ else
   product_FILES :=
 endif
 
-ifeq (0,1)
-  $(info product_FILES for $(TARGET_DEVICE) ($(INTERNAL_PRODUCT)):)
-  $(foreach p,$(product_FILES),$(info :   $(p)))
-  $(error done)
-endif
-
 # TODO: Remove the 3 places in the tree that use ALL_DEFAULT_INSTALLED_MODULES
 # and get rid of it from this list.
 modules_to_install := $(sort \
@@ -1444,6 +1436,12 @@ modules:
 dump-products:
 	$(dump-products)
 	@echo Successfully dumped products
+
+.PHONY: dump-files
+dump-files:
+	$(info product_FILES for $(TARGET_DEVICE) ($(INTERNAL_PRODUCT)):)
+	$(foreach p,$(product_FILES),$(info :   $(p)))
+	@echo Successfully dumped product file list
 
 .PHONY: nothing
 nothing:

@@ -281,13 +281,18 @@ endif
 # all code is position independent, and then those warnings get promoted to
 # errors.
 ifneq ($(LOCAL_NO_PIC),true)
-ifneq ($($(my_prefix)OS),windows)
-ifneq ($(filter EXECUTABLES NATIVE_TESTS,$(LOCAL_MODULE_CLASS)),)
-my_cflags += -fPIE
-else
-my_cflags += -fPIC
-endif
-endif
+  ifneq ($($(my_prefix)OS),windows)
+    ifneq ($(filter EXECUTABLES NATIVE_TESTS,$(LOCAL_MODULE_CLASS)),)
+      my_cflags += -fPIE
+      ifndef BUILD_HOST_static
+        ifneq ($(LOCAL_FORCE_STATIC_EXECUTABLE),true)
+          my_ldflags += -pie
+        endif
+      endif
+    else
+      my_cflags += -fPIC
+    endif
+  endif
 endif
 
 ifdef LOCAL_IS_HOST_MODULE
@@ -1523,9 +1528,9 @@ a_suffix := $($(my_prefix)STATIC_LIB_SUFFIX)
 
 ifneq ($(LOCAL_SDK_VERSION),)
 built_shared_libraries := \
-    $(addprefix $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)OUT_INTERMEDIATE_LIBRARIES)/, \
-      $(addsuffix $(so_suffix), \
-        $(my_shared_libraries)))
+    $(foreach lib,$(my_shared_libraries), \
+      $(call intermediates-dir-for, \
+        SHARED_LIBRARIES,$(lib),$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/$(lib)$(so_suffix))
 built_shared_library_deps := $(addsuffix .toc, $(built_shared_libraries))
 
 # Add the NDK libraries to the built module dependency
@@ -1549,9 +1554,9 @@ built_shared_libraries += \
 
 else
 built_shared_libraries := \
-    $(addprefix $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)OUT_INTERMEDIATE_LIBRARIES)/, \
-      $(addsuffix $(so_suffix), \
-        $(installed_shared_library_module_names)))
+    $(foreach lib,$(installed_shared_library_module_names), \
+      $(call intermediates-dir-for, \
+        SHARED_LIBRARIES,$(lib),$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/$(lib)$(so_suffix))
 built_shared_library_deps := $(addsuffix .toc, $(built_shared_libraries))
 my_system_shared_libraries_fullpath :=
 endif
@@ -1692,7 +1697,7 @@ ifneq (,$(filter 1 true,$(my_tidy_enabled)))
   ifneq ($(LOCAL_TIDY_CHECKS),)
     my_tidy_checks := $(my_tidy_checks),$(LOCAL_TIDY_CHECKS)
   endif
-  my_tidy_flags += $(WITH_TIDY_FLAGS) $(LOCAL_TIDY_FLAGS)
+  my_tidy_flags := $(strip $(WITH_TIDY_FLAGS) $(LOCAL_TIDY_FLAGS))
   # If tidy flags are not specified, default to check all header files.
   ifeq ($(my_tidy_flags),)
     my_tidy_flags := $(call default_tidy_header_filter,$(LOCAL_PATH))

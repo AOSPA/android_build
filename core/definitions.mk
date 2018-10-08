@@ -740,79 +740,6 @@ $(foreach lib,$(1),$(call intermediates-dir-for,JAVA_LIBRARIES,$(lib),,COMMON)/e
 endef
 
 ###########################################################
-## Returns true if $(1) and $(2) are equal.  Returns
-## the empty string if they are not equal.
-###########################################################
-define streq
-$(strip $(if $(strip $(1)),\
-  $(if $(strip $(2)),\
-    $(if $(filter-out __,_$(subst $(strip $(1)),,$(strip $(2)))$(subst $(strip $(2)),,$(strip $(1)))_),,true), \
-    ),\
-  $(if $(strip $(2)),\
-    ,\
-    true)\
- ))
-endef
-
-###########################################################
-## Convert "a b c" into "a:b:c"
-###########################################################
-define normalize-path-list
-$(subst $(space),:,$(strip $(1)))
-endef
-
-###########################################################
-## Convert "a b c" into "a,b,c"
-###########################################################
-define normalize-comma-list
-$(subst $(space),$(comma),$(strip $(1)))
-endef
-
-###########################################################
-## Read the word out of a colon-separated list of words.
-## This has the same behavior as the built-in function
-## $(word n,str).
-##
-## The individual words may not contain spaces.
-##
-## $(1): 1 based index
-## $(2): value of the form a:b:c...
-###########################################################
-
-define word-colon
-$(word $(1),$(subst :,$(space),$(2)))
-endef
-
-###########################################################
-## Convert "a=b c= d e = f" into "a=b c=d e=f"
-##
-## $(1): list to collapse
-## $(2): if set, separator word; usually "=", ":", or ":="
-##       Defaults to "=" if not set.
-###########################################################
-
-define collapse-pairs
-$(eval _cpSEP := $(strip $(if $(2),$(2),=)))\
-$(strip $(subst $(space)$(_cpSEP)$(space),$(_cpSEP),$(strip \
-    $(subst $(_cpSEP), $(_cpSEP) ,$(1)))$(space)))
-endef
-
-###########################################################
-## Given a list of pairs, if multiple pairs have the same
-## first components, keep only the first pair.
-##
-## $(1): list of pairs
-## $(2): the separator word, such as ":", "=", etc.
-define uniq-pairs-by-first-component
-$(eval _upbfc_fc_set :=)\
-$(strip $(foreach w,$(1), $(eval _first := $(word 1,$(subst $(2),$(space),$(w))))\
-    $(if $(filter $(_upbfc_fc_set),$(_first)),,$(w)\
-        $(eval _upbfc_fc_set += $(_first)))))\
-$(eval _upbfc_fc_set :=)\
-$(eval _first:=)
-endef
-
-###########################################################
 ## MODULE_TAG set operations
 ###########################################################
 
@@ -1735,7 +1662,6 @@ endef
 ifneq ($(HOST_CUSTOM_LD_COMMAND),true)
 define transform-host-o-to-shared-lib-inner
 $(hide) $(PRIVATE_CXX) \
-	-Wl,-rpath-link=$($(PRIVATE_2ND_ARCH_VAR_PREFIX)$(PRIVATE_PREFIX)OUT_INTERMEDIATE_LIBRARIES) \
 	-Wl,-rpath,\$$ORIGIN/../$(notdir $($(PRIVATE_2ND_ARCH_VAR_PREFIX)$(PRIVATE_PREFIX)OUT_SHARED_LIBRARIES)) \
 	-Wl,-rpath,\$$ORIGIN/$(notdir $($(PRIVATE_2ND_ARCH_VAR_PREFIX)$(PRIVATE_PREFIX)OUT_SHARED_LIBRARIES)) \
 	-shared -Wl,-soname,$(notdir $@) \
@@ -1815,7 +1741,6 @@ $(hide) $(PRIVATE_CXX) -pie \
 	-Wl,-dynamic-linker,$(PRIVATE_LINKER) \
 	-Wl,--gc-sections \
 	-Wl,-z,nocopyreloc \
-	-Wl,-rpath-link=$(PRIVATE_TARGET_OUT_INTERMEDIATE_LIBRARIES) \
 	$(PRIVATE_TARGET_CRTBEGIN_DYNAMIC_O) \
 	$(PRIVATE_ALL_OBJECTS) \
 	-Wl,--whole-archive \
@@ -1887,11 +1812,6 @@ endef
 ###########################################################
 ## Commands for running gcc to link a host executable
 ###########################################################
-ifdef BUILD_HOST_static
-HOST_FPIE_FLAGS :=
-else
-HOST_FPIE_FLAGS := -pie
-endif
 
 ifneq ($(HOST_CUSTOM_LD_COMMAND),true)
 define transform-host-o-to-executable-inner
@@ -1906,7 +1826,6 @@ $(hide) $(PRIVATE_CXX) \
 	$(if $(filter true,$(NATIVE_COVERAGE)),-lgcov) \
 	$(if $(filter true,$(NATIVE_COVERAGE)),$(PRIVATE_HOST_LIBPROFILE_RT)) \
 	$(PRIVATE_ALL_SHARED_LIBRARIES) \
-	-Wl,-rpath-link=$($(PRIVATE_2ND_ARCH_VAR_PREFIX)$(PRIVATE_PREFIX)OUT_INTERMEDIATE_LIBRARIES) \
 	$(foreach path,$(PRIVATE_RPATHS), \
 	  -Wl,-rpath,\$$ORIGIN/$(path)) \
 	$(if $(PRIVATE_NO_DEFAULT_COMPILER_FLAGS),, \
@@ -2300,6 +2219,7 @@ $(hide) rm -f $(dir $@)classes*.dex $(dir $@)d8_input.jar
 $(hide) $(ZIP2ZIP) -j -i $< -o $(dir $@)d8_input.jar "**/*.class"
 $(hide) $(DX_COMMAND) \
     --output $(dir $@) \
+    $(addprefix --lib ,$(PRIVATE_D8_LIBS)) \
     --min-api $(PRIVATE_MIN_SDK_VERSION) \
     $(subst --main-dex-list=, --main-dex-list , \
         $(filter-out --core-library --multi-dex --minimal-main-dex,$(PRIVATE_DX_FLAGS))) \
@@ -2469,12 +2389,23 @@ endef
 define run-appcompat
 $(hide) \
   echo "appcompat.sh output:" >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log && \
-  art/tools/veridex/appcompat.sh --dex-file=$@ 2>&1 >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log
+  PACKAGING=$(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING art/tools/veridex/appcompat.sh --dex-file=$@ 2>&1 >> $(PRODUCT_OUT)/appcompat/$(PRIVATE_MODULE).log
 endef
+appcompat-files = \
+  art/tools/veridex/appcompat.sh \
+  $(INTERNAL_PLATFORM_HIDDENAPI_WHITELIST) \
+  $(INTERNAL_PLATFORM_HIDDENAPI_LIGHT_GREYLIST) \
+  $(INTERNAL_PLATFORM_HIDDENAPI_DARK_GREYLIST) \
+  $(INTERNAL_PLATFORM_HIDDENAPI_BLACKLIST) \
+  $(HOST_OUT_EXECUTABLES)/veridex \
+  $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/core_dex_intermediates/classes.dex \
+  $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/oahl_dex_intermediates/classes.dex
 else
 appcompat-header =
 run-appcompat =
+appcompat-files =
 endif  # HOST_OS == linux
+.KATI_READONLY: appcompat-header run-appcompat appcompat-files
 
 # Remove dynamic timestamps from packages
 #
@@ -2827,6 +2758,7 @@ define transform-jar-to-dex-r8
 $(hide) rm -f $(PRIVATE_PROGUARD_DICTIONARY)
 $(hide) $(R8_COMPAT_PROGUARD) -injars '$<' \
     --min-api $(PRIVATE_MIN_SDK_VERSION) \
+    --no-data-resources \
     --force-proguard-compatibility --output $(subst classes.dex,,$@) \
     $(PRIVATE_PROGUARD_FLAGS) \
     $(addprefix -injars , $(PRIVATE_EXTRA_INPUT_JAR)) \
@@ -3235,7 +3167,7 @@ endif
 ##
 ## $(1): path to validate
 define try-validate-path-is-subdir
-$(strip 
+$(strip \
     $(if $(filter /%,$(1)),
         $(1) starts with a slash
     )
@@ -3443,35 +3375,6 @@ define get-numeric-sdk-version
 $(filter-out current,\
   $(if $(call has-system-sdk-version,$(1)),$(patsubst system_%,%,$(1)),$(1)))
 endef
-
-###########################################################
-## Convert to lower case without requiring a shell, which isn't cacheable.
-##
-## $(1): string
-###########################################################
-to-lower=$(subst A,a,$(subst B,b,$(subst C,c,$(subst D,d,$(subst E,e,$(subst F,f,$(subst G,g,$(subst H,h,$(subst I,i,$(subst J,j,$(subst K,k,$(subst L,l,$(subst M,m,$(subst N,n,$(subst O,o,$(subst P,p,$(subst Q,q,$(subst R,r,$(subst S,s,$(subst T,t,$(subst U,u,$(subst V,v,$(subst W,w,$(subst X,x,$(subst Y,y,$(subst Z,z,$1))))))))))))))))))))))))))
-
-###########################################################
-## Convert to upper case without requiring a shell, which isn't cacheable.
-##
-## $(1): string
-###########################################################
-to-upper=$(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,$(subst x,X,$(subst y,Y,$(subst z,Z,$1))))))))))))))))))))))))))
-
-# Sanity-check to-lower and to-upper
-lower := abcdefghijklmnopqrstuvwxyz-_
-upper := ABCDEFGHIJKLMNOPQRSTUVWXYZ-_
-
-ifneq ($(lower),$(call to-lower,$(upper)))
-  $(error to-lower sanity check failure)
-endif
-
-ifneq ($(upper),$(call to-upper,$(lower)))
-  $(error to-upper sanity check failure)
-endif
-
-lower :=
-upper :=
 
 ###########################################################
 ## Verify module name meets character requirements:

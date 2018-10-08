@@ -44,18 +44,6 @@ my_strip_module := $(firstword \
   $(LOCAL_STRIP_MODULE))
 
 ifeq (SHARED_LIBRARIES,$(LOCAL_MODULE_CLASS))
-  # LOCAL_COPY_TO_INTERMEDIATE_LIBRARIES indicates that this prebuilt should be
-  # installed to the common directory of libraries. This is needed for the NDK
-  # shared libraries built by soong, as we build many different versions of each
-  # library (one for each API level). Since they all have the same basename,
-  # they'd clobber each other (as well as any platform libraries by the same
-  # name).
-  ifneq ($(LOCAL_COPY_TO_INTERMEDIATE_LIBRARIES),false)
-    # Put the built targets of all shared libraries in a common directory
-    # to simplify the link line.
-    OVERRIDE_BUILT_MODULE_PATH :=  \
-        $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)OUT_INTERMEDIATE_LIBRARIES)
-  endif
   ifeq ($(LOCAL_IS_HOST_MODULE)$(my_strip_module),)
     # Strip but not try to add debuglink
     my_strip_module := no_debuglink
@@ -195,14 +183,6 @@ ifdef LOCAL_USE_VNDK
 endif
 $(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)DEPENDENCIES_ON_SHARED_LIBRARIES += \
   $(my_register_name):$(LOCAL_INSTALLED_MODULE):$(subst $(space),$(comma),$(my_shared_libraries))
-
-# We also need the LOCAL_BUILT_MODULE dependency,
-# since we use -rpath-link which points to the built module's path.
-my_built_shared_libraries := \
-    $(addprefix $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)OUT_INTERMEDIATE_LIBRARIES)/, \
-    $(addsuffix $($(my_prefix)SHLIB_SUFFIX), \
-        $(my_shared_libraries)))
-$(LOCAL_BUILT_MODULE) : $(my_built_shared_libraries)
 endif
 endif
 
@@ -368,10 +348,13 @@ $(built_module) : $(MINIGZIP)
 endif
 
 ifeq ($(module_run_appcompat),true)
-$(built_module) : $(call intermediates-dir-for,PACKAGING,veridex,HOST)/veridex.zip
+$(built_module) : $(appcompat-files)
 $(LOCAL_BUILT_MODULE): PRIVATE_INSTALLED_MODULE := $(LOCAL_INSTALLED_MODULE)
 endif
 
+ifneq ($(BUILD_PLATFORM_ZIP),)
+$(built_module) : .KATI_IMPLICIT_OUTPUTS := $(dir $(LOCAL_BUILT_MODULE))package.dex.apk
+endif
 $(built_module) : $(my_prebuilt_src_file) | $(ZIPALIGN) $(SIGNAPK_JAR)
 	$(transform-prebuilt-to-target)
 	$(uncompress-shared-libs)

@@ -395,7 +395,7 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
       pass
 
     # Skip the care_map as we will regenerate the system/vendor images.
-    elif filename == "META/care_map.txt":
+    elif filename == "META/care_map.pb" or filename == "META/care_map.txt":
       pass
 
     # A non-APK file; copy it verbatim.
@@ -597,8 +597,7 @@ def ReplaceOtaKeys(input_tf_zip, output_tf_zip, misc_info):
   if p.returncode != 0:
     raise common.ExternalError("failed to run dumpkeys")
 
-  if (misc_info.get("system_root_image") == "true" and
-      misc_info.get("recovery_as_boot") == "true"):
+  if misc_info.get("recovery_as_boot") == "true":
     recovery_keys_location = "BOOT/RAMDISK/res/keys"
   else:
     recovery_keys_location = "RECOVERY/RAMDISK/res/keys"

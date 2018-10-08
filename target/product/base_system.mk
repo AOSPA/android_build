@@ -185,6 +185,7 @@ PRODUCT_PACKAGES += \
     libwilhelm \
     linker \
     lmkd \
+    LocalTransport \
     locksettings \
     logcat \
     logd \
@@ -214,6 +215,7 @@ PRODUCT_PACKAGES += \
     pppd \
     privapp-permissions-platform.xml \
     racoon \
+    recovery-persist \
     resize2fs \
     run-as \
     schedtest \
@@ -307,6 +309,7 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += debug.atrace.tags.enableflags=0
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
+    apex_debug_key \
     iotop \
     logpersist.start \
     perfprofd \

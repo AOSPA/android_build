@@ -21,7 +21,8 @@
 
 # Generic system image inherits from AOSP with telephony
 $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_system.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_vendor.mk)
 
 # Enable dynamic partition size
 PRODUCT_USE_DYNAMIC_PARTITION_SIZE := true
@@ -54,5 +55,5 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PACKAGES += \
     ld.config.vndk_lite.txt
 
-# Support addtional O-MR1 vendor interface
-PRODUCT_EXTRA_VNDK_VERSIONS := 27
+# Support addtional O-MR1 and P vendor interface
+PRODUCT_EXTRA_VNDK_VERSIONS := 27 28

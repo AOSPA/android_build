@@ -49,7 +49,6 @@ import datetime
 import os
 import shlex
 import shutil
-import subprocess
 import sys
 import uuid
 import zipfile
@@ -72,9 +71,6 @@ OPTIONS.replace_verity_public_key = False
 OPTIONS.replace_verity_private_key = False
 OPTIONS.is_signing = False
 
-# Partitions that should have their care_map added to META/care_map.txt.
-PARTITIONS_WITH_CARE_MAP = ('system', 'vendor', 'product', 'product_services',
-                            'odm')
 # Use a fixed timestamp (01/01/2009 00:00:00 UTC) for files when packaging
 # images. (b/24377993, b/80600931)
 FIXED_FILE_TIMESTAMP = int((
@@ -111,16 +107,16 @@ def GetCareMap(which, imgname):
     (which, care_map_ranges): care_map_ranges is the raw string of the care_map
     RangeSet.
   """
-  assert which in PARTITIONS_WITH_CARE_MAP
+  assert which in common.PARTITIONS_WITH_CARE_MAP
 
   simg = sparse_img.SparseImage(imgname)
   care_map_ranges = simg.care_map
-  key = which + "_adjusted_partition_size"
-  adjusted_blocks = OPTIONS.info_dict.get(key)
-  if adjusted_blocks:
-    assert adjusted_blocks > 0, "blocks should be positive for " + which
-    care_map_ranges = care_map_ranges.intersect(rangelib.RangeSet(
-        "0-%d" % (adjusted_blocks,)))
+  key = which + "_image_blocks"
+  image_blocks = OPTIONS.info_dict.get(key)
+  if image_blocks:
+    assert image_blocks > 0, "blocks for {} must be positive".format(which)
+    care_map_ranges = care_map_ranges.intersect(
+        rangelib.RangeSet("0-{}".format(image_blocks)))
 
   return [which, care_map_ranges.to_string_raw()]
 
@@ -262,10 +258,11 @@ def AddDtbo(output_zip):
     args = OPTIONS.info_dict.get("avb_dtbo_add_hash_footer_args")
     if args and args.strip():
       cmd.extend(shlex.split(args))
-    p = common.Run(cmd, stdout=subprocess.PIPE)
-    p.communicate()
-    assert p.returncode == 0, \
-        "avbtool add_hash_footer of %s failed" % (img.name,)
+    proc = common.Run(cmd)
+    output, _ = proc.communicate()
+    assert proc.returncode == 0, \
+        "Failed to call 'avbtool add_hash_footer' for {}:\n{}".format(
+            img.name, output)
 
   img.Write()
   return img.name
@@ -311,26 +308,25 @@ def CreateImage(input_dir, info_dict, what, output_file, block_list=None):
   hash_seed = "hash_seed-" + uuid_seed
   image_props["hash_seed"] = str(uuid.uuid5(uuid.NAMESPACE_URL, hash_seed))
 
-  succ = build_image.BuildImage(os.path.join(input_dir, what.upper()),
-                                image_props, output_file.name)
-  assert succ, "build " + what + ".img image failed"
+  build_image.BuildImage(
+      os.path.join(input_dir, what.upper()), image_props, output_file.name)
 
   output_file.Write()
   if block_list:
     block_list.Write()
 
-  # Set the 'adjusted_partition_size' that excludes the verity blocks of the
-  # given image. When avb is enabled, this size is the max image size returned
-  # by the avb tool.
+  # Set the '_image_blocks' that excludes the verity metadata blocks of the
+  # given image. When AVB is enabled, this size is the max image size returned
+  # by the AVB tool.
   is_verity_partition = "verity_block_device" in image_props
   verity_supported = (image_props.get("verity") == "true" or
                       image_props.get("avb_enable") == "true")
   is_avb_enable = image_props.get("avb_hashtree_enable") == "true"
   if verity_supported and (is_verity_partition or is_avb_enable):
-    adjusted_blocks_value = image_props.get("partition_size")
-    if adjusted_blocks_value:
-      adjusted_blocks_key = what + "_adjusted_partition_size"
-      info_dict[adjusted_blocks_key] = int(adjusted_blocks_value)/4096 - 1
+    image_size = image_props.get("image_size")
+    if image_size:
+      image_blocks_key = what + "_image_blocks"
+      info_dict[image_blocks_key] = int(image_size) / 4096 - 1
 
 
 def AddUserdata(output_zip):
@@ -364,8 +360,7 @@ def AddUserdata(output_zip):
   fstab = OPTIONS.info_dict["fstab"]
   if fstab:
     image_props["fs_type"] = fstab["/data"].fs_type
-  succ = build_image.BuildImage(user_dir, image_props, img.name)
-  assert succ, "build userdata.img image failed"
+  build_image.BuildImage(user_dir, image_props, img.name)
 
   common.CheckSize(img.name, "userdata.img", OPTIONS.info_dict)
   img.Write()
@@ -456,9 +451,9 @@ def AddVBMeta(output_zip, partitions, name, needed_partitions):
         assert found, 'Failed to find {}'.format(image_path)
     cmd.extend(split_args)
 
-  p = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-  stdoutdata, _ = p.communicate()
-  assert p.returncode == 0, \
+  proc = common.Run(cmd)
+  stdoutdata, _ = proc.communicate()
+  assert proc.returncode == 0, \
       "avbtool make_vbmeta_image failed:\n{}".format(stdoutdata)
   img.Write()
 
@@ -486,9 +481,9 @@ def AddPartitionTable(output_zip):
   if args:
     cmd.extend(shlex.split(args))
 
-  p = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-  stdoutdata, _ = p.communicate()
-  assert p.returncode == 0, \
+  proc = common.Run(cmd)
+  stdoutdata, _ = proc.communicate()
+  assert proc.returncode == 0, \
       "bpttool make_table failed:\n{}".format(stdoutdata)
 
   img.Write()
@@ -517,8 +512,7 @@ def AddCache(output_zip):
   fstab = OPTIONS.info_dict["fstab"]
   if fstab:
     image_props["fs_type"] = fstab["/cache"].fs_type
-  succ = build_image.BuildImage(user_dir, image_props, img.name)
-  assert succ, "build cache.img image failed"
+  build_image.BuildImage(user_dir, image_props, img.name)
 
   common.CheckSize(img.name, "cache.img", OPTIONS.info_dict)
   img.Write()
@@ -556,19 +550,19 @@ def CheckAbOtaImages(output_zip, ab_partitions):
     assert available, "Failed to find " + img_name
 
 
-def AddCareMapTxtForAbOta(output_zip, ab_partitions, image_paths):
-  """Generates and adds care_map.txt for system and vendor partitions.
+def AddCareMapForAbOta(output_zip, ab_partitions, image_paths):
+  """Generates and adds care_map.pb for a/b partition that has care_map.
 
   Args:
     output_zip: The output zip file (needs to be already open), or None to
-        write care_map.txt to OPTIONS.input_tmp/.
+        write care_map.pb to OPTIONS.input_tmp/.
     ab_partitions: The list of A/B partitions.
     image_paths: A map from the partition name to the image path.
   """
   care_map_list = []
   for partition in ab_partitions:
     partition = partition.strip()
-    if partition not in PARTITIONS_WITH_CARE_MAP:
+    if partition not in common.PARTITIONS_WITH_CARE_MAP:
       continue
 
     verity_block_device = "{}_verity_block_device".format(partition)
@@ -578,6 +572,21 @@ def AddCareMapTxtForAbOta(output_zip, ab_partitions, image_paths):
       image_path = image_paths[partition]
       assert os.path.exists(image_path)
       care_map_list += GetCareMap(partition, image_path)
+
+      # adds fingerprint field to the care_map
+      build_props = OPTIONS.info_dict.get(partition + ".build.prop", {})
+      prop_name_list = ["ro.{}.build.fingerprint".format(partition),
+                        "ro.{}.build.thumbprint".format(partition)]
+
+      present_props = [x for x in prop_name_list if x in build_props]
+      if not present_props:
+        print("Warning: fingerprint is not present for partition {}".
+              format(partition))
+        property_id, fingerprint = "unknown", "unknown"
+      else:
+        property_id = present_props[0]
+        fingerprint = build_props[property_id]
+      care_map_list += [property_id, fingerprint]
 
   if not care_map_list:
     return
@@ -589,16 +598,14 @@ def AddCareMapTxtForAbOta(output_zip, ab_partitions, image_paths):
   with open(temp_care_map_text, 'w') as text_file:
     text_file.write('\n'.join(care_map_list))
 
-  temp_care_map = common.MakeTempFile(prefix="caremap-", suffix=".txt")
-  care_map_gen_cmd = (["care_map_generator", temp_care_map_text, temp_care_map])
-  p = common.Run(care_map_gen_cmd, stdout=subprocess.PIPE,
-                 stderr=subprocess.STDOUT)
-  output, _ = p.communicate()
-  assert p.returncode == 0, "Failed to generate the care_map proto message."
-  if OPTIONS.verbose:
-    print(output.rstrip())
+  temp_care_map = common.MakeTempFile(prefix="caremap-", suffix=".pb")
+  care_map_gen_cmd = ["care_map_generator", temp_care_map_text, temp_care_map]
+  proc = common.Run(care_map_gen_cmd)
+  output, _ = proc.communicate()
+  assert proc.returncode == 0, \
+      "Failed to generate the care_map proto message:\n{}".format(output)
 
-  care_map_path = "META/care_map.txt"
+  care_map_path = "META/care_map.pb"
   if output_zip and care_map_path not in output_zip.namelist():
     common.ZipWrite(output_zip, temp_care_map, arcname=care_map_path)
   else:
@@ -647,9 +654,9 @@ def AddSuperEmpty(output_zip):
   cmd += shlex.split(OPTIONS.info_dict.get('lpmake_args').strip())
   cmd += ['--output', img.name]
 
-  p = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  stdoutdata, _ = p.communicate()
-  assert p.returncode == 0, \
+  proc = common.Run(cmd)
+  stdoutdata, _ = proc.communicate()
+  assert proc.returncode == 0, \
       "lpmake tool failed:\n{}".format(stdoutdata)
 
   img.Write()
@@ -658,7 +665,7 @@ def AddSuperEmpty(output_zip):
 def ReplaceUpdatedFiles(zip_filename, files_list):
   """Updates all the ZIP entries listed in files_list.
 
-  For now the list includes META/care_map.txt, and the related files under
+  For now the list includes META/care_map.pb, and the related files under
   SYSTEM/ after rebuilding recovery.
   """
   common.ZipDelete(zip_filename, files_list)
@@ -863,9 +870,9 @@ def AddImagesToTargetFiles(filename):
     # ready under IMAGES/ or RADIO/.
     CheckAbOtaImages(output_zip, ab_partitions)
 
-    # Generate care_map.txt for system and vendor partitions (if present), then
-    # write this file to target_files package.
-    AddCareMapTxtForAbOta(output_zip, ab_partitions, partitions)
+    # Generate care_map.pb for ab_partitions, then write this file to
+    # target_files package.
+    AddCareMapForAbOta(output_zip, ab_partitions, partitions)
 
   # Radio images that need to be packed into IMAGES/, and product-img.zip.
   pack_radioimages_txt = os.path.join(

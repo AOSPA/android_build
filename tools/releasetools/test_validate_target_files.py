@@ -21,7 +21,6 @@ from __future__ import print_function
 import os
 import os.path
 import shutil
-import subprocess
 import unittest
 
 import build_image
@@ -44,7 +43,7 @@ class ValidateTargetFilesTest(unittest.TestCase):
       kernel_fp.write(os.urandom(10))
 
     cmd = ['mkbootimg', '--kernel', kernel, '-o', output_file]
-    proc = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = common.Run(cmd)
     stdoutdata, _ = proc.communicate()
     self.assertEqual(
         0, proc.returncode,
@@ -53,7 +52,7 @@ class ValidateTargetFilesTest(unittest.TestCase):
     cmd = ['boot_signer', '/boot', output_file,
            os.path.join(self.testdata_dir, 'testkey.pk8'),
            os.path.join(self.testdata_dir, 'testkey.x509.pem'), output_file]
-    proc = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = common.Run(cmd)
     stdoutdata, _ = proc.communicate()
     self.assertEqual(
         0, proc.returncode,
@@ -116,14 +115,14 @@ class ValidateTargetFilesTest(unittest.TestCase):
   def _generate_system_image(self, output_file):
     verity_fec = True
     partition_size = 1024 * 1024
-    adjusted_size, verity_size = build_image.AdjustPartitionSizeForVerity(
+    image_size, verity_size = build_image.AdjustPartitionSizeForVerity(
         partition_size, verity_fec)
 
     # Use an empty root directory.
     system_root = common.MakeTempDir()
     cmd = ['mkuserimg_mke2fs', '-s', system_root, output_file, 'ext4',
-           '/system', str(adjusted_size), '-j', '0']
-    proc = common.Run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+           '/system', str(image_size), '-j', '0']
+    proc = common.Run(cmd)
     stdoutdata, _ = proc.communicate()
     self.assertEqual(
         0, proc.returncode,
@@ -132,15 +131,14 @@ class ValidateTargetFilesTest(unittest.TestCase):
 
     # Append the verity metadata.
     prop_dict = {
-        'original_partition_size' : str(partition_size),
-        'partition_size' : str(adjusted_size),
+        'partition_size' : str(partition_size),
+        'image_size' : str(image_size),
         'verity_block_device' : '/dev/block/system',
         'verity_key' : os.path.join(self.testdata_dir, 'testkey'),
         'verity_signer_cmd' : 'verity_signer',
         'verity_size' : str(verity_size),
     }
-    self.assertTrue(
-        build_image.MakeVerityEnabledImage(output_file, verity_fec, prop_dict))
+    build_image.MakeVerityEnabledImage(output_file, verity_fec, prop_dict)
 
   def test_ValidateVerifiedBootImages_systemImage(self):
     input_tmp = common.MakeTempDir()

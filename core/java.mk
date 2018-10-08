@@ -170,6 +170,7 @@ java_sources := $(addprefix $(LOCAL_PATH)/, $(filter %.java,$(LOCAL_SRC_FILES)))
                 $(filter %.java,$(LOCAL_GENERATED_SOURCES))
 java_intermediate_sources := $(addprefix $(TARGET_OUT_COMMON_INTERMEDIATES)/, $(filter %.java,$(LOCAL_INTERMEDIATE_SOURCES)))
 all_java_sources := $(java_sources) $(java_intermediate_sources)
+ALL_MODULES.$(my_register_name).SRCS := $(ALL_MODULES.$(my_register_name).SRCS) $(all_java_sources)
 
 include $(BUILD_SYSTEM)/java_common.mk
 
@@ -494,6 +495,8 @@ ifdef LOCAL_PROGUARD_ENABLED
   $(built_dex_intermediate) : $(full_classes_pre_proguard_jar) $(extra_input_jar) $(my_proguard_sdk_raise) $(common_proguard_flag_files) $(proguard_flag_files) $(legacy_proguard_lib_deps) $(R8_COMPAT_PROGUARD)
 	$(transform-jar-to-dex-r8)
 else # !LOCAL_PROGUARD_ENABLED
+  $(built_dex_intermediate): PRIVATE_D8_LIBS := $(full_java_bootclasspath_libs) $(full_shared_java_header_libs)
+  $(built_dex_intermediate): $(full_java_bootclasspath_libs) $(full_shared_java_header_libs)
   $(built_dex_intermediate): $(full_classes_pre_proguard_jar) $(DX) $(ZIP2ZIP)
 	$(transform-classes.jar-to-dex)
 endif
