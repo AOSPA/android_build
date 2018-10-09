@@ -608,8 +608,13 @@ endif
 $(common_classes_pre_proguard_jar) : $(my_src_jar)
 	$(transform-prebuilt-to-target)
 
+ifneq ($(LOCAL_DEX_FILE),)
+$(common_javalib_jar) : $(LOCAL_DEX_FILE) | $(ACP)
+	$(transform-prebuilt-to-target)
+else
 $(common_javalib_jar) : $(common_classes_jar)
 	$(transform-prebuilt-to-target)
+endif
 
 ifdef LOCAL_AAPT2_ONLY
 LOCAL_USE_AAPT2 := true
