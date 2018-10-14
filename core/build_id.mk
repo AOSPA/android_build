@@ -18,10 +18,4 @@
 # (like "CRB01").  It must be a single word, and is
 # capitalized by convention.
 
-<<<<<<< HEAD
-export BUILD_ID=PKQ1.180916.001
-||||||| merged common ancestors
-export BUILD_ID=PPR1.180610.011
-=======
 export BUILD_ID=PPR1.180905.006
->>>>>>> origin/mirror-aosp-pie-platform-release

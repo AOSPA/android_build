@@ -1,6 +1,0 @@
-# List of unresolved conflicts
-# Generated with `git ls-files --unmerged`
-
-100644 0de18d69ce8a5ad2abbffff11d30f4e46e1c4be5 1	core/build_id.mk
-100644 8065d833ca116dfa0b5ce80859bac949d3cc9b85 2	core/build_id.mk
-100644 db6dcb4181d887f9bc81570d42e1325c7305b932 3	core/build_id.mk
