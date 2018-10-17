@@ -48,19 +48,6 @@ backslash := $(patsubst %a,%,$(backslash))
 # Prevent accidentally changing these variables
 .KATI_READONLY := SHELL empty space comma newline pound backslash
 
-# this turns off the suffix rules built into make
-.SUFFIXES:
-
-# this turns off the RCS / SCCS implicit rules of GNU Make
-% : RCS/%,v
-% : RCS/%
-% : %,v
-% : s.%
-% : SCCS/s.%
-
-# If a rule fails, delete $@.
-.DELETE_ON_ERROR:
-
 # Mark variables that should be coming as environment variables from soong_ui
 # as readonly
 .KATI_READONLY := OUT_DIR TMPDIR BUILD_DATETIME_FILE
@@ -85,6 +72,7 @@ $(KATI_obsolete_var \
 $(KATI_obsolete_var PRODUCT_COMPATIBILITY_MATRIX_LEVEL_OVERRIDE,Set FCM Version in device manifest instead. See $(CHANGES_URL)#PRODUCT_COMPATIBILITY_MATRIX_LEVEL_OVERRIDE)
 $(KATI_obsolete_var USE_CLANG_PLATFORM_BUILD,Clang is the only supported Android compiler. See $(CHANGES_URL)#USE_CLANG_PLATFORM_BUILD)
 $(KATI_obsolete_var BUILD_DROIDDOC,Droiddoc is only supported in Soong. See details on build/soong/java/droiddoc.go)
+$(KATI_obsolete_var BUILD_APIDIFF,Apidiff is only supported in Soong. See details on build/soong/java/droiddoc.go)
 $(KATI_obsolete_var \
   DEFAULT_GCC_CPP_STD_VERSION \
   HOST_GLOBAL_CFLAGS 2ND_HOST_GLOBAL_CFLAGS \
@@ -143,6 +131,8 @@ endif
 # Here since this file is included by envsetup as well as during build.
 include $(BUILD_SYSTEM)/math.mk
 
+include $(BUILD_SYSTEM)/strings.mk
+
 # Various mappings to avoid hard-coding paths all over the place
 include $(BUILD_SYSTEM)/pathmap.mk
 
@@ -174,7 +164,6 @@ BUILD_MULTI_PREBUILT:= $(BUILD_SYSTEM)/multi_prebuilt.mk
 BUILD_JAVA_LIBRARY:= $(BUILD_SYSTEM)/java_library.mk
 BUILD_STATIC_JAVA_LIBRARY:= $(BUILD_SYSTEM)/static_java_library.mk
 BUILD_HOST_JAVA_LIBRARY:= $(BUILD_SYSTEM)/host_java_library.mk
-BUILD_APIDIFF:= $(BUILD_SYSTEM)/apidiff.mk
 BUILD_COPY_HEADERS := $(BUILD_SYSTEM)/copy_headers.mk
 BUILD_NATIVE_TEST := $(BUILD_SYSTEM)/native_test.mk
 BUILD_NATIVE_BENCHMARK := $(BUILD_SYSTEM)/native_benchmark.mk
@@ -716,7 +705,6 @@ JARJAR := $(HOST_OUT_JAVA_LIBRARIES)/jarjar.jar
 DATA_BINDING_COMPILER := $(HOST_OUT_JAVA_LIBRARIES)/databinding-compiler.jar
 FAT16COPY := build/make/tools/fat16copy.py
 CHECK_LINK_TYPE := build/make/tools/check_link_type.py
-UUIDGEN := build/make/tools/uuidgen.py
 LPMAKE := $(HOST_OUT_EXECUTABLES)/lpmake$(HOST_EXECUTABLE_SUFFIX)
 
 PROGUARD := external/proguard/bin/proguard.sh
@@ -1011,16 +999,42 @@ endif
 endif # PRODUCT_USE_DYNAMIC_PARTITION_SIZE
 
 ifeq ($(PRODUCT_BUILD_SUPER_PARTITION),true)
-ifdef BOARD_SUPER_PARTITION_PARTITION_LIST
-# BOARD_SUPER_PARTITION_PARTITION_LIST: a list of the following tokens
+
+# BOARD_SUPER_PARTITION_GROUPS defines a list of "updatable groups". Each updatable group is a
+# group of partitions that share the same pool of free spaces.
+# For each group in BOARD_SUPER_PARTITION_GROUPS, a BOARD_{GROUP}_SIZE and
+# BOARD_{GROUP}_PARTITION_PARTITION_LIST may be defined.
+#     - BOARD_{GROUP}_SIZE: The maximum sum of sizes of all partitions in the group.
+#       If empty, no limit is enforced on the sum of sizes for this group.
+#     - BOARD_{GROUP}_PARTITION_PARTITION_LIST: the list of partitions that belongs to this group.
+#       If empty, no partitions belong to this group, and the sum of sizes is effectively 0.
+$(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
+    $(eval BOARD_$(group)_SIZE ?=) \
+    $(eval .KATI_READONLY := BOARD_$(group)_SIZE) \
+    $(eval BOARD_$(group)_PARTITION_LIST ?=) \
+    $(eval .KATI_READONLY := BOARD_$(group)_PARTITION_LIST) \
+)
+
+# BOARD_*_PARTITION_LIST: a list of the following tokens
 valid_super_partition_list := system vendor product product_services
-ifneq (,$(filter-out $(valid_super_partition_list),$(BOARD_SUPER_PARTITION_PARTITION_LIST)))
-$(error BOARD_SUPER_PARTITION_PARTITION_LIST contains invalid partition name \
-		($(filter-out $(valid_super_partition_list),$(BOARD_SUPER_PARTITION_PARTITION_LIST))). \
-        Valid names are $(valid_super_partition_list))
-endif
+$(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
+    $(if $(filter-out $(valid_super_partition_list),$(BOARD_$(group)_PARTITION_LIST)), \
+        $(error BOARD_$(group)_PARTITION_LIST contains invalid partition name \
+            $(filter-out $(valid_super_partition_list),$(BOARD_$(group)_PARTITION_LIST)). \
+            Valid names are $(valid_super_partition_list))))
 valid_super_partition_list :=
-endif # BOARD_SUPER_PARTITION_PARTITION_LIST
+
+
+# Define BOARD_SUPER_PARTITION_PARTITION_LIST, the sum of all BOARD_*_PARTITION_LIST
+ifdef BOARD_SUPER_PARTITION_PARTITION_LIST
+$(error BOARD_SUPER_PARTITION_PARTITION_LIST should not be defined, but computed from \
+    BOARD_SUPER_PARTITION_GROUPS and BOARD_*_PARTITION_LIST)
+endif
+BOARD_SUPER_PARTITION_PARTITION_LIST := \
+    $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
+        $(BOARD_$(group)_PARTITION_LIST))
+.KATI_READONLY := BOARD_SUPER_PARTITION_PARTITION_LIST
+
 endif # PRODUCT_BUILD_SUPER_PARTITION
 
 # ###############################################################

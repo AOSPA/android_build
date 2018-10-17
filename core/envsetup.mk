@@ -183,61 +183,25 @@ TARGET_COPY_OUT_SYSTEM_OTHER := system_other
 TARGET_COPY_OUT_DATA := data
 TARGET_COPY_OUT_ASAN := $(TARGET_COPY_OUT_DATA)/asan
 TARGET_COPY_OUT_OEM := oem
-TARGET_COPY_OUT_ODM := odm
-TARGET_COPY_OUT_PRODUCT := product
-TARGET_COPY_OUT_PRODUCT_SERVICES := product_services
 TARGET_COPY_OUT_RAMDISK := ramdisk
 TARGET_COPY_OUT_ROOT := root
 TARGET_COPY_OUT_RECOVERY := recovery
+# The directory used for optional partitions depend on the BoardConfig, so
+# they're defined to placeholder values here and swapped after reading the
+# BoardConfig, to be either the partition dir, or a subdir within 'system'.
+_vendor_path_placeholder := ||VENDOR-PATH-PH||
+_product_path_placeholder := ||PRODUCT-PATH-PH||
+_product_services_path_placeholder := ||PRODUCT_SERVICES-PATH-PH||
+_odm_path_placeholder := ||ODM-PATH-PH||
+TARGET_COPY_OUT_VENDOR := $(_vendor_path_placeholder)
+TARGET_COPY_OUT_PRODUCT := $(_product_path_placeholder)
+TARGET_COPY_OUT_PRODUCT_SERVICES := $(_product_services_path_placeholder)
+TARGET_COPY_OUT_ODM := $(_odm_path_placeholder)
 
 # Returns the non-sanitized version of the path provided in $1.
 define get_non_asan_path
 $(patsubst $(PRODUCT_OUT)/$(TARGET_COPY_OUT_ASAN)/%,$(PRODUCT_OUT)/%,$1)
 endef
-
-###########################################
-# Define TARGET_COPY_OUT_VENDOR to a placeholder, for at this point
-# we don't know if the device wants to build a separate vendor.img
-# or just build vendor stuff into system.img.
-# A device can set up TARGET_COPY_OUT_VENDOR to "vendor" in its
-# BoardConfig.mk.
-# We'll substitute with the real value after loading BoardConfig.mk.
-_vendor_path_placeholder := ||VENDOR-PATH-PH||
-TARGET_COPY_OUT_VENDOR := $(_vendor_path_placeholder)
-###########################################
-
-###########################################
-# Define TARGET_COPY_OUT_PRODUCT to a placeholder, for at this point
-# we don't know if the device wants to build a separate product.img
-# or just build product stuff into system.img.
-# A device can set up TARGET_COPY_OUT_PRODUCT to "product" in its
-# BoardConfig.mk.
-# We'll substitute with the real value after loading BoardConfig.mk.
-_product_path_placeholder := ||PRODUCT-PATH-PH||
-TARGET_COPY_OUT_PRODUCT := $(_product_path_placeholder)
-###########################################
-
-###########################################
-# Define TARGET_COPY_OUT_PRODUCT_SERVICES to a placeholder, for at this point
-# we don't know if the device wants to build a separate product_services.img
-# or just build product stuff into system.img.
-# A device can set up TARGET_COPY_OUT_PRODUCT_SERVICES to "product_services" in its
-# BoardConfig.mk.
-# We'll substitute with the real value after loading BoardConfig.mk.
-_product_services_path_placeholder := ||PRODUCT_SERVICES-PATH-PH||
-TARGET_COPY_OUT_PRODUCT_SERVICES := $(_product_services_path_placeholder)
-###########################################
-
-###########################################
-# Define TARGET_COPY_OUT_ODM to a placeholder, for at this point
-# we don't know if the device wants to build a separate odm.img
-# or just build odm stuff into vendor.img.
-# A device can set up TARGET_COPY_OUT_ODM to "odm" in its
-# BoardConfig.mk.
-# We'll substitute with the real value after loading BoardConfig.mk.
-_odm_path_placeholder := ||ODM-PATH-PH||
-TARGET_COPY_OUT_ODM := $(_odm_path_placeholder)
-###########################################
 
 #################################################################
 # Set up minimal BOOTCLASSPATH list of jars to build/execute
@@ -446,8 +410,10 @@ else
   TARGET_VENDOR_TEST_SUFFIX :=
 endif
 
+ifeq (,$(TARGET_BUILD_APPS))
 ifdef PRODUCT_EXTRA_VNDK_VERSIONS
   $(foreach v,$(PRODUCT_EXTRA_VNDK_VERSIONS),$(call check_vndk_version,$(v)))
+endif
 endif
 
 # Ensure that BOARD_SYSTEMSDK_VERSIONS are all within PLATFORM_SYSTEMSDK_VERSIONS
@@ -543,13 +509,11 @@ HOST_CROSS_OUT_TESTCASES := $(HOST_CROSS_OUT)/testcases
   HOST_CROSS_OUT_TESTCASES
 
 HOST_OUT_INTERMEDIATES := $(HOST_OUT)/obj
-HOST_OUT_INTERMEDIATE_LIBRARIES := $(HOST_OUT_INTERMEDIATES)/lib
 HOST_OUT_NOTICE_FILES := $(HOST_OUT_INTERMEDIATES)/NOTICE_FILES
 HOST_OUT_COMMON_INTERMEDIATES := $(HOST_COMMON_OUT_ROOT)/obj
 HOST_OUT_FAKE := $(HOST_OUT)/fake_packages
 .KATI_READONLY := \
   HOST_OUT_INTERMEDIATES \
-  HOST_OUT_INTERMEDIATE_LIBRARIES \
   HOST_OUT_NOTICE_FILES \
   HOST_OUT_COMMON_INTERMEDIATES \
   HOST_OUT_FAKE
@@ -558,11 +522,9 @@ HOST_OUT_FAKE := $(HOST_OUT)/fake_packages
 include $(BUILD_SYSTEM)/aux_config.mk
 
 HOST_CROSS_OUT_INTERMEDIATES := $(HOST_CROSS_OUT)/obj
-HOST_CROSS_OUT_INTERMEDIATE_LIBRARIES := $(HOST_CROSS_OUT_INTERMEDIATES)/lib
 HOST_CROSS_OUT_NOTICE_FILES := $(HOST_CROSS_OUT_INTERMEDIATES)/NOTICE_FILES
 .KATI_READONLY := \
   HOST_CROSS_OUT_INTERMEDIATES \
-  HOST_CROSS_OUT_INTERMEDIATE_LIBRARIES \
   HOST_CROSS_OUT_NOTICE_FILES
 
 HOST_OUT_GEN := $(HOST_OUT)/gen
@@ -581,7 +543,6 @@ HOST_OUT_TEST_CONFIG := $(HOST_OUT)/test_config
 HOST_2ND_ARCH_VAR_PREFIX := 2ND_
 HOST_2ND_ARCH_MODULE_SUFFIX := _32
 $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_INTERMEDIATES := $(HOST_OUT)/obj32
-$(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_INTERMEDIATE_LIBRARIES := $($(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_INTERMEDIATES)/lib
 $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_SHARED_LIBRARIES := $(HOST_OUT)/lib
 $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_EXECUTABLES := $(HOST_OUT_EXECUTABLES)
 $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_JAVA_LIBRARIES := $(HOST_OUT_JAVA_LIBRARIES)
@@ -591,7 +552,6 @@ $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_TESTCASES := $(HOST_OUT_TESTCASES)
   HOST_2ND_ARCH_VAR_PREFIX \
   HOST_2ND_ARCH_MODULE_SUFFIX \
   $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_INTERMEDIATES \
-  $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_INTERMEDIATE_LIBRARIES \
   $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_SHARED_LIBRARIES \
   $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_EXECUTABLES \
   $(HOST_2ND_ARCH_VAR_PREFIX)HOST_OUT_JAVA_LIBRARIES \
@@ -607,7 +567,6 @@ HOST_LIBRARY_PATH := $(HOST_OUT_SHARED_LIBRARIES)
 HOST_CROSS_2ND_ARCH_VAR_PREFIX := 2ND_
 HOST_CROSS_2ND_ARCH_MODULE_SUFFIX := _64
 $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_INTERMEDIATES := $(HOST_CROSS_OUT)/obj64
-$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_INTERMEDIATE_LIBRARIES := $($(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_INTERMEDIATES)/lib
 $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_SHARED_LIBRARIES := $(HOST_CROSS_OUT)/lib64
 $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_EXECUTABLES := $(HOST_CROSS_OUT_EXECUTABLES)
 $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_NATIVE_TESTS := $(HOST_CROSS_OUT)/nativetest64
@@ -615,7 +574,6 @@ $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_NATIVE_TESTS := $(HOST_CROSS_OUT
   HOST_CROSS_2ND_ARCH_VAR_PREFIX \
   HOST_CROSS_2ND_ARCH_MODULE_SUFFIX \
   $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_INTERMEDIATES \
-  $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_INTERMEDIATE_LIBRARIES \
   $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_SHARED_LIBRARIES \
   $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_EXECUTABLES \
   $(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_OUT_NATIVE_TESTS
@@ -626,8 +584,7 @@ else
   TARGET_OUT_INTERMEDIATES := $(PRODUCT_OUT)/obj
 endif
 TARGET_OUT_HEADERS := $(TARGET_OUT_INTERMEDIATES)/include
-TARGET_OUT_INTERMEDIATE_LIBRARIES := $(TARGET_OUT_INTERMEDIATES)/lib
-.KATI_READONLY := TARGET_OUT_INTERMEDIATES TARGET_OUT_HEADERS TARGET_OUT_INTERMEDIATE_LIBRARIES
+.KATI_READONLY := TARGET_OUT_INTERMEDIATES TARGET_OUT_HEADERS
 
 ifneq ($(filter address,$(SANITIZE_TARGET)),)
   TARGET_OUT_COMMON_INTERMEDIATES := $(TARGET_COMMON_OUT_ROOT)/obj_asan
@@ -716,7 +673,6 @@ ifneq ($(filter address,$(SANITIZE_TARGET)),)
 else
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATES := $(PRODUCT_OUT)/obj_$(TARGET_2ND_ARCH)
 endif
-$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATE_LIBRARIES := $($(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATES)/lib
 ifeq ($(TARGET_TRANSLATE_2ND_ARCH),true)
 $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_SHARED_LIBRARIES := $(target_out_shared_libraries_base)/lib/$(TARGET_2ND_ARCH)
 else
@@ -729,7 +685,6 @@ $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_APPS_PRIVILEGED := $(TARGET_OUT_APPS_PRI
 $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_TESTCASES := $(TARGET_OUT_TESTCASES)
 .KATI_READONLY := \
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATES \
-  $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATE_LIBRARIES \
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_SHARED_LIBRARIES \
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_RENDERSCRIPT_BITCODE \
   $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_OUT_EXECUTABLES \

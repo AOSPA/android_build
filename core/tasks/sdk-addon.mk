@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ifndef ONE_SHOT_MAKEFILE
+
 .PHONY: sdk_addon
 
 # If they didn't define PRODUCT_SDK_ADDON_NAME, then we won't define
@@ -71,6 +73,12 @@ files_to_copy += \
 	$(addon_dir_img):device/generic/goldfish/data/etc/userdata.img:images/$(TARGET_CPU_ABI)/userdata.img \
 	$(addon_dir_img):$(target_notice_file_txt):images/$(TARGET_CPU_ABI)/NOTICE.txt \
 	$(addon_dir_img):$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SDK_ADDON_SYS_IMG_SOURCE_PROP):images/source.properties
+
+
+ifeq ($(BOARD_AVB_ENABLE),true)
+files_to_copy += \
+	$(addon_dir_img):$(QEMU_VERIFIED_BOOT_PARAMS):images/$(TARGET_CPU_ABI)/VerifiedBootParams.textproto
+endif
 
 # Generate rules to copy the requested files
 $(foreach cf,$(files_to_copy), \
@@ -142,3 +150,5 @@ ifneq ($(filter sdk_addon,$(MAKECMDGOALS)),)
 $(error Trying to build sdk_addon, but product '$(INTERNAL_PRODUCT)' does not define one)
 endif
 endif # addon_name
+
+endif # !ONE_SHOT_MAKEFILE

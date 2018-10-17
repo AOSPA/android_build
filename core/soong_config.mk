@@ -117,6 +117,7 @@ $(call add_json_bool, Device_uses_hwc2,                  $(filter true,$(TARGET_
 $(call add_json_bool, Device_support_hwfde,              $(filter true,$(TARGET_HW_DISK_ENCRYPTION)))
 $(call add_json_bool, Device_support_hwfde_perf,         $(filter true,$(TARGET_HW_DISK_ENCRYPTION_PERF)))
 $(call add_json_list, DeviceKernelHeaders,               $(TARGET_PROJECT_SYSTEM_INCLUDES))
+$(call add_json_bool, DevicePrefer32BitApps,             $(filter true,$(TARGET_PREFER_32_BIT_APPS)))
 $(call add_json_bool, DevicePrefer32BitExecutables,      $(filter true,$(TARGET_PREFER_32_BIT_EXECUTABLES)))
 $(call add_json_str,  DeviceVndkVersion,                 $(BOARD_VNDK_VERSION))
 $(call add_json_str,  Platform_vndk_version,             $(PLATFORM_VNDK_VERSION))

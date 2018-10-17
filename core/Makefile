@@ -685,7 +685,7 @@ $(call dist-for-goals,droidcore,$(PGO_PROFILE_MISSING))
 # for future OTA packages installed by this system.  Actual product
 # deliverables will be re-signed by hand.  We expect this file to
 # exist with the suffixes ".x509.pem" and ".pk8".
-DEFAULT_KEY_CERT_PAIR := $(DEFAULT_SYSTEM_DEV_CERTIFICATE)
+DEFAULT_KEY_CERT_PAIR := $(strip $(DEFAULT_SYSTEM_DEV_CERTIFICATE))
 
 
 # Rules that need to be present for the all targets, even
@@ -846,13 +846,6 @@ endif
 INTERNAL_MKBOOTIMG_VERSION_ARGS := \
     --os_version $(PLATFORM_VERSION) \
     --os_patch_level $(PLATFORM_SECURITY_PATCH)
-
-# BOARD_USES_RECOVERY_AS_BOOT = true must have BOARD_BUILD_SYSTEM_ROOT_IMAGE = true.
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-  $(error BOARD_BUILD_SYSTEM_ROOT_IMAGE must be enabled for BOARD_USES_RECOVERY_AS_BOOT.)
-endif
-endif
 
 # We build recovery as boot image if BOARD_USES_RECOVERY_AS_BOOT is true.
 ifneq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
@@ -1147,12 +1140,12 @@ $(winpthreads_notice_file): \
 # This rule adds to ALL_DEFAULT_INSTALLED_MODULES, so it needs to come
 # before the rules that use that variable to build the image.
 ALL_DEFAULT_INSTALLED_MODULES += $(TARGET_OUT_ETC)/security/otacerts.zip
-$(TARGET_OUT_ETC)/security/otacerts.zip: KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
-$(TARGET_OUT_ETC)/security/otacerts.zip: $(addsuffix .x509.pem,$(DEFAULT_KEY_CERT_PAIR)) | $(ZIPTIME)
+$(TARGET_OUT_ETC)/security/otacerts.zip: PRIVATE_CERT := $(DEFAULT_KEY_CERT_PAIR).x509.pem
+$(TARGET_OUT_ETC)/security/otacerts.zip: $(SOONG_ZIP)
+$(TARGET_OUT_ETC)/security/otacerts.zip: $(DEFAULT_KEY_CERT_PAIR).x509.pem
 	$(hide) rm -f $@
 	$(hide) mkdir -p $(dir $@)
-	$(hide) zip -qjX $@ $<
-	$(remove-timestamps-from-package)
+	$(hide) $(SOONG_ZIP) -o $@ -C $(dir $(PRIVATE_CERT)) -f $(PRIVATE_CERT)
 
 # Carry the public key for update_engine if it's a non-IoT target that
 # uses the AB updater. We use the same key as otacerts but in RSA public key
@@ -1160,7 +1153,7 @@ $(TARGET_OUT_ETC)/security/otacerts.zip: $(addsuffix .x509.pem,$(DEFAULT_KEY_CER
 ifeq ($(AB_OTA_UPDATER),true)
 ifneq ($(PRODUCT_IOT),true)
 ALL_DEFAULT_INSTALLED_MODULES += $(TARGET_OUT_ETC)/update_engine/update-payload-key.pub.pem
-$(TARGET_OUT_ETC)/update_engine/update-payload-key.pub.pem: $(addsuffix .x509.pem,$(DEFAULT_KEY_CERT_PAIR))
+$(TARGET_OUT_ETC)/update_engine/update-payload-key.pub.pem: $(DEFAULT_KEY_CERT_PAIR).x509.pem
 	$(hide) rm -f $@
 	$(hide) mkdir -p $(dir $@)
 	$(hide) openssl x509 -pubkey -noout -in $< > $@
@@ -1552,17 +1545,14 @@ endif
 #      (BOARD_USES_FULL_RECOVERY_IMAGE = true);
 #   b) We build a single image that contains boot and recovery both - no recovery image to install
 #      (BOARD_USES_RECOVERY_AS_BOOT = true);
-#   c) We build the root into system image - not needing the resource file as we do bsdiff
+#   c) We mount the system image as / and therefore do not have a ramdisk in boot.img
 #      (BOARD_BUILD_SYSTEM_ROOT_IMAGE = true).
 #   d) We include the recovery DTBO image within recovery - not needing the resource file as we
 #      do bsdiff because boot and recovery will contain different number of entries
 #      (BOARD_INCLUDE_RECOVERY_DTBO = true).
-# Note that condition b) implies condition c), because of the earlier check in this file:
-# "BOARD_USES_RECOVERY_AS_BOOT = true must have BOARD_BUILD_SYSTEM_ROOT_IMAGE = true" (not vice
-# versa though).
 
-ifeq (,$(filter true, $(BOARD_USES_FULL_RECOVERY_IMAGE) $(BOARD_BUILD_SYSTEM_ROOT_IMAGE) \
-  $(BOARD_INCLUDE_RECOVERY_DTBO)))
+ifeq (,$(filter true, $(BOARD_USES_FULL_RECOVERY_IMAGE) $(BOARD_USES_RECOVERY_AS_BOOT) \
+  $(BOARD_BUILD_SYSTEM_ROOT_IMAGE) $(BOARD_INCLUDE_RECOVERY_DTBO)))
 # Named '.dat' so we don't attempt to use imgdiff for patching it.
 RECOVERY_RESOURCE_ZIP := $(TARGET_OUT)/etc/recovery-resource.dat
 else
@@ -1606,7 +1596,7 @@ $(INSTALLED_RECOVERY_BUILD_PROP_TARGET): \
 		$(INSTALLED_ODM_BUILD_PROP_TARGET) \
 		$(INSTALLED_PRODUCT_BUILD_PROP_TARGET) \
 		$(INSTALLED_PRODUCT_SERVICES_BUILD_PROP_TARGET)
-	@echo "Target recovery buildinfo: $@
+	@echo "Target recovery buildinfo: $@"
 	$(hide) mkdir -p $(dir $@)
 	$(hide) rm -f $@
 	$(hide) cat $(INSTALLED_DEFAULT_PROP_TARGET) > $@
@@ -2036,6 +2026,7 @@ stnod: systemtarball-nodeps
 ## PDK_PLATFORM_ZIP_PRODUCT_BINARIES is used to store specified files to platform.zip.
 ## The variable will be typically set from BoardConfig.mk.
 ## Files under out dir will be rejected to prevent possible conflicts with other rules.
+ifneq (,$(BUILD_PLATFORM_ZIP))
 pdk_odex_javalibs := $(strip $(foreach m,$(DEXPREOPT.MODULES.JAVA_LIBRARIES),\
   $(if $(filter $(DEXPREOPT.$(m).INSTALLED),$(ALL_DEFAULT_INSTALLED_MODULES)),$(m))))
 pdk_odex_apps := $(strip $(foreach m,$(DEXPREOPT.MODULES.APPS),\
@@ -2075,39 +2066,45 @@ INSTALLED_PLATFORM_ZIP := $(PRODUCT_OUT)/platform.zip
 
 $(INSTALLED_PLATFORM_ZIP): PRIVATE_DEX_FILES := $(pdk_classes_dex)
 $(INSTALLED_PLATFORM_ZIP): PRIVATE_ODEX_CONFIG := $(pdk_odex_config_mk)
-$(INSTALLED_PLATFORM_ZIP) : $(INTERNAL_SYSTEMIMAGE_FILES) $(pdk_odex_config_mk)
+$(INSTALLED_PLATFORM_ZIP) : $(SOONG_ZIP)
+# dependencies for the other partitions are defined below after their file lists
+# are known
+$(INSTALLED_PLATFORM_ZIP) : $(INTERNAL_SYSTEMIMAGE_FILES) $(pdk_classes_dex) $(pdk_odex_config_mk)
 	$(call pretty,"Platform zip package: $(INSTALLED_PLATFORM_ZIP)")
-	$(hide) rm -f $@
-	$(hide) cd $(dir $@) && zip -qryX $(notdir $@) \
-		$(TARGET_COPY_OUT_SYSTEM) \
-		$(patsubst $(PRODUCT_OUT)/%, %, $(TARGET_OUT_NOTICE_FILES)) \
-		$(addprefix symbols/,$(PDK_SYMBOL_FILES_LIST))
+	rm -f $@ $@.lst
+	echo "-C $(PRODUCT_OUT)" >> $@.lst
+	echo "-D $(TARGET_OUT)" >> $@.lst
+	echo "-D $(TARGET_OUT_NOTICE_FILES)" >> $@.lst
+	echo "$(addprefix -f $(TARGET_OUT_UNSTRIPPED)/,$(PDK_SYMBOL_FILES_LIST))" >> $@.lst
 ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
-	$(hide) cd $(dir $@) && zip -qryX $(notdir $@) \
-		$(TARGET_COPY_OUT_VENDOR)
+	echo "-D $(TARGET_OUT_VENDOR)" >> $@.lst
 endif
 ifdef BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE
-	$(hide) cd $(dir $@) && zip -qryX $(notdir $@) \
-		$(TARGET_COPY_OUT_PRODUCT)
+	echo "-D $(TARGET_OUT_PRODUCT)" >> $@.lst
 endif
 ifdef BOARD_PRODUCT_SERVICESIMAGE_FILE_SYSTEM_TYPE
-	$(hide) cd $(dir $@) && zip -qryX $(notdir $@) \
-		$(TARGET_COPY_OUT_PRODUCT_SERVICES)
+	echo "-D $(TARGET_OUT_PRODUCT_SERVICES)" >> $@.lst
 endif
 ifdef BOARD_ODMIMAGE_FILE_SYSTEM_TYPE
-	$(hide) cd $(dir $@) && zip -qryX $(notdir $@) \
-		$(TARGET_COPY_OUT_ODM)
+	echo "-D $(TARGET_OUT_ODM)" >> $@.lst
 endif
 ifneq ($(PDK_PLATFORM_JAVA_ZIP_CONTENTS),)
-	$(hide) cd $(OUT_DIR) && zip -qryX $(patsubst $(OUT_DIR)/%,%,$@) $(PDK_PLATFORM_JAVA_ZIP_CONTENTS)
+	echo "-C $(OUT_DIR)" >> $@.lst
+	for f in $(filter-out $(PRIVATE_DEX_FILES),$(addprefix -f $(OUT_DIR)/,$(PDK_PLATFORM_JAVA_ZIP_CONTENTS))); do \
+	  if [ -e $$f ]; then \
+	    echo "-f $$f"; \
+	  fi \
+	done >> $@.lst
 endif
 ifneq ($(PDK_PLATFORM_ZIP_PRODUCT_BINARIES),)
-	$(hide) zip -qryX $@ $(PDK_PLATFORM_ZIP_PRODUCT_BINARIES)
+        echo "-C . $(addprefix -f ,$(PDK_PLATFORM_ZIP_PRODUCT_BINARIES))" >> $@.lst
 endif
 	@# Add dex-preopt files and config.
-	$(if $(PRIVATE_DEX_FILES),$(hide) cd $(OUT_DIR) && zip -qryX $(patsubst $(OUT_DIR)/%,%,$@ $(PRIVATE_DEX_FILES)))
-	$(hide) touch $(PRODUCT_OUT)/pdk.mk
-	$(hide) zip -qryXj $@ $(PRIVATE_ODEX_CONFIG) $(PRODUCT_OUT)/pdk.mk
+	$(if $(PRIVATE_DEX_FILES),\
+	  echo "-C $(OUT_DIR) $(addprefix -f ,$(PRIVATE_DEX_FILES))") >> $@.lst
+	touch $(PRODUCT_OUT)/pdk.mk
+	echo "-C $(PRODUCT_OUT) -f $(PRIVATE_ODEX_CONFIG) -f $(PRODUCT_OUT)/pdk.mk" >> $@.lst
+	$(SOONG_ZIP) --ignore_missing_files -o $@ @$@.lst
 
 .PHONY: platform
 platform: $(INSTALLED_PLATFORM_ZIP)
@@ -2119,6 +2116,8 @@ platform-java: platform
 ifneq (,$(filter platform platform-java, $(MAKECMDGOALS)))
 $(call dist-for-goals, platform platform-java, $(INSTALLED_PLATFORM_ZIP))
 endif
+
+endif # BUILD_PLATFORM_ZIP
 
 # -----------------------------------------------------------------
 ## boot tarball
@@ -2767,7 +2766,9 @@ endif
 # - not-chained: The --include_descriptors_from_image option for make_vbmeta_image
 #   will include the kernel cmdline descriptor from system.img into vbmeta.img
 ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+ifeq ($(filter system, $(BOARD_SUPER_PARTITION_PARTITION_LIST)),)
 BOARD_AVB_SYSTEM_ADD_HASHTREE_FOOTER_ARGS += --setup_as_rootfs_from_kernel
+endif
 endif
 
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --padding_size 4096
@@ -2915,7 +2916,7 @@ endef
 ifeq (true,$(PRODUCT_BUILD_SUPER_PARTITION))
 
 # BOARD_SUPER_PARTITION_SIZE must be defined to build super image.
-ifdef BOARD_SUPER_PARTITION_SIZE
+ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
 
 INSTALLED_SUPERIMAGE_TARGET := $(PRODUCT_OUT)/super.img
 INSTALLED_SUPERIMAGE_EMPTY_TARGET := $(PRODUCT_OUT)/super_empty.img
@@ -2939,9 +2940,9 @@ define build-superimage-target-args
   --metadata-slots $(if $(1),2,1) \
   --device-size $(BOARD_SUPER_PARTITION_SIZE) \
   $(foreach name,$(BOARD_SUPER_PARTITION_PARTITION_LIST), \
-    --partition $(name)$(1):$$($(UUIDGEN) $(name)$(1)):readonly:$(if $(2),$(call read-size-of-partitions,$(name)),0) \
+    --partition $(name)$(1):readonly:$(if $(2),$(call read-size-of-partitions,$(name)),0) \
     $(if $(2), --image $(name)$(1)=$(call images-for-partitions,$(name))) \
-    $(if $(1), --partition $(name)_b:$$($(UUIDGEN) $(name)_b):readonly:0) \
+    $(if $(1), --partition $(name)_b:readonly:0) \
   )
 endef
 
@@ -2976,30 +2977,61 @@ ifeq (,$(TARGET_BUILD_APPS))
 # Do not check for apps-only build
 
 ifeq (true,$(PRODUCT_BUILD_SUPER_PARTITION))
-ifdef BOARD_SUPER_PARTITION_SIZE
-ifdef BOARD_SUPER_PARTITION_PARTITION_LIST
 
-droid_targets: check_android_partition_sizes
+droid_targets: check-all-partition-sizes
 
-.PHONY: check_android_partition_sizes
+.PHONY: check-all-partition-sizes check-all-partition-sizes-nodeps
 
 # Add image dependencies so that generated_*_image_info.txt are written before checking.
-check_android_partition_sizes: $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
+check-all-partition-sizes: $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
 
-check_android_partition_sizes:
-	partition_size_list="$(call read-size-of-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))"; \
-	sum_sizes_expr=$$(sed -e 's/ /+/g' <<< "$${partition_size_list}"); \
-	if [ $$(( $${sum_sizes_expr} )) -gt $(BOARD_SUPER_PARTITION_SIZE) ]; then \
-		echo 'The sum of sizes of all logical partitions is larger than BOARD_SUPER_PARTITION_SIZE.'; \
-		echo $${sum_sizes_expr} '==' $$(( $${sum_sizes_expr} )) '>' $(BOARD_SUPER_PARTITION_SIZE); \
-		exit 1; \
-	else \
-		echo 'The sum of sizes of all logical partitions is within BOARD_SUPER_PARTITION_SIZE:' \
-		    $${sum_sizes_expr} '==' $$(( $${sum_sizes_expr} )) '<=' $(BOARD_SUPER_PARTITION_SIZE); \
-	fi
+# $(1): human-readable max size string
+# $(2): max size expression
+# $(3): list of partition names
+define check-sum-of-partition-sizes
+  partition_size_list="$(call read-size-of-partitions,$(3))"; \
+  sum_sizes_expr=$$(sed -e 's/ /+/g' <<< "$${partition_size_list}"); \
+  if [ $$(( $${sum_sizes_expr} )) -gt $$(( $(2) )) ]; then \
+    echo "The sum of sizes of [$(strip $(3))] is larger than $(strip $(1)):"; \
+    echo $${sum_sizes_expr} '==' $$(( $${sum_sizes_expr} )) '>' "$(2)" '==' $$(( $(2) )); \
+    exit 1; \
+  else \
+    echo "The sum of sizes of [$(strip $(3))] is within $(strip $(1)):"; \
+    echo $${sum_sizes_expr} '==' $$(( $${sum_sizes_expr} )) '<=' "$(2)" '==' $$(( $(2) )); \
+  fi
+endef
 
-endif # BOARD_SUPER_PARTITION_PARTITION_LIST
-endif # BOARD_SUPER_PARTITION_SIZE
+define check-all-partition-sizes-target
+  # Check sum(all partitions) <= super partition (/ 2 for A/B)
+  $(if $(BOARD_SUPER_PARTITION_SIZE),$(if $(BOARD_SUPER_PARTITION_PARTITION_LIST), \
+    $(call check-sum-of-partition-sizes,BOARD_SUPER_PARTITION_SIZE$(if $(filter true,$(AB_OTA_UPDATER)), / 2), \
+      $(BOARD_SUPER_PARTITION_SIZE)$(if $(filter true,$(AB_OTA_UPDATER)), / 2),$(BOARD_SUPER_PARTITION_PARTITION_LIST))))
+
+  # For each group, check sum(partitions in group) <= group size
+  $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
+    $(if $(BOARD_$(group)_SIZE),$(if $(BOARD_$(group)_PARTITION_LIST), \
+      $(call check-sum-of-partition-sizes,BOARD_$(group)_SIZE,$(BOARD_$(group)_SIZE),$(BOARD_$(group)_PARTITION_LIST)))))
+
+  # Check sum(all group sizes) <= super partition (/ 2 for A/B)
+  if [[ ! -z $(BOARD_SUPER_PARTITION_SIZE) ]]; then \
+    group_size_list="$(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)),$(BOARD_$(group)_SIZE))"; \
+    sum_sizes_expr=$$(sed -e 's/ /+/g' <<< "$${group_size_list}"); \
+    max_size_tail=$(if $(filter true,$(AB_OTA_UPDATER))," / 2"); \
+    max_size_expr="$(BOARD_SUPER_PARTITION_SIZE)$${max_size_tail}"; \
+    if [ $$(( $${sum_sizes_expr} )) -gt $$(( $${max_size_expr} )) ]; then \
+      echo "The sum of sizes of [$(strip $(BOARD_SUPER_PARTITION_GROUPS))] is larger than BOARD_SUPER_PARTITION_SIZE$${max_size_tail}:"; \
+      echo $${sum_sizes_expr} '==' $$(( $${sum_sizes_expr} )) '>' $${max_size_expr} '==' $$(( $${max_size_expr} )); \
+      exit 1; \
+    else \
+      echo "The sum of sizes of [$(strip $(BOARD_SUPER_PARTITION_GROUPS))] is within BOARD_SUPER_PARTITION_SIZE$${max_size_tail}:"; \
+      echo $${sum_sizes_expr} '==' $$(( $${sum_sizes_expr} )) '<=' $${max_size_expr} '==' $$(( $${max_size_expr} )); \
+    fi \
+  fi
+endef
+
+check-all-partition-sizes check-all-partition-sizes-nodeps:
+	$(call check-all-partition-sizes-target)
+
 endif # PRODUCT_BUILD_SUPER_PARTITION
 
 endif # TARGET_BUILD_APPS
@@ -3144,15 +3176,15 @@ OTATOOLS_DEPS += \
   $(sort $(shell find external/vboot_reference/tests/devkeys -type f))
 endif
 
-$(BUILT_OTATOOLS_PACKAGE): $(OTATOOLS) $(OTATOOLS_DEPS) $(OTATOOLS_RELEASETOOLS) | $(ACP)
+$(BUILT_OTATOOLS_PACKAGE): $(OTATOOLS) $(OTATOOLS_DEPS) $(OTATOOLS_RELEASETOOLS) $(SOONG_ZIP)
 	@echo "Package OTA tools: $@"
 	$(hide) rm -rf $@ $(zip_root)
 	$(hide) mkdir -p $(dir $@) $(zip_root)/bin $(zip_root)/framework $(zip_root)/releasetools
 	$(call copy-files-with-structure,$(OTATOOLS),$(HOST_OUT)/,$(zip_root))
-	$(hide) $(ACP) -r -d -p build/make/tools/releasetools/* $(zip_root)/releasetools
+	$(hide) cp -r -d -p build/make/tools/releasetools/* $(zip_root)/releasetools
 	$(hide) rm -rf $@ $(zip_root)/releasetools/*.pyc
-	$(hide) (cd $(zip_root) && zip -qryX $(abspath $@) *)
-	$(hide) echo $(OTATOOLS_DEPS) | xargs zip -qryX $(abspath $@)>/dev/null || true
+	$(hide) $(SOONG_ZIP) -o $@ -C $(zip_root) -D $(zip_root) \
+	  -C . $(addprefix -f ,$(OTATOOLS_DEPS))
 
 .PHONY: otatools-package
 otatools-package: $(BUILT_OTATOOLS_PACKAGE)
@@ -3576,12 +3608,12 @@ ifdef BOARD_ODMIMAGE_FILE_SYSTEM_TYPE
 endif
 	@# ROOT always contains the files for the root under normal boot.
 	$(hide) $(call fs_config,$(zip_root)/ROOT,) > $(zip_root)/META/root_filesystem_config.txt
-ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-	@# BOOT/RAMDISK exists only if additionally using BOARD_USES_RECOVERY_AS_BOOT.
 ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+	@# BOOT/RAMDISK exists and contains the ramdisk for recovery if using BOARD_USES_RECOVERY_AS_BOOT.
 	$(hide) $(call fs_config,$(zip_root)/BOOT/RAMDISK,) > $(zip_root)/META/boot_filesystem_config.txt
 endif
-else # BOARD_BUILD_SYSTEM_ROOT_IMAGE != true
+ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+	@# BOOT/RAMDISK also exists and contains the first stage ramdisk if not using BOARD_BUILD_SYSTEM_ROOT_IMAGE.
 	$(hide) $(call fs_config,$(zip_root)/BOOT/RAMDISK,) > $(zip_root)/META/boot_filesystem_config.txt
 endif
 ifneq ($(INSTALLED_RECOVERYIMAGE_TARGET),)
@@ -3599,7 +3631,7 @@ endif
 ifdef BUILT_VENDOR_MATRIX
 	$(hide) cp $(BUILT_VENDOR_MATRIX) $(zip_root)/META/vendor_matrix.xml
 endif
-ifdef BOARD_SUPER_PARTITION_SIZE
+ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
 	$(hide) echo "super_size=$(BOARD_SUPER_PARTITION_SIZE)" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo "lpmake=$(notdir $(LPMAKE))" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo -n "lpmake_args=" >> $(zip_root)/META/misc_info.txt
@@ -3883,6 +3915,18 @@ $(INSTALLED_QEMU_ODMIMAGE): $(INSTALLED_ODMIMAGE_TARGET) $(MK_QEMU_IMAGE_SH) $(S
 odmimage: $(INSTALLED_QEMU_ODMIMAGE)
 droidcore: $(INSTALLED_QEMU_ODMIMAGE)
 endif
+
+ifeq ($(BOARD_AVB_ENABLE),true)
+QEMU_VERIFIED_BOOT_PARAMS := $(PRODUCT_OUT)/VerifiedBootParams.textproto
+MK_VERIFIED_BOOT_KERNEL_CMDLINE_SH := device/generic/goldfish/tools/mk_verified_boot_params.sh
+$(QEMU_VERIFIED_BOOT_PARAMS): $(INSTALLED_QEMU_SYSTEMIMAGE) $(MK_VERIFIED_BOOT_KERNEL_CMDLINE_SH) $(INSTALLED_VBMETAIMAGE_TARGET) $(SGDISK_HOST) $(AVBTOOL)
+	@echo Creating $@
+	(export SGDISK=$(SGDISK_HOST) AVBTOOL=$(AVBTOOL); $(MK_VERIFIED_BOOT_KERNEL_CMDLINE_SH) $(INSTALLED_SYSTEMIMAGE_TARGET) $(INSTALLED_QEMU_SYSTEMIMAGE) $(QEMU_VERIFIED_BOOT_PARAMS))
+
+
+systemimage: $(QEMU_VERIFIED_BOOT_PARAMS)
+droidcore: $(QEMU_VERIFIED_BOOT_PARAMS)
+endif
 endif
 # -----------------------------------------------------------------
 # The emulator package
@@ -3983,6 +4027,7 @@ deps := \
 	$(INSTALLED_SYSTEMIMAGE_TARGET) \
 	$(INSTALLED_QEMU_SYSTEMIMAGE) \
 	$(INSTALLED_QEMU_VENDORIMAGE) \
+	$(QEMU_VERIFIED_BOOT_PARAMS) \
 	$(INSTALLED_USERDATAIMAGE_TARGET) \
 	$(INSTALLED_RAMDISK_TARGET) \
 	$(INSTALLED_SDK_BUILD_PROP_TARGET) \
