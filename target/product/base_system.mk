@@ -74,6 +74,8 @@ PRODUCT_PACKAGES += \
     fsck_msdos \
     fs_config_files_system \
     fs_config_dirs_system \
+    heapprofd \
+    heapprofd_client \
     gatekeeperd \
     healthd \
     hid \
@@ -85,9 +87,9 @@ PRODUCT_PACKAGES += \
     incidentd \
     incident_helper \
     incident_report \
-    init \
     init.environ.rc \
     init.rc \
+    init_system \
     input \
     installd \
     iorapd \
@@ -200,6 +202,7 @@ PRODUCT_PACKAGES += \
     media_profiles_V1_0.dtd \
     MediaProvider \
     mediaserver \
+    mediaswcodec \
     mke2fs \
     monkey \
     mtpd \
