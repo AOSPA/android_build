@@ -14,17 +14,24 @@
 # limitations under the License.
 #
 
-$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/mainline_system.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_vendor.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_vendor.mk)
+# Create a default rule. This is unused currently, as the real default rule is
+# still in the Kati build step.
+.PHONY: _packaging_default_rule_
+_packaging_default_rule_:
 
-PRODUCT_NAME := mainline_arm64
-PRODUCT_DEVICE := generic_arm64
-PRODUCT_BRAND := generic
-PRODUCT_SHIPPING_API_LEVEL := 28
+ifndef KATI
+$(error Only Kati is supported.)
+endif
 
-PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS := true
-PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST := \
-  root/init.zygote64_32.rc \
+$(info [1/3] initializing packaging system ...)
 
+.KATI_READONLY := KATI_PACKAGE_MK_DIR
+
+include build/make/common/core.mk
+include build/make/common/strings.mk
+
+$(info [2/3] including distdir.mk ...)
+
+include build/make/packaging/distdir.mk
+
+$(info [3/3] writing packaging rules ...)

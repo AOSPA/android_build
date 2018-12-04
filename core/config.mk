@@ -17,40 +17,20 @@ $(warning )
 $(error done)
 endif
 
-# Only use ANDROID_BUILD_SHELL to wrap around bash.
-# DO NOT use other shells such as zsh.
-ifdef ANDROID_BUILD_SHELL
-SHELL := $(ANDROID_BUILD_SHELL)
-else
-# Use bash, not whatever shell somebody has installed as /bin/sh
-# This is repeated from main.mk, since envsetup.sh runs this file
-# directly.
-SHELL := /bin/bash
-endif
+BUILD_SYSTEM :=$= build/make/core
+BUILD_SYSTEM_COMMON :=$= build/make/common
 
-# Utility variables.
-empty :=
-space := $(empty) $(empty)
-comma := ,
-# Note that make will eat the newline just before endef.
-define newline
-
-
-endef
-# The pound character "#"
-define pound
-#
-endef
-# Unfortunately you can't simply define backslash as \ or \\.
-backslash := \a
-backslash := $(patsubst %a,%,$(backslash))
-
-# Prevent accidentally changing these variables
-.KATI_READONLY := SHELL empty space comma newline pound backslash
+include $(BUILD_SYSTEM_COMMON)/core.mk
 
 # Mark variables that should be coming as environment variables from soong_ui
 # as readonly
 .KATI_READONLY := OUT_DIR TMPDIR BUILD_DATETIME_FILE
+ifdef CALLED_FROM_SETUP
+  .KATI_READONLY := CALLED_FROM_SETUP
+endif
+ifdef KATI_PACKAGE_MK_DIR
+  .KATI_READONLY := KATI_PACKAGE_MK_DIR
+endif
 
 # Mark variables deprecated/obsolete
 CHANGES_URL := https://android.googlesource.com/platform/build/+/master/Changes.md
@@ -109,6 +89,7 @@ $(KATI_obsolete_var \
   TARGET_NDK_GCC_VERSION 2ND_TARGET_NDK_GCC_VERSION \
   GLOBAL_CFLAGS_NO_OVERRIDE GLOBAL_CPPFLAGS_NO_OVERRIDE \
   ,GCC support has been removed. Use Clang instead)
+$(KATI_obsolete_var DIST_DIR dist_goal,Use dist-for-goals instead. See $(CHANGES_URL)#dist)
 
 # This is marked as obsolete in envsetup.mk after reading the BoardConfig.mk
 $(KATI_deprecate_export It is a global setting. See $(CHANGES_URL)#export_keyword)
@@ -120,9 +101,6 @@ CHANGES_URL :=
 FORCE:
 
 ORIGINAL_MAKECMDGOALS := $(MAKECMDGOALS)
-
-dist_goal := $(strip $(filter dist,$(MAKECMDGOALS)))
-MAKECMDGOALS := $(strip $(filter-out dist,$(MAKECMDGOALS)))
 
 UNAME := $(shell uname -sm)
 
@@ -138,9 +116,9 @@ endif
 
 # Set up efficient math functions which are used in make.
 # Here since this file is included by envsetup as well as during build.
-include $(BUILD_SYSTEM)/math.mk
+include $(BUILD_SYSTEM_COMMON)/math.mk
 
-include $(BUILD_SYSTEM)/strings.mk
+include $(BUILD_SYSTEM_COMMON)/strings.mk
 
 # Various mappings to avoid hard-coding paths all over the place
 include $(BUILD_SYSTEM)/pathmap.mk
@@ -958,7 +936,6 @@ ifeq ($(PRODUCT_USE_LOGICAL_PARTITIONS),true)
     requirements := \
         PRODUCT_USE_DYNAMIC_PARTITION_SIZE \
         PRODUCT_BUILD_SUPER_PARTITION \
-        PRODUCT_USE_FASTBOOTD \
 
     $(foreach req,$(requirements),$(if $(filter false,$($(req))),\
         $(error PRODUCT_USE_LOGICAL_PARTITIONS requires $(req) to be true)))
@@ -1169,6 +1146,7 @@ INTERNAL_PLATFORM_HIDDENAPI_WHITELIST := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACK
 INTERNAL_PLATFORM_HIDDENAPI_LIGHT_GREYLIST := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/hiddenapi-light-greylist.txt
 INTERNAL_PLATFORM_HIDDENAPI_DARK_GREYLIST := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/hiddenapi-dark-greylist.txt
 INTERNAL_PLATFORM_HIDDENAPI_BLACKLIST := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/hiddenapi-blacklist.txt
+INTERNAL_PLATFORM_HIDDENAPI_GREYLIST_METADATA := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/hiddenapi-greylist.csv
 
 # Missing optional uses-libraries so that the platform doesn't create build rules that depend on
 # them. See setup_one_odex.mk.
