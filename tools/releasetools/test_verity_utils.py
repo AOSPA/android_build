@@ -16,6 +16,7 @@
 
 """Unittests for verity_utils.py."""
 
+import copy
 import math
 import os.path
 import random
@@ -25,9 +26,10 @@ import sparse_img
 from rangelib import RangeSet
 from test_utils import get_testdata_dir, ReleaseToolsTestCase
 from verity_utils import (
-    AdjustPartitionSizeForVerity, AVBCalcMinPartitionSize, BLOCK_SIZE,
-    CreateHashtreeInfoGenerator, HashtreeInfo, MakeVerityEnabledImage,
+    CreateHashtreeInfoGenerator, CreateVerityImageBuilder, HashtreeInfo,
     VerifiedBootVersion1HashtreeInfoGenerator)
+
+BLOCK_SIZE = common.BLOCK_SIZE
 
 
 class VerifiedBootVersion1HashtreeInfoGeneratorTest(ReleaseToolsTestCase):
@@ -64,8 +66,17 @@ class VerifiedBootVersion1HashtreeInfoGeneratorTest(ReleaseToolsTestCase):
 
   def _generate_image(self):
     partition_size = 1024 * 1024
-    adjusted_size, verity_size = AdjustPartitionSizeForVerity(
-        partition_size, True)
+    prop_dict = {
+        'partition_size': str(partition_size),
+        'verity': 'true',
+        'verity_block_device': '/dev/block/system',
+        'verity_key': os.path.join(self.testdata_dir, 'testkey'),
+        'verity_fec': 'true',
+        'verity_signer_cmd': 'verity_signer',
+    }
+    verity_image_builder = CreateVerityImageBuilder(prop_dict)
+    self.assertIsNotNone(verity_image_builder)
+    adjusted_size = verity_image_builder.CalculateMaxImageSize()
 
     raw_image = ""
     for i in range(adjusted_size):
@@ -74,15 +85,7 @@ class VerifiedBootVersion1HashtreeInfoGeneratorTest(ReleaseToolsTestCase):
     output_file = self._create_simg(raw_image)
 
     # Append the verity metadata.
-    prop_dict = {
-        'partition_size': str(partition_size),
-        'image_size': str(adjusted_size),
-        'verity_block_device': '/dev/block/system',
-        'verity_key': os.path.join(self.testdata_dir, 'testkey'),
-        'verity_signer_cmd': 'verity_signer',
-        'verity_size': str(verity_size),
-    }
-    MakeVerityEnabledImage(output_file, True, prop_dict)
+    verity_image_builder.Build(output_file)
 
     return output_file
 
@@ -163,23 +166,174 @@ class VerifiedBootVersion1HashtreeInfoGeneratorTest(ReleaseToolsTestCase):
     self.assertEqual(self.expected_root_hash, info.root_hash)
 
 
-class VerityUtilsTest(ReleaseToolsTestCase):
+class VerifiedBootVersion1VerityImageBuilderTest(ReleaseToolsTestCase):
 
-  def setUp(self):
-    # To test AVBCalcMinPartitionSize(), by using 200MB to 2GB image size.
+  DEFAULT_PARTITION_SIZE = 4096 * 1024
+  DEFAULT_PROP_DICT = {
+      'partition_size': str(DEFAULT_PARTITION_SIZE),
+      'verity': 'true',
+      'verity_block_device': '/dev/block/system',
+      'verity_key': os.path.join(get_testdata_dir(), 'testkey'),
+      'verity_fec': 'true',
+      'verity_signer_cmd': 'verity_signer',
+  }
+
+  def test_init(self):
+    prop_dict = copy.deepcopy(self.DEFAULT_PROP_DICT)
+    verity_image_builder = CreateVerityImageBuilder(prop_dict)
+    self.assertIsNotNone(verity_image_builder)
+    self.assertEqual(1, verity_image_builder.version)
+
+  def test_init_MissingProps(self):
+    prop_dict = copy.deepcopy(self.DEFAULT_PROP_DICT)
+    del prop_dict['verity']
+    self.assertIsNone(CreateVerityImageBuilder(prop_dict))
+
+    prop_dict = copy.deepcopy(self.DEFAULT_PROP_DICT)
+    del prop_dict['verity_block_device']
+    self.assertIsNone(CreateVerityImageBuilder(prop_dict))
+
+  def test_CalculateMaxImageSize(self):
+    verity_image_builder = CreateVerityImageBuilder(self.DEFAULT_PROP_DICT)
+    size = verity_image_builder.CalculateMaxImageSize()
+    self.assertLess(size, self.DEFAULT_PARTITION_SIZE)
+
+    # Same result by explicitly passing the partition size.
+    self.assertEqual(
+        verity_image_builder.CalculateMaxImageSize(),
+        verity_image_builder.CalculateMaxImageSize(
+            self.DEFAULT_PARTITION_SIZE))
+
+  @staticmethod
+  def _BuildAndVerify(prop, verify_key):
+    verity_image_builder = CreateVerityImageBuilder(prop)
+    image_size = verity_image_builder.CalculateMaxImageSize()
+
+    # Build the sparse image with verity metadata.
+    input_dir = common.MakeTempDir()
+    image = common.MakeTempFile(suffix='.img')
+    cmd = ['mkuserimg_mke2fs', input_dir, image, 'ext4', '/system',
+           str(image_size), '-j', '0', '-s']
+    common.RunAndCheckOutput(cmd)
+    verity_image_builder.Build(image)
+
+    # Verify the verity metadata.
+    cmd = ['verity_verifier', image, '-mincrypt', verify_key]
+    common.RunAndCheckOutput(cmd)
+
+  def test_Build(self):
+    self._BuildAndVerify(
+        self.DEFAULT_PROP_DICT,
+        os.path.join(get_testdata_dir(), 'testkey_mincrypt'))
+
+  def test_Build_SanityCheck(self):
+    # A sanity check for the test itself: the image shouldn't be verifiable
+    # with wrong key.
+    self.assertRaises(
+        common.ExternalError,
+        self._BuildAndVerify,
+        self.DEFAULT_PROP_DICT,
+        os.path.join(get_testdata_dir(), 'verity_mincrypt'))
+
+  def test_Build_FecDisabled(self):
+    prop_dict = copy.deepcopy(self.DEFAULT_PROP_DICT)
+    del prop_dict['verity_fec']
+    self._BuildAndVerify(
+        prop_dict,
+        os.path.join(get_testdata_dir(), 'testkey_mincrypt'))
+
+  def test_Build_SquashFs(self):
+    verity_image_builder = CreateVerityImageBuilder(self.DEFAULT_PROP_DICT)
+    verity_image_builder.CalculateMaxImageSize()
+
+    # Build the sparse image with verity metadata.
+    input_dir = common.MakeTempDir()
+    image = common.MakeTempFile(suffix='.img')
+    cmd = ['mksquashfsimage.sh', input_dir, image, '-s']
+    common.RunAndCheckOutput(cmd)
+    verity_image_builder.PadSparseImage(image)
+    verity_image_builder.Build(image)
+
+    # Verify the verity metadata.
+    cmd = ["verity_verifier", image, '-mincrypt',
+           os.path.join(get_testdata_dir(), 'testkey_mincrypt')]
+    common.RunAndCheckOutput(cmd)
+
+
+class VerifiedBootVersion2VerityImageBuilderTest(ReleaseToolsTestCase):
+
+  DEFAULT_PROP_DICT = {
+      'partition_size': str(4096 * 1024),
+      'partition_name': 'system',
+      'avb_avbtool': 'avbtool',
+      'avb_hashtree_enable': 'true',
+      'avb_add_hashtree_footer_args': '',
+  }
+
+  def test_init(self):
+    prop_dict = copy.deepcopy(self.DEFAULT_PROP_DICT)
+    verity_image_builder = CreateVerityImageBuilder(prop_dict)
+    self.assertIsNotNone(verity_image_builder)
+    self.assertEqual(2, verity_image_builder.version)
+
+  def test_init_MissingProps(self):
+    prop_dict = copy.deepcopy(self.DEFAULT_PROP_DICT)
+    del prop_dict['avb_hashtree_enable']
+    verity_image_builder = CreateVerityImageBuilder(prop_dict)
+    self.assertIsNone(verity_image_builder)
+
+  def test_Build(self):
+    prop_dict = copy.deepcopy(self.DEFAULT_PROP_DICT)
+    verity_image_builder = CreateVerityImageBuilder(prop_dict)
+    self.assertIsNotNone(verity_image_builder)
+    self.assertEqual(2, verity_image_builder.version)
+
+    input_dir = common.MakeTempDir()
+    image_dir = common.MakeTempDir()
+    system_image = os.path.join(image_dir, 'system.img')
+    system_image_size = verity_image_builder.CalculateMaxImageSize()
+    cmd = ['mkuserimg_mke2fs', input_dir, system_image, 'ext4', '/system',
+           str(system_image_size), '-j', '0', '-s']
+    common.RunAndCheckOutput(cmd)
+    verity_image_builder.Build(system_image)
+
+    # Additionally make vbmeta image so that we can verify with avbtool.
+    vbmeta_image = os.path.join(image_dir, 'vbmeta.img')
+    cmd = ['avbtool', 'make_vbmeta_image', '--include_descriptors_from_image',
+           system_image, '--output', vbmeta_image]
+    common.RunAndCheckOutput(cmd)
+
+    # Verify the verity metadata.
+    cmd = ['avbtool', 'verify_image', '--image', vbmeta_image]
+    common.RunAndCheckOutput(cmd)
+
+  def _test_CalculateMinPartitionSize_SetUp(self):
+    # To test CalculateMinPartitionSize(), by using 200MB to 2GB image size.
     #   -  51200 = 200MB * 1024 * 1024 / 4096
     #   - 524288 = 2GB * 1024 * 1024 * 1024 / 4096
-    self._image_sizes = [BLOCK_SIZE * random.randint(51200, 524288) + offset
-                         for offset in range(BLOCK_SIZE)]
+    image_sizes = [BLOCK_SIZE * random.randint(51200, 524288) + offset
+                   for offset in range(BLOCK_SIZE)]
 
-  def test_AVBCalcMinPartitionSize_LinearFooterSize(self):
+    prop_dict = {
+        'partition_size': None,
+        'partition_name': 'system',
+        'avb_avbtool': 'avbtool',
+        'avb_hashtree_enable': 'true',
+        'avb_add_hashtree_footer_args': None,
+    }
+    builder = CreateVerityImageBuilder(prop_dict)
+    self.assertEqual(2, builder.version)
+    return image_sizes, builder
+
+  def test_CalculateMinPartitionSize_LinearFooterSize(self):
     """Tests with footer size which is linear to partition size."""
-    for image_size in self._image_sizes:
+    image_sizes, builder = self._test_CalculateMinPartitionSize_SetUp()
+    for image_size in image_sizes:
       for ratio in 0.95, 0.56, 0.22:
         expected_size = common.RoundUpTo4K(int(math.ceil(image_size / ratio)))
         self.assertEqual(
             expected_size,
-            AVBCalcMinPartitionSize(
+            builder.CalculateMinPartitionSize(
                 image_size, lambda x, ratio=ratio: int(x * ratio)))
 
   def test_AVBCalcMinPartitionSize_SlowerGrowthFooterSize(self):
@@ -190,8 +344,10 @@ class VerityUtilsTest(ReleaseToolsTestCase):
       # Minus footer size to return max image size.
       return partition_size - int(math.pow(partition_size, 0.95))
 
-    for image_size in self._image_sizes:
-      min_partition_size = AVBCalcMinPartitionSize(image_size, _SizeCalculator)
+    image_sizes, builder = self._test_CalculateMinPartitionSize_SetUp()
+    for image_size in image_sizes:
+      min_partition_size = builder.CalculateMinPartitionSize(
+          image_size, _SizeCalculator)
       # Checks min_partition_size can accommodate image_size.
       self.assertGreaterEqual(
           _SizeCalculator(min_partition_size),
@@ -201,7 +357,7 @@ class VerityUtilsTest(ReleaseToolsTestCase):
           _SizeCalculator(min_partition_size - BLOCK_SIZE),
           image_size)
 
-  def test_AVBCalcMinPartitionSize_FasterGrowthFooterSize(self):
+  def test_CalculateMinPartitionSize_FasterGrowthFooterSize(self):
     """Tests with footer size which grows faster than partition size."""
 
     def _SizeCalculator(partition_size):
@@ -210,8 +366,10 @@ class VerityUtilsTest(ReleaseToolsTestCase):
       # footer size grows faster than partition size.
       return int(math.pow(partition_size, 0.95))
 
-    for image_size in self._image_sizes:
-      min_partition_size = AVBCalcMinPartitionSize(image_size, _SizeCalculator)
+    image_sizes, builder = self._test_CalculateMinPartitionSize_SetUp()
+    for image_size in image_sizes:
+      min_partition_size = builder.CalculateMinPartitionSize(
+          image_size, _SizeCalculator)
       # Checks min_partition_size can accommodate image_size.
       self.assertGreaterEqual(
           _SizeCalculator(min_partition_size),

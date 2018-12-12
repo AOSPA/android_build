@@ -797,13 +797,13 @@ ESC_RESET := \033[0m
 # $(1): path (and optionally line) information
 # $(2): message to print
 define echo-warning
-echo -e "$(ESC_BOLD)$(1): $(ESC_WARNING)warning:$(ESC_RESET)$(ESC_BOLD)" $(2) "$(ESC_RESET)" >&2
+echo -e "$(ESC_BOLD)$(1): $(ESC_WARNING)warning:$(ESC_RESET)$(ESC_BOLD)" '$(subst ','\'',$(2))'  "$(ESC_RESET)" >&2
 endef
 
 # $(1): path (and optionally line) information
 # $(2): message to print
 define echo-error
-echo -e "$(ESC_BOLD)$(1): $(ESC_ERROR)error:$(ESC_RESET)$(ESC_BOLD)" $(2) "$(ESC_RESET)" >&2
+echo -e "$(ESC_BOLD)$(1): $(ESC_ERROR)error:$(ESC_RESET)$(ESC_BOLD)" '$(subst ','\'',$(2))'  "$(ESC_RESET)" >&2
 endef
 
 ###########################################################
@@ -1699,6 +1699,7 @@ $(hide) $(PRIVATE_CXX) \
 	$(PRIVATE_ALL_STATIC_LIBRARIES) \
 	$(if $(PRIVATE_GROUP_STATIC_LIBRARIES),-Wl$(comma)--end-group) \
 	$(if $(filter true,$(NATIVE_COVERAGE)),$(PRIVATE_TARGET_COVERAGE_LIB)) \
+	$(PRIVATE_TARGET_LIBCRT_BUILTINS) \
 	$(PRIVATE_TARGET_LIBATOMIC) \
 	$(PRIVATE_TARGET_LIBGCC) \
 	$(PRIVATE_TARGET_GLOBAL_LDFLAGS) \
@@ -1734,6 +1735,7 @@ $(hide) $(PRIVATE_CXX) -pie \
 	$(PRIVATE_ALL_STATIC_LIBRARIES) \
 	$(if $(PRIVATE_GROUP_STATIC_LIBRARIES),-Wl$(comma)--end-group) \
 	$(if $(filter true,$(NATIVE_COVERAGE)),$(PRIVATE_TARGET_COVERAGE_LIB)) \
+	$(PRIVATE_TARGET_LIBCRT_BUILTINS) \
 	$(PRIVATE_TARGET_LIBATOMIC) \
 	$(PRIVATE_TARGET_LIBGCC) \
 	$(PRIVATE_TARGET_GLOBAL_LDFLAGS) \
@@ -1781,6 +1783,7 @@ $(hide) $(PRIVATE_CXX) \
 	$(if $(filter true,$(NATIVE_COVERAGE)),$(PRIVATE_TARGET_COVERAGE_LIB)) \
 	$(PRIVATE_TARGET_LIBATOMIC) \
 	$(filter %libcompiler_rt.a %libcompiler_rt.hwasan.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
+	$(PRIVATE_TARGET_LIBCRT_BUILTINS) \
 	$(PRIVATE_TARGET_LIBGCC) \
 	-Wl,--end-group \
 	$(PRIVATE_TARGET_CRTEND_O)
@@ -2646,12 +2649,12 @@ endef
 # Copy an apk to a target location while removing classes*.dex
 # $(1): source file
 # $(2): destination file
-# $(3): LOCAL_DEX_PREOPT, if nostripping then leave classes*.dex
+# $(3): LOCAL_STRIP_DEX, if non-empty then strip classes*.dex
 define dexpreopt-copy-jar
 $(2): $(1)
 	@echo "Copy: $$@"
 	$$(copy-file-to-target)
-	$(if $(filter nostripping,$(3)),,$$(call dexpreopt-remove-classes.dex,$$@))
+	$(if $(3),$$(call dexpreopt-remove-classes.dex,$$@))
 endef
 
 # $(1): the .jar or .apk to remove classes.dex. Note that if all dex files
@@ -2669,22 +2672,35 @@ endef
 
 # Copy dex files, invoking $(HIDDENAPI) on them in the process.
 # Also make the source dex file an input of the hiddenapi singleton rule in dex_preopt.mk.
+# Users can set UNSAFE_DISABLE_HIDDENAPI_FLAGS=true to skip this step. This is
+# meant to speed up local incremental builds. Note that skipping this step changes
+# Java semantics of the result dex bytecode. Use at own risk.
+ifneq ($(UNSAFE_DISABLE_HIDDENAPI_FLAGS),true)
 define hiddenapi-copy-dex-files
 $(2): $(1) $(HIDDENAPI) $(INTERNAL_PLATFORM_HIDDENAPI_LIGHT_GREYLIST) \
       $(INTERNAL_PLATFORM_HIDDENAPI_DARK_GREYLIST) $(INTERNAL_PLATFORM_HIDDENAPI_BLACKLIST)
 	@rm -rf $(dir $(2))
 	@mkdir -p $(dir $(2))
-	find $(dir $(1)) -maxdepth 1 -name "classes*.dex" | xargs -I{} cp -f {} $(dir $(2))/; \
-	find $(dir $(2)) -maxdepth 1 -name "classes*.dex" | sort | sed 's/^/--dex=/' \
-	| xargs $(HIDDENAPI) encode \
+	for INPUT_DEX in `find $(dir $(1)) -maxdepth 1 -name "classes*.dex" | sort`; do \
+	    echo "--input-dex=$$$${INPUT_DEX}"; \
+	    echo "--output-dex=$(dir $(2))/`basename $$$${INPUT_DEX}`"; \
+	done | xargs $(HIDDENAPI) encode \
 	    --light-greylist=$(INTERNAL_PLATFORM_HIDDENAPI_LIGHT_GREYLIST) \
 	    --dark-greylist=$(INTERNAL_PLATFORM_HIDDENAPI_DARK_GREYLIST) \
 	    --blacklist=$(INTERNAL_PLATFORM_HIDDENAPI_BLACKLIST)
 
 $(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): $(1)
-$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): \
-    PRIVATE_DEX_INPUTS := $$(PRIVATE_DEX_INPUTS) $(1)
+$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): PRIVATE_DEX_INPUTS := $$(PRIVATE_DEX_INPUTS) $(1)
 endef
+else  # UNSAFE_DISABLE_HIDDENAPI_FLAGS
+define hiddenapi-copy-dex-files
+$(2): $(1)
+	echo "WARNING: skipping hiddenapi post-processing for $(1)" 1>&2
+	@rm -rf $(dir $(2))
+	@mkdir -p $(dir $(2))
+	find $(dir $(1)) -maxdepth 1 -name "classes*.dex" | xargs -I{} cp -f {} $(dir $(2))/
+endef
+endif  # UNSAFE_DISABLE_HIDDENAPI_FLAGS
 
 # Generate a greylist.txt from a classes.jar
 define hiddenapi-generate-greylist-txt
@@ -2695,8 +2711,8 @@ $(3): .KATI_IMPLICIT_OUTPUTS := $(2) $(4)
 $(3): $(1) $(CLASS2GREYLIST) $(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST)
 	$(CLASS2GREYLIST) --public-api-list $(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST) $(1) \
 	    --write-whitelist $(2) \
-	    --write-greylist $(3) \
-	    --write-greylist 26,28:$(4)
+	    --write-greylist none,28:$(3) \
+	    --write-greylist 26:$(4)
 
 $(5): $(1) $(CLASS2GREYLIST) $(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST)
 	$(CLASS2GREYLIST) --public-api-list $(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST) $(1) \
@@ -3000,14 +3016,17 @@ endef
 # 1. Copy the files to the many suite output directories.
 #    And for test config files, we'll check the .xml is well-formed before copy.
 # 2. Add all the files to each suite's dependent files list.
-# 3. Do the dependency addition to my_all_targets
+# 3. Do the dependency addition to my_all_targets.
+# 4. Save the module name to COMPATIBILITY.$(suite).MODULES for each suite.
 # Requires for each suite: use my_compat_dist_config_$(suite) to define the test config.
 #    and use my_compat_dist_$(suite) to define the others.
 define create-suite-dependencies
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
   $(eval COMPATIBILITY.$(suite).FILES := \
     $$(COMPATIBILITY.$(suite).FILES) $$(foreach f,$$(my_compat_dist_$(suite)),$$(call word-colon,2,$$(f))) \
-      $$(foreach f,$$(my_compat_dist_config_$(suite)),$$(call word-colon,2,$$(f))))) \
+      $$(foreach f,$$(my_compat_dist_config_$(suite)),$$(call word-colon,2,$$(f)))) \
+  $(eval COMPATIBILITY.$(suite).MODULES := \
+    $$(COMPATIBILITY.$(suite).MODULES) $$(my_register_name))) \
 $(eval $(my_all_targets) : $(call copy-many-files, \
   $(sort $(foreach suite,$(LOCAL_COMPATIBILITY_SUITE),$(my_compat_dist_$(suite))))) \
   $(call copy-many-xml-files-checked, \

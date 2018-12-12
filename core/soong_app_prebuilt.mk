@@ -69,7 +69,7 @@ endif
 ifdef LOCAL_DEX_PREOPT
   $(built_odex): $(LOCAL_SOONG_DEX_JAR)
 	$(call dexpreopt-one-file,$<,$@)
-  $(eval $(call dexpreopt-copy-jar,$(LOCAL_PREBUILT_MODULE_FILE),$(LOCAL_BUILT_MODULE),$(LOCAL_DEX_PREOPT)))
+  $(eval $(call dexpreopt-copy-jar,$(LOCAL_PREBUILT_MODULE_FILE),$(LOCAL_BUILT_MODULE),$(LOCAL_STRIP_DEX)))
 else
   $(eval $(call copy-one-file,$(LOCAL_PREBUILT_MODULE_FILE),$(LOCAL_BUILT_MODULE)))
 endif
@@ -101,6 +101,10 @@ ifdef LOCAL_CERTIFICATE
 endif
 
 PACKAGES.$(LOCAL_MODULE).OVERRIDES := $(strip $(LOCAL_OVERRIDES_PACKAGES))
+
+ifdef LOCAL_SOONG_BUNDLE
+  ALL_MODULES.$(LOCAL_MODULE).BUNDLE := $(LOCAL_SOONG_BUNDLE)
+endif
 
 ifndef LOCAL_IS_HOST_MODULE
 ifeq ($(LOCAL_SDK_VERSION),system_current)

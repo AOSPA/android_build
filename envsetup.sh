@@ -1157,7 +1157,7 @@ function is64bit()
 {
     local PID="$1"
     if [ "$PID" ] ; then
-        if [[ "$(adb shell cat /proc/$PID/exe | xxd -l 1 -s 4 -ps)" -eq "02" ]] ; then
+        if [[ "$(adb shell cat /proc/$PID/exe | xxd -l 1 -s 4 -p)" -eq "02" ]] ; then
             echo "64"
         else
             echo ""
@@ -1171,7 +1171,7 @@ case `uname -s` in
     Darwin)
         function sgrep()
         {
-            find -E . -name .repo -prune -o -name .git -prune -o  -type f -iregex '.*\.(c|h|cc|cpp|S|java|xml|sh|mk|aidl|vts)' \
+            find -E . -name .repo -prune -o -name .git -prune -o  -type f -iregex '.*\.(c|h|cc|cpp|hpp|S|java|xml|sh|mk|aidl|vts)' \
                 -exec grep --color -n "$@" {} +
         }
 
@@ -1179,7 +1179,7 @@ case `uname -s` in
     *)
         function sgrep()
         {
-            find . -name .repo -prune -o -name .git -prune -o  -type f -iregex '.*\.\(c\|h\|cc\|cpp\|S\|java\|xml\|sh\|mk\|aidl\|vts\)' \
+            find . -name .repo -prune -o -name .git -prune -o  -type f -iregex '.*\.\(c\|h\|cc\|cpp\|hpp\|S\|java\|xml\|sh\|mk\|aidl\|vts\)' \
                 -exec grep --color -n "$@" {} +
         }
         ;;
@@ -1244,7 +1244,7 @@ case `uname -s` in
 
         function treegrep()
         {
-            find -E . -name .repo -prune -o -name .git -prune -o -type f -iregex '.*\.(c|h|cpp|S|java|xml)' \
+            find -E . -name .repo -prune -o -name .git -prune -o -type f -iregex '.*\.(c|h|cpp|hpp|S|java|xml)' \
                 -exec grep --color -n -i "$@" {} +
         }
 
@@ -1258,7 +1258,7 @@ case `uname -s` in
 
         function treegrep()
         {
-            find . -name .repo -prune -o -name .git -prune -o -regextype posix-egrep -iregex '.*\.(c|h|cpp|S|java|xml)' -type f \
+            find . -name .repo -prune -o -name .git -prune -o -regextype posix-egrep -iregex '.*\.(c|h|cpp|hpp|S|java|xml)' -type f \
                 -exec grep --color -n -i "$@" {} +
         }
 
@@ -1660,10 +1660,19 @@ function provision()
 
 function atest()
 {
-    # TODO (sbasi): Replace this to be a destination in the build out when & if
-    # atest is built by the build system. (This will be necessary if it ever
-    # depends on external pip projects).
-    "$(gettop)"/tools/tradefederation/core/atest/atest.py "$@"
+    # Let's use the built version over the prebuilt, then source code.
+    local os_arch=$(get_build_var HOST_PREBUILT_TAG)
+    local built_atest=${ANDROID_HOST_OUT}/bin/atest
+    local prebuilt_atest="$(gettop)"/prebuilts/asuite/atest/$os_arch/atest
+    if [[ -x $built_atest ]]; then
+        $built_atest "$@"
+    elif [[ -x $prebuilt_atest ]]; then
+        $prebuilt_atest "$@"
+    else
+        # TODO: once prebuilt atest released, remove the source code section
+        # and change the location of atest_completion.sh in addcompletions().
+        "$(gettop)"/tools/tradefederation/core/atest/atest.py "$@"
+    fi
 }
 
 # Zsh needs bashcompinit called to support bash-style completion.

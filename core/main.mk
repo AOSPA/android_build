@@ -66,12 +66,15 @@ include $(BUILD_SYSTEM)/clang/config.mk
 $(shell mkdir -p $(OUT_DIR) && \
     echo -n $(BUILD_NUMBER) > $(OUT_DIR)/build_number.txt)
 BUILD_NUMBER_FILE := $(OUT_DIR)/build_number.txt
+.KATI_READONLY := BUILD_NUMBER_FILE
+$(KATI_obsolete_var BUILD_NUMBER,See https://android.googlesource.com/platform/build/+/master/Changes.md#BUILD_NUMBER)
 
 ifeq ($(HOST_OS),darwin)
 DATE_FROM_FILE := date -r $(BUILD_DATETIME_FROM_FILE)
 else
 DATE_FROM_FILE := date -d @$(BUILD_DATETIME_FROM_FILE)
 endif
+.KATI_READONLY := DATE_FROM_FILE
 
 # Pick a reasonable string to use to identify files.
 ifeq ($(strip $(HAS_BUILD_NUMBER)),false)
@@ -81,6 +84,7 @@ ifeq ($(strip $(HAS_BUILD_NUMBER)),false)
 else
   FILE_NAME_TAG := $(file <$(BUILD_NUMBER_FILE))
 endif
+.KATI_READONLY := FILE_NAME_TAG
 
 # Make an empty directory, which can be used to make empty jars
 EMPTY_DIRECTORY := $(OUT_DIR)/empty
@@ -217,13 +221,11 @@ include build/make/core/pdk_config.mk
 # Enable dynamic linker and hidden API developer warnings for
 # userdebug, eng and non-REL builds
 ifneq ($(TARGET_BUILD_VARIANT),user)
-  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1 \
-                                 ro.art.hiddenapi.warning=1
+  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1
 else
 # Enable it for user builds as long as they are not final.
 ifneq ($(PLATFORM_VERSION_CODENAME),REL)
-  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1 \
-                                 ro.art.hiddenapi.warning=1
+  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1
 endif
 endif
 
@@ -242,7 +244,11 @@ else
 ADDITIONAL_DEFAULT_PROPERTIES += ro.actionable_compatible_property.enabled=${PRODUCT_COMPATIBLE_PROPERTY}
 endif
 
-ADDITIONAL_PRODUCT_PROPERTIES += ro.boot.logical_partitions=$(PRODUCT_USE_LOGICAL_PARTITIONS)
+# TODO(b/119286600): remove ro.logical_partitions
+ADDITIONAL_PRODUCT_PROPERTIES += \
+    ro.boot.logical_partitions=$(PRODUCT_USE_DYNAMIC_PARTITIONS) \
+    ro.boot.dynamic_partitions=$(PRODUCT_USE_DYNAMIC_PARTITIONS) \
+    ro.boot.dynamic_partitions_retrofit=$(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS)
 
 # -----------------------------------------------------------------
 ###
@@ -723,9 +729,42 @@ $(foreach m,$($(if $(2),$($(1)2ND_ARCH_VAR_PREFIX))$(1)DEPENDENCIES_ON_SHARED_LI
   $(eval r := $(filter $($(root))/%,$(call module-installed-files,\
     $(deps))))\
   $(if $(filter $(1),HOST_),\
+    $(eval ALL_MODULES.$(mod).HOST_SHARED_LIBRARY_FILES := $$(ALL_MODULES.$(mod).HOST_SHARED_LIBRARY_FILES) $(word 2,$(p)) $(r))\
+    $(eval ALL_MODULES.$(mod).HOST_SHARED_LIBRARIES := $$(ALL_MODULES.$(mod).HOST_SHARED_LIBRARIES) $(deps))\
     $(eval $(call add-required-host-so-deps,$(word 2,$(p)),$(r))),\
     $(eval $(call add-required-deps,$(word 2,$(p)),$(r))))\
   $(eval ALL_MODULES.$(mod).REQUIRED += $(deps)))
+endef
+
+# Recursively resolve host shared library dependency for a given module.
+# $(1): module name
+# Returns all dependencies of shared library.
+define get-all-shared-libs-deps
+$(if $(_all_deps_for_$(1)_set_),$(_all_deps_for_$(1)_),\
+  $(eval _all_deps_for_$(1)_ :=) \
+  $(foreach dep,$(ALL_MODULES.$(1).HOST_SHARED_LIBRARIES),\
+    $(foreach m,$(call get-all-shared-libs-deps,$(dep)),\
+      $(eval _all_deps_for_$(1)_ := $$(_all_deps_for_$(1)_) $(m))\
+      $(eval _all_deps_for_$(1)_ := $(sort $(_all_deps_for_$(1)_))))\
+    $(eval _all_deps_for_$(1)_ := $$(_all_deps_for_$(1)_) $(dep))\
+    $(eval _all_deps_for_$(1)_ := $(sort $(_all_deps_for_$(1)_) $(dep)))\
+    $(eval _all_deps_for_$(1)_set_ := true))\
+$(_all_deps_for_$(1)_))
+endef
+
+# Scan all modules in general-tests and device-tests suite and flatten the
+# shared library dependencies.
+define update-host-shared-libs-deps-for-suites
+$(foreach suite,general-tests device-tests,\
+  $(foreach m,$(COMPATIBILITY.$(suite).MODULES),\
+    $(eval my_deps := $(call get-all-shared-libs-deps,$(m)))\
+    $(foreach dep,$(my_deps),\
+      $(foreach f,$(ALL_MODULES.$(dep).HOST_SHARED_LIBRARY_FILES),\
+        $(eval target := $(HOST_OUT_TESTCASES)/$(lastword $(subst /, ,$(dir $(f))))/$(notdir $(f)))\
+        $(eval COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES := \
+          $$(COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES) $(f):$(target))\
+        $(eval COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES := \
+          $(sort $(COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES)))))))
 endef
 
 $(call resolve-shared-libs-depes,TARGET_)
@@ -736,6 +775,9 @@ $(call resolve-shared-libs-depes,HOST_)
 ifdef HOST_2ND_ARCH
 $(call resolve-shared-libs-depes,HOST_,true)
 endif
+# Update host side shared library dependencies for tests in suite device-tests and general-tests.
+# This should be called after calling resolve-shared-libs-depes for HOST_2ND_ARCH.
+$(call update-host-shared-libs-deps-for-suites)
 ifdef HOST_CROSS_OS
 $(call resolve-shared-libs-depes,HOST_CROSS_,,true)
 endif
@@ -927,7 +969,7 @@ $(foreach lt,$(ALL_LINK_TYPES),\
 # Expand a list of modules to the modules that they override (if any)
 # $(1): The list of modules.
 define module-overrides
-$(foreach m,$(1),$(PACKAGES.$(m).OVERRIDES) $(EXECUTABLES.$(m).OVERRIDES))
+$(foreach m,$(1),$(PACKAGES.$(m).OVERRIDES) $(EXECUTABLES.$(m).OVERRIDES) $(SHARED_LIBRARIES.$(m).OVERRIDES))
 endef
 
 ###########################################################
@@ -1033,9 +1075,12 @@ endif
 
 ifdef FULL_BUILD
   product_FILES := $(call product-installed-files, $(INTERNAL_PRODUCT))
+  # WARNING: The product_MODULES variable is depended on by external files.
+  product_MODULES := $(_pif_modules)
 
   # Verify the artifact path requirements made by included products.
-
+  is_asan := $(if $(filter address,$(SANITIZE_TARGET)),true)
+  ifneq (true,$(or $(is_asan),$(DISABLE_ARTIFACT_PATH_REQUIREMENTS)))
   # Fakes don't get installed, and host files are irrelevant.
   static_whitelist_patterns := $(TARGET_OUT_FAKE)/% $(HOST_OUT)/%
   # RROs become REQUIRED by the source module, but are always placed on the vendor partition.
@@ -1079,6 +1124,7 @@ ifdef FULL_BUILD
 $(PRODUCT_OUT)/offending_artifacts.txt:
 	rm -f $@
 	$(foreach f,$(sort $(all_offending_files)),echo $(f) >> $@;)
+  endif
 else
   # We're not doing a full build, and are probably only including
   # a subset of the module makefiles.  Don't try to build any modules
@@ -1157,6 +1203,9 @@ modules_to_check := $(foreach m,$(ALL_MODULES),$(ALL_MODULES.$(m).CHECKED))
 ifneq ($(filter all,$(MAKECMDGOALS)),)
 modules_to_check += $(foreach m,$(ALL_MODULES),$(ALL_MODULES.$(m).BUILT))
 endif
+
+# Build docs as part of checkbuild to catch more breakages.
+module_to_check += $(ALL_DOCS)
 
 # for easier debugging
 modules_to_check := $(sort $(modules_to_check))
@@ -1297,6 +1346,12 @@ ifneq ($(TARGET_BUILD_APPS),)
   # Dist the installed files if they exist.
   apps_only_installed_files := $(foreach m,$(unbundled_build_modules),$(ALL_MODULES.$(m).INSTALLED))
   $(call dist-for-goals,apps_only, $(apps_only_installed_files))
+
+  # Dist the bundle files if they exist.
+  apps_only_bundle_files := $(foreach m,$(unbundled_build_modules),\
+    $(if $(ALL_MODULES.$(m).BUNDLE),$(ALL_MODULES.$(m).BUNDLE):$(m)-base.zip))
+  $(call dist-for-goals,apps_only, $(apps_only_bundle_files))
+
   # For uninstallable modules such as static Java library, we have to dist the built file,
   # as <module_name>.<suffix>
   apps_only_dist_built_files := $(foreach m,$(unbundled_build_modules),$(if $(ALL_MODULES.$(m).INSTALLED),,\
@@ -1409,7 +1464,7 @@ endif # TARGET_BUILD_APPS
 .PHONY: docs
 docs: $(ALL_DOCS)
 
-.PHONY: sdk win_sdk winsdk-tools
+.PHONY: sdk win_sdk winsdk-tools sdk_addon
 ALL_SDK_TARGETS := $(INTERNAL_SDK_TARGET)
 sdk: $(ALL_SDK_TARGETS)
 $(call dist-for-goals,sdk win_sdk, \

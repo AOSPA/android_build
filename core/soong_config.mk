@@ -14,31 +14,13 @@ endif
 endif
 
 ifeq ($(WRITE_SOONG_VARIABLES),true)
-# Converts a list to a JSON list.
-# $1: List separator.
-# $2: List.
-_json_list = [$(if $(2),"$(subst $(1),"$(comma)",$(2))")]
 
-# Converts a space-separated list to a JSON list.
-json_list = $(call _json_list,$(space),$(1))
-
-# Converts a comma-separated list to a JSON list.
-csv_to_json_list = $(call _json_list,$(comma),$(1))
-
-# 1: Key name
-# 2: Value
-add_json_val = $(eval _contents := $$(_contents)    "$$(strip $$(1))":$$(space)$$(strip $$(2))$$(comma)$$(newline))
-add_json_str = $(call add_json_val,$(1),"$(strip $(2))")
-add_json_list = $(call add_json_val,$(1),$(call json_list,$(patsubst %,%,$(2))))
-add_json_csv = $(call add_json_val,$(1),$(call csv_to_json_list,$(strip $(2))))
-add_json_bool = $(call add_json_val,$(1),$(if $(strip $(2)),true,false))
-
-invert_bool = $(if $(strip $(1)),,true)
+include $(BUILD_SYSTEM)/json.mk
 
 # Create soong.variables with copies of makefile settings.  Runs every build,
 # but only updates soong.variables if it changes
 $(shell mkdir -p $(dir $(SOONG_VARIABLES)))
-_contents := {$(newline)
+$(call json_start)
 
 $(call add_json_str,  Make_suffix, -$(TARGET_PRODUCT))
 
@@ -102,7 +84,6 @@ $(call add_json_list, CFIExcludePaths,                   $(CFI_EXCLUDE_PATHS) $(
 $(call add_json_list, CFIIncludePaths,                   $(CFI_INCLUDE_PATHS) $(PRODUCT_CFI_INCLUDE_PATHS))
 $(call add_json_list, IntegerOverflowExcludePaths,       $(INTEGER_OVERFLOW_EXCLUDE_PATHS) $(PRODUCT_INTEGER_OVERFLOW_EXCLUDE_PATHS))
 
-$(call add_json_bool, UseClangLld,                       $(call invert_bool,$(filter 0 false,$(USE_CLANG_LLD))))
 $(call add_json_bool, ClangTidy,                         $(filter 1 true,$(WITH_TIDY)))
 $(call add_json_str,  TidyChecks,                        $(WITH_TIDY_CHECKS))
 
@@ -126,6 +107,11 @@ $(call add_json_list, DeviceSystemSdkVersions,           $(BOARD_SYSTEMSDK_VERSI
 $(call add_json_list, Platform_systemsdk_versions,       $(PLATFORM_SYSTEMSDK_VERSIONS))
 $(call add_json_bool, Malloc_not_svelte,                 $(call invert_bool,$(filter true,$(MALLOC_SVELTE))))
 $(call add_json_str,  Override_rs_driver,                $(OVERRIDE_RS_DRIVER))
+$(call add_json_bool, UncompressPrivAppDex,              $(call invert_bool,$(filter true,$(DONT_UNCOMPRESS_PRIV_APPS_DEXS))))
+$(call add_json_list, ModulesLoadedByPrivilegedModules,  $(PRODUCT_LOADED_BY_PRIVILEGED_MODULES))
+$(call add_json_bool, DefaultStripDex,                   $(call invert_bool,$(filter nostripping,$(DEX_PREOPT_DEFAULT))))
+$(call add_json_bool, DisableDexPreopt,                  $(filter false,$(WITH_DEXPREOPT)))
+$(call add_json_list, DisableDexPreoptModules,           $(DEXPREOPT_DISABLED_MODULES))
 
 $(call add_json_bool, Product_is_iot,                    $(filter true,$(PRODUCT_IOT)))
 
@@ -154,33 +140,24 @@ $(call add_json_list, BoardOdmSepolicyDirs,              $(BOARD_ODM_SEPOLICY_DI
 $(call add_json_list, BoardPlatPublicSepolicyDirs,       $(BOARD_PLAT_PUBLIC_SEPOLICY_DIR))
 $(call add_json_list, BoardPlatPrivateSepolicyDirs,      $(BOARD_PLAT_PRIVATE_SEPOLICY_DIR))
 
-_contents := $(_contents)    "VendorVars": {$(newline)
+$(call add_json_bool, FlattenApex,                       $(filter true,$(TARGET_FLATTEN_APEX)))
+
+$(call add_json_map, VendorVars)
 $(foreach namespace,$(SOONG_CONFIG_NAMESPACES),\
-  $(eval _contents := $$(_contents)        "$(namespace)": {$$(newline)) \
+  $(call add_json_map, $(namespace))\
   $(foreach key,$(SOONG_CONFIG_$(namespace)),\
-    $(eval _contents := $$(_contents)            "$(key)": "$(SOONG_CONFIG_$(namespace)_$(key))",$$(newline)))\
-  $(eval _contents := $$(_contents)$(if $(strip $(SOONG_CONFIG_$(namespace))),__SV_END)        },$$(newline)))
-_contents := $(_contents)$(if $(strip $(SOONG_CONFIG_NAMESPACES)),__SV_END)    },$(newline)
+    $(call add_json_str,$(key),$(SOONG_CONFIG_$(namespace)_$(key))))\
+  $(call end_json_map))
+$(call end_json_map)
 
-_contents := $(subst $(comma)$(newline)__SV_END,$(newline),$(_contents)__SV_END}$(newline))
+$(call json_end)
 
-$(file >$(SOONG_VARIABLES).tmp,$(_contents))
+$(file >$(SOONG_VARIABLES).tmp,$(json_contents))
 
 $(shell if ! cmp -s $(SOONG_VARIABLES).tmp $(SOONG_VARIABLES); then \
 	  mv $(SOONG_VARIABLES).tmp $(SOONG_VARIABLES); \
 	else \
 	  rm $(SOONG_VARIABLES).tmp; \
 	fi)
-
-_json_list :=
-json_list :=
-csv_to_json_list :=
-add_json_val :=
-add_json_str :=
-add_json_list :=
-add_json_csv :=
-add_json_bool :=
-invert_bool :=
-_contents :=
 
 endif # CONFIGURE_SOONG
