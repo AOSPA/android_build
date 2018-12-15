@@ -3,9 +3,14 @@
 # Output variables: LOCAL_DEX_PREOPT, LOCAL_UNCOMPRESS_DEX, built_odex,
 #                   dexpreopt_boot_jar_module
 
+ifeq (true,$(LOCAL_PREFER_INTEGRITY))
+  LOCAL_UNCOMPRESS_DEX := true
+else
+  LOCAL_UNCOMPRESS_DEX :=
+endif
+
 # We explicitly uncompress APKs of privileged apps, and used by
 # privileged apps
-LOCAL_UNCOMPRESS_DEX := false
 ifneq (true,$(DONT_UNCOMPRESS_PRIV_APPS_DEXS))
   ifeq (true,$(LOCAL_PRIVILEGED_MODULE))
     LOCAL_UNCOMPRESS_DEX := true
@@ -33,6 +38,13 @@ ifndef LOCAL_DEX_PREOPT # LOCAL_DEX_PREOPT undefined
   endif
 endif
 
+ifeq (nostripping,$(LOCAL_DEX_PREOPT))
+  LOCAL_DEX_PREOPT := true
+  LOCAL_STRIP_DEX :=
+else
+  LOCAL_STRIP_DEX := true
+endif
+
 ifeq (false,$(LOCAL_DEX_PREOPT))
   LOCAL_DEX_PREOPT :=
 endif
@@ -43,7 +55,7 @@ ifneq (,$(filter $(LOCAL_MODULE_TAGS),tests))
 endif
 
 # If we have product-specific config for this module?
-ifeq (disable,$(DEXPREOPT.$(TARGET_PRODUCT).$(LOCAL_MODULE).CONFIG))
+ifneq (,$(filter $(LOCAL_MODULE),$(DEXPREOPT_DISABLED_MODULES)))
   LOCAL_DEX_PREOPT :=
 endif
 
@@ -81,14 +93,14 @@ endif
 ifeq ($(LOCAL_DEX_PREOPT),true)
   # Don't strip with dexes we explicitly uncompress (dexopt will not store the dex code).
   ifeq ($(LOCAL_UNCOMPRESS_DEX),true)
-    LOCAL_DEX_PREOPT := nostripping
+    LOCAL_STRIP_DEX :=
   endif  # LOCAL_UNCOMPRESS_DEX
 
   # system_other isn't there for an OTA, so don't strip
   # if module is on system, and odex is on system_other.
   ifeq ($(BOARD_USES_SYSTEM_OTHER_ODEX),true)
     ifneq ($(call install-on-system-other, $(my_module_path)),)
-      LOCAL_DEX_PREOPT := nostripping
+      LOCAL_STRIP_DEX :=
     endif  # install-on-system-other
   endif  # BOARD_USES_SYSTEM_OTHER_ODEX
 
@@ -320,7 +332,8 @@ ifdef LOCAL_DEX_PREOPT
 
     ifeq (true,$(my_generate_dm))
       LOCAL_DEX_PREOPT_FLAGS += --copy-dex-files=false
-      LOCAL_DEX_PREOPT := nostripping
+      LOCAL_DEX_PREOPT := true
+      LOCAL_STRIP_DEX :=
       my_built_dm := $(dir $(LOCAL_BUILT_MODULE))generated.dm
       my_installed_dm := $(patsubst %.apk,%,$(LOCAL_INSTALLED_MODULE)).dm
       my_copied_vdex := $(dir $(LOCAL_BUILT_MODULE))primary.vdex

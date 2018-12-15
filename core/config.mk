@@ -204,6 +204,11 @@ else
 JAVA_TMPDIR_ARG :=
 endif
 
+# A list of the jars that provide information about usages of the hidden API.
+# The core-oj-hiddenapi provides information for the core-oj jar.
+HIDDENAPI_EXTRA_APP_USAGE_JARS := \
+    core-oj-hiddenapi \
+
 # Default to remove the org.apache.http.legacy from bootclasspath
 ifeq ($(REMOVE_OAHL_FROM_BCP),)
 REMOVE_OAHL_FROM_BCP := true
@@ -527,8 +532,8 @@ endif  # pdk or fusion
 ifdef PDK_FUSION_PLATFORM_ZIP
 TARGET_BUILD_PDK := true
 ifeq (,$(wildcard $(PDK_FUSION_PLATFORM_ZIP)))
-  ifneq (,$(wildcard $(dir $(PDK_FUSION_PLATFORM_ZIP))/pdk.mk))
-    PDK_FUSION_PLATFORM_DIR := $(dir $(PDK_FUSION_PLATFORM_ZIP))
+  ifneq (,$(wildcard $(patsubst %.zip,%,$(PDK_FUSION_PLATFORM_ZIP))/pdk.mk))
+    PDK_FUSION_PLATFORM_DIR := $(patsubst %.zip,%,$(PDK_FUSION_PLATFORM_ZIP))
     PDK_FUSION_PLATFORM_ZIP :=
   else
     $(error Cannot find file $(PDK_FUSION_PLATFORM_ZIP).)
@@ -932,13 +937,26 @@ ifndef PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
 endif
 .KATI_READONLY := PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
 
-ifeq ($(PRODUCT_USE_LOGICAL_PARTITIONS),true)
+ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
+  ifneq ($(PRODUCT_USE_DYNAMIC_PARTITIONS),true)
+    $(error PRODUCT_USE_DYNAMIC_PARTITIONS must be true when PRODUCT_RETROFIT_DYNAMIC_PARTITIONS \
+        is set)
+  endif
+  ifdef PRODUCT_SHIPPING_API_LEVEL
+    ifeq (true,$(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),29))
+      $(error Devices with shipping API level $(PRODUCT_SHIPPING_API_LEVEL) must not set \
+          PRODUCT_RETROFIT_DYNAMIC_PARTITIONS)
+    endif
+  endif
+endif
+
+ifeq ($(PRODUCT_USE_DYNAMIC_PARTITIONS),true)
     requirements := \
         PRODUCT_USE_DYNAMIC_PARTITION_SIZE \
         PRODUCT_BUILD_SUPER_PARTITION \
 
     $(foreach req,$(requirements),$(if $(filter false,$($(req))),\
-        $(error PRODUCT_USE_LOGICAL_PARTITIONS requires $(req) to be true)))
+        $(error PRODUCT_USE_DYNAMIC_PARTITIONS requires $(req) to be true)))
 
     requirements :=
 
@@ -991,11 +1009,11 @@ ifeq ($(PRODUCT_BUILD_SUPER_PARTITION),true)
 # For each group in BOARD_SUPER_PARTITION_GROUPS, a BOARD_{GROUP}_SIZE and
 # BOARD_{GROUP}_PARTITION_PARTITION_LIST may be defined.
 #     - BOARD_{GROUP}_SIZE: The maximum sum of sizes of all partitions in the group.
-#       If empty, no limit is enforced on the sum of sizes for this group.
+#       Must not be empty.
 #     - BOARD_{GROUP}_PARTITION_PARTITION_LIST: the list of partitions that belongs to this group.
 #       If empty, no partitions belong to this group, and the sum of sizes is effectively 0.
 $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
-    $(eval BOARD_$(group)_SIZE ?=) \
+    $(if $(BOARD_$(group)_SIZE),,$(error BOARD_$(group)_SIZE must not be empty)) \
     $(eval .KATI_READONLY := BOARD_$(group)_SIZE) \
     $(eval BOARD_$(group)_PARTITION_LIST ?=) \
     $(eval .KATI_READONLY := BOARD_$(group)_PARTITION_LIST) \
@@ -1020,6 +1038,48 @@ BOARD_SUPER_PARTITION_PARTITION_LIST := \
     $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
         $(BOARD_$(group)_PARTITION_LIST))
 .KATI_READONLY := BOARD_SUPER_PARTITION_PARTITION_LIST
+
+ifdef BOARD_SUPER_PARTITION_SIZE
+ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
+
+# The metadata device must be specified manually for retrofitting.
+ifndef BOARD_SUPER_PARTITION_METADATA_DEVICE
+$(error Must specify BOARD_SUPER_PARTITION_METADATA_DEVICE if BOARD_SUPER_PARTITION_BLOCK_DEVICES is used.)
+endif
+
+# The metadata device must be included in the super partition block device list.
+ifeq (,$(filter $(BOARD_SUPER_PARTITION_METADATA_DEVICE),$(BOARD_SUPER_PARTITION_BLOCK_DEVICES)))
+$(error BOARD_SUPER_PARTITION_METADATA_DEVICE is not listed in BOARD_SUPER_PARTITION_BLOCK_DEVICES.)
+endif
+
+# The metadata device must be supplied to init via the kernel command-line.
+BOARD_KERNEL_CMDLINE += androidboot.super_partition=$(BOARD_SUPER_PARTITION_METADATA_DEVICE)
+
+else # PRODUCT_RETROFIT_DYNAMIC_PARTITIONS
+
+# These should not be specified on devices launching with dynamic partition support.
+ifdef BOARD_SUPER_PARTITION_BLOCK_DEVICES
+$(error BOARD_SUPER_PARTITION_BLOCK_DEVICES can only be used if PRODUCT_RETROFIT_DYNAMIC_PARTITIONS is true.)
+endif
+ifdef BOARD_SUPER_PARTITION_METADATA_DEVICE
+$(error BOARD_SUPER_PARTITION_METADATA_DEVICE can only be used if PRODUCT_RETROFIT_DYNAMIC_PARTITIONS is true.)
+endif
+
+# For normal devices, we populate BOARD_SUPER_PARTITION_BLOCK_DEVICES so the
+# build can handle both cases consistently.
+BOARD_SUPER_PARTITION_BLOCK_DEVICES := super
+BOARD_SUPER_PARTITION_METADATA_DEVICE := super
+BOARD_SUPER_PARTITION_SUPER_DEVICE_SIZE := $(BOARD_SUPER_PARTITION_SIZE)
+
+endif # PRODUCT_RETROFIT_DYNAMIC_PARTITIONS
+endif # BOARD_SUPER_PARTITION_SIZE
+.KATI_READONLY := BOARD_SUPER_PARTITION_BLOCK_DEVICES
+.KATI_READONLY := BOARD_SUPER_PARTITION_METADATA_DEVICE
+
+$(foreach device,$(call to-upper,$(BOARD_SUPER_PARTITION_BLOCK_DEVICES)), \
+    $(if $(BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE),, \
+        $(error $(BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE must not be empty))) \
+    $(eval .KATI_READONLY := BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE))
 
 endif # PRODUCT_BUILD_SUPER_PARTITION
 

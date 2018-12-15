@@ -423,6 +423,7 @@ PRODUCT_OTHER_JAVA_DEBUG_INFO := \
 # Resolve and setup per-module dex-preopt configs.
 PRODUCT_DEX_PREOPT_MODULE_CONFIGS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_MODULE_CONFIGS))
+DEXPREOPT_DISABLED_MODULES :=
 # If a module has multiple setups, the first takes precedence.
 _pdpmc_modules :=
 $(foreach c,$(PRODUCT_DEX_PREOPT_MODULE_CONFIGS),\
@@ -431,7 +432,9 @@ $(foreach c,$(PRODUCT_DEX_PREOPT_MODULE_CONFIGS),\
     $(eval _pdpmc_modules += $(m))\
     $(eval cf := $(patsubst $(m)=%,%,$(c)))\
     $(eval cf := $(subst $(_PDPMC_SP_PLACE_HOLDER),$(space),$(cf)))\
-    $(eval DEXPREOPT.$(TARGET_PRODUCT).$(m).CONFIG := $(cf))))
+    $(if $(filter disable,$(cf)),\
+      $(eval DEXPREOPT_DISABLED_MODULES += $(m)),\
+      $(eval DEXPREOPT.$(TARGET_PRODUCT).$(m).CONFIG := $(cf)))))
 _pdpmc_modules :=
 
 # Resolve and setup per-module sanitizer configs.
@@ -510,20 +513,32 @@ PRODUCT_COMPATIBLE_PROPERTY_OVERRIDE := \
 PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE))
 
-# Logical and Resizable Partitions feature flag.
-PRODUCT_USE_LOGICAL_PARTITIONS := \
-    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_LOGICAL_PARTITIONS))
-.KATI_READONLY := PRODUCT_USE_LOGICAL_PARTITIONS
+# Dynamic partition feature flags.
 
-# All requirements of PRODUCT_USE_LOGICAL_PARTITIONS falls back to
-# PRODUCT_USE_LOGICAL_PARTITIONS if not defined.
+# When this is true, dynamic partitions is retrofitted on a device that has
+# already been launched without dynamic partitions. Otherwise, the device
+# is launched with dynamic partitions.
+# This flag implies PRODUCT_USE_DYNAMIC_PARTITIONS.
+PRODUCT_RETROFIT_DYNAMIC_PARTITIONS := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_RETROFIT_DYNAMIC_PARTITIONS))
+.KATI_READONLY := PRODUCT_RETROFIT_DYNAMIC_PARTITIONS
+
+# TODO(b/119286600): remove PRODUCT_USE_LOGICAL_PARTITIONS
+PRODUCT_USE_DYNAMIC_PARTITIONS := $(or \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_DYNAMIC_PARTITIONS)), \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_LOGICAL_PARTITIONS)), \
+    $(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS))
+.KATI_READONLY := PRODUCT_USE_DYNAMIC_PARTITIONS
+
+# All requirements of PRODUCT_USE_DYNAMIC_PARTITIONS falls back to
+# PRODUCT_USE_DYNAMIC_PARTITIONS if not defined.
 PRODUCT_USE_DYNAMIC_PARTITION_SIZE := $(or \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_DYNAMIC_PARTITION_SIZE)),\
-    $(PRODUCT_USE_LOGICAL_PARTITIONS))
+    $(PRODUCT_USE_DYNAMIC_PARTITIONS))
 .KATI_READONLY := PRODUCT_USE_DYNAMIC_PARTITION_SIZE
 PRODUCT_BUILD_SUPER_PARTITION := $(or \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_BUILD_SUPER_PARTITION)),\
-    $(PRODUCT_USE_LOGICAL_PARTITIONS))
+    $(PRODUCT_USE_DYNAMIC_PARTITIONS))
 .KATI_READONLY := PRODUCT_BUILD_SUPER_PARTITION
 
 # List of modules that should be forcefully unmarked from being LOCAL_PRODUCT_MODULE, and hence

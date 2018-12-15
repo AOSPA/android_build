@@ -1,4 +1,3 @@
-#
 # Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,18 +13,15 @@
 # limitations under the License.
 #
 
-$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/mainline_system.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_vendor.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_vendor.mk)
+TARGET_ARCH := arm64
+TARGET_ARCH_VARIANT := armv8-a
+TARGET_CPU_VARIANT := generic
+TARGET_CPU_ABI := arm64-v8a
 
-PRODUCT_NAME := mainline_arm64
-PRODUCT_DEVICE := generic_arm64
-PRODUCT_BRAND := generic
-PRODUCT_SHIPPING_API_LEVEL := 28
-PRODUCT_RESTRICT_VENDOR_FILES := all
+TARGET_2ND_ARCH := arm
+TARGET_2ND_ARCH_VARIANT := armv8-a
+TARGET_2ND_CPU_ABI := armeabi-v7a
+TARGET_2ND_CPU_ABI2 := armeabi
+TARGET_2ND_CPU_VARIANT := generic
 
-PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS := true
-PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST := \
-  root/init.zygote64_32.rc \
-
+include build/make/target/board/BoardConfigGsiCommon.mk

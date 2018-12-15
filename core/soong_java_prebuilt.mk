@@ -108,7 +108,7 @@ $(built_odex) : $(dir $(LOCAL_BUILT_MODULE))% : $(common_javalib.jar)
 	@echo "Dexpreopt Jar: $(PRIVATE_MODULE) ($@)"
 	$(call dexpreopt-one-file,$<,$@)
 
-         $(eval $(call dexpreopt-copy-jar,$(common_javalib.jar),$(LOCAL_BUILT_MODULE),$(LOCAL_DEX_PREOPT)))
+         $(eval $(call dexpreopt-copy-jar,$(common_javalib.jar),$(LOCAL_BUILT_MODULE),$(LOCAL_STRIP_DEX)))
         endif # ! boot jar
       else # LOCAL_DEX_PREOPT
         $(eval $(call copy-one-file,$(common_javalib.jar),$(LOCAL_BUILT_MODULE)))
@@ -120,6 +120,15 @@ $(built_odex) : $(dir $(LOCAL_BUILT_MODULE))% : $(common_javalib.jar)
 
     java-dex : $(LOCAL_BUILT_MODULE)
   else  # LOCAL_UNINSTALLABLE_MODULE
+
+    ifneq ($(filter $(LOCAL_MODULE),$(HIDDENAPI_EXTRA_APP_USAGE_JARS)),)
+      # Derive greylist from classes.jar.
+      # We use full_classes_jar here, which is the post-proguard jar (on the basis that we also
+      # have a full_classes_pre_proguard_jar). This is consistent with the equivalent code in
+      # java.mk.
+      $(eval $(call hiddenapi-generate-greylist-txt,$(full_classes_jar),$(hiddenapi_whitelist_txt),$(hiddenapi_greylist_txt),$(hiddenapi_darkgreylist_txt),$(hiddenapi_greylist_metadata_csv)))
+    endif
+
     $(eval $(call copy-one-file,$(full_classes_jar),$(LOCAL_BUILT_MODULE)))
     $(eval $(call copy-one-file,$(LOCAL_SOONG_DEX_JAR),$(common_javalib.jar)))
     java-dex : $(common_javalib.jar)
@@ -127,6 +136,10 @@ $(built_odex) : $(dir $(LOCAL_BUILT_MODULE))% : $(common_javalib.jar)
 else  # LOCAL_SOONG_DEX_JAR
   $(eval $(call copy-one-file,$(full_classes_jar),$(LOCAL_BUILT_MODULE)))
 endif  # LOCAL_SOONG_DEX_JAR
+
+ifdef LOCAL_SOONG_AAR
+  ALL_MODULES.$(LOCAL_MODULE).AAR := $(LOCAL_SOONG_AAR)
+endif
 
 javac-check : $(full_classes_jar)
 javac-check-$(LOCAL_MODULE) : $(full_classes_jar)
