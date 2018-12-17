@@ -244,11 +244,13 @@ else
 ADDITIONAL_DEFAULT_PROPERTIES += ro.actionable_compatible_property.enabled=${PRODUCT_COMPATIBLE_PROPERTY}
 endif
 
-# TODO(b/119286600): remove ro.logical_partitions
-ADDITIONAL_PRODUCT_PROPERTIES += \
-    ro.boot.logical_partitions=$(PRODUCT_USE_DYNAMIC_PARTITIONS) \
-    ro.boot.dynamic_partitions=$(PRODUCT_USE_DYNAMIC_PARTITIONS) \
-    ro.boot.dynamic_partitions_retrofit=$(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS)
+ifeq ($(PRODUCT_USE_DYNAMIC_PARTITIONS),true)
+ADDITIONAL_PRODUCT_PROPERTIES += ro.boot.dynamic_partitions=true
+endif
+
+ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
+ADDITIONAL_PRODUCT_PROPERTIES += ro.boot.dynamic_partitions_retrofit=true
+endif
 
 # -----------------------------------------------------------------
 ###
@@ -408,7 +410,9 @@ endif
 # Typical build; include any Android.mk files we can find.
 #
 
-
+# Before we go and include all of the module makefiles, strip values for easier
+# processing.
+$(call strip-product-vars)
 # Before we go and include all of the module makefiles, mark the PRODUCT_*
 # and ADDITIONAL*PROPERTIES values readonly so that they won't be modified.
 $(call readonly-product-vars)
@@ -1391,6 +1395,7 @@ else # TARGET_BUILD_APPS
   $(call dist-for-goals, droidcore, \
     $(INTERNAL_UPDATE_PACKAGE_TARGET) \
     $(INTERNAL_OTA_PACKAGE_TARGET) \
+    $(INTERNAL_OTA_RETROFIT_DYNAMIC_PARTITIONS_PACKAGE_TARGET) \
     $(BUILT_OTATOOLS_PACKAGE) \
     $(SYMBOLS_ZIP) \
     $(COVERAGE_ZIP) \
@@ -1531,7 +1536,7 @@ dump-products:
 .PHONY: dump-files
 dump-files:
 	$(info product_FILES for $(TARGET_DEVICE) ($(INTERNAL_PRODUCT)):)
-	$(foreach p,$(product_FILES),$(info :   $(p)))
+	$(foreach p,$(sort $(product_FILES)),$(info :   $(p)))
 	@echo Successfully dumped product file list
 
 .PHONY: nothing

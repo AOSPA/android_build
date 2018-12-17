@@ -923,12 +923,7 @@ PLATFORM_SEPOLICY_COMPAT_VERSIONS := \
     PLATFORM_SEPOLICY_VERSION \
     TOT_SEPOLICY_VERSION \
 
-# If true, kernel configuration requirements are present in OTA package (and will be enforced
-# during OTA). Otherwise, kernel configuration requirements are enforced in VTS.
-# Devices that checks the running kernel (instead of the kernel in OTA package) should not
-# set this variable to prevent OTA failures.
-ifndef PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
-  PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS :=
+ifeq ($(PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS),)
   ifdef PRODUCT_SHIPPING_API_LEVEL
     ifeq (true,$(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),29))
       PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := true
@@ -959,8 +954,6 @@ ifeq ($(PRODUCT_USE_DYNAMIC_PARTITIONS),true)
         $(error PRODUCT_USE_DYNAMIC_PARTITIONS requires $(req) to be true)))
 
     requirements :=
-
-  BOARD_KERNEL_CMDLINE += androidboot.logical_partitions=1
 endif
 
 ifeq ($(PRODUCT_USE_DYNAMIC_PARTITION_SIZE),true)
@@ -1013,6 +1006,7 @@ ifeq ($(PRODUCT_BUILD_SUPER_PARTITION),true)
 #     - BOARD_{GROUP}_PARTITION_PARTITION_LIST: the list of partitions that belongs to this group.
 #       If empty, no partitions belong to this group, and the sum of sizes is effectively 0.
 $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
+    $(eval BOARD_$(group)_SIZE := $(strip $(BOARD_$(group)_SIZE))) \
     $(if $(BOARD_$(group)_SIZE),,$(error BOARD_$(group)_SIZE must not be empty)) \
     $(eval .KATI_READONLY := BOARD_$(group)_SIZE) \
     $(eval BOARD_$(group)_PARTITION_LIST ?=) \
@@ -1020,7 +1014,7 @@ $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
 )
 
 # BOARD_*_PARTITION_LIST: a list of the following tokens
-valid_super_partition_list := system vendor product product_services
+valid_super_partition_list := system vendor product product_services odm
 $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
     $(if $(filter-out $(valid_super_partition_list),$(BOARD_$(group)_PARTITION_LIST)), \
         $(error BOARD_$(group)_PARTITION_LIST contains invalid partition name \
@@ -1039,12 +1033,17 @@ BOARD_SUPER_PARTITION_PARTITION_LIST := \
         $(BOARD_$(group)_PARTITION_LIST))
 .KATI_READONLY := BOARD_SUPER_PARTITION_PARTITION_LIST
 
-ifdef BOARD_SUPER_PARTITION_SIZE
+ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
 ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
 
 # The metadata device must be specified manually for retrofitting.
-ifndef BOARD_SUPER_PARTITION_METADATA_DEVICE
-$(error Must specify BOARD_SUPER_PARTITION_METADATA_DEVICE if BOARD_SUPER_PARTITION_BLOCK_DEVICES is used.)
+ifeq ($(BOARD_SUPER_PARTITION_METADATA_DEVICE),)
+$(error Must specify BOARD_SUPER_PARTITION_METADATA_DEVICE if PRODUCT_RETROFIT_DYNAMIC_PARTITIONS=true.)
+endif
+
+# The super partition block device list must be specified manually for retrofitting.
+ifeq ($(BOARD_SUPER_PARTITION_BLOCK_DEVICES),)
+$(error Must specify BOARD_SUPER_PARTITION_BLOCK_DEVICES if PRODUCT_RETROFIT_DYNAMIC_PARTITIONS=true.)
 endif
 
 # The metadata device must be included in the super partition block device list.
@@ -1077,6 +1076,7 @@ endif # BOARD_SUPER_PARTITION_SIZE
 .KATI_READONLY := BOARD_SUPER_PARTITION_METADATA_DEVICE
 
 $(foreach device,$(call to-upper,$(BOARD_SUPER_PARTITION_BLOCK_DEVICES)), \
+    $(eval BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE := $(strip $(BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE))) \
     $(if $(BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE),, \
         $(error $(BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE must not be empty))) \
     $(eval .KATI_READONLY := BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE))
