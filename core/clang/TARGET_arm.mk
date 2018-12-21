@@ -4,6 +4,7 @@ $(clang_2nd_arch_prefix)RS_COMPAT_TRIPLE := armv7-none-linux-gnueabi
 
 $(clang_2nd_arch_prefix)TARGET_LIBPROFILE_RT := $(LLVM_RTLIB_PATH)/libclang_rt.profile-arm-android.a
 $(clang_2nd_arch_prefix)TARGET_LIBCRT_BUILTINS := $(LLVM_RTLIB_PATH)/libclang_rt.builtins-arm-android.a
+$(clang_2nd_arch_prefix)TARGET_LIBCRT_BUILTINS_SDCLANG := $(SDCLANG_PATH)/../lib/clang/6.0.7/lib/linux/libclang_rt.builtins-arm-android.a
 
 # Address sanitizer clang config
 $(clang_2nd_arch_prefix)ADDRESS_SANITIZER_LINKER := /system/bin/linker_asan
