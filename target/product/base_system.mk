@@ -52,6 +52,7 @@ PRODUCT_PACKAGES += \
     charger \
     cmd \
     com.android.location.provider \
+    com.android.resolv \
     com.android.tzdata \
     ContactsProvider \
     content \
@@ -318,14 +319,20 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += debug.atrace.tags.enableflags=0
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     apex.test.key \
+    arping \
     iotop \
+    iw \
     logpersist.start \
     perfprofd \
     procrank \
     showmap \
     sqlite3 \
+    ss \
     strace \
     sanitizer-status \
+    tracepath \
+    tracepath6 \
+    traceroute6 \
     unwind_info \
     unwind_reg_info \
     unwind_symbols \

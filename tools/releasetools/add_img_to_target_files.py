@@ -260,11 +260,7 @@ def AddDtbo(output_zip):
     args = OPTIONS.info_dict.get("avb_dtbo_add_hash_footer_args")
     if args and args.strip():
       cmd.extend(shlex.split(args))
-    proc = common.Run(cmd)
-    output, _ = proc.communicate()
-    assert proc.returncode == 0, \
-        "Failed to call 'avbtool add_hash_footer' for {}:\n{}".format(
-            img.name, output)
+    common.RunAndCheckOutput(cmd)
 
   img.Write()
   return img.name
@@ -329,6 +325,12 @@ def CreateImage(input_dir, info_dict, what, output_file, block_list=None):
     if image_size:
       image_blocks_key = what + "_image_blocks"
       info_dict[image_blocks_key] = int(image_size) / 4096 - 1
+
+  use_dynamic_size = (
+      info_dict.get("use_dynamic_partition_size") == "true" and
+      what in shlex.split(info_dict.get("dynamic_partition_list", "").strip()))
+  if use_dynamic_size:
+    info_dict.update(build_image.GlobalDictFromImageProp(image_props, what))
 
 
 def AddUserdata(output_zip):
@@ -457,10 +459,7 @@ def AddVBMeta(output_zip, partitions, name, needed_partitions):
         assert found, 'Failed to find {}'.format(image_path)
     cmd.extend(split_args)
 
-  proc = common.Run(cmd)
-  stdoutdata, _ = proc.communicate()
-  assert proc.returncode == 0, \
-      "avbtool make_vbmeta_image failed:\n{}".format(stdoutdata)
+  common.RunAndCheckOutput(cmd)
   img.Write()
   return img.name
 
@@ -487,11 +486,7 @@ def AddPartitionTable(output_zip):
   args = OPTIONS.info_dict.get("board_bpt_make_table_args")
   if args:
     cmd.extend(shlex.split(args))
-
-  proc = common.Run(cmd)
-  stdoutdata, _ = proc.communicate()
-  assert proc.returncode == 0, \
-      "bpttool make_table failed:\n{}".format(stdoutdata)
+  common.RunAndCheckOutput(cmd)
 
   img.Write()
   bpt.Write()
@@ -606,10 +601,7 @@ def AddCareMapForAbOta(output_zip, ab_partitions, image_paths):
 
   temp_care_map = common.MakeTempFile(prefix="caremap-", suffix=".pb")
   care_map_gen_cmd = ["care_map_generator", temp_care_map_text, temp_care_map]
-  proc = common.Run(care_map_gen_cmd)
-  output, _ = proc.communicate()
-  assert proc.returncode == 0, \
-      "Failed to generate the care_map proto message:\n{}".format(output)
+  common.RunAndCheckOutput(care_map_gen_cmd)
 
   care_map_path = "META/care_map.pb"
   if output_zip and care_map_path not in output_zip.namelist():
@@ -656,16 +648,69 @@ def AddSuperEmpty(output_zip):
   """Create a super_empty.img and store it in output_zip."""
 
   img = OutputFile(output_zip, OPTIONS.input_tmp, "IMAGES", "super_empty.img")
-  cmd = [OPTIONS.info_dict.get('lpmake')]
-  cmd += shlex.split(OPTIONS.info_dict.get('lpmake_args').strip())
+  cmd = [OPTIONS.info_dict['lpmake']]
+  cmd += shlex.split(OPTIONS.info_dict['lpmake_args'].strip())
   cmd += ['--output', img.name]
-
-  proc = common.Run(cmd)
-  stdoutdata, _ = proc.communicate()
-  assert proc.returncode == 0, \
-      "lpmake tool failed:\n{}".format(stdoutdata)
+  common.RunAndCheckOutput(cmd)
 
   img.Write()
+
+
+def AddSuperSplit(output_zip):
+  """Create split super_*.img and store it in output_zip."""
+
+  def GetPartitionSizeFromImage(img):
+    try:
+      simg = sparse_img.SparseImage(img)
+      return simg.blocksize * simg.total_blocks
+    except ValueError:
+      return os.path.getsize(img)
+
+  def TransformPartitionArg(arg):
+    lst = arg.split(':')
+    # Because --auto-slot-suffixing for A/B, there is no need to remove suffix.
+    name = lst[0]
+    if name + '_size' in OPTIONS.info_dict:
+      size = str(OPTIONS.info_dict[name + '_size'])
+      logger.info("Using %s_size = %s", name, size)
+    else:
+      size = str(GetPartitionSizeFromImage(
+          os.path.join(OPTIONS.input_tmp, "IMAGES", '{}.img'.format(name))))
+      logger.info("Using size of prebuilt %s = %s", name, size)
+    lst[2] = size
+    return ':'.join(lst)
+
+  def GetLpmakeArgsWithSizes():
+    lpmake_args = shlex.split(OPTIONS.info_dict['lpmake_args'].strip())
+
+    for i, arg in enumerate(lpmake_args):
+      if arg == '--partition':
+        assert i + 1 < len(lpmake_args), \
+          'lpmake_args has --partition without value'
+        lpmake_args[i + 1] = TransformPartitionArg(lpmake_args[i + 1])
+
+    return lpmake_args
+
+  outdir = OutputFile(output_zip, OPTIONS.input_tmp, "OTA", "")
+  cmd = [OPTIONS.info_dict['lpmake']]
+  cmd += GetLpmakeArgsWithSizes()
+
+  source = OPTIONS.info_dict.get('dynamic_partition_list', '').strip()
+  if source:
+    cmd.append('--sparse')
+    for name in shlex.split(source):
+      img = os.path.join(OPTIONS.input_tmp, "IMAGES", '{}.img'.format(name))
+      # Because --auto-slot-suffixing for A/B, there is no need to add suffix.
+      cmd += ['--image', '{}={}'.format(name, img)]
+
+  cmd += ['--output', outdir.name]
+
+  common.RunAndCheckOutput(cmd)
+
+  for dev in OPTIONS.info_dict['super_block_devices'].strip().split():
+    img = OutputFile(output_zip, OPTIONS.input_tmp, "OTA",
+                     "super_" + dev + ".img")
+    img.Write()
 
 
 def ReplaceUpdatedFiles(zip_filename, files_list):
@@ -861,9 +906,14 @@ def AddImagesToTargetFiles(filename):
     banner("vbmeta")
     AddVBMeta(output_zip, partitions, "vbmeta", vbmeta_partitions)
 
-  if OPTIONS.info_dict.get("super_size"):
+  if OPTIONS.info_dict.get("lpmake_args"):
     banner("super_empty")
     AddSuperEmpty(output_zip)
+
+    if OPTIONS.info_dict.get("dynamic_partition_retrofit") == "true":
+      banner("super split images")
+      AddSuperSplit(output_zip)
+    # TODO(b/119322123): Add super.img to target_files for non-retrofit
 
   banner("radio")
   ab_partitions_txt = os.path.join(OPTIONS.input_tmp, "META",
