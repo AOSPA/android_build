@@ -82,6 +82,8 @@ $(call add_json_bool, Safestack,                         $(filter true,$(USE_SAF
 $(call add_json_bool, EnableCFI,                         $(call invert_bool,$(filter false,$(ENABLE_CFI))))
 $(call add_json_list, CFIExcludePaths,                   $(CFI_EXCLUDE_PATHS) $(PRODUCT_CFI_EXCLUDE_PATHS))
 $(call add_json_list, CFIIncludePaths,                   $(CFI_INCLUDE_PATHS) $(PRODUCT_CFI_INCLUDE_PATHS))
+$(call add_json_bool, EnableXOM,                         $(filter true,$(ENABLE_XOM)))
+$(call add_json_list, XOMExcludePaths,                   $(XOM_EXCLUDE_PATHS) $(PRODUCT_XOM_EXCLUDE_PATHS))
 $(call add_json_list, IntegerOverflowExcludePaths,       $(INTEGER_OVERFLOW_EXCLUDE_PATHS) $(PRODUCT_INTEGER_OVERFLOW_EXCLUDE_PATHS))
 
 $(call add_json_bool, ClangTidy,                         $(filter 1 true,$(WITH_TIDY)))
@@ -94,7 +96,6 @@ $(call add_json_list, CoverageExcludePaths,              $(COVERAGE_EXCLUDE_PATH
 $(call add_json_bool, ArtUseReadBarrier,                 $(call invert_bool,$(filter false,$(PRODUCT_ART_USE_READ_BARRIER))))
 $(call add_json_bool, Binder32bit,                       $(BINDER32BIT))
 $(call add_json_str,  BtConfigIncludeDir,                $(BOARD_BLUETOOTH_BDROID_BUILDCFG_INCLUDE_DIR))
-$(call add_json_bool, Device_uses_hwc2,                  $(filter true,$(TARGET_USES_HWC2)))
 $(call add_json_bool, Device_support_hwfde,              $(filter true,$(TARGET_HW_DISK_ENCRYPTION)))
 $(call add_json_bool, Device_support_hwfde_perf,         $(filter true,$(TARGET_HW_DISK_ENCRYPTION_PERF)))
 $(call add_json_list, DeviceKernelHeaders,               $(TARGET_PROJECT_SYSTEM_INCLUDES))
