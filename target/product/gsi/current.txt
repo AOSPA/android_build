@@ -44,7 +44,6 @@ VNDK-SP: libhwbinder.so
 VNDK-SP: libhwbinder_noltopgo.so
 VNDK-SP: libion.so
 VNDK-SP: liblzma.so
-VNDK-SP: libunwind.so
 VNDK-SP: libunwindstack.so
 VNDK-SP: libutils.so
 VNDK-SP: libutilscallstack.so
@@ -60,10 +59,13 @@ VNDK-core: android.frameworks.vr.composer@1.0.so
 VNDK-core: android.hardware.atrace@1.0.so
 VNDK-core: android.hardware.audio.common@2.0.so
 VNDK-core: android.hardware.audio.common@4.0.so
+VNDK-core: android.hardware.audio.common@5.0.so
 VNDK-core: android.hardware.audio.effect@2.0.so
 VNDK-core: android.hardware.audio.effect@4.0.so
+VNDK-core: android.hardware.audio.effect@5.0.so
 VNDK-core: android.hardware.audio@2.0.so
 VNDK-core: android.hardware.audio@4.0.so
+VNDK-core: android.hardware.audio@5.0.so
 VNDK-core: android.hardware.authsecret@1.0.so
 VNDK-core: android.hardware.automotive.audiocontrol@1.0.so
 VNDK-core: android.hardware.automotive.evs@1.0.so
@@ -101,6 +103,7 @@ VNDK-core: android.hardware.drm@1.2.so
 VNDK-core: android.hardware.dumpstate@1.0.so
 VNDK-core: android.hardware.fastboot@1.0.so
 VNDK-core: android.hardware.gatekeeper@1.0.so
+VNDK-core: android.hardware.gnss.measurement_corrections@1.0.so
 VNDK-core: android.hardware.gnss@1.0.so
 VNDK-core: android.hardware.gnss@1.1.so
 VNDK-core: android.hardware.gnss@2.0.so
@@ -128,6 +131,7 @@ VNDK-core: android.hardware.neuralnetworks@1.1.so
 VNDK-core: android.hardware.neuralnetworks@1.2.so
 VNDK-core: android.hardware.nfc@1.0.so
 VNDK-core: android.hardware.nfc@1.1.so
+VNDK-core: android.hardware.nfc@1.2.so
 VNDK-core: android.hardware.oemlock@1.0.so
 VNDK-core: android.hardware.power.stats@1.0.so
 VNDK-core: android.hardware.power@1.0.so
@@ -277,4 +281,3 @@ VNDK-private: libblas.so
 VNDK-private: libcompiler_rt.so
 VNDK-private: libft2.so
 VNDK-private: libgui.so
-VNDK-private: libunwind.so

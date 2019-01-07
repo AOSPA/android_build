@@ -1,9 +1,0 @@
-# List of unresolved conflicts
-# Generated with `git ls-files --unmerged`
-
-100644 55c19b4a839e352c71d4a26ee5a0badd4c99711f 1	core/build_id.mk
-100644 cfe5112d700fe1db6e18391434f7edd104198d6d 2	core/build_id.mk
-100644 b0267fa297dd6b650f077aed4724af3655223b18 3	core/build_id.mk
-100644 43284535a864091091b352fe0196f82500551b16 1	core/soong_config.mk
-100644 f974c02736650fb0c21d8c360de18b31adeb9436 2	core/soong_config.mk
-100644 279a612fcdd023b7d9ff6c3d4c02de06c087afd5 3	core/soong_config.mk

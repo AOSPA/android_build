@@ -176,6 +176,7 @@ endif
 ifneq ($(filter hwaddress,$(my_sanitize)),)
   my_sanitize := $(filter-out address,$(my_sanitize))
   my_sanitize := $(filter-out thread,$(my_sanitize))
+  my_sanitize := $(filter-out cfi,$(my_sanitize))
 endif
 
 ifneq ($(filter hwaddress,$(my_sanitize)),)
@@ -342,7 +343,7 @@ ifneq ($(filter address,$(my_global_sanitize) $(my_sanitize)),)
       my_ldflags += -Wl,--as-needed
     endif
 
-    ifeq ($(LOCAL_MODULE_CLASS),EXECUTABLES)
+    ifneq ($(filter EXECUTABLES NATIVE_TESTS,$(LOCAL_MODULE_CLASS)),)
       ifneq ($(LOCAL_FORCE_STATIC_EXECUTABLE),true)
         my_linker := $($(LOCAL_2ND_ARCH_VAR_PREFIX)ADDRESS_SANITIZER_LINKER)
         # Make sure linker_asan get installed.
@@ -406,6 +407,11 @@ ifneq ($(strip $(LOCAL_SANITIZE_RECOVER)),)
   my_cflags += -fsanitize-recover=$(recover_arg)
 endif
 
+ifneq ($(strip $(LOCAL_SANITIZE_NO_RECOVER)),)
+  no_recover_arg := $(subst $(space),$(comma),$(LOCAL_SANITIZE_NO_RECOVER)),
+  my_cflags += -fno-sanitize-recover=$(no_recover_arg)
+endif
+
 ifneq ($(my_sanitize_diag),)
   # TODO(vishwath): Add diagnostic support for static executables once
   # we switch to clang-4393122 (which adds the static ubsan runtime
@@ -417,6 +423,17 @@ ifneq ($(my_sanitize_diag),)
     ifeq ($(filter address thread scudo hwaddress,$(my_sanitize)),)
       # Does not have to be the first DT_NEEDED unlike ASan.
       my_shared_libraries += $($(LOCAL_2ND_ARCH_VAR_PREFIX)UBSAN_RUNTIME_LIBRARY)
+    endif
+  endif
+endif
+
+# http://b/119329758, Android core does not boot up with this sanitizer yet.
+# Previously sanitized modules might not pass new implicit-integer-sign-change check.
+# Disable this check unless it has been explicitly specified.
+ifneq ($(findstring fsanitize,$(my_cflags)),)
+  ifneq ($(findstring integer,$(my_cflags)),)
+    ifeq ($(findstring sanitize=implicit-integer-sign-change,$(my_cflags)),)
+      my_cflags += -fno-sanitize=implicit-integer-sign-change
     endif
   endif
 endif
