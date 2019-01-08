@@ -407,7 +407,6 @@ endif
 			TARGET_CPU_ABI_LIST_64_BIT="$(TARGET_CPU_ABI_LIST_64_BIT)" \
 			TARGET_CPU_ABI="$(TARGET_CPU_ABI)" \
 			TARGET_CPU_ABI2="$(TARGET_CPU_ABI2)" \
-			TARGET_AAPT_CHARACTERISTICS="$(TARGET_AAPT_CHARACTERISTICS)" \
 	        bash $(BUILDINFO_SH) >> $@
 	$(hide) $(foreach file,$(system_prop_file), \
 		if [ -f "$(file)" ]; then \
@@ -496,7 +495,8 @@ ifdef BOARD_USES_PRODUCTIMAGE
 endif  # BOARD_USES_PRODUCTIMAGE
 	$(hide) echo "#" >> $@; \
 	        echo "# ADDITIONAL PRODUCT PROPERTIES" >> $@; \
-	        echo "#" >> $@;
+	        echo "#" >> $@; \
+          echo "ro.build.characteristics=$(TARGET_AAPT_CHARACTERISTICS)" >> $@;
 	$(hide) $(foreach line,$(FINAL_PRODUCT_PROPERTIES), \
 		echo "$(line)" >> $@;)
 	$(hide) build/make/tools/post_process_props.py $@
@@ -977,7 +977,7 @@ $(2) $(3): PRIVATE_DIR := $(5)
 $(2) : $(3)
 $(3) : $(6) $(BUILD_SYSTEM)/Makefile build/make/tools/generate-notice-files.py
 	build/make/tools/generate-notice-files.py --text-output $(2) \
-		$(if $(filter $(1),xml_excluded_extra_partitions),-e vendor$(comma)product$(comma)product_services --xml-output, \
+		$(if $(filter $(1),xml_excluded_extra_partitions),-e vendor -e product -e product_services --xml-output, \
 		  $(if $(filter $(1),xml_vendor),-i vendor --xml-output, \
 		    $(if $(filter $(1),xml_product),-i product --xml-output, \
 		      $(if $(filter $(1),xml_product_services),-i product_services --xml-output, \
@@ -986,21 +986,37 @@ $(3) : $(6) $(BUILD_SYSTEM)/Makefile build/make/tools/generate-notice-files.py
 notice_files: $(2) $(3)
 endef
 
+# Notice file logic isn't relevant for TARGET_BUILD_APPS
+ifndef TARGET_BUILD_APPS
+
 # TODO These intermediate NOTICE.txt/NOTICE.html files should go into
 # TARGET_OUT_NOTICE_FILES now that the notice files are gathered from
 # the src subdirectory.
-
 target_notice_file_txt := $(TARGET_OUT_INTERMEDIATES)/NOTICE.txt
-target_notice_file_html_or_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html
-target_notice_file_html_or_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html.gz
-installed_notice_html_or_xml_gz := $(TARGET_OUT)/etc/NOTICE.html.gz
 tools_notice_file_txt := $(HOST_OUT_INTERMEDIATES)/NOTICE.txt
 tools_notice_file_html := $(HOST_OUT_INTERMEDIATES)/NOTICE.html
+kernel_notice_file := $(TARGET_OUT_NOTICE_FILES)/src/kernel.txt
+winpthreads_notice_file := $(TARGET_OUT_NOTICE_FILES)/src/winpthreads.txt
+pdk_fusion_notice_files := $(filter $(TARGET_OUT_NOTICE_FILES)/%, $(ALL_PDK_FUSION_FILES))
 
 # TODO(b/69865032): Make PRODUCT_NOTICE_SPLIT the default behavior.
-ifeq ($(PRODUCT_NOTICE_SPLIT),true)
-target_notice_file_html_or_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE.xml
-target_notice_file_html_or_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.xml.gz
+ifneq ($(PRODUCT_NOTICE_SPLIT),true)
+target_notice_file_html := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html
+target_notice_file_html_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.html.gz
+installed_notice_html_or_xml_gz := $(TARGET_OUT)/etc/NOTICE.html.gz
+$(eval $(call combine-notice-files, html, \
+			$(target_notice_file_txt), \
+			$(target_notice_file_html), \
+			"Notices for files contained in the filesystem images in this directory:", \
+			$(TARGET_OUT_NOTICE_FILES), \
+			$(ALL_DEFAULT_INSTALLED_MODULES) $(kernel_notice_file) $(pdk_fusion_notice_files)))
+$(target_notice_file_html_gz): $(target_notice_file_html) | $(MINIGZIP)
+	$(hide) $(MINIGZIP) -9 < $< > $@
+$(installed_notice_html_or_xml_gz): $(target_notice_file_html_gz)
+	$(copy-file-to-target)
+else
+target_notice_file_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE.xml
+target_notice_file_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.xml.gz
 installed_notice_html_or_xml_gz := $(TARGET_OUT)/etc/NOTICE.xml.gz
 
 target_vendor_notice_file_txt := $(TARGET_OUT_INTERMEDIATES)/NOTICE_VENDOR.txt
@@ -1017,49 +1033,72 @@ target_product_services_notice_file_txt := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PR
 target_product_services_notice_file_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PRODUCT_SERVICES.xml
 target_product_services_notice_file_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE_PRODUCT_SERVICES.xml.gz
 installed_product_services_notice_xml_gz := $(TARGET_OUT_PRODUCT_SERVICES)/etc/NOTICE.xml.gz
-endif
 
-ifndef TARGET_BUILD_APPS
-kernel_notice_file := $(TARGET_OUT_NOTICE_FILES)/src/kernel.txt
-winpthreads_notice_file := $(TARGET_OUT_NOTICE_FILES)/src/winpthreads.txt
-pdk_fusion_notice_files := $(filter $(TARGET_OUT_NOTICE_FILES)/%, $(ALL_PDK_FUSION_FILES))
+# Notice files are copied to TARGET_OUT_NOTICE_FILES as a side-effect of their module
+# being built. A notice xml file must depend on all modules that could potentially
+# install a license file relevant to it.
+license_modules := $(ALL_DEFAULT_INSTALLED_MODULES) $(kernel_notice_file) $(pdk_fusion_notice_files)
+# Phonys/fakes don't have notice files (though their deps might)
+license_modules := $(filter-out $(TARGET_OUT_FAKE)/%,$(license_modules))
+license_modules_vendor := $(filter $(TARGET_OUT_VENDOR)/%,$(license_modules))
+license_modules_product := $(filter $(TARGET_OUT_PRODUCT)/%,$(license_modules))
+license_modules_product_services := $(filter $(TARGET_OUT_PRODUCT_SERVICES)/%,$(license_modules))
+license_modules_agg := $(license_modules_vendor) $(license_modules_product) $(license_modules_product_services)
+license_modules_rest := $(filter-out $(license_modules_agg),$(license_modules))
 
-ifdef target_vendor_notice_file_xml_gz
 $(eval $(call combine-notice-files, xml_excluded_extra_partitions, \
 			$(target_notice_file_txt), \
-			$(target_notice_file_html_or_xml), \
+			$(target_notice_file_xml), \
 			"Notices for files contained in the filesystem images in this directory:", \
 			$(TARGET_OUT_NOTICE_FILES), \
-			$(ALL_DEFAULT_INSTALLED_MODULES) $(kernel_notice_file) $(pdk_fusion_notice_files)))
+			$(license_modules_rest)))
 $(eval $(call combine-notice-files, xml_vendor, \
 			$(target_vendor_notice_file_txt), \
 			$(target_vendor_notice_file_xml), \
 			"Notices for files contained in the vendor filesystem image in this directory:", \
 			$(TARGET_OUT_NOTICE_FILES), \
-			$(target_notice_file_html_or_xml)))
-ifdef target_product_notice_file_txt
+			$(license_modules_vendor)))
 $(eval $(call combine-notice-files, xml_product, \
 			$(target_product_notice_file_txt), \
 			$(target_product_notice_file_xml), \
 			"Notices for files contained in the product filesystem image in this directory:", \
 			$(TARGET_OUT_NOTICE_FILES), \
-			$(target_notice_file_html_or_xml)))
-endif
-ifdef target_product_services_notice_file_txt
+			$(license_modules_product)))
 $(eval $(call combine-notice-files, xml_product_services, \
 			$(target_product_services_notice_file_txt), \
 			$(target_product_services_notice_file_xml), \
 			"Notices for files contained in the product_services filesystem image in this directory:", \
 			$(TARGET_OUT_NOTICE_FILES), \
-			$(target_notice_file_html_or_xml)))
+			$(license_modules_product_services)))
+
+$(target_notice_file_xml_gz): $(target_notice_file_xml) | $(MINIGZIP)
+	$(hide) $(MINIGZIP) -9 < $< > $@
+$(target_vendor_notice_file_xml_gz): $(target_vendor_notice_file_xml) | $(MINIGZIP)
+	$(hide) $(MINIGZIP) -9 < $< > $@
+$(target_product_notice_file_xml_gz): $(target_product_notice_file_xml) | $(MINIGZIP)
+	$(hide) $(MINIGZIP) -9 < $< > $@
+$(target_product_services_notice_file_xml_gz): $(target_product_services_notice_file_xml) | $(MINIGZIP)
+	$(hide) $(MINIGZIP) -9 < $< > $@
+$(installed_notice_html_or_xml_gz): $(target_notice_file_xml_gz)
+	$(copy-file-to-target)
+$(installed_vendor_notice_xml_gz): $(target_vendor_notice_file_xml_gz)
+	$(copy-file-to-target)
+$(installed_product_notice_xml_gz): $(target_product_notice_file_xml_gz)
+	$(copy-file-to-target)
+$(installed_product_services_notice_xml_gz): $(target_product_services_notice_file_xml_gz)
+	$(copy-file-to-target)
+
+# if we've been run my mm, mmm, etc, don't reinstall this every time
+ifeq ($(ONE_SHOT_MAKEFILE),)
+  ALL_DEFAULT_INSTALLED_MODULES += $(installed_notice_html_or_xml_gz)
+  ALL_DEFAULT_INSTALLED_MODULES += $(installed_vendor_notice_xml_gz)
+  ALL_DEFAULT_INSTALLED_MODULES += $(installed_product_notice_xml_gz)
+  ALL_DEFAULT_INSTALLED_MODULES += $(installed_product_services_notice_xml_gz)
 endif
-else
-$(eval $(call combine-notice-files, html, \
-			$(target_notice_file_txt), \
-			$(target_notice_file_html_or_xml), \
-			"Notices for files contained in the filesystem images in this directory:", \
-			$(TARGET_OUT_NOTICE_FILES), \
-			$(ALL_DEFAULT_INSTALLED_MODULES) $(kernel_notice_file) $(pdk_fusion_notice_files)))
+endif # PRODUCT_NOTICE_SPLIT
+
+ifeq ($(ONE_SHOT_MAKEFILE),)
+  ALL_DEFAULT_INSTALLED_MODULES += $(installed_notice_html_or_xml_gz)
 endif
 
 $(eval $(call combine-notice-files, html, \
@@ -1070,53 +1109,6 @@ $(eval $(call combine-notice-files, html, \
 			$(ALL_DEFAULT_INSTALLED_MODULES) \
 			$(winpthreads_notice_file)))
 
-# Install the html file at /system/etc/NOTICE.html.gz.
-# This is not ideal, but this is very late in the game, after a lot of
-# the module processing has already been done -- in fact, we used the
-# fact that all that has been done to get the list of modules that we
-# need notice files for.
-$(target_notice_file_html_or_xml_gz): $(target_notice_file_html_or_xml) | $(MINIGZIP)
-	$(hide) $(MINIGZIP) -9 < $< > $@
-$(installed_notice_html_or_xml_gz): $(target_notice_file_html_or_xml_gz)
-	$(copy-file-to-target)
-
-ifdef target_vendor_notice_file_xml_gz
-# Install the vendor html file at /vendor/etc/NOTICE.xml.gz.
-$(target_vendor_notice_file_xml_gz): $(target_vendor_notice_file_xml) | $(MINIGZIP)
-	$(hide) $(MINIGZIP) -9 < $< > $@
-$(installed_vendor_notice_xml_gz): $(target_vendor_notice_file_xml_gz)
-	$(copy-file-to-target)
-endif
-
-ifdef target_product_notice_file_xml_gz
-# Install the product html file at /product/etc/NOTICE.xml.gz.
-$(target_product_notice_file_xml_gz): $(target_product_notice_file_xml) | $(MINIGZIP)
-	$(hide) $(MINIGZIP) -9 < $< > $@
-$(installed_product_notice_xml_gz): $(target_product_notice_file_xml_gz)
-	$(copy-file-to-target)
-endif
-
-ifdef target_product_services_notice_file_xml_gz
-# Install the product html file at /product_services/etc/NOTICE.xml.gz.
-$(target_product_services_notice_file_xml_gz): $(target_product_services_notice_file_xml) | $(MINIGZIP)
-	$(hide) $(MINIGZIP) -9 < $< > $@
-$(installed_product_services_notice_xml_gz): $(target_product_services_notice_file_xml_gz)
-	$(copy-file-to-target)
-endif
-
-# if we've been run my mm, mmm, etc, don't reinstall this every time
-ifeq ($(ONE_SHOT_MAKEFILE),)
-  ALL_DEFAULT_INSTALLED_MODULES += $(installed_notice_html_or_xml_gz)
-  ifdef target_vendor_notice_file_xml_gz
-    ALL_DEFAULT_INSTALLED_MODULES += $(installed_vendor_notice_xml_gz)
-  endif
-  ifdef target_product_notice_file_xml_gz
-    ALL_DEFAULT_INSTALLED_MODULES += $(installed_product_notice_xml_gz)
-  endif
-  ifdef target_product_services_notice_file_xml_gz
-    ALL_DEFAULT_INSTALLED_MODULES += $(installed_product_services_notice_xml_gz)
-  endif
-endif
 endif  # TARGET_BUILD_APPS
 
 # The kernel isn't really a module, so to get its module file in there, we
@@ -1206,7 +1198,7 @@ endif
 
 ifeq ($(INTERNAL_USERIMAGES_USE_EXT),true)
 INTERNAL_USERIMAGES_DEPS := $(SIMG2IMG)
-INTERNAL_USERIMAGES_DEPS += $(MKEXTUSERIMG) $(MAKE_EXT4FS) $(E2FSCK)
+INTERNAL_USERIMAGES_DEPS += $(MKEXTUSERIMG) $(MAKE_EXT4FS) $(E2FSCK) $(TUNE2FS)
 ifeq ($(TARGET_USERIMAGES_USE_F2FS),true)
 INTERNAL_USERIMAGES_DEPS += $(MKF2FSUSERIMG) $(MAKE_F2FS)
 endif
@@ -1241,7 +1233,7 @@ ifeq ($(INTERNAL_USERIMAGES_USE_EXT),true)
 INTERNAL_USERIMAGES_DEPS += $(MKE2FS_CONF)
 endif
 
-ifeq (true,$(PRODUCT_USE_LOGICAL_PARTITIONS))
+ifeq (true,$(PRODUCT_USE_DYNAMIC_PARTITIONS))
 
 ifeq ($(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VERITY),true)
   $(error vboot 1.0 doesn't support logical partition)
@@ -1250,7 +1242,7 @@ endif
 # TODO(b/80195851): Should not define BOARD_AVB_SYSTEM_KEY_PATH without
 # BOARD_AVB_SYSTEM_DETACHED_VBMETA.
 
-endif # PRODUCT_USE_LOGICAL_PARTITIONS
+endif # PRODUCT_USE_DYNAMIC_PARTITIONS
 
 # $(1): the path of the output dictionary file
 # $(2): a subset of "system vendor cache userdata product product_services oem odm"
@@ -1638,15 +1630,13 @@ OTA_PUBLIC_KEYS := $(DEFAULT_SYSTEM_DEV_CERTIFICATE).x509.pem
 # Generate a file containing the keys that will be read by the
 # recovery binary.
 RECOVERY_INSTALL_OTA_KEYS := \
-	$(call intermediates-dir-for,PACKAGING,ota_keys)/keys
-DUMPKEY_JAR := $(HOST_OUT_JAVA_LIBRARIES)/dumpkey.jar
+	$(call intermediates-dir-for,PACKAGING,ota_keys)/otacerts.zip
 $(RECOVERY_INSTALL_OTA_KEYS): PRIVATE_OTA_PUBLIC_KEYS := $(OTA_PUBLIC_KEYS)
 $(RECOVERY_INSTALL_OTA_KEYS): extra_keys := $(patsubst %,%.x509.pem,$(PRODUCT_EXTRA_RECOVERY_KEYS))
-$(RECOVERY_INSTALL_OTA_KEYS): $(OTA_PUBLIC_KEYS) $(DUMPKEY_JAR) $(extra_keys)
-	@echo "DumpPublicKey: $@ <= $(PRIVATE_OTA_PUBLIC_KEYS) $(extra_keys)"
-	@rm -rf $@
-	@mkdir -p $(dir $@)
-	$(JAVA) -jar $(DUMPKEY_JAR) $(PRIVATE_OTA_PUBLIC_KEYS) $(extra_keys) > $@
+$(RECOVERY_INSTALL_OTA_KEYS): $(SOONG_ZIP) $(OTA_PUBLIC_KEYS) $(extra_keys)
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@)
+	$(hide) $(SOONG_ZIP) -o $@ $(foreach key_file, $(PRIVATE_OTA_PUBLIC_KEYS) $(extra_keys), -C $(dir $(key_file)) -f $(key_file))
 
 RECOVERYIMAGE_ID_FILE := $(PRODUCT_OUT)/recovery.id
 
@@ -1677,7 +1667,8 @@ define build-recoveryimage-target
     cp -f $(item) $(TARGET_RECOVERY_ROOT_OUT)/system/etc/recovery.fstab)
   $(if $(strip $(recovery_wipe)), \
     $(hide) cp -f $(recovery_wipe) $(TARGET_RECOVERY_ROOT_OUT)/system/etc/recovery.wipe)
-  $(hide) cp $(RECOVERY_INSTALL_OTA_KEYS) $(TARGET_RECOVERY_ROOT_OUT)/res/keys
+  $(hide) mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/system/etc/security
+  $(hide) cp $(RECOVERY_INSTALL_OTA_KEYS) $(TARGET_RECOVERY_ROOT_OUT)/system/etc/security/otacerts.zip
   $(hide) ln -sf prop.default $(TARGET_RECOVERY_ROOT_OUT)/default.prop
   $(BOARD_RECOVERY_IMAGE_PREPARE)
   $(hide) $(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_RECOVERY_ROOT_OUT) | $(MINIGZIP) > $(recovery_ramdisk)
@@ -1785,12 +1776,12 @@ PDK_FUSION_SYSIMG_FILES := \
     $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk), \
         $(ALL_PDK_FUSION_FILES))
 
-INTERNAL_SYSTEMIMAGE_FILES := $(filter $(TARGET_OUT)/%, \
+INTERNAL_SYSTEMIMAGE_FILES := $(sort $(filter $(TARGET_OUT)/%, \
     $(ALL_GENERATED_SOURCES) \
     $(ALL_DEFAULT_INSTALLED_MODULES) \
     $(PDK_FUSION_SYSIMG_FILES) \
     $(RECOVERY_RESOURCE_ZIP)) \
-    $(PDK_FUSION_SYMLINK_STAMP)
+    $(PDK_FUSION_SYMLINK_STAMP))
 
 FULL_SYSTEMIMAGE_DEPS := $(INTERNAL_SYSTEMIMAGE_FILES) $(INTERNAL_USERIMAGES_DEPS)
 
@@ -1989,8 +1980,8 @@ $(warning Warning: with dexpreopt enabled, you may need a full rebuild.)
 endif
 endif
 
-.PHONY: sync
-sync: $(INTERNAL_SYSTEMIMAGE_FILES)
+.PHONY: sync syncsys
+sync syncsys: $(INTERNAL_SYSTEMIMAGE_FILES)
 
 #######
 ## system tarball
@@ -2779,9 +2770,8 @@ BOARD_AVB_MAKE_VBMETA_SYSTEM_IMAGE_ARGS += --padding_size 4096
 BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += --padding_size 4096
 
 ifeq (eng,$(filter eng, $(TARGET_BUILD_VARIANT)))
+# We only need the flag in top-level vbmeta.img.
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --set_hashtree_disabled_flag
-BOARD_AVB_MAKE_VBMETA_SYSTEM_IMAGE_ARGS += --set_hashtree_disabled_flag
-BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += --set_hashtree_disabled_flag
 endif
 
 ifdef BOARD_AVB_ROLLBACK_INDEX
@@ -2921,33 +2911,27 @@ ifeq (true,$(PRODUCT_BUILD_SUPER_PARTITION))
 # BOARD_SUPER_PARTITION_SIZE must be defined to build super image.
 ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
 
-INSTALLED_SUPERIMAGE_TARGET := $(PRODUCT_OUT)/super.img
-INSTALLED_SUPERIMAGE_EMPTY_TARGET := $(PRODUCT_OUT)/super_empty.img
-
-$(INSTALLED_SUPERIMAGE_TARGET): $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
-
-# For A/B devices, super partition always contains sub-partitions in the _a slot, because this
-# image should only be used for bootstrapping / initializing the device. When flashing the image,
-# bootloader fastboot should always mark _a slot as bootable.
-ifeq ($(AB_OTA_UPDATER),true)
-$(INSTALLED_SUPERIMAGE_TARGET) $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): PRIVATE_PARTITION_SUFFIX=_a
-endif # AB_OTA_UPDATER
-
-$(INSTALLED_SUPERIMAGE_TARGET) $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): $(LPMAKE)
+define super-slot-suffix
+$(if $(filter true,$(AB_OTA_UPDATER)),$(if $(filter true,$(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS)),,_a))
+endef
 
 # $(1): slot A suffix (_a or empty)
 # $(2): include images or not (true or empty)
 define build-superimage-target-args
   $(if $(2), --sparse) \
   --metadata-size 65536 \
-  --metadata-slots $(if $(1),2,1) \
-  --device-size $(BOARD_SUPER_PARTITION_SIZE) \
+  --metadata-slots $(if $(filter true,$(AB_OTA_UPDATER)),2,1) \
+  --super-name $(BOARD_SUPER_PARTITION_METADATA_DEVICE) \
+  $(if $(filter true,$(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS)), $(if $(filter true,$(AB_OTA_UPDATER)), --auto-slot-suffixing)) \
+  $(foreach device,$(BOARD_SUPER_PARTITION_BLOCK_DEVICES), \
+    --device $(device):$(BOARD_SUPER_PARTITION_$(call to-upper,$(device))_DEVICE_SIZE)) \
   $(foreach group,$(BOARD_SUPER_PARTITION_GROUPS), \
-    --group $(group):$(BOARD_$(call to-upper,$(group))_SIZE) \
+    --group $(group)$(1):$(BOARD_$(call to-upper,$(group))_SIZE) \
+    $(if $(1), --group $(group)_b:$(BOARD_$(call to-upper,$(group))_SIZE)) \
     $(foreach name,$(BOARD_$(call to-upper,$(group))_PARTITION_LIST), \
-      --partition $(name)$(1):readonly:$(if $(2),$(call read-size-of-partitions,$(name)),0):$(group) \
+      --partition $(name)$(1):readonly:$(if $(2),$(call read-size-of-partitions,$(name)),0):$(group)$(1) \
       $(if $(2), --image $(name)$(1)=$(call images-for-partitions,$(name))) \
-      $(if $(1), --partition $(name)_b:readonly:0:$(group)) \
+      $(if $(1), --partition $(name)_b:readonly:0:$(group)_b) \
   ))
 endef
 
@@ -2960,15 +2944,23 @@ define build-superimage-target
     --output $(1)
 endef
 
-$(INSTALLED_SUPERIMAGE_TARGET):
+# For A/B devices, super partition always contains sub-partitions in the _a slot, because this
+# image should only be used for bootstrapping / initializing the device. When flashing the image,
+# bootloader fastboot should always mark _a slot as bootable.
+
+ifneq (true,$(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS))
+INSTALLED_SUPERIMAGE_TARGET := $(PRODUCT_OUT)/super.img
+$(INSTALLED_SUPERIMAGE_TARGET): $(LPMAKE) $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
 	$(call pretty,"Target super fs image: $@")
-	$(call build-superimage-target,$@,$(PRIVATE_PARTITION_SUFFIX),true)
+	$(call build-superimage-target,$@,$(call super-slot-suffix),true)
+endif
 
 $(call dist-for-goals,dist_files,$(INSTALLED_SUPERIMAGE_TARGET))
 
-$(INSTALLED_SUPERIMAGE_EMPTY_TARGET):
+INSTALLED_SUPERIMAGE_EMPTY_TARGET := $(PRODUCT_OUT)/super_empty.img
+$(INSTALLED_SUPERIMAGE_EMPTY_TARGET): $(LPMAKE)
 	$(call pretty,"Target empty super fs image: $@")
-	$(call build-superimage-target,$@,$(PRIVATE_PARTITION_SUFFIX))
+	$(call build-superimage-target,$@,$(call super-slot-suffix))
 
 $(call dist-for-goals,dist_files,$(INSTALLED_SUPERIMAGE_EMPTY_TARGET))
 
@@ -2989,6 +2981,25 @@ droid_targets: check-all-partition-sizes
 
 # Add image dependencies so that generated_*_image_info.txt are written before checking.
 check-all-partition-sizes: $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
+
+ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
+# Check sum(super partition block devices) == super partition (/ 2 for A/B)
+# Non-retrofit devices already defines BOARD_SUPER_PARTITION_SUPER_DEVICE_SIZE = BOARD_SUPER_PARTITION_SIZE
+define check-super-partition-size
+  size_list="$(foreach device,$(call to-upper,$(BOARD_SUPER_PARTITION_BLOCK_DEVICES)),$(BOARD_SUPER_PARTITION_$(device)_DEVICE_SIZE))"; \
+  sum_sizes_expr=$$(sed -e 's/ /+/g' <<< "$${size_list}"); \
+  max_size_tail=$(if $(filter true,$(AB_OTA_UPDATER))," / 2"); \
+  max_size_expr="$(BOARD_SUPER_PARTITION_SIZE)$${max_size_tail}"; \
+  if [ $$(( $${sum_sizes_expr} )) -ne $$(( $${max_size_expr} )) ]; then \
+    echo "The sum of super partition block device sizes is not equal to BOARD_SUPER_PARTITION_SIZE$${max_size_tail}:"; \
+    echo $${sum_sizes_expr} '!=' $${max_size_expr}; \
+    exit 1; \
+  else \
+    echo "The sum of super partition block device sizes is equal to BOARD_SUPER_PARTITION_SIZE$${max_size_tail}:"; \
+    echo $${sum_sizes_expr} '==' $${max_size_expr}; \
+  fi
+endef
+endif
 
 # $(1): human-readable max size string
 # $(2): max size expression
@@ -3036,6 +3047,7 @@ endef
 
 check-all-partition-sizes check-all-partition-sizes-nodeps:
 	$(call check-all-partition-sizes-target)
+	$(call check-super-partition-size)
 
 endif # PRODUCT_BUILD_SUPER_PARTITION
 
@@ -3059,7 +3071,7 @@ else
   ifeq ($(TARGET_SKIP_OTA_PACKAGE),true)
     build_ota_package := false
   endif
-  ifneq ($(strip $(SANITIZE_TARGET)),)
+  ifneq (,$(filter address, $(SANITIZE_TARGET)))
     build_ota_package := false
   endif
   ifeq ($(TARGET_PRODUCT),sdk)
@@ -3095,13 +3107,13 @@ OTATOOLS :=  $(HOST_OUT_EXECUTABLES)/minigzip \
   $(HOST_OUT_EXECUTABLES)/zipalign \
   $(HOST_OUT_EXECUTABLES)/bsdiff \
   $(HOST_OUT_EXECUTABLES)/imgdiff \
-  $(HOST_OUT_JAVA_LIBRARIES)/dumpkey.jar \
   $(HOST_OUT_JAVA_LIBRARIES)/signapk.jar \
   $(HOST_OUT_JAVA_LIBRARIES)/BootSignature.jar \
   $(HOST_OUT_JAVA_LIBRARIES)/VeritySigner.jar \
   $(HOST_OUT_EXECUTABLES)/mke2fs \
   $(HOST_OUT_EXECUTABLES)/mkuserimg_mke2fs \
   $(HOST_OUT_EXECUTABLES)/e2fsdroid \
+  $(HOST_OUT_EXECUTABLES)/tune2fs \
   $(HOST_OUT_EXECUTABLES)/mksquashfsimage.sh \
   $(HOST_OUT_EXECUTABLES)/mksquashfs \
   $(HOST_OUT_EXECUTABLES)/mkf2fsuserimg.sh \
@@ -3245,7 +3257,7 @@ endef
 built_ota_tools :=
 
 # We can't build static executables when SANITIZE_TARGET=address
-ifeq ($(strip $(SANITIZE_TARGET)),)
+ifeq (,$(filter address, $(SANITIZE_TARGET)))
 built_ota_tools += \
     $(call intermediates-dir-for,EXECUTABLES,updater,,,$(TARGET_PREFER_32_BIT))/updater
 endif
@@ -3659,8 +3671,15 @@ ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
 	$(hide) echo "super_size=$(BOARD_SUPER_PARTITION_SIZE)" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo "lpmake=$(notdir $(LPMAKE))" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo -n "lpmake_args=" >> $(zip_root)/META/misc_info.txt
-	$(hide) echo $(call build-superimage-target-args,$(if $(filter true,$(AB_OTA_UPDATER)),_a,)) \
+	$(hide) echo $(call build-superimage-target-args,$(call super-slot-suffix)) \
 	    >> $(zip_root)/META/misc_info.txt
+endif
+ifneq ($(BOARD_SUPER_PARTITION_GROUPS),)
+	$(hide) echo "super_partition_groups=$(BOARD_SUPER_PARTITION_GROUPS)" > $(zip_root)/META/dynamic_partitions_info.txt
+	$(foreach group,$(BOARD_SUPER_PARTITION_GROUPS), \
+	    echo "$(group)_size=$(BOARD_$(call to-upper,$(group))_SIZE)" >> $(zip_root)/META/dynamic_partitions_info.txt; \
+	    $(if $(BOARD_$(call to-upper,$(group))_PARTITION_LIST), \
+	        echo "$(group)_partition_list=$(BOARD_$(call to-upper,$(group))_PARTITION_LIST)" >> $(zip_root)/META/dynamic_partitions_info.txt;))
 endif
 
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \

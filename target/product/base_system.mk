@@ -52,6 +52,7 @@ PRODUCT_PACKAGES += \
     charger \
     cmd \
     com.android.location.provider \
+    com.android.tzdata \
     ContactsProvider \
     content \
     crash_dump \
@@ -68,6 +69,7 @@ PRODUCT_PACKAGES += \
     ExtServices \
     ExtShared \
     fastboot \
+    flags_health_check \
     framework \
     framework-res \
     framework-sysconfig.xml \
@@ -77,10 +79,13 @@ PRODUCT_PACKAGES += \
     heapprofd \
     heapprofd_client \
     gatekeeperd \
+    gpuservice \
     healthd \
     hid \
     hwservicemanager \
     idmap \
+    idmap2 \
+    idmap2d \
     ime \
     ims-common \
     incident \
@@ -245,7 +250,6 @@ PRODUCT_PACKAGES += \
     tc \
     telecom \
     telephony-common \
-    thermalserviced \
     tombstoned \
     traced \
     traced_probes \
@@ -313,7 +317,7 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += debug.atrace.tags.enableflags=0
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
-    apex_debug_key \
+    apex.test.key \
     iotop \
     logpersist.start \
     perfprofd \

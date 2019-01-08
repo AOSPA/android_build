@@ -277,14 +277,16 @@ intermediates.COMMON := $(call local-intermediates-dir,COMMON)
 generated_sources_dir := $(call local-generated-sources-dir)
 
 ifneq ($(LOCAL_OVERRIDES_MODULES),)
-  ifeq ($(LOCAL_MODULE_CLASS),EXECUTABLES)
-    ifndef LOCAL_IS_HOST_MODULE
+  ifndef LOCAL_IS_HOST_MODULE
+    ifeq ($(LOCAL_MODULE_CLASS),EXECUTABLES)
       EXECUTABLES.$(LOCAL_MODULE).OVERRIDES := $(strip $(LOCAL_OVERRIDES_MODULES))
+    else ifeq ($(LOCAL_MODULE_CLASS),SHARED_LIBRARIES)
+      SHARED_LIBRARIES.$(LOCAL_MODULE).OVERRIDES := $(strip $(LOCAL_OVERRIDES_MODULES))
     else
-      $(call pretty-error,host modules cannot use LOCAL_OVERRIDES_MODULES)
+      $(call pretty-error,LOCAL_MODULE_CLASS := $(LOCAL_MODULE_CLASS) cannot use LOCAL_OVERRIDES_MODULES)
     endif
   else
-      $(call pretty-error,LOCAL_MODULE_CLASS := $(LOCAL_MODULE_CLASS) cannot use LOCAL_OVERRIDES_MODULES)
+    $(call pretty-error,host modules cannot use LOCAL_OVERRIDES_MODULES)
   endif
 endif
 
@@ -508,8 +510,9 @@ my_test_data_pairs := $(strip $(foreach td,$(LOCAL_TEST_DATA), \
       $(eval _src_base := $(call word-colon,1,$(td))), \
       $(eval _src_base := $(LOCAL_PATH)) \
         $(eval _file := $(call word-colon,1,$(td)))) \
-    $(if $(findstring ..,$(_file)),$(error $(LOCAL_MODULE_MAKEFILE): LOCAL_TEST_DATA may not include '..': $(_file))) \
-    $(if $(filter /%,$(_src_base) $(_file)),$(error $(LOCAL_MODULE_MAKEFILE): LOCAL_TEST_DATA may not include absolute paths: $(_src_base) $(_file))) \
+    $(if $(call streq,$(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK)),, \
+      $(if $(findstring ..,$(_file)),$(error $(LOCAL_MODULE_MAKEFILE): LOCAL_TEST_DATA may not include '..': $(_file))) \
+      $(if $(filter /%,$(_src_base) $(_file)),$(error $(LOCAL_MODULE_MAKEFILE): LOCAL_TEST_DATA may not include absolute paths: $(_src_base) $(_file)))) \
     $(eval my_test_data_file_pairs := $(my_test_data_file_pairs) $(call append-path,$(_src_base),$(_file)):$(_file)) \
     $(call append-path,$(_src_base),$(_file)):$(call append-path,$(my_module_path),$(_file))))
 
