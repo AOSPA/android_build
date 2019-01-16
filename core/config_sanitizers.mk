@@ -103,6 +103,18 @@ ifeq ($(LOCAL_SANITIZE),never)
   my_sanitize_diag :=
 endif
 
+# Enable integer_overflow in included paths.
+ifeq ($(filter integer_overflow, $(my_sanitize)),)
+  ifneq ($(filter arm64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)),)
+    combined_include_paths := $(PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS)
+
+    ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_include_paths)),\
+           $(filter $(dir)%,$(LOCAL_PATH)))),)
+      my_sanitize := integer_overflow $(my_sanitize)
+    endif
+  endif
+endif
+
 # Enable CFI in included paths (for Arm64 only).
 ifeq ($(filter cfi, $(my_sanitize)),)
   ifneq ($(filter arm64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)),)
@@ -114,6 +126,18 @@ ifeq ($(filter cfi, $(my_sanitize)),)
       my_sanitize := cfi $(my_sanitize)
       my_sanitize_diag := cfi $(my_sanitize_diag)
     endif
+  endif
+endif
+
+#Disable CFI in excluded paths
+ifneq ($(filter cfi, $(my_sanitize)),)
+  combined_exclude_paths := $(CFI_EXCLUDE_PATHS) \
+                            $(PRODUCT_CFI_EXCLUDE_PATHS)
+
+  ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_exclude_paths)),\
+         $(filter $(dir)%,$(LOCAL_PATH)))),)
+    my_sanitize := $(filter-out cfi,$(my_sanitize))
+    my_sanitize_diag := $(filter-out cfi,$(my_sanitize_diag))
   endif
 endif
 
