@@ -31,7 +31,11 @@ PRODUCT_PACKAGES += \
     RcsService \
     SafetyRegulatoryInfo \
     Stk \
+    Tag \
     TimeZoneUpdater \
+
+# Binaries
+PRODUCT_PACKAGES += llkd
 
 # OTA support
 PRODUCT_PACKAGES += \
@@ -39,12 +43,10 @@ PRODUCT_PACKAGES += \
     update_verifier \
 
 # Wrapped net utils for /vendor access.
-PRODUCT_PACKAGES += \
-    netutils-wrapper-1.0 \
+PRODUCT_PACKAGES += netutils-wrapper-1.0
 
 # Charger images
-PRODUCT_PACKAGES += \
-    charger_res_images \
+PRODUCT_PACKAGES += charger_res_images
 
 # system_other support
 PRODUCT_PACKAGES += \
@@ -55,6 +57,13 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     audio.a2dp.default \
     audio.hearing_aid.default \
+
+# Media libraries
+# - These libraries are used by the new media code path that relies on new
+#   plugins and HAL implementations that may not exist on older devices.
+PRODUCT_PACKAGES += \
+    libmedia_codecserviceregistrant \
+    libsfplugin_ccodec \
 
 # For ringtones that rely on forward lock encryption
 PRODUCT_PACKAGES += libfwdlockengine

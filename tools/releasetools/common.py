@@ -623,10 +623,13 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
   # "boot" or "recovery", without extension.
   partition_name = os.path.basename(sourcedir).lower()
 
-  if (partition_name == "recovery" and
-      info_dict.get("include_recovery_dtbo") == "true"):
-    fn = os.path.join(sourcedir, "recovery_dtbo")
-    cmd.extend(["--recovery_dtbo", fn])
+  if partition_name == "recovery":
+    if info_dict.get("include_recovery_dtbo") == "true":
+      fn = os.path.join(sourcedir, "recovery_dtbo")
+      cmd.extend(["--recovery_dtbo", fn])
+    if info_dict.get("include_recovery_acpio") == "true":
+      fn = os.path.join(sourcedir, "recovery_acpio")
+      cmd.extend(["--recovery_acpio", fn])
 
   RunAndCheckOutput(cmd)
 
@@ -827,10 +830,10 @@ def GetSparseImage(which, tmpdir, input_zip, allow_shared_blocks,
     ranges = image.file_map[entry]
 
     # If a RangeSet has been tagged as using shared blocks while loading the
-    # image, its block list must be already incomplete due to that reason. Don't
-    # give it 'incomplete' tag to avoid messing up the imgdiff stats.
+    # image, check the original block list to determine its completeness. Note
+    # that the 'incomplete' flag would be tagged to the original RangeSet only.
     if ranges.extra.get('uses_shared_blocks'):
-      continue
+      ranges = ranges.extra['uses_shared_blocks']
 
     if RoundUpTo4K(info.file_size) > ranges.size() * 4096:
       ranges.extra['incomplete'] = True
