@@ -19,6 +19,7 @@ PRODUCT_PACKAGES += \
     adb \
     adbd \
     am \
+    android.frameworks.bufferhub@1.0-service \
     android.hidl.allocator@1.0-service \
     android.hidl.base-V1.0-java \
     android.hidl.manager-V1.0-java \
@@ -48,10 +49,11 @@ PRODUCT_PACKAGES += \
     bu \
     bugreport \
     bugreportz \
-    cameraserver \
     charger \
     cmd \
+    com.android.conscrypt \
     com.android.location.provider \
+    com.android.media \
     com.android.resolv \
     com.android.tzdata \
     ContactsProvider \
@@ -61,6 +63,8 @@ PRODUCT_PACKAGES += \
     CtsShimPrivPrebuilt \
     debuggerd\
     DefaultContainerService \
+    device_config \
+    dmctl \
     dnsmasq \
     DownloadProvider \
     dpm \
@@ -114,10 +118,6 @@ PRODUCT_PACKAGES += \
     libandroid_runtime \
     libandroid_servers \
     libaudioeffect_jni \
-    libaudioflinger \
-    libaudiopolicymanager \
-    libaudiopolicyservice \
-    libaudioutils \
     libbinder \
     libbinder_ndk \
     libc \
@@ -172,8 +172,6 @@ PRODUCT_PACKAGES += \
     libsonic \
     libsonivox \
     libsoundpool \
-    libsoundtrigger \
-    libsoundtriggerservice \
     libspeexresampler \
     libsqlite \
     libstagefright \
@@ -198,6 +196,7 @@ PRODUCT_PACKAGES += \
     locksettings \
     logcat \
     logd \
+    lpdump \
     lshal \
     mdnsd \
     media \
@@ -210,10 +209,12 @@ PRODUCT_PACKAGES += \
     mediaserver \
     mediaswcodec \
     mke2fs \
+    ModuleMetadata \
     monkey \
     mtpd \
     ndc \
     netd \
+    NetworkStack \
     org.apache.http.legacy \
     PackageInstaller \
     perfetto \
@@ -227,6 +228,7 @@ PRODUCT_PACKAGES += \
     racoon \
     recovery-persist \
     resize2fs \
+    rss_hwm_reset \
     run-as \
     schedtest \
     screencap \
@@ -318,12 +320,10 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += debug.atrace.tags.enableflags=0
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
-    apex.test.key \
     arping \
     iotop \
     iw \
     logpersist.start \
-    perfprofd \
     procrank \
     showmap \
     sqlite3 \
