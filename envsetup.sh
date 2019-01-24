@@ -26,7 +26,6 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
 - sepgrep:   Greps on all local sepolicy files.
 - sgrep:     Greps on all local source files.
 - godir:     Go to the directory containing a file.
-- mka:     Builds using SCHED_BATCH on all processors
 
 EOF
 
@@ -575,57 +574,6 @@ function print_lunch_menu()
 
     echo
 }
-
-function brunch()
-{
-    CWD=$(pwd)
-    croot
-
-    breakfast $*
-    if [ $? -eq 0 ]; then
-        mka bacon
-    else
-        echo "No such item in brunch menu. Try 'breakfast'"
-        return 1
-    fi
-
-    cd "$CWD"
-    return $?
-}
-
-function breakfast()
-{
-    target=$1
-    local variant=$2
-    unset LUNCH_MENU_CHOICES
-    add_lunch_combo full-eng
-    for f in `/bin/ls vendor/pa/vendorsetup.sh 2> /dev/null`
-        do
-            echo "including $f"
-            . $f
-        done
-    unset f
-
-    if [ $# -eq 0 ]; then
-        # No arguments, so let's have the full menu
-        lunch
-    else
-        echo "z$target" | grep -q "-"
-        if [ $? -eq 0 ]; then
-            # A buildtype was specified, assume a full device name
-            lunch $target
-        else
-            # This is probably just the PA model name
-            if [ -z "$variant" ]; then
-                variant="userdebug"
-            fi
-            lunch pa_$target-$variant
-        fi
-    fi
-    return $?
-}
-
-alias bib=breakfast
 
 function lunch()
 {
@@ -1661,24 +1609,6 @@ function godir () {
         pathname=${lines[0]}
     fi
     \cd $T/$pathname
-}
-
-function mka() {
-    CROOTD=$(pwd)
-    croot
-
-    case `uname -s` in
-        Darwin)
-            make -j `sysctl hw.ncpu|cut -d" " -f2` "$@"
-            ;;
-        *)
-            schedtool -B -n 1 -e ionice -n 1 make -j$(cat /proc/cpuinfo | grep "^processor" | wc -l) "$@"
-            ;;
-    esac
-    RETVAL=$?
-
-    cd "$CROOTD"
-    return $RETVAL
 }
 
 # Print colored exit condition
