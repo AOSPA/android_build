@@ -73,6 +73,32 @@ else
   my_native_coverage := false
 endif
 
+ifeq ($(strip $(ENABLE_XOM)),true)
+  ifndef LOCAL_IS_HOST_MODULE
+    my_xom := true
+    # Disable XOM in excluded paths.
+    combined_xom_exclude_paths := $(XOM_EXCLUDE_PATHS) \
+                                  $(PRODUCT_XOM_EXCLUDE_PATHS)
+    ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_xom_exclude_paths)),\
+           $(filter $(dir)%,$(LOCAL_PATH)))),)
+      my_xom := false
+    endif
+
+    # Allow LOCAL_XOM to override the above
+    ifdef LOCAL_XOM
+      my_xom := $(LOCAL_XOM)
+    endif
+
+    ifeq ($(strip $(my_xom)),true)
+      ifeq (arm64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH))
+        ifeq ($(my_use_clang_lld),true)
+          my_ldflags += -Wl,-execute-only
+        endif
+      endif
+    endif
+  endif
+endif
+
 my_allow_undefined_symbols := $(strip $(LOCAL_ALLOW_UNDEFINED_SYMBOLS))
 ifdef SANITIZE_HOST
 ifdef LOCAL_IS_HOST_MODULE
@@ -201,7 +227,6 @@ ifneq ($(LOCAL_SDK_VERSION),)
       $(my_ndk_source_root)/cxx-stl/llvm-libc++/include
     my_ndk_stl_include_path += \
       $(my_ndk_source_root)/cxx-stl/llvm-libc++abi/include
-    my_ndk_stl_include_path += $(my_ndk_source_root)/android/support/include
 
     my_libcxx_libdir := \
       $(my_ndk_source_root)/cxx-stl/llvm-libc++/libs/$(my_cpu_variant)
@@ -214,7 +239,13 @@ ifneq ($(LOCAL_SDK_VERSION),)
       my_ndk_stl_shared_lib_fullpath := $(my_libcxx_libdir)/libc++_shared.so
     endif
 
-    my_ndk_stl_static_lib += $(my_libcxx_libdir)/libandroid_support.a
+    ifneq ($(my_ndk_api),current)
+      ifeq ($(call math_lt,$(my_ndk_api),21),true)
+        my_ndk_stl_include_path += $(my_ndk_source_root)/android/support/include
+        my_ndk_stl_static_lib += $(my_libcxx_libdir)/libandroid_support.a
+      endif
+    endif
+
     ifneq (,$(filter armeabi armeabi-v7a,$(my_cpu_variant)))
       my_ndk_stl_static_lib += $(my_libcxx_libdir)/libunwind.a
     endif

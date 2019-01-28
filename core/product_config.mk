@@ -175,15 +175,9 @@ include $(BUILD_SYSTEM)/node_fns.mk
 include $(BUILD_SYSTEM)/product.mk
 include $(BUILD_SYSTEM)/device.mk
 
-ifneq ($(strip $(TARGET_BUILD_APPS)),)
-# An unbundled app build needs only the core product makefiles.
-all_product_configs := $(call get-product-makefiles,\
-    $(SRC_TARGET_DIR)/product/AndroidProducts.mk)
-else
 # Read in all of the product definitions specified by the AndroidProducts.mk
 # files in the tree.
 all_product_configs := $(get-all-product-makefiles)
-endif
 
 all_named_products :=
 
@@ -501,6 +495,10 @@ PRODUCT_CFI_EXCLUDE_PATHS := \
 PRODUCT_CFI_INCLUDE_PATHS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_CFI_INCLUDE_PATHS))
 
+# Whether any paths are excluded from being set XOM when ENABLE_XOM=true
+PRODUCT_XOM_EXCLUDE_PATHS := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_XOM_EXCLUDE_PATHS))
+
 # which Soong namespaces to export to Make
 PRODUCT_SOONG_NAMESPACES := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SOONG_NAMESPACES))
@@ -523,10 +521,8 @@ PRODUCT_RETROFIT_DYNAMIC_PARTITIONS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_RETROFIT_DYNAMIC_PARTITIONS))
 .KATI_READONLY := PRODUCT_RETROFIT_DYNAMIC_PARTITIONS
 
-# TODO(b/119286600): remove PRODUCT_USE_LOGICAL_PARTITIONS
 PRODUCT_USE_DYNAMIC_PARTITIONS := $(or \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_DYNAMIC_PARTITIONS)), \
-    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_USE_LOGICAL_PARTITIONS)), \
     $(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS))
 .KATI_READONLY := PRODUCT_USE_DYNAMIC_PARTITIONS
 
@@ -546,3 +542,10 @@ PRODUCT_BUILD_SUPER_PARTITION := $(or \
 PRODUCT_FORCE_PRODUCT_MODULES_TO_SYSTEM_PARTITION := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_FORCE_PRODUCT_MODULES_TO_SYSTEM_PARTITION))
 .KATI_READONLY := PRODUCT_FORCE_PRODUCT_MODULES_TO_SYSTEM_PARTITION
+
+# If set, kernel configuration requirements are present in OTA package (and will be enforced
+# during OTA). Otherwise, kernel configuration requirements are enforced in VTS.
+# Devices that checks the running kernel (instead of the kernel in OTA package) should not
+# set this variable to prevent OTA failures.
+PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS))

@@ -75,8 +75,8 @@ def GetInodeUsage(path):
   """
   cmd = ["find", path, "-print"]
   output = common.RunAndCheckOutput(cmd, verbose=False)
-  # increase by > 4% as number of files and directories is not whole picture.
-  return output.count('\n') * 25 // 24
+  # TODO(b/122328872) Fix estimation algorithm to not need the multiplier.
+  return output.count('\n') * 2
 
 
 def GetFilesystemCharacteristics(sparse_image_path):
@@ -431,6 +431,9 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
           size = common.RoundUpTo4K(size)
         else:
           size = ((size + block_size - 1) // block_size) * block_size
+        # Use a minimum size, otherwise we will fail to calculate an AVB footer
+        # or fail to construct an ext4 image.
+        size = max(size, 256 * 1024)
       extfs_inode_count = prop_dict["extfs_inode_count"]
       inodes = int(fs_dict.get("Inode count", extfs_inode_count))
       inodes -= int(fs_dict.get("Free inodes", "0"))

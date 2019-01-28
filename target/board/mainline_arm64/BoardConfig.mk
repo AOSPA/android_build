@@ -24,4 +24,4 @@ TARGET_2ND_CPU_ABI := armeabi-v7a
 TARGET_2ND_CPU_ABI2 := armeabi
 TARGET_2ND_CPU_VARIANT := generic
 
-include build/make/target/board/BoardConfigGsiCommon.mk
+include build/make/target/board/BoardConfigMainlineCommon.mk

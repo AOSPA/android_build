@@ -103,6 +103,18 @@ ifeq ($(LOCAL_SANITIZE),never)
   my_sanitize_diag :=
 endif
 
+# Enable integer_overflow in included paths.
+ifeq ($(filter integer_overflow, $(my_sanitize)),)
+  ifneq ($(filter arm64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)),)
+    combined_include_paths := $(PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS)
+
+    ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_include_paths)),\
+           $(filter $(dir)%,$(LOCAL_PATH)))),)
+      my_sanitize := integer_overflow $(my_sanitize)
+    endif
+  endif
+endif
+
 # Enable CFI in included paths (for Arm64 only).
 ifeq ($(filter cfi, $(my_sanitize)),)
   ifneq ($(filter arm64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)),)
@@ -114,6 +126,18 @@ ifeq ($(filter cfi, $(my_sanitize)),)
       my_sanitize := cfi $(my_sanitize)
       my_sanitize_diag := cfi $(my_sanitize_diag)
     endif
+  endif
+endif
+
+#Disable CFI in excluded paths
+ifneq ($(filter cfi, $(my_sanitize)),)
+  combined_exclude_paths := $(CFI_EXCLUDE_PATHS) \
+                            $(PRODUCT_CFI_EXCLUDE_PATHS)
+
+  ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_exclude_paths)),\
+         $(filter $(dir)%,$(LOCAL_PATH)))),)
+    my_sanitize := $(filter-out cfi,$(my_sanitize))
+    my_sanitize_diag := $(filter-out cfi,$(my_sanitize_diag))
   endif
 endif
 
@@ -176,6 +200,7 @@ endif
 ifneq ($(filter hwaddress,$(my_sanitize)),)
   my_sanitize := $(filter-out address,$(my_sanitize))
   my_sanitize := $(filter-out thread,$(my_sanitize))
+  my_sanitize := $(filter-out cfi,$(my_sanitize))
 endif
 
 ifneq ($(filter hwaddress,$(my_sanitize)),)
@@ -311,12 +336,6 @@ ifneq ($(filter cfi,$(my_sanitize)),)
         my_ldflags += -Wl,--version-script,build/soong/cc/config/cfi_exports.map
         LOCAL_ADDITIONAL_DEPENDENCIES += build/soong/cc/config/cfi_exports.map
   endif
-  ifneq ($(filter true,$(my_sdclang) $(my_sdclang2)),)
-    SDCLANG_UNKNOWN_FLAGS := -Wl,-plugin-opt,O1
-    my_ldflags := $(filter-out $(SDCLANG_UNKNOWN_FLAGS),$(my_ldflags))
-    my_cflags += -fuse-ld=qcld
-    my_ldflags += -fuse-ld=qcld -Wl,-m,aarch64linux_androideabi
-  endif
 endif
 
 # If local or global modules need ASAN, add linker flags.
@@ -342,7 +361,7 @@ ifneq ($(filter address,$(my_global_sanitize) $(my_sanitize)),)
       my_ldflags += -Wl,--as-needed
     endif
 
-    ifeq ($(LOCAL_MODULE_CLASS),EXECUTABLES)
+    ifneq ($(filter EXECUTABLES NATIVE_TESTS,$(LOCAL_MODULE_CLASS)),)
       ifneq ($(LOCAL_FORCE_STATIC_EXECUTABLE),true)
         my_linker := $($(LOCAL_2ND_ARCH_VAR_PREFIX)ADDRESS_SANITIZER_LINKER)
         # Make sure linker_asan get installed.
@@ -406,6 +425,11 @@ ifneq ($(strip $(LOCAL_SANITIZE_RECOVER)),)
   my_cflags += -fsanitize-recover=$(recover_arg)
 endif
 
+ifneq ($(strip $(LOCAL_SANITIZE_NO_RECOVER)),)
+  no_recover_arg := $(subst $(space),$(comma),$(LOCAL_SANITIZE_NO_RECOVER)),
+  my_cflags += -fno-sanitize-recover=$(no_recover_arg)
+endif
+
 ifneq ($(my_sanitize_diag),)
   # TODO(vishwath): Add diagnostic support for static executables once
   # we switch to clang-4393122 (which adds the static ubsan runtime
@@ -417,6 +441,17 @@ ifneq ($(my_sanitize_diag),)
     ifeq ($(filter address thread scudo hwaddress,$(my_sanitize)),)
       # Does not have to be the first DT_NEEDED unlike ASan.
       my_shared_libraries += $($(LOCAL_2ND_ARCH_VAR_PREFIX)UBSAN_RUNTIME_LIBRARY)
+    endif
+  endif
+endif
+
+# http://b/119329758, Android core does not boot up with this sanitizer yet.
+# Previously sanitized modules might not pass new implicit-integer-sign-change check.
+# Disable this check unless it has been explicitly specified.
+ifneq ($(findstring fsanitize,$(my_cflags)),)
+  ifneq ($(findstring integer,$(my_cflags)),)
+    ifeq ($(findstring sanitize=implicit-integer-sign-change,$(my_cflags)),)
+      my_cflags += -fno-sanitize=implicit-integer-sign-change
     endif
   endif
 endif
