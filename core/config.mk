@@ -32,6 +32,9 @@ ifdef KATI_PACKAGE_MK_DIR
   .KATI_READONLY := KATI_PACKAGE_MK_DIR
 endif
 
+# add flag to indicate pure AOSP or not.
+TARGET_FWK_SUPPORTS_FULL_VALUEADDS := true
+
 # Mark variables deprecated/obsolete
 CHANGES_URL := https://android.googlesource.com/platform/build/+/master/Changes.md
 $(KATI_obsolete_var PATH,Do not use PATH directly. See $(CHANGES_URL)#PATH)
