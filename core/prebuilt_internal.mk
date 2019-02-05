@@ -72,9 +72,7 @@ endif
 # Run veridex on product, product_services and vendor modules.
 # We skip it for unbundled app builds where we cannot build veridex.
 module_run_appcompat :=
-ifeq (true,$(filter true, \
-   $(LOCAL_PRODUCT_MODULE) $(LOCAL_PRODUCT_SERVICES_MODULE) \
-   $(LOCAL_VENDOR_MODULE) $(LOCAL_PROPRIETARY_MODULE)))
+ifeq (true,$(non_system_module))
 ifeq (,$(TARGET_BUILD_APPS)$(filter true,$(TARGET_BUILD_PDK)))  # ! unbundled app build
   module_run_appcompat := true
 endif
@@ -306,6 +304,8 @@ else
   $(built_module) : PRIVATE_CERTIFICATE := $(LOCAL_CERTIFICATE).x509.pem
 endif
 
+include $(BUILD_SYSTEM)/app_certificate_validate.mk
+
 # Disable dex-preopt of prebuilts to save space, if requested.
 ifndef LOCAL_DEX_PREOPT
 ifeq ($(DONT_DEXPREOPT_PREBUILTS),true)
@@ -357,11 +357,13 @@ endif
 ifneq ($(BUILD_PLATFORM_ZIP),)
 $(built_module) : .KATI_IMPLICIT_OUTPUTS := $(dir $(LOCAL_BUILT_MODULE))package.dex.apk
 endif
+ifneq ($(LOCAL_CERTIFICATE),PRESIGNED)
 ifdef LOCAL_DEX_PREOPT
 $(built_module) : PRIVATE_STRIP_SCRIPT := $(intermediates)/strip.sh
 $(built_module) : $(intermediates)/strip.sh
-$(built_module) : | $(DEXPREOPT_GEN_DEPS)
+$(built_module) : | $(DEXPREOPT_STRIP_DEPS)
 $(built_module) : .KATI_DEPFILE := $(built_module).d
+endif
 endif
 $(built_module) : $(my_prebuilt_src_file) | $(ZIPALIGN) $(ZIP2ZIP) $(SIGNAPK_JAR)
 	$(transform-prebuilt-to-target)
@@ -387,8 +389,8 @@ endif
 	$(run-appcompat)
 endif  # module_run_appcompat
 ifdef LOCAL_DEX_PREOPT
-	$(PRIVATE_STRIP_SCRIPT) $@ $@.tmp
-	mv -f $@.tmp $@
+	mv -f $@ $@.tmp
+	$(PRIVATE_STRIP_SCRIPT) $@.tmp $@
 endif  # LOCAL_DEX_PREOPT
 	$(sign-package)
 	# No need for align-package because sign-package takes care of alignment
@@ -460,7 +462,7 @@ else # ! boot jar
 
 $(built_module): PRIVATE_STRIP_SCRIPT := $(intermediates)/strip.sh
 $(built_module): $(intermediates)/strip.sh
-$(built_module): | $(DEXPREOPT_GEN_DEPS)
+$(built_module): | $(DEXPREOPT_STRIP_DEPS)
 $(built_module): .KATI_DEPFILE := $(built_module).d
 $(built_module): $(my_prebuilt_src_file)
 	$(PRIVATE_STRIP_SCRIPT) $< $@

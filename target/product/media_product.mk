@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2017 The Android Open-Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,12 @@
 # limitations under the License.
 #
 
-include build/make/target/board/treble_common.mk
+# This makefile contains the product partition contents for
+# media-capable devices (non-wearables). Only add something here
+# if it definitely doesn't belong on wearables. Otherwise, choose
+# base_vendor.mk.
+$(call inherit-product, $(SRC_TARGET_DIR)/product/base_product.mk)
 
-# Enable 64-bits binder
-TARGET_USES_64_BIT_BINDER := true
+# /product packages
+PRODUCT_PACKAGES += \
+    webview \

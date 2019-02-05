@@ -47,6 +47,10 @@ HIDDENAPI_STUBS_SYSTEM := \
 HIDDENAPI_STUBS_TEST := \
     $(call hiddenapi_stubs_jar,android_test_stubs_current)
 
+# Core Platform API stubs
+HIDDENAPI_STUBS_CORE_PLATFORM := \
+    $(call hiddenapi_stubs_jar,core.platform.api.stubs)
+
 # Allow products to define their own stubs for custom product jars that apps can use.
 ifdef PRODUCT_HIDDENAPI_STUBS
   HIDDENAPI_STUBS += $(foreach stub,$(PRODUCT_HIDDENAPI_STUBS), $(call hiddenapi_stubs_jar,$(stub)))
@@ -61,34 +65,36 @@ ifdef PRODUCT_HIDDENAPI_STUBS_TEST
 endif
 
 # Singleton rule which applies $(HIDDENAPI) on all boot class path dex files.
-# Inputs are filled with `hiddenapi-copy-dex-files` rules.
-.KATI_RESTAT: \
-	$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST) \
-	$(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST)
-$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): PRIVATE_HIDDENAPI_STUBS := $(HIDDENAPI_STUBS)
-$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): PRIVATE_HIDDENAPI_STUBS_SYSTEM := $(HIDDENAPI_STUBS_SYSTEM)
-$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): PRIVATE_HIDDENAPI_STUBS_TEST := $(HIDDENAPI_STUBS_TEST)
-$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): \
-    .KATI_IMPLICIT_OUTPUTS := $(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST)
-$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST): $(HIDDENAPI) $(HIDDENAPI_STUBS) \
-                                             $(HIDDENAPI_STUBS_SYSTEM) $(HIDDENAPI_STUBS_TEST)
+# Additional inputs are filled with `hiddenapi-copy-dex-files` rules.
+.KATI_RESTAT: $(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS)
+$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS): $(SOONG_HIDDENAPI_DEX_INPUTS)
+$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS): PRIVATE_DEX_INPUTS := $(SOONG_HIDDENAPI_DEX_INPUTS)
+$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS): PRIVATE_HIDDENAPI_STUBS := $(HIDDENAPI_STUBS)
+$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS): PRIVATE_HIDDENAPI_STUBS_SYSTEM := $(HIDDENAPI_STUBS_SYSTEM)
+$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS): PRIVATE_HIDDENAPI_STUBS_TEST := $(HIDDENAPI_STUBS_TEST)
+$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS): PRIVATE_HIDDENAPI_STUBS_CORE_PLATFORM := $(HIDDENAPI_STUBS_CORE_PLATFORM)
+$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS): $(HIDDENAPI) $(HIDDENAPI_STUBS) \
+                                           $(HIDDENAPI_STUBS_SYSTEM) $(HIDDENAPI_STUBS_TEST) \
+                                           $(HIDDENAPI_STUBS_CORE_PLATFORM)
 	for INPUT_DEX in $(PRIVATE_DEX_INPUTS); do \
 		find `dirname $${INPUT_DEX}` -maxdepth 1 -name "classes*.dex"; \
 	done | sort | sed 's/^/--boot-dex=/' | xargs $(HIDDENAPI) list \
-	    --stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS)) \
-	    --stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS_SYSTEM)) \
-	    --stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS_TEST)) \
-	    --out-public=$(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST).tmp \
-	    --out-private=$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST).tmp
-	$(call commit-change-for-toc,$(INTERNAL_PLATFORM_HIDDENAPI_PUBLIC_LIST))
-	$(call commit-change-for-toc,$(INTERNAL_PLATFORM_HIDDENAPI_PRIVATE_LIST))
+	    --public-stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS)) \
+	    --public-stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS_SYSTEM)) \
+	    --public-stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS_TEST)) \
+	    --core-platform-stub-classpath=$(call normalize-path-list, $(PRIVATE_HIDDENAPI_STUBS_CORE_PLATFORM)) \
+	    --out-api-flags=$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS).tmp
+	$(call commit-change-for-toc,$(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS))
 
-
+# Inputs to singleton rules located in frameworks/base
+# Additional inputs are filled with `hiddenapi-generate-csv`
+$(INTERNAL_PLATFORM_HIDDENAPI_GREYLIST_METADATA): $(SOONG_HIDDENAPI_GREYLIST_METADATA)
+$(INTERNAL_PLATFORM_HIDDENAPI_GREYLIST_METADATA): PRIVATE_METADATA_INPUTS := $(SOONG_HIDDENAPI_GREYLIST_METADATA)
 
 ifeq ($(PRODUCT_DIST_BOOT_AND_SYSTEM_JARS),true)
 boot_profile_jars_zip := $(PRODUCT_OUT)/boot_profile_jars.zip
 all_boot_jars := \
-  $(foreach m,$(DEXPREOPT_BOOT_JARS_MODULES),$(PRODUCT_OUT)/system/framework/$(m).jar) \
+  $(foreach m,$(PRODUCT_BOOT_JARS),$(PRODUCT_OUT)/system/framework/$(m).jar) \
   $(foreach m,$(PRODUCT_SYSTEM_SERVER_JARS),$(PRODUCT_OUT)/system/framework/$(m).jar)
 
 $(boot_profile_jars_zip): PRIVATE_JARS := $(all_boot_jars)

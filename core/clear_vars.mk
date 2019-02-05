@@ -51,7 +51,6 @@ LOCAL_CTS_TEST_PACKAGE:=
 LOCAL_CTS_TEST_RUNNER:=
 LOCAL_CXX:=
 LOCAL_CXX_STL := default
-LOCAL_DATA_BINDING:=
 LOCAL_DEX_FILE:=
 LOCAL_DEX_PREOPT_APP_IMAGE:=
 LOCAL_DEX_PREOPT_FLAGS:=
@@ -501,6 +500,7 @@ LOCAL_CUSTOM_BUILD_STEP_OUTPUT:=
 LOCAL_IS_AUX_MODULE :=
 
 full_android_manifest :=
+non_system_module :=
 
 # Trim MAKEFILE_LIST so that $(call my-dir) doesn't need to
 # iterate over thousands of entries every time.

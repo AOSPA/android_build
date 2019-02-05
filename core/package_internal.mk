@@ -87,6 +87,23 @@ else
   LOCAL_RESOURCE_DIR := $(foreach d,$(LOCAL_RESOURCE_DIR),$(call clean-path,$(d)))
 endif
 
+# If LOCAL_MODULE matches a rule in PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES,
+# override the manifest package name by the (first) rule matched
+override_manifest_name := $(strip $(word 1,\
+  $(foreach rule,$(PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES),\
+    $(eval _pkg_name_pat := $(call word-colon,1,$(rule)))\
+    $(eval _manifest_name_pat := $(call word-colon,2,$(rule)))\
+    $(if $(filter $(_pkg_name_pat),$(LOCAL_MODULE)),\
+      $(patsubst $(_pkg_name_pat),$(_manifest_name_pat),$(LOCAL_MODULE))\
+     )\
+   )\
+))
+
+ifneq (,$(override_manifest_name))
+# Note: this can override LOCAL_MANIFEST_PACKAGE_NAME value set in Android.mk
+LOCAL_MANIFEST_PACKAGE_NAME := $(override_manifest_name)
+endif
+
 include $(BUILD_SYSTEM)/force_aapt2.mk
 
 # Process Support Library dependencies.
@@ -309,23 +326,6 @@ endif # LOCAL_EMMA_INSTRUMENT
 
 rs_compatibility_jni_libs :=
 
-ifeq ($(LOCAL_DATA_BINDING),true)
-data_binding_intermediates := $(intermediates.COMMON)/data-binding
-
-LOCAL_JAVACFLAGS += -processorpath $(DATA_BINDING_COMPILER) -s $(data_binding_intermediates)/anno-src
-
-LOCAL_STATIC_JAVA_LIBRARIES += databinding-baselibrary
-LOCAL_STATIC_JAVA_AAR_LIBRARIES += databinding-library databinding-adapters
-
-data_binding_res_in := $(LOCAL_RESOURCE_DIR)
-data_binding_res_out := $(data_binding_intermediates)/res
-
-# Replace with the processed merged res dir.
-LOCAL_RESOURCE_DIR := $(data_binding_res_out)
-
-LOCAL_AAPT_FLAGS += --auto-add-overlay --extra-packages com.android.databinding.library
-endif  # LOCAL_DATA_BINDING
-
 # If the module is a compressed module, we don't pre-opt it because its final
 # installation location will be the data partition.
 ifdef LOCAL_COMPRESSED_MODULE
@@ -460,34 +460,6 @@ endif
 $(LOCAL_INTERMEDIATE_TARGETS): \
     PRIVATE_ANDROID_MANIFEST := $(full_android_manifest)
 
-ifeq ($(LOCAL_DATA_BINDING),true)
-data_binding_stamp := $(data_binding_intermediates)/data-binding.stamp
-$(data_binding_stamp): PRIVATE_INTERMEDIATES := $(data_binding_intermediates)
-$(data_binding_stamp): PRIVATE_MANIFEST := $(full_android_manifest)
-# Generate code into $(LOCAL_INTERMEDIATE_SOURCE_DIR) so that the generated .java files
-# will be automatically picked up by function compile-java.
-$(data_binding_stamp): PRIVATE_SRC_OUT := $(LOCAL_INTERMEDIATE_SOURCE_DIR)/data-binding
-$(data_binding_stamp): PRIVATE_XML_OUT := $(data_binding_intermediates)/xml
-$(data_binding_stamp): PRIVATE_RES_OUT := $(data_binding_res_out)
-$(data_binding_stamp): PRIVATE_RES_IN := $(data_binding_res_in)
-$(data_binding_stamp): PRIVATE_ANNO_SRC_DIR := $(data_binding_intermediates)/anno-src
-
-$(data_binding_stamp) : $(all_res_assets) $(full_android_manifest) \
-    $(DATA_BINDING_COMPILER)
-	@echo "Data-binding process: $@"
-	@rm -rf $(PRIVATE_INTERMEDIATES) $(PRIVATE_SRC_OUT) && \
-	  mkdir -p $(PRIVATE_INTERMEDIATES) $(PRIVATE_SRC_OUT) \
-	      $(PRIVATE_XML_OUT) $(PRIVATE_RES_OUT) $(PRIVATE_ANNO_SRC_DIR)
-	$(hide) $(JAVA) -classpath $(DATA_BINDING_COMPILER) android.databinding.tool.MakeCopy \
-	  $(PRIVATE_MANIFEST) $(PRIVATE_SRC_OUT) $(PRIVATE_XML_OUT) $(PRIVATE_RES_OUT) $(PRIVATE_RES_IN)
-	$(hide) touch $@
-
-# Make sure the data-binding process happens before javac and generation of R.java.
-$(R_file_stamp): $(data_binding_stamp)
-$(java_source_list_file): $(data_binding_stamp)
-$(full_classes_compiled_jar): $(data_binding_stamp)
-endif  # LOCAL_DATA_BINDING
-
 framework_res_package_export :=
 
 ifneq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
@@ -563,6 +535,7 @@ endif
 ifeq ($(dir $(strip $(LOCAL_CERTIFICATE))),./)
     LOCAL_CERTIFICATE := $(dir $(DEFAULT_SYSTEM_DEV_CERTIFICATE))$(LOCAL_CERTIFICATE)
 endif
+include $(BUILD_SYSTEM)/app_certificate_validate.mk
 private_key := $(LOCAL_CERTIFICATE).pk8
 certificate := $(LOCAL_CERTIFICATE).x509.pem
 additional_certificates := $(foreach c,$(LOCAL_ADDITIONAL_CERTIFICATES), $(c).x509.pem $(c).pk8)
@@ -601,9 +574,7 @@ endif
 # Run veridex on product, product_services and vendor modules.
 # We skip it for unbundled app builds where we cannot build veridex.
 module_run_appcompat :=
-ifeq (true,$(filter true, \
-   $(LOCAL_PRODUCT_MODULE) $(LOCAL_PRODUCT_SERVICES_MODULE) \
-   $(LOCAL_VENDOR_MODULE) $(LOCAL_PROPRIETARY_MODULE)))
+ifeq (true,$(non_system_module))
 ifeq (,$(TARGET_BUILD_APPS)$(filter true,$(TARGET_BUILD_PDK)))  # ! unbundled app build
   module_run_appcompat := true
 endif
@@ -636,7 +607,7 @@ endif
 ifdef LOCAL_DEX_PREOPT
 $(LOCAL_BUILT_MODULE) : PRIVATE_STRIP_SCRIPT := $(intermediates)/strip.sh
 $(LOCAL_BUILT_MODULE) : $(intermediates)/strip.sh
-$(LOCAL_BUILT_MODULE) : | $(DEXPREOPT_GEN_DEPS)
+$(LOCAL_BUILT_MODULE) : | $(DEXPREOPT_STRIP_DEPS)
 $(LOCAL_BUILT_MODULE): .KATI_DEPFILE := $(LOCAL_BUILT_MODULE).d
 endif
 $(LOCAL_BUILT_MODULE):
@@ -678,8 +649,8 @@ ifneq ($(BUILD_PLATFORM_ZIP),)
 	@# Keep a copy of apk with classes.dex unstripped
 	$(hide) cp -f $@ $(dir $@)package.dex.apk
 endif  # BUILD_PLATFORM_ZIP
-	$(PRIVATE_STRIP_SCRIPT) $@ $@.tmp
-	mv -f $@.tmp $@
+	mv -f $@ $@.tmp
+	$(PRIVATE_STRIP_SCRIPT) $@.tmp $@
 endif  # LOCAL_DEX_PREOPT
 	$(sign-package)
 ifdef LOCAL_COMPRESSED_MODULE

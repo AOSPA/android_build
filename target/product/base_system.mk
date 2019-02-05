@@ -16,6 +16,7 @@
 
 # Base modules and settings for the system partition.
 PRODUCT_PACKAGES += \
+    abb \
     adb \
     adbd \
     am \
@@ -81,11 +82,11 @@ PRODUCT_PACKAGES += \
     fsck_msdos \
     fs_config_files_system \
     fs_config_dirs_system \
+    gsid \
     heapprofd \
     heapprofd_client \
     gatekeeperd \
     gpuservice \
-    healthd \
     hid \
     hwservicemanager \
     idmap \
@@ -120,14 +121,14 @@ PRODUCT_PACKAGES += \
     libaudioeffect_jni \
     libbinder \
     libbinder_ndk \
-    libc \
+    libc.bootstrap \
     libcamera2ndk \
     libcamera_client \
     libcameraservice \
     libc_malloc_debug \
     libc_malloc_hooks \
     libcutils \
-    libdl \
+    libdl.bootstrap \
     libdrmframework \
     libdrmframework_jni \
     libEGL \
@@ -147,7 +148,7 @@ PRODUCT_PACKAGES += \
     libjnigraphics \
     libjpeg \
     liblog \
-    libm \
+    libm.bootstrap \
     libmdnssd \
     libmedia \
     libmedia_jni \
@@ -262,6 +263,7 @@ PRODUCT_PACKAGES += \
     uncrypt \
     usbd \
     vdc \
+    viewcompiler \
     voip-common \
     vold \
     WallpaperBackup \
@@ -286,7 +288,13 @@ PRODUCT_BOOT_JARS := \
     framework \
     telephony-common \
     voip-common \
-    ims-common
+    ims-common \
+    updatable-media
+PRODUCT_UPDATABLE_BOOT_MODULES := conscrypt updatable-media
+PRODUCT_UPDATABLE_BOOT_LOCATIONS := \
+    /apex/com.android.conscrypt/javalib/conscrypt.jar \
+    /apex/com.android.media/javalib/updatable-media.jar
+
 
 # Add the compatibility library that is needed when org.apache.http.legacy
 # is removed from the bootclasspath.
@@ -294,7 +302,7 @@ ifeq ($(REMOVE_OAHL_FROM_BCP),true)
 PRODUCT_PACKAGES += framework-oahl-backward-compatibility
 PRODUCT_BOOT_JARS += framework-oahl-backward-compatibility
 else
-PRODUCT_BOOT_JARS += org.apache.http.legacy.impl
+PRODUCT_BOOT_JARS += org.apache.http.legacy
 endif
 
 PRODUCT_COPY_FILES += \
@@ -309,7 +317,7 @@ ifeq ($(REMOVE_ATB_FROM_BCP),true)
 PRODUCT_PACKAGES += framework-atb-backward-compatibility
 PRODUCT_BOOT_JARS += framework-atb-backward-compatibility
 else
-PRODUCT_BOOT_JARS += android.test.base.impl
+PRODUCT_BOOT_JARS += android.test.base
 endif
 
 PRODUCT_COPY_FILES += system/core/rootdir/init.zygote32.rc:root/init.zygote32.rc
@@ -321,14 +329,18 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += debug.atrace.tags.enableflags=0
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     arping \
+    gdbserver \
+    init-debug.rc \
     iotop \
     iw \
     logpersist.start \
+    logtagd.rc \
     procrank \
     showmap \
     sqlite3 \
     ss \
     strace \
+    su \
     sanitizer-status \
     tracepath \
     tracepath6 \
