@@ -271,7 +271,8 @@ vars := \
   BUILD_BROKEN_ANDROIDMK_EXPORTS \
   BUILD_BROKEN_DUP_COPY_HEADERS \
   BUILD_BROKEN_DUP_RULES \
-  BUILD_BROKEN_PHONY_TARGETS
+  BUILD_BROKEN_PHONY_TARGETS \
+  BUILD_BROKEN_ENG_DEBUG_TAGS
 
 $(foreach var,$(vars),$(eval $(var) := $$(strip $$($(var)))))
 
@@ -281,13 +282,9 @@ $(foreach var,$(vars), \
 
 .KATI_READONLY := $(vars)
 
-CHANGES_URL := https://android.googlesource.com/platform/build/+/master/Changes.md
-
 ifneq ($(BUILD_BROKEN_ANDROIDMK_EXPORTS),true)
 $(KATI_obsolete_export It is a global setting. See $(CHANGES_URL)#export_keyword)
 endif
-
-CHANGES_URL :=
 
 ###########################################
 # Now we can substitute with the real value of TARGET_COPY_OUT_RAMDISK
@@ -444,11 +441,16 @@ endif
 
 ###########################################
 # Now we can substitute with the real value of TARGET_COPY_OUT_PRODUCT_SERVICES
+MERGE_PRODUCT_SERVICES_INTO_PRODUCT :=
 ifeq ($(TARGET_COPY_OUT_PRODUCT_SERVICES),$(_product_services_path_placeholder))
   TARGET_COPY_OUT_PRODUCT_SERVICES := system/product_services
+else ifeq ($(TARGET_COPY_OUT_PRODUCT),$(TARGET_COPY_OUT_PRODUCT_SERVICES))
+  MERGE_PRODUCT_SERVICES_INTO_PRODUCT := true
 else ifeq ($(filter product_services system/product_services,$(TARGET_COPY_OUT_PRODUCT_SERVICES)),)
-  $(error TARGET_COPY_OUT_PRODUCT_SERVICES must be either 'product_services' or 'system/product_services', seeing '$(TARGET_COPY_OUT_PRODUCT_SERVICES)'.)
+  $(error TARGET_COPY_OUT_PRODUCT_SERVICES must be either 'product_services',\
+    '$(TARGET_COPY_OUT_PRODUCT)' or 'system/product_services', seeing '$(TARGET_COPY_OUT_PRODUCT_SERVICES)'.)
 endif
+.KATI_READONLY := MERGE_PRODUCT_SERVICES_INTO_PRODUCT
 PRODUCT_COPY_FILES := $(subst $(_product_services_path_placeholder),$(TARGET_COPY_OUT_PRODUCT_SERVICES),$(PRODUCT_COPY_FILES))
 
 BOARD_USES_PRODUCT_SERVICESIMAGE :=
@@ -465,7 +467,7 @@ else ifdef BOARD_USES_PRODUCT_SERVICESIMAGE
 endif
 
 BUILDING_PRODUCT_SERVICES_IMAGE :=
-ifeq ($(PRODUCT_SERVICES_BUILD_PRODUCT_SERVICES_IMAGE),)
+ifeq ($(PRODUCT_BUILD_PRODUCT_SERVICES_IMAGE),)
   ifdef BOARD_PRODUCT_SERVICESIMAGE_FILE_SYSTEM_TYPE
     BUILDING_PRODUCT_SERVICES_IMAGE := true
   endif

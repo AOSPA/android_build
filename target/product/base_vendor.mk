@@ -30,6 +30,7 @@ PRODUCT_PACKAGES += \
     android.hardware.cas@1.0-service \
     android.hardware.configstore@1.2-service \
     android.hardware.media.omx@1.0-service \
+    dumpsys_vendor \
     fs_config_files_nonsystem \
     fs_config_dirs_nonsystem \
     gralloc.default \
@@ -55,5 +56,4 @@ PRODUCT_PACKAGES += \
 
 # VINTF data for vendor image
 PRODUCT_PACKAGES += \
-    device_manifest.xml \
     device_compatibility_matrix.xml \

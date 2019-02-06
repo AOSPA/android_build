@@ -588,6 +588,11 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
     cmd.append("--second")
     cmd.append(fn)
 
+  fn = os.path.join(sourcedir, "dtb")
+  if os.access(fn, os.F_OK):
+    cmd.append("--dtb")
+    cmd.append(fn)
+
   fn = os.path.join(sourcedir, "cmdline")
   if os.access(fn, os.F_OK):
     cmd.append("--cmdline")
@@ -1765,14 +1770,20 @@ class BlockDifference(object):
     if OPTIONS.source_info_dict is None:
       is_dynamic_build = OPTIONS.info_dict.get(
           "use_dynamic_partitions") == "true"
+      is_dynamic_source = False
     else:
       is_dynamic_build = OPTIONS.source_info_dict.get(
           "use_dynamic_partitions") == "true"
+      is_dynamic_source = partition in shlex.split(
+          OPTIONS.source_info_dict.get("dynamic_partition_list", "").strip())
 
-    # For dynamic partitions builds, always check partition list in target build
-    # because new partitions may be added.
-    is_dynamic = is_dynamic_build and partition in shlex.split(
+    is_dynamic_target = partition in shlex.split(
         OPTIONS.info_dict.get("dynamic_partition_list", "").strip())
+
+    # For dynamic partitions builds, check partition list in both source
+    # and target build because new partitions may be added, and existing
+    # partitions may be removed.
+    is_dynamic = is_dynamic_build and (is_dynamic_source or is_dynamic_target)
 
     if is_dynamic:
       self.device = 'map_partition("%s")' % partition
@@ -2221,13 +2232,7 @@ class DynamicPartitionsDifference(object):
              collections.Counter(e.partition for e in block_diffs).items()
              if count > 1])
 
-    dynamic_partitions = set(shlex.split(info_dict.get(
-        "dynamic_partition_list", "").strip()))
-    assert set(block_diff_dict.keys()) == dynamic_partitions, \
-        "Dynamic partitions: {}, BlockDifference objects: {}".format(
-            list(dynamic_partitions), list(block_diff_dict.keys()))
-
-    self._partition_updates = dict()
+    self._partition_updates = collections.OrderedDict()
 
     for p, block_diff in block_diff_dict.items():
       self._partition_updates[p] = DynamicPartitionUpdate()
@@ -2258,11 +2263,27 @@ class DynamicPartitionsDifference(object):
             "object is provided.".format(p, g)
         self._partition_updates[p].src_group = g
 
+    target_dynamic_partitions = set(shlex.split(info_dict.get(
+        "dynamic_partition_list", "").strip()))
+    block_diffs_with_target = set(p for p, u in self._partition_updates.items()
+                                  if u.tgt_size)
+    assert block_diffs_with_target == target_dynamic_partitions, \
+        "Target Dynamic partitions: {}, BlockDifference with target: {}".format(
+            list(target_dynamic_partitions), list(block_diffs_with_target))
+
+    source_dynamic_partitions = set(shlex.split(source_info_dict.get(
+        "dynamic_partition_list", "").strip()))
+    block_diffs_with_source = set(p for p, u in self._partition_updates.items()
+                                  if u.src_size)
+    assert block_diffs_with_source == source_dynamic_partitions, \
+        "Source Dynamic partitions: {}, BlockDifference with source: {}".format(
+            list(source_dynamic_partitions), list(block_diffs_with_source))
+
     if self._partition_updates:
       logger.info("Updating dynamic partitions %s",
                   self._partition_updates.keys())
 
-    self._group_updates = dict()
+    self._group_updates = collections.OrderedDict()
 
     for g in tgt_groups:
       self._group_updates[g] = DynamicGroupUpdate()

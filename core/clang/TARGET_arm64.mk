@@ -8,3 +8,4 @@ TARGET_LIBCRT_BUILTINS_SDCLANG := $(SDCLANG_PATH)/../lib/clang/6.0.7/lib/linux/l
 
 # Address sanitizer clang config
 ADDRESS_SANITIZER_LINKER := /system/bin/linker_asan64
+ADDRESS_SANITIZER_LINKER_FILE := /system/bin/bootstrap/linker_asan64
