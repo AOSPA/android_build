@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2017 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 # limitations under the License.
 #
 
-LOCAL_PATH := $(call my-dir)
-
-# Only if this Android.mk was included not by a symlink should it be used.
-# This facilitates the transition away from symlinks: b/64397960
-ifeq ($(LOCAL_PATH),build/make/target)
-include $(call first-makefiles-under,$(LOCAL_PATH))
-endif
+# Makefile including the mainline system image, and the relevant AOSP portions
+# for the other partitions.
+$(call inherit-product, $(SRC_TARGET_DIR)/product/mainline_system.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_vendor.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_product.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_vendor.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_product.mk)

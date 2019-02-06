@@ -21,10 +21,8 @@
 TARGET_USES_QCOM_BSP_ATEL := true
 
 PRODUCT_PACKAGES := \
-    ANS \
-    CarrierConfig \
+    ONS \
     CarrierDefaultApp \
-    Dialer \
     CallLogBackup \
     CellBroadcastReceiver \
     EmergencyInfo \
