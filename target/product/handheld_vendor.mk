@@ -29,9 +29,7 @@ PRODUCT_PACKAGES += \
     DisplayCutoutEmulationCornerOverlay \
     DisplayCutoutEmulationDoubleOverlay \
     DisplayCutoutEmulationTallOverlay \
-    FontArbutusSourceOverlay \
-    FontArvoLatoOverlay \
-    FontRubikRubikOverlay \
+    FontNotoSerifSourceOverlay \
     IconShapeRoundedRectOverlay \
     IconShapeSquircleOverlay \
     IconShapeTeardropOverlay \
@@ -40,9 +38,4 @@ PRODUCT_PACKAGES += \
     vibrator.default \
 
 PRODUCT_PACKAGES_DEBUG += \
-    ExperimentNavigationBarFloatingOverlay \
-    ExperimentNavigationBarDefaultOverlay \
-    ExperimentNavigationBarSlimOverlay24 \
-    ExperimentNavigationBarSlimOverlay32 \
-    ExperimentNavigationBarSlimOverlay40 \
-    IconShapeSquareOverlay \
+    frameworks-base-overlays \

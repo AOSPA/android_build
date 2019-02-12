@@ -477,6 +477,11 @@ PRODUCT_ENFORCE_RRO_EXCLUDED_OVERLAYS := \
 PRODUCT_ENFORCE_RRO_TARGETS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_RRO_TARGETS))
 
+# Whether the product would like to check prebuilt ELF files.
+PRODUCT_CHECK_ELF_FILES := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_CHECK_ELF_FILES))
+.KATI_READONLY := PRODUCT_CHECK_ELF_FILES
+
 # Add reserved headroom to a system image.
 PRODUCT_SYSTEM_HEADROOM := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_HEADROOM))
@@ -506,6 +511,10 @@ PRODUCT_CFI_EXCLUDE_PATHS := \
 # Whether any paths should have CFI enabled for components
 PRODUCT_CFI_INCLUDE_PATHS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_CFI_INCLUDE_PATHS))
+
+# Whether the Scudo hardened allocator is disabled platform-wide
+PRODUCT_DISABLE_SCUDO := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DISABLE_SCUDO))
 
 # Whether any paths are excluded from being set XOM when ENABLE_XOM=true
 PRODUCT_XOM_EXCLUDE_PATHS := \
