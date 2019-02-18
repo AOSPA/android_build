@@ -259,7 +259,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-      PLATFORM_SECURITY_PATCH := 2019-02-05
+      PLATFORM_SECURITY_PATCH := 2019-03-05
 endif
 .KATI_READONLY := PLATFORM_SECURITY_PATCH
 
@@ -321,7 +321,7 @@ ifndef BUILD_NUMBER
   # If no BUILD_NUMBER is set, create a useful "I am an engineering build
   # from this date/time" value.  Make it start with a non-digit so that
   # anyone trying to parse it as an integer will probably get "0".
-  BUILD_NUMBER := eng.$(shell echo $${USER:0:6}).$(shell $(DATE) +%Y%m%d.%H%M%S)
+  BUILD_NUMBER := eng.$(shell echo $${BUILD_USERNAME:0:6}).$(shell $(DATE) +%Y%m%d.%H%M%S)
   HAS_BUILD_NUMBER := false
 endif
 .KATI_READONLY := BUILD_NUMBER HAS_BUILD_NUMBER

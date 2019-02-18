@@ -24,6 +24,11 @@ $(call inherit-product-if-exists, external/google-fonts/dancing-script/fonts.mk)
 $(call inherit-product-if-exists, external/google-fonts/carrois-gothic-sc/fonts.mk)
 $(call inherit-product-if-exists, external/google-fonts/coming-soon/fonts.mk)
 $(call inherit-product-if-exists, external/google-fonts/cutive-mono/fonts.mk)
+$(call inherit-product-if-exists, external/google-fonts/arbutus-slab/fonts.mk)
+$(call inherit-product-if-exists, external/google-fonts/arvo/fonts.mk)
+$(call inherit-product-if-exists, external/google-fonts/lato/fonts.mk)
+$(call inherit-product-if-exists, external/google-fonts/rubik/fonts.mk)
+$(call inherit-product-if-exists, external/google-fonts/source-sans-pro/fonts.mk)
 $(call inherit-product-if-exists, external/noto-fonts/fonts.mk)
 $(call inherit-product-if-exists, external/roboto-fonts/fonts.mk)
 $(call inherit-product-if-exists, external/hyphenation-patterns/patterns.mk)
@@ -36,49 +41,34 @@ PRODUCT_PACKAGES += \
     Bluetooth \
     BluetoothMidiService \
     BookmarkProvider \
-    Browser2 \
     BuiltInPrintService \
-    Calendar \
     CalendarProvider \
-    Camera2 \
     cameraserver \
     CaptivePortalLogin \
     CertInstaller \
     clatd \
     clatd.conf \
-    Contacts \
-    DeskClock \
     DocumentsUI \
     DownloadProviderUi \
     EasterEgg \
-    Email \
     ExternalStorageProvider \
     FusedLocation \
-    Gallery2 \
     InputDevices \
     KeyChain \
-    LatinIME \
-    Launcher3QuickStep \
     librs_jni \
     ManagedProvisioning \
     MmsService \
     MtpDocumentsProvider \
-    Music \
     MusicFX \
-    OneTimeInitializer \
+    NfcNci \
     OsuLogin \
     PacProcessor \
-    PrintRecommendationService \
     PrintSpooler \
-    Provision \
     ProxyHandler \
-    QuickSearchBox \
     screenrecord \
     SecureElement \
-    SettingsIntelligence \
     SharedStorageBackup \
     SimAppDialog \
-    StorageManager \
     Telecom \
     TelephonyProvider \
     TeleService \
@@ -86,7 +76,6 @@ PRODUCT_PACKAGES += \
     UserDictionaryProvider \
     VpnDialogs \
     vr \
-    WallpaperCropper \
 
 
 PRODUCT_SYSTEM_SERVER_APPS += \

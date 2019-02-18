@@ -253,6 +253,8 @@ all_product_configs :=
 
 # A list of module names of BOOTCLASSPATH (jar files)
 PRODUCT_BOOT_JARS := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_BOOT_JARS))
+PRODUCT_UPDATABLE_BOOT_MODULES := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_UPDATABLE_BOOT_MODULES))
+PRODUCT_UPDATABLE_BOOT_LOCATIONS := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_UPDATABLE_BOOT_LOCATIONS))
 PRODUCT_SYSTEM_SERVER_JARS := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_SERVER_JARS))
 PRODUCT_SYSTEM_SERVER_APPS := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_SERVER_APPS))
 PRODUCT_DEXPREOPT_SPEED_APPS := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEXPREOPT_SPEED_APPS))
@@ -346,6 +348,11 @@ PRODUCT_SHIPPING_API_LEVEL := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SHI
 # used for adding properties to default.prop
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
+
+$(foreach rule,$(PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES),\
+    $(if $(filter 2,$(words $(subst :,$(space),$(rule)))),,\
+        $(error Rule "$(rule)" in PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDE is not <module_name>:<manifest_name>)))
+
 .KATI_READONLY := PRODUCT_DEFAULT_PROPERTY_OVERRIDES
 
 # A list of property assignments, like "key = value", with zero or more
@@ -362,6 +369,11 @@ PRODUCT_PRODUCT_PROPERTIES := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PRODUCT_PROPERTIES))
 .KATI_READONLY := PRODUCT_PRODUCT_PROPERTIES
 
+ENFORCE_SYSTEM_CERTIFICATE := \
+    $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_ARTIFACT_SYSTEM_CERTIFICATE_REQUIREMENT)
+
+ENFORCE_SYSTEM_CERTIFICATE_WHITELIST := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ARTIFACT_SYSTEM_CERTIFICATE_REQUIREMENT_WHITELIST))
 
 # A list of property assignments, like "key = value", with zero or more
 # whitespace characters on either side of the '='.
@@ -549,3 +561,34 @@ PRODUCT_FORCE_PRODUCT_MODULES_TO_SYSTEM_PARTITION := \
 # set this variable to prevent OTA failures.
 PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS))
+
+# List of <module_name>:<manifest_name> pairs to override the manifest package name
+# of a module <module_name> to <manifest_name>. Patterns can be used as in
+# com.android.%:com.acme.android.%.release
+PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES))
+.KATI_READONLY := PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES
+
+# Macro to use below. $(1) is the name of the partition
+define product-build-image-config
+PRODUCT_BUILD_$(1)_IMAGE := $$(firstword $$(strip $$(PRODUCTS.$$(INTERNAL_PRODUCT).PRODUCT_BUILD_$(1)_IMAGE)))
+.KATI_READONLY := PRODUCT_BUILD_$(1)_IMAGE
+ifneq ($$(filter-out true false,$$(PRODUCT_BUILD_$(1)_IMAGE)),)
+    $$(error Invalid PRODUCT_BUILD_$(1)_IMAGE: $$(PRODUCT_BUILD_$(1)_IMAGE) -- true false and empty are supported)
+endif
+endef
+
+# Copy and check the value of each PRODUCT_BUILD_*_IMAGE variable
+$(foreach image, \
+    SYSTEM \
+    SYSTEM_OTHER \
+    VENDOR \
+    PRODUCT \
+    PRODUCT_SERVICES \
+    ODM \
+    CACHE \
+    RAMDISK \
+    USERDATA, \
+  $(eval $(call product-build-image-config,$(image))))
+
+product-build-image-config :=
