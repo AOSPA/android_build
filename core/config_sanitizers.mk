@@ -237,6 +237,11 @@ ifneq ($(filter address thread hwaddress,$(my_sanitize)),)
   my_sanitize := $(filter-out scudo,$(my_sanitize))
 endif
 
+# Or if disabled globally.
+ifeq ($(strip $(PRODUCT_DISABLE_SCUDO)),true)
+  my_sanitize := $(filter-out scudo,$(my_sanitize))
+endif
+
 # Undefined symbols can occur if a non-sanitized library links
 # sanitized static libraries. That's OK, because the executable
 # always depends on the ASan runtime library, which defines these
@@ -365,7 +370,7 @@ ifneq ($(filter address,$(my_global_sanitize) $(my_sanitize)),)
       ifneq ($(LOCAL_FORCE_STATIC_EXECUTABLE),true)
         my_linker := $($(LOCAL_2ND_ARCH_VAR_PREFIX)ADDRESS_SANITIZER_LINKER)
         # Make sure linker_asan get installed.
-        $(LOCAL_INSTALLED_MODULE) : | $(PRODUCT_OUT)$($(LOCAL_2ND_ARCH_VAR_PREFIX)ADDRESS_SANITIZER_LINKER)
+        $(LOCAL_INSTALLED_MODULE) : | $(PRODUCT_OUT)$($(LOCAL_2ND_ARCH_VAR_PREFIX)ADDRESS_SANITIZER_LINKER_FILE)
       endif
     endif
   endif

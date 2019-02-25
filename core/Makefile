@@ -474,9 +474,6 @@ endif
 $(INSTALLED_BUILD_PROP_TARGET): $(intermediate_system_build_prop) $(INSTALLED_RECOVERYIMAGE_TARGET)
 	@echo "Target build info: $@"
 	$(hide) grep -v 'ro.product.first_api_level' $(intermediate_system_build_prop) > $@
-ifdef INSTALLED_RECOVERYIMAGE_TARGET
-	$(hide) echo ro.expect.recovery_id=`cat $(RECOVERYIMAGE_ID_FILE)` >> $@
-endif
 
 # -----------------------------------------------------------------
 # vendor build.prop
@@ -584,7 +581,12 @@ $(INSTALLED_ODM_BUILD_PROP_TARGET): $(BUILDINFO_COMMON_SH)
 	$(hide) build/make/tools/post_process_props.py $@
 
 # -----------------------------------------------------------------
-# product_services build.prop
+# product_services build.prop (unless it's merged into /product)
+ifdef MERGE_PRODUCT_SERVICES_INTO_PRODUCT
+  ifneq (,$(PRODUCT_PRODUCT_SERVICES_PROPERTIES))
+    $(error PRODUCT_PRODUCT_SERVICES_PROPERTIES is not supported in this build.)
+  endif
+else
 INSTALLED_PRODUCT_SERVICES_BUILD_PROP_TARGET := $(TARGET_OUT_PRODUCT_SERVICES)/build.prop
 ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_PRODUCT_SERVICES_BUILD_PROP_TARGET)
 
@@ -592,7 +594,6 @@ FINAL_PRODUCT_SERVICES_PROPERTIES += \
     $(call collapse-pairs, $(PRODUCT_PRODUCT_SERVICES_PROPERTIES))
 FINAL_PRODUCT_SERVICES_PROPERTIES := $(call uniq-pairs-by-first-component, \
     $(FINAL_PRODUCT_SERVICES_PROPERTIES),=)
-
 $(INSTALLED_PRODUCT_SERVICES_BUILD_PROP_TARGET): $(BUILDINFO_COMMON_SH)
 	@echo Target product_services buildinfo: $@
 	@mkdir -p $(dir $@)
@@ -606,6 +607,7 @@ endif  # BOARD_USES_PRODUCT_SERVICESIMAGE
 	$(hide) $(foreach line,$(FINAL_PRODUCT_SERVICES_PROPERTIES), \
 	    echo "$(line)" >> $@;)
 	$(hide) build/make/tools/post_process_props.py $@
+endif # MERGE_PRODUCT_SERVICES_INTO_PRODUCT
 
 # ----------------------------------------------------------------
 
@@ -837,6 +839,16 @@ $(INSTALLED_FILES_FILE_ROOT) : $(INTERNAL_ROOT_FILES) $(FILESLIST)
 
 $(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE_ROOT))
 
+#------------------------------------------------------------------
+# dtb
+
+ifdef BOARD_PREBUILT_DTBIMAGE_DIR
+INSTALLED_DTBIMAGE_TARGET := $(PRODUCT_OUT)/dtb.img
+$(INSTALLED_DTBIMAGE_TARGET) : $(addprefix $(BOARD_PREBUILT_DTBIMAGE_DIR)/,\
+	$(call find-files-in-subdirs,$(BOARD_PREBUILT_DTBIMAGE_DIR),*.dtb,.))
+	cat $^ > $@
+endif
+
 # -----------------------------------------------------------------
 # the ramdisk
 ifdef BUILDING_RAMDISK_IMAGE
@@ -880,6 +892,10 @@ ifneq ($(strip $(TARGET_NO_KERNEL)),true)
 INTERNAL_BOOTIMAGE_ARGS := \
 	$(addprefix --second ,$(INSTALLED_2NDBOOTLOADER_TARGET)) \
 	--kernel $(INSTALLED_KERNEL_TARGET)
+
+ifdef BOARD_INCLUDE_DTB_IN_BOOTIMG
+  INTERNAL_BOOTIMAGE_ARGS += --dtb $(INSTALLED_DTBIMAGE_TARGET)
+endif
 
 ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
 INTERNAL_BOOTIMAGE_ARGS += --ramdisk $(INSTALLED_RAMDISK_TARGET)
@@ -1146,8 +1162,13 @@ $(installed_vendor_notice_xml_gz): $(target_vendor_notice_file_xml_gz)
 	$(copy-file-to-target)
 $(installed_product_notice_xml_gz): $(target_product_notice_file_xml_gz)
 	$(copy-file-to-target)
+
+# No notice file for product_services if its contents are merged into /product.
+# The notices will be part of the /product notice file.
+ifndef MERGE_PRODUCT_SERVICES_INTO_PRODUCT
 $(installed_product_services_notice_xml_gz): $(target_product_services_notice_file_xml_gz)
 	$(copy-file-to-target)
+endif
 
 # if we've been run my mm, mmm, etc, don't reinstall this every time
 ifeq ($(ONE_SHOT_MAKEFILE),)
@@ -1304,6 +1325,7 @@ endif # PRODUCT_USE_DYNAMIC_PARTITIONS
 define generate-image-prop-dictionary
 $(if $(filter $(2),system),\
     $(if $(BOARD_SYSTEMIMAGE_PARTITION_SIZE),$(hide) echo "system_size=$(BOARD_SYSTEMIMAGE_PARTITION_SIZE)" >> $(1))
+    $(if $(INTERNAL_SYSTEM_OTHER_PARTITION_SIZE),$(hide) echo "system_other_size=$(INTERNAL_SYSTEM_OTHER_PARTITION_SIZE)" >> $(1))
     $(if $(BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "system_fs_type=$(BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
     $(if $(BOARD_SYSTEMIMAGE_EXTFS_INODE_COUNT),$(hide) echo "system_extfs_inode_count=$(BOARD_SYSTEMIMAGE_EXTFS_INODE_COUNT)" >> $(1))
     $(if $(BOARD_SYSTEMIMAGE_EXTFS_RSV_PCT),$(hide) echo "system_extfs_rsv_pct=$(BOARD_SYSTEMIMAGE_EXTFS_RSV_PCT)" >> $(1))
@@ -1413,6 +1435,12 @@ $(if $(BOARD_AVB_ENABLE),\
         $(hide) echo "avb_system_key_path=$(BOARD_AVB_SYSTEM_KEY_PATH)" >> $(1)
         $(hide) echo "avb_system_algorithm=$(BOARD_AVB_SYSTEM_ALGORITHM)" >> $(1)
         $(hide) echo "avb_system_rollback_index_location=$(BOARD_AVB_SYSTEM_ROLLBACK_INDEX_LOCATION)" >> $(1)))
+$(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_system_other_hashtree_enable=$(BOARD_AVB_ENABLE)" >> $(1))
+$(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_system_other_add_hashtree_footer_args=$(BOARD_AVB_SYSTEM_OTHER_ADD_HASHTREE_FOOTER_ARGS)" >> $(1))
+$(if $(BOARD_AVB_ENABLE),\
+    $(if $(BOARD_AVB_SYSTEM_OTHER_KEY_PATH),\
+        $(hide) echo "avb_system_other_key_path=$(BOARD_AVB_SYSTEM_OTHER_KEY_PATH)" >> $(1)
+        $(hide) echo "avb_system_other_algorithm=$(BOARD_AVB_SYSTEM_OTHER_ALGORITHM)" >> $(1)))
 $(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_vendor_hashtree_enable=$(BOARD_AVB_ENABLE)" >> $(1))
 $(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_vendor_add_hashtree_footer_args=$(BOARD_AVB_VENDOR_ADD_HASHTREE_FOOTER_ARGS)" >> $(1))
 $(if $(BOARD_AVB_ENABLE),\
@@ -1776,6 +1804,9 @@ endif
 ifdef BOARD_INCLUDE_RECOVERY_ACPIO
   INTERNAL_RECOVERYIMAGE_ARGS += --recovery_acpio $(BOARD_RECOVERY_ACPIO)
 endif
+ifdef BOARD_INCLUDE_DTB_IN_BOOTIMG
+  INTERNAL_RECOVERYIMAGE_ARGS += --dtb $(INSTALLED_DTBIMAGE_TARGET)
+endif
 
 # Keys authorized to sign OTA packages this build will accept.  The
 # build always uses dev-keys for this; release packaging tools will
@@ -1865,6 +1896,9 @@ endif
 ifdef BOARD_INCLUDE_RECOVERY_ACPIO
 $(INSTALLED_BOOTIMAGE_TARGET): $(BOARD_RECOVERY_ACPIO)
 endif
+ifdef BOARD_INCLUDE_DTB_IN_BOOTIMG
+$(INSTALLED_BOOTIMAGE_TARGET): $(INSTALLED_DTBIMAGE_TARGET)
+endif
 
 $(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 	    $(INTERNAL_ROOT_FILES) \
@@ -1887,6 +1921,9 @@ $(INSTALLED_RECOVERYIMAGE_TARGET): $(BOARD_PREBUILT_DTBOIMAGE)
 endif
 ifdef BOARD_INCLUDE_RECOVERY_ACPIO
 $(INSTALLED_RECOVERYIMAGE_TARGET): $(BOARD_RECOVERY_ACPIO)
+endif
+ifdef BOARD_INCLUDE_DTB_IN_BOOTIMG
+$(INSTALLED_RECOVERYIMAGE_TARGET): $(INSTALLED_DTBIMAGE_TARGET)
 endif
 
 $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
@@ -2486,6 +2523,17 @@ $(INSTALLED_FILES_FILE_SYSTEMOTHER) : $(INTERNAL_SYSTEMOTHERIMAGE_FILES) $(FILES
 	$(hide) $(FILESLIST) $(TARGET_OUT_SYSTEM_OTHER) > $(@:.txt=.json)
 	$(hide) build/make/tools/fileslist_util.py -c $(@:.txt=.json) > $@
 
+# Determines partition size for system_other.img.
+ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
+ifneq ($(filter system,$(BOARD_SUPER_PARTITION_BLOCK_DEVICES)),)
+INTERNAL_SYSTEM_OTHER_PARTITION_SIZE := $(BOARD_SUPER_PARTITION_SYSTEM_DEVICE_SIZE)
+endif
+endif
+
+ifndef INTERNAL_SYSTEM_OTHER_PARTITION_SIZE
+INTERNAL_SYSTEM_OTHER_PARTITION_SIZE:= $(BOARD_SYSTEMIMAGE_PARTITION_SIZE)
+endif
+
 systemotherimage_intermediates := \
     $(call intermediates-dir-for,PACKAGING,system_other)
 BUILT_SYSTEMOTHERIMAGE_TARGET := $(PRODUCT_OUT)/system_other.img
@@ -2502,7 +2550,7 @@ define build-systemotherimage-target
       $(systemotherimage_intermediates)/generated_system_other_image_info.txt
   $(hide) $(call assert-max-image-size,$(INSTALLED_SYSTEMOTHERIMAGE_TARGET),\
     $(call read-image-prop-dictionary,\
-      $(systemotherimage_intermediates)/generated_system_other_image_info.txt,system_size))
+      $(systemotherimage_intermediates)/generated_system_other_image_info.txt,system_other_size))
 endef
 
 # We just build this directly to the install location.
@@ -2538,19 +2586,79 @@ INTERNAL_VENDORIMAGE_FILES := \
 ifdef BUILT_VENDOR_MANIFEST
 BUILT_ASSEMBLED_VENDOR_MANIFEST := $(PRODUCT_OUT)/verified_assembled_vendor_manifest.xml
 ifeq (true,$(strip $(PRODUCT_ENFORCE_VINTF_MANIFEST)))
-ifdef DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE
-# TODO(b/65028233): turn this on globally
+ifneq ($(strip $(DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE) $(DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE)),)
 $(BUILT_ASSEMBLED_VENDOR_MANIFEST): PRIVATE_SYSTEM_ASSEMBLE_VINTF_ENV_VARS := VINTF_ENFORCE_NO_UNUSED_HALS=true
-endif # DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE
+endif # DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE or DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE
 endif # PRODUCT_ENFORCE_VINTF_MANIFEST
 $(BUILT_ASSEMBLED_VENDOR_MANIFEST): $(HOST_OUT_EXECUTABLES)/assemble_vintf
 $(BUILT_ASSEMBLED_VENDOR_MANIFEST): $(BUILT_SYSTEM_MATRIX)
 $(BUILT_ASSEMBLED_VENDOR_MANIFEST): $(BUILT_VENDOR_MANIFEST)
 $(BUILT_ASSEMBLED_VENDOR_MANIFEST): $(INTERNAL_VENDORIMAGE_FILES)
+
+$(BUILT_ASSEMBLED_VENDOR_MANIFEST): PRIVATE_FLAGS :=
+
+# -- Kernel version and configurations.
+ifeq ($(PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS),true)
+
+# BOARD_KERNEL_CONFIG_FILE and BOARD_KERNEL_VERSION can be used to override the values extracted
+# from INSTALLED_KERNEL_TARGET.
+ifdef BOARD_KERNEL_CONFIG_FILE
+ifdef BOARD_KERNEL_VERSION
+$(BUILT_ASSEMBLED_VENDOR_MANIFEST): $(BOARD_KERNEL_CONFIG_FILE)
+$(BUILT_ASSEMBLED_VENDOR_MANIFEST): PRIVATE_FLAGS += --kernel $(BOARD_KERNEL_VERSION):$(BOARD_KERNEL_CONFIG_FILE)
+my_board_extracted_kernel := true
+endif # BOARD_KERNEL_VERSION
+endif # BOARD_KERNEL_CONFIG_FILE
+
+ifneq ($(my_board_extracted_kernel),true)
+ifndef INSTALLED_KERNEL_TARGET
+$(warning No INSTALLED_KERNEL_TARGET is defined when PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS \
+    is true. Information about the updated kernel cannot be built into OTA update package. \
+    You can fix this by: (1) setting TARGET_NO_KERNEL to false and installing the built kernel \
+    to $(PRODUCT_OUT)/kernel, so that kernel information will be extracted from the built kernel; \
+    or (2) extracting kernel configuration and defining BOARD_KERNEL_CONFIG_FILE and \
+    BOARD_KERNEL_VERSION manually; or (3) unsetting PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS \
+    manually.)
+else
+intermediates := $(call intermediates-dir-for,ETC,$(notdir $(BUILT_ASSEMBLED_VENDOR_MANIFEST)))
+
+# Tools for decompression that is not in PATH.
+# Check $(EXTRACT_KERNEL) for decompression algorithms supported by the script.
+# Algorithms that are in the script but not in this list will be found in PATH.
+my_decompress_tools := \
+    lz4:$(HOST_OUT_EXECUTABLES)/lz4 \
+
+my_kernel_configs := $(intermediates)/kernel_configs.txt
+my_kernel_version := $(intermediates)/kernel_version.txt
+$(my_kernel_configs): .KATI_IMPLICIT_OUTPUTS := $(my_kernel_version)
+$(my_kernel_configs): PRIVATE_KERNEL_VERSION_FILE := $(my_kernel_version)
+$(my_kernel_configs): PRIVATE_DECOMPRESS_TOOLS := $(my_decompress_tools)
+$(my_kernel_configs): $(foreach pair,$(my_decompress_tools),$(call word-colon,2,$(pair)))
+$(my_kernel_configs): $(EXTRACT_KERNEL) $(INSTALLED_KERNEL_TARGET)
+	$< --tools $(PRIVATE_DECOMPRESS_TOOLS) --input $(INSTALLED_KERNEL_TARGET) \
+	  --output-configs $@ \
+	  --output-version $(PRIVATE_KERNEL_VERSION_FILE)
+
+$(BUILT_ASSEMBLED_VENDOR_MANIFEST): $(my_kernel_configs) $(my_kernel_version)
+$(BUILT_ASSEMBLED_VENDOR_MANIFEST): PRIVATE_FLAGS += --kernel $$(cat $(my_kernel_version)):$(my_kernel_configs)
+
+intermediates :=
+my_kernel_configs :=
+my_kernel_version :=
+my_decompress_tools :=
+
+endif # my_board_extracted_kernel
+my_board_extracted_kernel :=
+
+endif # INSTALLED_KERNEL_TARGET
+endif # PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
+
+$(BUILT_ASSEMBLED_VENDOR_MANIFEST):
 	@echo "Verifying vendor VINTF manifest."
 	PRODUCT_ENFORCE_VINTF_MANIFEST=$(PRODUCT_ENFORCE_VINTF_MANIFEST) \
 	$(PRIVATE_SYSTEM_ASSEMBLE_VINTF_ENV_VARS) \
 	$(HOST_OUT_EXECUTABLES)/assemble_vintf \
+	    $(PRIVATE_FLAGS) \
 	    -c $(BUILT_SYSTEM_MATRIX) \
 	    -i $(BUILT_VENDOR_MANIFEST) \
 	    $$([ -d $(TARGET_OUT_VENDOR)/etc/vintf/manifest ] && \
@@ -2819,6 +2927,23 @@ BOARD_AVB_ALGORITHM := SHA256_RSA4096
 BOARD_AVB_KEY_PATH := external/avb/test/data/testkey_rsa4096.pem
 endif
 
+# AVB signing for system_other.img.
+ifdef BUILDING_SYSTEM_OTHER_IMAGE
+ifdef BOARD_AVB_SYSTEM_OTHER_KEY_PATH
+$(if $(BOARD_AVB_SYSTEM_OTHER_ALGORITHM),,$(error BOARD_AVB_SYSTEM_OTHER_ALGORITHM is not defined))
+else
+# If key path isn't specified, use the same key as BOARD_AVB_KEY_PATH.
+BOARD_AVB_SYSTEM_OTHER_KEY_PATH := $(BOARD_AVB_KEY_PATH)
+BOARD_AVB_SYSTEM_OTHER_ALGORITHM := $(BOARD_AVB_ALGORITHM)
+endif
+
+ifndef BOARD_AVB_SYSTEM_OTHER_ROLLBACK_INDEX
+BOARD_AVB_SYSTEM_OTHER_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
+endif
+
+BOARD_AVB_SYSTEM_OTHER_ADD_HASHTREE_FOOTER_ARGS += --rollback_index $(BOARD_AVB_SYSTEM_OTHER_ROLLBACK_INDEX)
+endif # end of AVB for BUILDING_SYSTEM_OTHER_IMAGE
+
 INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES := \
     $(BOARD_AVB_VBMETA_SYSTEM) \
     $(BOARD_AVB_VBMETA_VENDOR)
@@ -2937,6 +3062,8 @@ endif
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --padding_size 4096
 BOARD_AVB_MAKE_VBMETA_SYSTEM_IMAGE_ARGS += --padding_size 4096
 BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += --padding_size 4096
+
+BOARD_AVB_SYSTEM_ADD_HASHTREE_FOOTER_ARGS += --prop system_security_patch:$(PLATFORM_SECURITY_PATCH)
 
 ifeq (eng,$(filter eng, $(TARGET_BUILD_VARIANT)))
 # We only need the flag in top-level vbmeta.img.
@@ -3080,6 +3207,18 @@ define read-size-of-partitions
 $(foreach p,$(1),$(call read-image-prop-dictionary,$($(p)image_intermediates)/generated_$(p)_image_info.txt,$(p)_size))
 endef
 
+# round result to BOARD_SUPER_PARTITION_ALIGNMENT
+#$(1): the calculated size
+ifeq (,$(BOARD_SUPER_PARTITION_ALIGNMENT))
+define round-partition-size
+$(1)
+endef
+else
+define round-partition-size
+$$((($(1)+$(BOARD_SUPER_PARTITION_ALIGNMENT)-1)/$(BOARD_SUPER_PARTITION_ALIGNMENT)*$(BOARD_SUPER_PARTITION_ALIGNMENT)))
+endef
+endif
+
 define super-slot-suffix
 $(if $(filter true,$(AB_OTA_UPDATER)),$(if $(filter true,$(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS)),,_a))
 endef
@@ -3113,8 +3252,10 @@ endif
 # $(2): max size expression
 # $(3): list of partition names
 define check-sum-of-partition-sizes
-  partition_size_list="$(call read-size-of-partitions,$(3))"; \
-  sum_sizes_expr=$$(sed -e 's/ /+/g' <<< "$${partition_size_list}"); \
+  partition_size_list="$$(for i in $(call read-size-of-partitions,$(3)); do \
+    echo $(call round-partition-size,$${i}); \
+  done)"; \
+  sum_sizes_expr=$$(tr '\n' '+' <<< "$${partition_size_list}" | sed 's/+$$//'); \
   if [ $$(( $${sum_sizes_expr} )) -gt $$(( $(2) )) ]; then \
     echo "The sum of sizes of [$(strip $(3))] is larger than $(strip $(1)):"; \
     echo $${sum_sizes_expr} '==' $$(( $${sum_sizes_expr} )) '>' "$(2)" '==' $$(( $(2) )); \
@@ -3508,6 +3649,9 @@ endif
 ifdef BOARD_INCLUDE_RECOVERY_ACPIO
 	$(hide) cp $(BOARD_RECOVERY_ACPIO) $(zip_root)/$(PRIVATE_RECOVERY_OUT)/recovery_acpio
 endif
+ifdef BOARD_INCLUDE_DTB_IN_BOOTIMG
+	$(hide) cp $(INSTALLED_DTBIMAGE_TARGET) $(zip_root)/$(PRIVATE_RECOVERY_OUT)/dtb
+endif
 ifdef INTERNAL_KERNEL_CMDLINE
 	$(hide) echo "$(INTERNAL_KERNEL_CMDLINE)" > $(zip_root)/$(PRIVATE_RECOVERY_OUT)/cmdline
 endif
@@ -3534,6 +3678,9 @@ ifdef INSTALLED_KERNEL_TARGET
 endif
 ifdef INSTALLED_2NDBOOTLOADER_TARGET
 	$(hide) cp $(INSTALLED_2NDBOOTLOADER_TARGET) $(zip_root)/BOOT/second
+endif
+ifdef INSTALLED_DTBIMAGE_TARGET
+	$(hide) cp $(INSTALLED_DTBIMAGE_TARGET) $(zip_root)/BOOT/dtb
 endif
 ifdef INTERNAL_KERNEL_CMDLINE
 	$(hide) echo "$(INTERNAL_KERNEL_CMDLINE)" > $(zip_root)/BOOT/cmdline

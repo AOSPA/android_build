@@ -50,6 +50,7 @@ PRODUCT_PACKAGES += \
     bu \
     bugreport \
     bugreportz \
+    cgroups.json \
     charger \
     cmd \
     com.android.conscrypt \
@@ -202,6 +203,7 @@ PRODUCT_PACKAGES += \
     mdnsd \
     media \
     media_cmd \
+    mediacodec.policy \
     mediadrmserver \
     mediaextractor \
     mediametrics \
@@ -210,7 +212,6 @@ PRODUCT_PACKAGES += \
     mediaserver \
     mediaswcodec \
     mke2fs \
-    ModuleMetadata \
     monkey \
     mtpd \
     ndc \
@@ -251,6 +252,7 @@ PRODUCT_PACKAGES += \
     storaged \
     surfaceflinger \
     svc \
+    task_profiles.json \
     tc \
     telecom \
     telephony-common \
@@ -275,7 +277,7 @@ PRODUCT_PACKAGES += \
 # VINTF data for system image
 PRODUCT_PACKAGES += \
     framework_manifest.xml \
-    framework_compatibility_matrix.xml \
+    system_compatibility_matrix.xml \
 
 ifeq ($(TARGET_CORE_JARS),)
 $(error TARGET_CORE_JARS is empty; cannot initialize PRODUCT_BOOT_JARS variable)
@@ -295,15 +297,6 @@ PRODUCT_UPDATABLE_BOOT_LOCATIONS := \
     /apex/com.android.conscrypt/javalib/conscrypt.jar \
     /apex/com.android.media/javalib/updatable-media.jar
 
-
-# Add the compatibility library that is needed when org.apache.http.legacy
-# is removed from the bootclasspath.
-ifeq ($(REMOVE_OAHL_FROM_BCP),true)
-PRODUCT_PACKAGES += framework-oahl-backward-compatibility
-PRODUCT_BOOT_JARS += framework-oahl-backward-compatibility
-else
-PRODUCT_BOOT_JARS += org.apache.http.legacy
-endif
 
 PRODUCT_COPY_FILES += \
     system/core/rootdir/init.usb.rc:root/init.usb.rc \

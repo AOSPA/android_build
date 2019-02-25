@@ -74,7 +74,9 @@ endif
 module_run_appcompat :=
 ifeq (true,$(non_system_module))
 ifeq (,$(TARGET_BUILD_APPS)$(filter true,$(TARGET_BUILD_PDK)))  # ! unbundled app build
+ifneq ($(UNSAFE_DISABLE_HIDDENAPI_FLAGS),true)
   module_run_appcompat := true
+endif
 endif
 endif
 
@@ -167,6 +169,9 @@ my_2nd_arch_prefix := $(LOCAL_2ND_ARCH_VAR_PREFIX)
 my_common :=
 include $(BUILD_SYSTEM)/link_type.mk
 endif  # prebuilt_module_is_a_library
+
+# Check prebuilt ELF binaries.
+include $(BUILD_SYSTEM)/check_elf_file.mk
 
 # The real dependency will be added after all Android.mks are loaded and the install paths
 # of the shared libraries are determined.
