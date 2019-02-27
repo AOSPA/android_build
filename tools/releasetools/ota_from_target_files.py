@@ -999,7 +999,10 @@ def GetPackageMetadata(target_info, source_info=None):
     metadata['pre-build'] = source_info.fingerprint
     metadata['pre-build-incremental'] = source_info.GetBuildProp(
         'ro.build.version.incremental')
-    metadata['pre-device'] = source_info.device
+  elif target_info.is_ab:
+      listOfAsserts = [x.strip() for x in source_info.device.split(',')]
+  for element in listOfAsserts:
+      metadata['pre-device'] = element
   else:
     metadata['pre-device'] = target_info.device
 
