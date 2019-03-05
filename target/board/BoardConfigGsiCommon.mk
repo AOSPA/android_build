@@ -33,13 +33,13 @@ TARGET_COPY_OUT_PRODUCT := system/product
 BOARD_USES_METADATA_PARTITION := true
 
 # Android Verified Boot (AVB):
-#   Set AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED (--flag 2) in
+#   Set AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED (--flags 2) in
 #   vbmeta.img to disable AVB verification.
 #
 # To disable AVB for GSI, use the vbmeta.img and the GSI together.
 # To enable AVB for GSI, include the GSI public key into the device-specific
 # vbmeta.img.
-BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flag 2
+BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flags 2
 
 # Enable chain partition for system.
 BOARD_AVB_SYSTEM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
@@ -49,9 +49,9 @@ BOARD_AVB_SYSTEM_ROLLBACK_INDEX_LOCATION := 1
 
 # GSI specific System Properties
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
-# GSI is always userdebug and needs a couple of properties taking precedence
-# over those set by the vendor.
 TARGET_SYSTEM_PROP := build/make/target/board/gsi_system.prop
+else
+TARGET_SYSTEM_PROP := build/make/target/board/gsi_system_user.prop
 endif
 
 # Set this to create /cache mount point for non-A/B devices that mounts /cache.
@@ -61,3 +61,7 @@ BOARD_CACHEIMAGE_PARTITION_SIZE := 16777216
 
 # Disable 64 bit mediadrmserver
 TARGET_ENABLE_MEDIADRM_64 :=
+
+# Ordinary (non-flattened) APEX may require kernel changes. For maximum compatibility,
+# use flattened APEX for GSI
+TARGET_FLATTEN_APEX := true

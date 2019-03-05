@@ -94,6 +94,7 @@ $(KATI_obsolete_var \
   GLOBAL_CFLAGS_NO_OVERRIDE GLOBAL_CPPFLAGS_NO_OVERRIDE \
   ,GCC support has been removed. Use Clang instead)
 $(KATI_obsolete_var DIST_DIR dist_goal,Use dist-for-goals instead. See $(CHANGES_URL)#dist)
+$(KATI_obsolete_var TARGET_ANDROID_FILESYSTEM_CONFIG_H,Use TARGET_FS_CONFIG_GEN instead)
 $(KATI_deprecated_var USER,Use BUILD_USERNAME instead. See $(CHANGES_URL)#USER)
 
 # This is marked as obsolete in envsetup.mk after reading the BoardConfig.mk
@@ -947,6 +948,10 @@ ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
 endif
 
 ifeq ($(PRODUCT_USE_DYNAMIC_PARTITIONS),true)
+    ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+        $(error BOARD_BUILD_SYSTEM_ROOT_IMAGE cannot be true for devices with dynamic partitions)
+    endif
+
     requirements := \
         PRODUCT_USE_DYNAMIC_PARTITION_SIZE \
         PRODUCT_BUILD_SUPER_PARTITION \
