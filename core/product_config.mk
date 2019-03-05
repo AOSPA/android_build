@@ -345,6 +345,12 @@ PRODUCT_PROPERTY_OVERRIDES := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PROPERTY_OVERRIDES))
 .KATI_READONLY := PRODUCT_PROPERTY_OVERRIDES
 
+# A list of property assignments, like "key = value", with zero or more
+# whitespace characters on either side of the '='.
+PRODUCT_ODM_PROPERTIES := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ODM_PROPERTIES))
+.KATI_READONLY := PRODUCT_ODM_PROPERTIES
+
 PRODUCT_SHIPPING_API_LEVEL := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SHIPPING_API_LEVEL))
 
 # A list of property assignments, like "key = value", with zero or more
