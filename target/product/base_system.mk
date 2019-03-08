@@ -122,6 +122,7 @@ PRODUCT_PACKAGES += \
     libandroidfw \
     libandroid_runtime \
     libandroid_servers \
+    libartpalette-system \
     libashmemd_client \
     libaudioeffect_jni \
     libbinder \
@@ -158,7 +159,6 @@ PRODUCT_PACKAGES += \
     libmedia \
     libmedia_jni \
     libmediandk \
-    libmediaplayerservice \
     libmtp \
     libnetd_client \
     libnetlink \
