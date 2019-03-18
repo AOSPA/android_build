@@ -28,6 +28,10 @@ combo_var_prefix := $(combo_2nd_arch_prefix)$(combo_target)
 
 # Set reasonable defaults for the various variables
 
+$(combo_var_prefix)GLOBAL_CFLAGS := $(BOARD_GLOBAL_CFLAGS)
+$(combo_var_prefix)RELEASE_CFLAGS := $(BOARD_RELEASE_CFLAGS)
+$(combo_var_prefix)GLOBAL_CPPFLAGS := $(BOARD_GLOBAL_CPPFLAGS)
+
 $(combo_var_prefix)GLOBAL_ARFLAGS := cqsD -format=gnu
 
 $(combo_var_prefix)STATIC_LIB_SUFFIX := .a
