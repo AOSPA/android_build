@@ -37,11 +37,7 @@ include $(BUILD_SYSTEM)/dynamic_binary.mk
 ifeq ($(LOCAL_NO_LIBCRT_BUILTINS),true)
 my_target_libcrt_builtins :=
 else
-  ifeq ($(LOCAL_SDCLANG),true)
-    my_target_libcrt_builtins := $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)LIBCRT_BUILTINS_SDCLANG)
-  else
-    my_target_libcrt_builtins := $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)LIBCRT_BUILTINS)
-  endif
+my_target_libcrt_builtins := $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)LIBCRT_BUILTINS)
 endif
 ifeq ($(LOCAL_NO_LIBGCC),true)
 my_target_libgcc :=

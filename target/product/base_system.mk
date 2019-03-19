@@ -73,6 +73,7 @@ PRODUCT_PACKAGES += \
     dpm \
     dumpstate \
     dumpsys \
+    DynamicAndroidInstallationService \
     e2fsck \
     ExtServices \
     ExtShared \
@@ -85,6 +86,7 @@ PRODUCT_PACKAGES += \
     fs_config_files_system \
     fs_config_dirs_system \
     gsid \
+    gsi_tool \
     heapprofd \
     heapprofd_client \
     gatekeeperd \
@@ -120,6 +122,7 @@ PRODUCT_PACKAGES += \
     libandroidfw \
     libandroid_runtime \
     libandroid_servers \
+    libartpalette-system \
     libashmemd_client \
     libaudioeffect_jni \
     libbinder \
@@ -156,7 +159,6 @@ PRODUCT_PACKAGES += \
     libmedia \
     libmedia_jni \
     libmediandk \
-    libmediaplayerservice \
     libmtp \
     libnetd_client \
     libnetlink \

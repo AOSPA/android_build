@@ -56,7 +56,6 @@ LOCAL_DEX_FILE:=
 LOCAL_DEX_PREOPT_APP_IMAGE:=
 LOCAL_DEX_PREOPT_FLAGS:=
 LOCAL_DEX_PREOPT_GENERATE_PROFILE:=
-LOCAL_DEX_PREOPT_IMAGE_LOCATION:=
 LOCAL_DEX_PREOPT_PROFILE_CLASS_LISTING:=
 LOCAL_DEX_PREOPT:= # '',true,false,nostripping
 LOCAL_DISABLE_AUTO_GENERATE_TEST_CONFIG:=
@@ -224,7 +223,7 @@ LOCAL_PROGUARD_FLAG_FILES:=
 LOCAL_PROGUARD_FLAGS:=
 LOCAL_PROPRIETARY_MODULE:=
 LOCAL_PROTOC_FLAGS:=
-# lite(default),micro,nano,stream,full,nanopb-c,nanopb-c-enable_malloc
+# lite(default),micro,nano,stream,full,nanopb-c,nanopb-c-enable_malloc,nanopb-c-16bit,nanopb-c-enable_malloc-16bit,nanopb-c-32bit,nanopb-c-enable_malloc-32bit
 LOCAL_PROTOC_OPTIMIZE_TYPE:=
 LOCAL_PROTO_JAVA_OUTPUT_PARAMS:=
 LOCAL_R8_FLAG_FILES:=

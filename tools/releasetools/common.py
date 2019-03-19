@@ -190,6 +190,29 @@ def Run(args, verbose=None, **kwargs):
   return subprocess.Popen(args, **kwargs)
 
 
+def RunAndWait(args, verbose=None, **kwargs):
+  """Runs the given command waiting for it to complete.
+
+  Args:
+    args: The command represented as a list of strings.
+    verbose: Whether the commands should be shown. Default to the global
+        verbosity if unspecified.
+    kwargs: Any additional args to be passed to subprocess.Popen(), such as env,
+        stdin, etc. stdout and stderr will default to subprocess.PIPE and
+        subprocess.STDOUT respectively unless caller specifies any of them.
+
+  Raises:
+    ExternalError: On non-zero exit from the command.
+  """
+  proc = Run(args, verbose=verbose, **kwargs)
+  proc.wait()
+
+  if proc.returncode != 0:
+    raise ExternalError(
+        "Failed to run command '{}' (exit code {})".format(
+            args, proc.returncode))
+
+
 def RunAndCheckOutput(args, verbose=None, **kwargs):
   """Runs the given command and returns the output.
 
@@ -745,30 +768,46 @@ def Gunzip(in_filename, out_filename):
     shutil.copyfileobj(in_file, out_file)
 
 
+def UnzipToDir(filename, dirname, pattern=None):
+  """Unzips the archive to the given directory.
+
+  Args:
+    filename: The name of the zip file to unzip.
+
+    dirname: Where the unziped files will land.
+
+    pattern: Files to unzip from the archive. If omitted, will unzip the entire
+    archvie.
+  """
+
+  cmd = ["unzip", "-o", "-q", filename, "-d", dirname]
+  if pattern is not None:
+    cmd.extend(pattern)
+  RunAndCheckOutput(cmd)
+
+
 def UnzipTemp(filename, pattern=None):
   """Unzips the given archive into a temporary directory and returns the name.
 
-  If filename is of the form "foo.zip+bar.zip", unzip foo.zip into a temp dir,
-  then unzip bar.zip into that_dir/BOOTABLE_IMAGES.
+  Args:
+    filename: If filename is of the form "foo.zip+bar.zip", unzip foo.zip into
+    a temp dir, then unzip bar.zip into that_dir/BOOTABLE_IMAGES.
+
+    pattern: Files to unzip from the archive. If omitted, will unzip the entire
+    archvie.
 
   Returns:
     The name of the temporary directory.
   """
 
-  def unzip_to_dir(filename, dirname):
-    cmd = ["unzip", "-o", "-q", filename, "-d", dirname]
-    if pattern is not None:
-      cmd.extend(pattern)
-    RunAndCheckOutput(cmd)
-
   tmp = MakeTempDir(prefix="targetfiles-")
   m = re.match(r"^(.*[.]zip)\+(.*[.]zip)$", filename, re.IGNORECASE)
   if m:
-    unzip_to_dir(m.group(1), tmp)
-    unzip_to_dir(m.group(2), os.path.join(tmp, "BOOTABLE_IMAGES"))
+    UnzipToDir(m.group(1), tmp, pattern)
+    UnzipToDir(m.group(2), os.path.join(tmp, "BOOTABLE_IMAGES"), pattern)
     filename = m.group(1)
   else:
-    unzip_to_dir(filename, tmp)
+    UnzipToDir(filename, tmp, pattern)
 
   return tmp
 
