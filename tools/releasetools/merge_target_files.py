@@ -43,6 +43,10 @@ Usage: merge_target_files.py [args]
 
   --output-target-files output-target-files-package
       The output merged target files package. Also a zip archive.
+
+  --rebuild_recovery
+      Rebuild the recovery patch used by non-A/B devices and write it to the
+      system image.
 """
 
 from __future__ import print_function
@@ -65,6 +69,7 @@ OPTIONS.system_misc_info_keys = None
 OPTIONS.other_target_files = None
 OPTIONS.other_item_list = None
 OPTIONS.output_target_files = None
+OPTIONS.rebuild_recovery = False
 OPTIONS.keep_tmp = False
 
 # default_system_item_list is a list of items to extract from the partial
@@ -199,12 +204,18 @@ def read_config_list(config_file_path):
     return config_file.read().splitlines()
 
 
-def validate_config_lists(system_item_list, other_item_list):
+def validate_config_lists(
+    system_item_list,
+    system_misc_info_keys,
+    other_item_list):
   """Performs validations on the merge config lists.
 
   Args:
     system_item_list: The list of items to extract from the partial
     system target files package as is.
+
+    system_misc_info_keys: A list of keys to obtain from the system instance
+    of META/misc_info.txt. The remaining keys from the other instance.
 
     other_item_list: The list of items to extract from the partial
     other target files package as is.
@@ -226,6 +237,12 @@ def validate_config_lists(system_item_list, other_item_list):
     logger.error('Please ensure missing items are in either the '
                  'system-item-list or other-item-list files provided to '
                  'this script.')
+    return False
+
+  if ('dynamic_partition_list' in system_misc_info_keys) or (
+      'super_partition_groups' in system_misc_info_keys):
+    logger.error('Dynamic partition misc info keys should come from '
+                 'the other instance of META/misc_info.txt.')
     return False
 
   return True
@@ -325,6 +342,25 @@ def process_misc_info_txt(
 
   for key in system_misc_info_keys:
     merged_info_dict[key] = system_info_dict[key]
+
+  # Merge misc info keys used for Dynamic Partitions.
+  if (merged_info_dict.get('use_dynamic_partitions') == 'true') and (
+      system_info_dict.get('use_dynamic_partitions') == 'true'):
+    merged_info_dict['dynamic_partition_list'] = '%s %s' % (
+        system_info_dict.get('dynamic_partition_list', ''),
+        merged_info_dict.get('dynamic_partition_list', ''))
+    # Partition groups and group sizes are defined by the other (non-system)
+    # misc info file because these values may vary for each board that uses
+    # a shared system image.
+    for partition_group in merged_info_dict['super_partition_groups'].split(' '):
+      if ('super_%s_group_size' % partition_group) not in merged_info_dict:
+        raise common.ExternalError(
+            'Other META/misc_info.txt does not contain required key '
+            'super_%s_group_size.' % partition_group)
+      key = 'super_%s_partition_list' % partition_group
+      merged_info_dict[key] = '%s %s' % (
+        system_info_dict.get(key, ''),
+        merged_info_dict.get(key, ''))
 
   output_misc_info_txt = os.path.join(
       output_target_files_temp_dir,
@@ -465,7 +501,8 @@ def merge_target_files(
     system_misc_info_keys,
     other_target_files,
     other_item_list,
-    output_target_files):
+    output_target_files,
+    rebuild_recovery):
   """Merge two target files packages together.
 
   This function takes system and other target files packages as input, performs
@@ -498,6 +535,9 @@ def merge_target_files(
 
     output_target_files: The name of the output zip archive target files
     package created by merging system and other.
+
+    rebuild_recovery: If true, rebuild the recovery patch used by non-A/B
+    devices and write it to the system image.
   """
 
   logger.info(
@@ -563,10 +603,10 @@ def merge_target_files(
 
   # Regenerate IMAGES in the temporary directory.
 
-  add_img_args = [
-      '--verbose',
-      output_target_files_temp_dir,
-  ]
+  add_img_args = ['--verbose']
+  if rebuild_recovery:
+    add_img_args.append('--rebuild_recovery')
+  add_img_args.append(output_target_files_temp_dir)
 
   add_img_to_target_files.main(add_img_args)
 
@@ -662,6 +702,8 @@ def main():
       OPTIONS.other_item_list = a
     elif o == '--output-target-files':
       OPTIONS.output_target_files = a
+    elif o == '--rebuild_recovery':
+      OPTIONS.rebuild_recovery = True
     elif o == '--keep_tmp':
       OPTIONS.keep_tmp = True
     else:
@@ -677,6 +719,7 @@ def main():
           'other-target-files=',
           'other-item-list=',
           'output-target-files=',
+          'rebuild_recovery',
           "keep_tmp",
       ],
       extra_option_handler=option_handler)
@@ -705,6 +748,7 @@ def main():
 
   if not validate_config_lists(
       system_item_list=system_item_list,
+      system_misc_info_keys=system_misc_info_keys,
       other_item_list=other_item_list):
     sys.exit(1)
 
@@ -716,7 +760,8 @@ def main():
           system_misc_info_keys=system_misc_info_keys,
           other_target_files=OPTIONS.other_target_files,
           other_item_list=other_item_list,
-          output_target_files=OPTIONS.output_target_files),
+          output_target_files=OPTIONS.output_target_files,
+          rebuild_recovery=OPTIONS.rebuild_recovery),
       OPTIONS.keep_tmp)
 
 

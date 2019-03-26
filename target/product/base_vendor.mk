@@ -26,10 +26,20 @@ PRODUCT_PACKAGES += \
     shell_and_utilities_recovery \
     watchdogd.recovery \
 
+# These had been pulled in via init_second_stage.recovery, but may not be needed.
+PRODUCT_HOST_PACKAGES += \
+    e2fsdroid \
+    mke2fs \
+    sload_f2fs \
+    make_f2fs \
+
+PRODUCT_HOST_PACKAGES += \
+    icu-data_host_runtime_apex
+
 # Base modules and settings for the vendor partition.
 PRODUCT_PACKAGES += \
     android.hardware.cas@1.1-service \
-    android.hardware.configstore@1.2-service \
+    android.hardware.configstore@1.1-service \
     android.hardware.media.omx@1.0-service \
     dumpsys_vendor \
     fs_config_files_nonsystem \
