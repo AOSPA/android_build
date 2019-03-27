@@ -237,6 +237,10 @@ $(foreach makefile,$(ARTIFACT_PATH_REQUIREMENT_PRODUCTS),\
 # Sanity check
 $(check-all-products)
 
+ifneq ($(filter dump-products, $(MAKECMDGOALS)),)
+$(dump-products)
+endif
+
 # Convert a short name like "sooner" into the path to the product
 # file defining that product.
 #
@@ -341,6 +345,12 @@ PRODUCT_PROPERTY_OVERRIDES := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PROPERTY_OVERRIDES))
 .KATI_READONLY := PRODUCT_PROPERTY_OVERRIDES
 
+# A list of property assignments, like "key = value", with zero or more
+# whitespace characters on either side of the '='.
+PRODUCT_ODM_PROPERTIES := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ODM_PROPERTIES))
+.KATI_READONLY := PRODUCT_ODM_PROPERTIES
+
 PRODUCT_SHIPPING_API_LEVEL := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SHIPPING_API_LEVEL))
 
 # A list of property assignments, like "key = value", with zero or more
@@ -348,10 +358,6 @@ PRODUCT_SHIPPING_API_LEVEL := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SHI
 # used for adding properties to default.prop
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
-
-$(foreach rule,$(PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES),\
-    $(if $(filter 2,$(words $(subst :,$(space),$(rule)))),,\
-        $(error Rule "$(rule)" in PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDE is not <module_name>:<manifest_name>)))
 
 .KATI_READONLY := PRODUCT_DEFAULT_PROPERTY_OVERRIDES
 
@@ -412,6 +418,8 @@ PRODUCT_DEX_PREOPT_BOOT_FLAGS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_BOOT_FLAGS))
 PRODUCT_DEX_PREOPT_PROFILE_DIR := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_PROFILE_DIR))
+PRODUCT_DEX_PREOPT_NEVER_ALLOW_STRIPPING := \
+    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEX_PREOPT_NEVER_ALLOW_STRIPPING))
 
 # Boot image options.
 PRODUCT_USE_PROFILE_FOR_BOOT_IMAGE := \
@@ -571,12 +579,19 @@ PRODUCT_FORCE_PRODUCT_MODULES_TO_SYSTEM_PARTITION := \
 PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := \
     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS))
 
-# List of <module_name>:<manifest_name> pairs to override the manifest package name
-# of a module <module_name> to <manifest_name>. Patterns can be used as in
-# com.android.%:com.acme.android.%.release
-PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES := \
-    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES))
-.KATI_READONLY := PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES
+define product-overrides-config
+PRODUCT_$(1)_OVERRIDES := $$(strip $$(PRODUCTS.$$(INTERNAL_PRODUCT).PRODUCT_$(1)_OVERRIDES))
+.KATI_READONLY := PRODUCT_$(1)_OVERRIDES
+$$(foreach rule,$$(PRODUCT_$(1)_OVERRIDES),\
+    $$(if $$(filter 2,$$(words $$(subst :,$$(space),$$(rule)))),,\
+        $$(error Rule "$$(rule)" in PRODUCT_$(1)_OVERRIDE is not <module_name>:<new_value>)))
+endef
+
+$(foreach var, \
+    MANIFEST_PACKAGE_NAME \
+    PACKAGE_NAME \
+    CERTIFICATE, \
+  $(eval $(call product-overrides-config,$(var))))
 
 # Macro to use below. $(1) is the name of the partition
 define product-build-image-config

@@ -116,11 +116,6 @@ $(call add_json_bool, UncompressPrivAppDex,              $(call invert_bool,$(fi
 $(call add_json_list, ModulesLoadedByPrivilegedModules,  $(PRODUCT_LOADED_BY_PRIVILEGED_MODULES))
 
 $(call add_json_list, BootJars,                          $(PRODUCT_BOOT_JARS))
-$(call add_json_list, PreoptBootJars,                    $(DEXPREOPT_BOOT_JARS_MODULES))
-
-$(call add_json_bool, DisableDexPreopt,                  $(call invert_bool,$(filter true,$(WITH_DEXPREOPT))))
-$(call add_json_list, DisableDexPreoptModules,           $(DEXPREOPT_DISABLED_MODULES))
-$(call add_json_str,  DexPreoptProfileDir,               $(PRODUCT_DEX_PREOPT_PROFILE_DIR))
 
 $(call add_json_bool, Product_is_iot,                    $(filter true,$(PRODUCT_IOT)))
 
@@ -156,13 +151,15 @@ $(call add_json_bool, FlattenApex,                       $(filter true,$(TARGET_
 $(call add_json_str,  DexpreoptGlobalConfig,             $(DEX_PREOPT_CONFIG))
 
 $(call add_json_list, ManifestPackageNameOverrides,      $(PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES))
+$(call add_json_list, PackageNameOverrides,              $(PRODUCT_PACKAGE_NAME_OVERRIDES))
+$(call add_json_list, CertificateOverrides,              $(PRODUCT_CERTIFICATE_OVERRIDES))
 
 $(call add_json_bool, EnforceSystemCertificate,          $(ENFORCE_SYSTEM_CERTIFICATE))
 $(call add_json_list, EnforceSystemCertificateWhitelist, $(ENFORCE_SYSTEM_CERTIFICATE_WHITELIST))
 
-$(call add_json_str,  HiddenAPIStubFlags,                $(INTERNAL_PLATFORM_HIDDENAPI_STUB_FLAGS))
-$(call add_json_str,  HiddenAPIFlags,                    $(INTERNAL_PLATFORM_HIDDENAPI_FLAGS))
-$(call add_json_list, HiddenAPIExtraAppUsageJars,        $(HIDDENAPI_EXTRA_APP_USAGE_JARS))
+$(call add_json_list, ProductHiddenAPIStubs,             $(PRODUCT_HIDDENAPI_STUBS))
+$(call add_json_list, ProductHiddenAPIStubsSystem,       $(PRODUCT_HIDDENAPI_STUBS_SYSTEM))
+$(call add_json_list, ProductHiddenAPIStubsTest,         $(PRODUCT_HIDDENAPI_STUBS_TEST))
 
 $(call add_json_map, VendorVars)
 $(foreach namespace,$(SOONG_CONFIG_NAMESPACES),\
