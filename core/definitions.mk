@@ -651,6 +651,18 @@ endef
 
 ###########################################################
 ## Convert a list of short modules names (e.g., "framework", "Browser")
+## into the list of files that are built *for the target* for those modules.
+## NOTE: this won't return reliable results until after all
+## sub-makefiles have been included.
+## $(1): target list
+###########################################################
+
+define module-target-built-files
+$(foreach module,$(1),$(ALL_MODULES.$(module).TARGET_BUILT))
+endef
+
+###########################################################
+## Convert a list of short modules names (e.g., "framework", "Browser")
 ## into the list of files that should be used when linking
 ## against that module as a public API.
 ## TODO: Allow this for more than JAVA_LIBRARIES modules
@@ -2484,6 +2496,25 @@ $(2): $(1) $(ZIPALIGN) $(ZIP2ZIP)
 	$$(align-package)
 endef
 
+# Create copy pair for compatibility suite
+# Filter out $(LOCAL_INSTALLED_MODULE) to prevent overriding target
+# $(1): source path
+# $(2): destination path
+# The format of copy pair is src:dst
+define compat-copy-pair
+$(if $(filter-out $(2), $(LOCAL_INSTALLED_MODULE)), $(1):$(2))
+endef
+
+# Create copy pair for $(1) $(2)
+# If $(2) is substring of $(3) do nothing.
+# $(1): source path
+# $(2): destination path
+# $(3): filter-out target
+# The format of copy pair is src:dst
+define filter-copy-pair
+$(if $(findstring $(2), $(3)),,$(1):$(2))
+endef
+
 # Copies many files.
 # $(1): The files to copy.  Each entry is a ':' separated src:dst pair
 # $(2): An optional directory to prepend to the destination
@@ -3305,9 +3336,8 @@ $(foreach source,$(ENFORCE_RRO_SOURCES), \
   $(eval enforce_rro_source_manifest_package_info := $(word 3,$(_o))) \
   $(eval enforce_rro_use_res_lib := $(word 4,$(_o))) \
   $(eval enforce_rro_source_overlays := $(subst :, ,$(word 5,$(_o)))) \
-  $(eval enforce_rro_module := $(enforce_rro_source_module)__auto_generated_rro) \
   $(eval include $(BUILD_SYSTEM)/generate_enforce_rro.mk) \
-  $(eval ALL_MODULES.$(enforce_rro_source_module).REQUIRED += $(enforce_rro_module)) \
+  $(eval ALL_MODULES.$$(enforce_rro_source_module).REQUIRED += $$(LOCAL_PACKAGE_NAME)) \
 )
 endef
 
@@ -3374,3 +3404,19 @@ $(KATI_obsolete_var \
   initialize-package-file \
   add-jni-shared-libs-to-package,\
   These functions have been removed)
+
+###########################################################
+## Verify the variants of a VNDK library are identical
+##
+## $(1): Path to the core variant shared library file.
+## $(2): Path to the vendor variant shared library file.
+## $(3): TOOLS_PREFIX
+###########################################################
+LIBRARY_IDENTITY_CHECK_SCRIPT := build/make/tools/check_identical_lib.sh
+define verify-vndk-libs-identical
+@echo "Checking VNDK vendor variant: $(2)"
+$(hide) CLANG_BIN="$(LLVM_PREBUILTS_PATH)" \
+	CROSS_COMPILE="$(strip $(3))" \
+	XZ="$(XZ)" \
+	$(LIBRARY_IDENTITY_CHECK_SCRIPT) $(SOONG_STRIP_PATH) $(1) $(2)
+endef
