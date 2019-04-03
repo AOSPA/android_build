@@ -73,7 +73,7 @@ PRODUCT_PACKAGES += \
     dpm \
     dumpstate \
     dumpsys \
-    DynamicAndroidInstallationService \
+    DynamicSystemInstallationService \
     e2fsck \
     ExtServices \
     ExtShared \
@@ -213,7 +213,6 @@ PRODUCT_PACKAGES += \
     media_profiles_V1_0.dtd \
     MediaProvider \
     mediaserver \
-    mediaswcodec \
     mke2fs \
     monkey \
     mtpd \
