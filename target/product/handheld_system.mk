@@ -60,7 +60,6 @@ PRODUCT_PACKAGES += \
     MmsService \
     MtpDocumentsProvider \
     MusicFX \
-    NfcNci \
     OsuLogin \
     PacProcessor \
     PrintRecommendationService \
