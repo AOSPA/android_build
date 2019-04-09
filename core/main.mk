@@ -257,6 +257,15 @@ ifneq (,$(PRODUCT_SYSTEM_SERVER_COMPILER_FILTER))
 ADDITIONAL_PRODUCT_PROPERTIES += dalvik.vm.systemservercompilerfilter=$(PRODUCT_SYSTEM_SERVER_COMPILER_FILTER)
 endif
 
+# Sets the default value of ro.postinstall.fstab.prefix to /system.
+# Device board config should override the value to /product when needed by:
+#
+#     PRODUCT_PRODUCT_PROPERTIES += ro.postinstall.fstab.prefix=/product
+#
+# It then uses ${ro.postinstall.fstab.prefix}/etc/fstab.postinstall to
+# mount system_other partition.
+ADDITIONAL_DEFAULT_PROPERTIES += ro.postinstall.fstab.prefix=/system
+
 # -----------------------------------------------------------------
 ###
 ### In this section we set up the things that are different
@@ -502,6 +511,10 @@ endif # ONE_SHOT_MAKEFILE
 ifndef subdir_makefiles_total
 subdir_makefiles_total := $(words init post finish)
 endif
+
+droid_targets: no_vendor_variant_vndk_check
+.PHONY: no_vendor_variant_vndk_check
+no_vendor_variant_vndk_check:
 
 $(info [$(call inc_and_print,subdir_makefiles_inc)/$(subdir_makefiles_total)] finishing build rules ...)
 
@@ -1146,35 +1159,36 @@ $(if $(strip $(1)), \
 )
 endef
 
-ifeq (true|,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_PACKAGES_EXIST)|$(filter true,$(ALLOW_MISSING_DEPENDENCIES)))
-  _whitelist := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_PACKAGES_EXIST_WHITELIST)
-  _modules := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES)
-  # Sanity check all modules in PRODUCT_PACKAGES exist. We check for the
-  # existence if either <module> or the <module>_32 variant.
-  _nonexistant_modules := $(filter-out $(ALL_MODULES),$(_modules))
-  _nonexistant_modules := $(foreach m,$(_nonexistant_modules),\
-    $(if $(call get-32-bit-modules,$(m)),,$(m)))
-  $(call maybe-print-list-and-error,$(filter-out $(_whitelist),$(_nonexistant_modules)),\
-    $(INTERNAL_PRODUCT) includes non-existant modules in PRODUCT_PACKAGES)
-  $(call maybe-print-list-and-error,$(filter-out $(_nonexistant_modules),$(_whitelist)),\
-    $(INTERNAL_PRODUCT) includes redundant whitelist entries for nonexistant PRODUCT_PACKAGES)
-endif
-
-# Check to ensure that all modules in PRODUCT_HOST_PACKAGES exist
-#
-# Many host modules are Linux-only, so skip this check on Mac. If we ever have Mac-only modules,
-# maybe it would make sense to have PRODUCT_HOST_PACKAGES_LINUX/_DARWIN?
-ifneq ($(HOST_OS),darwin)
-  ifneq (true,$(ALLOW_MISSING_DEPENDENCIES))
-    _modules := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_HOST_PACKAGES)
-    _nonexistant_modules := $(foreach m,$(_modules),\
-      $(if $(filter FAKE,$(ALL_MODULES.$(m).CLASS))$(filter $(HOST_OUT_ROOT)/%,$(ALL_MODULES.$(m).INSTALLED)),,$(m)))
-    $(call maybe-print-list-and-error,$(_nonexistant_modules),\
-      $(INTERNAL_PRODUCT) includes non-existant modules in PRODUCT_HOST_PACKAGES)
-  endif
-endif
-
 ifdef FULL_BUILD
+  ifneq (true,$(ALLOW_MISSING_DEPENDENCIES))
+    # Check to ensure that all modules in PRODUCT_PACKAGES exist (opt in per product)
+    ifeq (true,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_PACKAGES_EXIST))
+      _whitelist := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_PACKAGES_EXIST_WHITELIST)
+      _modules := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES)
+      # Sanity check all modules in PRODUCT_PACKAGES exist. We check for the
+      # existence if either <module> or the <module>_32 variant.
+      _nonexistant_modules := $(filter-out $(ALL_MODULES),$(_modules))
+      _nonexistant_modules := $(foreach m,$(_nonexistant_modules),\
+        $(if $(call get-32-bit-modules,$(m)),,$(m)))
+      $(call maybe-print-list-and-error,$(filter-out $(_whitelist),$(_nonexistant_modules)),\
+        $(INTERNAL_PRODUCT) includes non-existant modules in PRODUCT_PACKAGES)
+      $(call maybe-print-list-and-error,$(filter-out $(_nonexistant_modules),$(_whitelist)),\
+        $(INTERNAL_PRODUCT) includes redundant whitelist entries for nonexistant PRODUCT_PACKAGES)
+    endif
+
+    # Check to ensure that all modules in PRODUCT_HOST_PACKAGES exist
+    #
+    # Many host modules are Linux-only, so skip this check on Mac. If we ever have Mac-only modules,
+    # maybe it would make sense to have PRODUCT_HOST_PACKAGES_LINUX/_DARWIN?
+    ifneq ($(HOST_OS),darwin)
+      _modules := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_HOST_PACKAGES)
+      _nonexistant_modules := $(foreach m,$(_modules),\
+        $(if $(filter FAKE,$(ALL_MODULES.$(m).CLASS))$(filter $(HOST_OUT_ROOT)/%,$(ALL_MODULES.$(m).INSTALLED)),,$(m)))
+      $(call maybe-print-list-and-error,$(_nonexistant_modules),\
+        $(INTERNAL_PRODUCT) includes non-existant modules in PRODUCT_HOST_PACKAGES)
+    endif
+  endif
+
   product_host_FILES := $(call host-installed-files,$(INTERNAL_PRODUCT))
   product_target_FILES := $(call product-installed-files, $(INTERNAL_PRODUCT))
   # WARNING: The product_MODULES variable is depended on by external files.
@@ -1265,6 +1279,7 @@ else
   # requested by the product, because we probably won't have rules
   # to build them.
   product_target_FILES :=
+  product_host_FILES :=
 endif
 
 # TODO: Remove the 3 places in the tree that use ALL_DEFAULT_INSTALLED_MODULES
@@ -1272,6 +1287,7 @@ endif
 modules_to_install := $(sort \
     $(ALL_DEFAULT_INSTALLED_MODULES) \
     $(product_target_FILES) \
+    $(product_host_FILES) \
     $(call get-tagged-modules,$(tags_to_install)) \
     $(CUSTOM_MODULES) \
   )
@@ -1620,21 +1636,21 @@ else # TARGET_BUILD_APPS
   ifeq ($(EMMA_INSTRUMENT),true)
     $(JACOCO_REPORT_CLASSES_ALL) : $(INSTALLED_SYSTEMIMAGE_TARGET)
     $(call dist-for-goals, dist_files, $(JACOCO_REPORT_CLASSES_ALL))
+  endif
 
-    # Put XML formatted API files in the dist dir.
-    $(TARGET_OUT_COMMON_INTERMEDIATES)/api.xml: $(call java-lib-header-files,android_stubs_current) $(APICHECK)
-    $(TARGET_OUT_COMMON_INTERMEDIATES)/system-api.xml: $(call java-lib-header-files,android_system_stubs_current) $(APICHECK)
-    $(TARGET_OUT_COMMON_INTERMEDIATES)/test-api.xml: $(call java-lib-header-files,android_test_stubs_current) $(APICHECK)
+  # Put XML formatted API files in the dist dir.
+  $(TARGET_OUT_COMMON_INTERMEDIATES)/api.xml: $(call java-lib-header-files,android_stubs_current) $(APICHECK)
+  $(TARGET_OUT_COMMON_INTERMEDIATES)/system-api.xml: $(call java-lib-header-files,android_system_stubs_current) $(APICHECK)
+  $(TARGET_OUT_COMMON_INTERMEDIATES)/test-api.xml: $(call java-lib-header-files,android_test_stubs_current) $(APICHECK)
 
-    api_xmls := $(addprefix $(TARGET_OUT_COMMON_INTERMEDIATES)/,api.xml system-api.xml test-api.xml)
-    $(api_xmls):
+  api_xmls := $(addprefix $(TARGET_OUT_COMMON_INTERMEDIATES)/,api.xml system-api.xml test-api.xml)
+  $(api_xmls):
 	$(hide) echo "Converting API file to XML: $@"
 	$(hide) mkdir -p $(dir $@)
 	$(hide) $(APICHECK_COMMAND) --input-api-jar $< --api-xml $@
 
-    $(call dist-for-goals, dist_files, $(api_xmls))
-    api_xmls :=
-  endif
+  $(call dist-for-goals, dist_files, $(api_xmls))
+  api_xmls :=
 
 # Building a full system-- the default is to build droidcore
 droid_targets: droidcore dist_files

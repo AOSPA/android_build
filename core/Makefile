@@ -222,10 +222,22 @@ FINAL_VENDOR_DEFAULT_PROPERTIES := $(call uniq-pairs-by-first-component, \
 
 BUILDINFO_SH := build/make/tools/buildinfo.sh
 BUILDINFO_COMMON_SH := build/make/tools/buildinfo_common.sh
-# Generates a set of common build system properties to a file.
+
+# Generates a set of sysprops common to all partitions to a file.
 # $(1): Partition name
 # $(2): Output file name
 define generate-common-build-props
+	PRODUCT_BRAND="$(PRODUCT_BRAND)" \
+	PRODUCT_DEVICE="$(TARGET_DEVICE)" \
+	PRODUCT_MANUFACTURER="$(PRODUCT_MANUFACTURER)" \
+	PRODUCT_MODEL="$(PRODUCT_MODEL)" \
+	PRODUCT_NAME="$(TARGET_PRODUCT)" \
+	$(call generate-common-build-props-with-product-vars-set,$(1),$(2))
+endef
+
+# Like the above macro, but requiring the relevant PRODUCT_ environment
+# variables to be set when called.
+define generate-common-build-props-with-product-vars-set
 	BUILD_FINGERPRINT="$(BUILD_FINGERPRINT_FROM_FILE)" \
 	BUILD_ID="$(BUILD_ID)" \
 	BUILD_NUMBER="$(BUILD_NUMBER_FROM_FILE)" \
@@ -233,12 +245,7 @@ define generate-common-build-props
 	DATE="$(DATE_FROM_FILE)" \
 	PLATFORM_SDK_VERSION="$(PLATFORM_SDK_VERSION)" \
 	PLATFORM_VERSION="$(PLATFORM_VERSION)" \
-	PRODUCT_BRAND="$(PRODUCT_BRAND)" \
-	PRODUCT_MANUFACTURER="$(PRODUCT_MANUFACTURER)" \
-	PRODUCT_MODEL="$(PRODUCT_MODEL)" \
-	PRODUCT_NAME="$(TARGET_PRODUCT)" \
 	TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
-	TARGET_DEVICE="$(TARGET_DEVICE)" \
 	bash $(BUILDINFO_COMMON_SH) "$(1)" >> $(2)
 endef
 
@@ -410,7 +417,12 @@ ifneq ($(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OEM_PROPERTIES),)
 	$(hide) $(foreach prop,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OEM_PROPERTIES), \
 	    echo "import /oem/oem.prop $(prop)" >> $@;)
 endif
-	$(hide) $(call generate-common-build-props,system,$@)
+	$(hide) PRODUCT_BRAND="$(PRODUCT_SYSTEM_BRAND)" \
+	        PRODUCT_MANUFACTURER="$(PRODUCT_SYSTEM_MANUFACTURER)" \
+	        PRODUCT_MODEL="$(PRODUCT_SYSTEM_MODEL)" \
+	        PRODUCT_NAME="$(PRODUCT_SYSTEM_NAME)" \
+	        PRODUCT_DEVICE="$(PRODUCT_SYSTEM_DEVICE)" \
+	        $(call generate-common-build-props-with-product-vars-set,system,$@)
 	$(hide) TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
 	        TARGET_BUILD_FLAVOR="$(TARGET_BUILD_FLAVOR)" \
 	        TARGET_DEVICE="$(TARGET_DEVICE)" \
@@ -704,6 +716,15 @@ $(BUILD_SYSTEM_STATS):
 	@$(foreach s,$(STATS.MODULE_TYPE),echo "modules_type_make,$(s),$(words $(STATS.MODULE_TYPE.$(s)))" >>$@;)
 	@$(foreach s,$(STATS.SOONG_MODULE_TYPE),echo "modules_type_soong,$(s),$(STATS.SOONG_MODULE_TYPE.$(s))" >>$@;)
 $(call dist-for-goals,droidcore,$(BUILD_SYSTEM_STATS))
+
+# -----------------------------------------------------------------
+# build /product/etc/security/avb/system_other.avbpubkey if needed
+ifdef BUILDING_SYSTEM_OTHER_IMAGE
+ifeq ($(BOARD_AVB_ENABLE),true)
+INSTALLED_PRODUCT_SYSTEM_OTHER_AVBKEY_TARGET := $(TARGET_OUT_PRODUCT_ETC)/security/avb/system_other.avbpubkey
+ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_PRODUCT_SYSTEM_OTHER_AVBKEY_TARGET)
+endif # BOARD_AVB_ENABLE
+endif # BUILDING_SYSTEM_OTHER_IMAGE
 
 # -----------------------------------------------------------------
 # Modules ready to be converted to Soong, ordered by how many
@@ -1439,8 +1460,7 @@ $(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_system_other_add_hashtree_footer_args
 $(if $(BOARD_AVB_ENABLE),\
     $(if $(BOARD_AVB_SYSTEM_OTHER_KEY_PATH),\
         $(hide) echo "avb_system_other_key_path=$(BOARD_AVB_SYSTEM_OTHER_KEY_PATH)" >> $(1)
-        $(hide) echo "avb_system_other_algorithm=$(BOARD_AVB_SYSTEM_OTHER_ALGORITHM)" >> $(1)
-        $(hide) echo "avb_system_extract_system_other_key=true" >> $(1)))
+        $(hide) echo "avb_system_other_algorithm=$(BOARD_AVB_SYSTEM_OTHER_ALGORITHM)" >> $(1)))
 $(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_vendor_hashtree_enable=$(BOARD_AVB_ENABLE)" >> $(1))
 $(if $(BOARD_AVB_ENABLE),$(hide) echo "avb_vendor_add_hashtree_footer_args=$(BOARD_AVB_VENDOR_ADD_HASHTREE_FOOTER_ARGS)" >> $(1))
 $(if $(BOARD_AVB_ENABLE),\
@@ -1544,13 +1564,11 @@ recovery_sepolicy := \
     $(TARGET_RECOVERY_ROOT_OUT)/plat_file_contexts \
     $(TARGET_RECOVERY_ROOT_OUT)/vendor_file_contexts \
     $(TARGET_RECOVERY_ROOT_OUT)/plat_property_contexts \
-    $(TARGET_RECOVERY_ROOT_OUT)/vendor_property_contexts
-
-ifdef BOARD_ODM_SEPOLICY_DIRS
-recovery_sepolicy += \
+    $(TARGET_RECOVERY_ROOT_OUT)/vendor_property_contexts \
     $(TARGET_RECOVERY_ROOT_OUT)/odm_file_contexts \
-    $(TARGET_RECOVERY_ROOT_OUT)/odm_property_contexts
-endif
+    $(TARGET_RECOVERY_ROOT_OUT)/odm_property_contexts \
+    $(TARGET_RECOVERY_ROOT_OUT)/product_file_contexts \
+    $(TARGET_RECOVERY_ROOT_OUT)/product_property_contexts
 
 # Passed into rsync from non-recovery root to recovery root, to avoid overwriting recovery-specific
 # SELinux files
@@ -2114,12 +2132,80 @@ define create-vendor-odm-symlink
 endef
 endif
 
+# Check that libraries that should only be in APEXes don't end up in the system
+# image. For the Runtime APEX this complements the checks in
+# art/build/apex/art_apex_test.py.
+# TODO(b/128708192): Implement this restriction in Soong instead.
+
+# TODO(b/124293228): Fix remaining bugs and add these libraries to the list:
+#   libart-compiler.so
+#   libart-dexlayout.so
+#   libart.so
+#   libartbase.so
+#   libartpalette.so
+#   libdexfile.so
+#   libdexfile_external.so  - aosp_marlin-userdebug gets this in a vndk-sp-Q subdirectory.
+#   libicui18n.so
+#   libicuuc.so
+#   libnativehelper.so  - cf_x86_phone-userdebug builds get this in system/lib/arm
+#   libprofile.so
+#   libsigchain.so
+#   libtombstoned_client.so
+APEX_MODULE_LIBS= \
+  libadbconnection.so \
+  libandroidicu.so \
+  libdt_fd_forward.so \
+  libdt_socket.so \
+  libjavacore.so \
+  libjdwp.so \
+  libnativebridge.so \
+  libnativeloader.so \
+  libnpt.so \
+  libopenjdk.so \
+  libopenjdkjvm.so \
+  libopenjdkjvmti.so \
+  libpac.so \
+
+# If the check below fails, some library has ended up in system/lib or
+# system/lib64 that is intended to only go into some APEX package. The likely
+# cause is that a library or binary in /system has grown a dependency that
+# directly or indirectly pulls in the prohibited library.
+#
+# To resolve this, look for the APEX package that the library belong to - search
+# for it in 'native_shared_lib' properties in 'apex' build modules (see
+# art/build/apex/Android.bp for an example). Then check if there is an exported
+# library in that APEX package that should be used instead, i.e. one listed in
+# its 'native_shared_lib' property for which the corresponding 'cc_library'
+# module has a 'stubs' clause (like libdexfile_external in
+# art/libdexfile/Android.bp).
+#
+# If you cannot find an APEX exported library that fits your needs, or you think
+# that the library you want to depend on should be allowed in /system, then
+# please contact the owners of the APEX package containing the library.
+#
+# If you get this error for a library that is exported in an APEX, then the APEX
+# might be misconfigured or something is wrong in the build system. Please reach
+# out to the APEX package owners and/or soong-team@, or
+# android-building@googlegroups.com externally.
+define check-apex-libs-absence
+$(hide) ( \
+  cd $(TARGET_OUT); \
+  findres=$$(find lib* -type f \( -false $(foreach lib,$(APEX_MODULE_LIBS),-o -name $(lib)) \) -print) || exit 1; \
+  if [ -n "$$findres" ]; then \
+    echo "APEX libraries found in system image (see comment in this makefile for details):" 1>&2; \
+    echo "$$findres" | sort 1>&2; \
+    false; \
+  fi; \
+)
+endef
+
 # $(1): output file
 define build-systemimage-target
   @echo "Target system fs image: $(1)"
   $(call create-system-vendor-symlink)
   $(call create-system-product-symlink)
   $(call create-system-product_services-symlink)
+  $(call check-apex-libs-absence)
   @mkdir -p $(dir $(1)) $(systemimage_intermediates) && rm -rf $(systemimage_intermediates)/system_image_info.txt
   $(call generate-image-prop-dictionary, $(systemimage_intermediates)/system_image_info.txt,system, \
       skip_fsck=true)
@@ -2962,9 +3048,11 @@ BOARD_AVB_SYSTEM_OTHER_KEY_PATH := $(BOARD_AVB_KEY_PATH)
 BOARD_AVB_SYSTEM_OTHER_ALGORITHM := $(BOARD_AVB_ALGORITHM)
 endif
 
-# To extract the public key of SYSTEM_OTHER_KEY_PATH will into system.img:
-# /system/etc/security/avb/system_other.avbpubkey.
-FULL_SYSTEMIMAGE_DEPS += $(BOARD_AVB_SYSTEM_OTHER_KEY_PATH)
+$(INSTALLED_PRODUCT_SYSTEM_OTHER_AVBKEY_TARGET): $(AVBTOOL) $(BOARD_AVB_SYSTEM_OTHER_KEY_PATH)
+	@echo Extracting system_other avb key: $@
+	@rm -f $@
+	@mkdir -p $(dir $@)
+	$(AVBTOOL) extract_public_key --key $(BOARD_AVB_SYSTEM_OTHER_KEY_PATH) --output $@
 
 ifndef BOARD_AVB_SYSTEM_OTHER_ROLLBACK_INDEX
 BOARD_AVB_SYSTEM_OTHER_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
@@ -4210,7 +4298,7 @@ $(SYMBOLS_ZIP): $(SOONG_ZIP)
 	@echo "Package symbols: $@"
 	$(hide) rm -rf $@ $(PRIVATE_LIST_FILE)
 	$(hide) mkdir -p $(dir $@) $(TARGET_OUT_UNSTRIPPED) $(dir $(PRIVATE_LIST_FILE))
-	$(hide) find $(TARGET_OUT_UNSTRIPPED) | sort >$(PRIVATE_LIST_FILE)
+	$(hide) find -L $(TARGET_OUT_UNSTRIPPED) -type f | sort >$(PRIVATE_LIST_FILE)
 	$(hide) $(SOONG_ZIP) -d -o $@ -C $(OUT_DIR)/.. -l $(PRIVATE_LIST_FILE)
 # -----------------------------------------------------------------
 # A zip of the coverage directory.
@@ -4313,6 +4401,13 @@ ifeq (true,$(PRODUCT_BUILD_SUPER_PARTITION))
 # BOARD_SUPER_PARTITION_SIZE must be defined to build super image.
 ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
 
+# Dump variables used by build_super_image.py.
+define dump-super-image-info
+  $(call dump-dynamic-partitions-info,$(1))
+  $(if $(filter true,$(AB_OTA_UPDATER)), \
+    echo "ab_update=true" >> $(1))
+endef
+
 ifneq (true,$(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS))
 INSTALLED_SUPERIMAGE_TARGET := $(PRODUCT_OUT)/super.img
 $(INSTALLED_SUPERIMAGE_TARGET): extracted_input_target_files := $(patsubst %.zip,%,$(BUILT_TARGET_FILES_PACKAGE))
@@ -4320,7 +4415,22 @@ $(INSTALLED_SUPERIMAGE_TARGET): $(LPMAKE) $(BUILT_TARGET_FILES_PACKAGE) $(BUILD_
 	$(call pretty,"Target super fs image: $@")
 	PATH=$(dir $(LPMAKE)):$$PATH \
 	    $(BUILD_SUPER_IMAGE) -v $(extracted_input_target_files) $@
-endif
+
+# supernod uses images in the $(PRODUCT_OUT) directory instead of images from target files package.
+.PHONY: superimage-nodeps supernod
+superimage-nodeps supernod: intermediates := $(call intermediates-dir-for,PACKAGING,superimage-nodeps)
+superimage-nodeps supernod: | $(LPMAKE) $(BUILD_SUPER_IMAGE) \
+    $(foreach p, $(BOARD_SUPER_PARTITION_PARTITION_LIST), $(INSTALLED_$(call to-upper,$(p))IMAGE_TARGET))
+	$(call pretty,"make $(INSTALLED_SUPERIMAGE_TARGET): ignoring dependencies")
+	mkdir -p $(intermediates)
+	rm -rf $(intermediates)/misc_info.txt
+	$(call dump-super-image-info,$(intermediates)/misc_info.txt)
+	$(foreach p,$(BOARD_SUPER_PARTITION_PARTITION_LIST), \
+	  echo "$(p)_image=$(INSTALLED_$(call to-upper,$(p))IMAGE_TARGET)" >> $(intermediates)/misc_info.txt;)
+	PATH=$(dir $(LPMAKE)):$$PATH \
+	  $(BUILD_SUPER_IMAGE) -v $(intermediates)/misc_info.txt $(INSTALLED_SUPERIMAGE_TARGET)
+
+endif # PRODUCT_RETROFIT_DYNAMIC_PARTITIONS != "true"
 
 $(call dist-for-goals,dist_files,$(INSTALLED_SUPERIMAGE_TARGET))
 
@@ -4330,10 +4440,7 @@ $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): $(LPMAKE) $(BUILD_SUPER_IMAGE)
 	$(call pretty,"Target empty super fs image: $@")
 	mkdir -p $(intermediates)
 	rm -rf $(intermediates)/misc_info.txt
-	$(call dump-dynamic-partitions-info,$(intermediates)/misc_info.txt)
-ifeq ($(AB_OTA_UPDATER),true)
-	echo "ab_update=true" >> $(intermediates)/misc_info.txt
-endif
+	$(call dump-super-image-info,$(intermediates)/misc_info.txt)
 	PATH=$(dir $(LPMAKE)):$$PATH \
 	    $(BUILD_SUPER_IMAGE) -v $(intermediates)/misc_info.txt $@
 
