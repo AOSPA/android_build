@@ -3288,6 +3288,7 @@ define build-chained-vbmeta-image
       --output $@
 endef
 
+ifeq ($(PRODUCT_BUILD_SYSTEM_IMAGE),true)
 ifdef BOARD_AVB_VBMETA_SYSTEM
 INSTALLED_VBMETA_SYSTEMIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta_system.img
 $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET): \
@@ -3295,6 +3296,7 @@ $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET): \
 	    $(call images-for-partitions,$(BOARD_AVB_VBMETA_SYSTEM)) \
 	    $(BOARD_AVB_VBMETA_SYSTEM_KEY_PATH)
 	$(call build-chained-vbmeta-image,vbmeta_system)
+endif
 endif
 
 ifdef BOARD_AVB_VBMETA_VENDOR
