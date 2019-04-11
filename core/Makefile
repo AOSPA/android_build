@@ -280,10 +280,6 @@ $(INSTALLED_DEFAULT_PROP_TARGET): $(BUILDINFO_COMMON_SH) $(intermediate_system_b
 	        echo "#" >> $@;
 	$(hide) $(foreach line,$(FINAL_DEFAULT_PROPERTIES), \
 	    echo "$(line)" >> $@;)
-	$(hide) echo "#" >> $@; \
-	        echo "# BOOTIMAGE_BUILD_PROPERTIES" >> $@; \
-	        echo "#" >> $@;
-	$(hide) $(call generate-common-build-props,bootimage,$@)
 	$(hide) build/make/tools/post_process_props.py $@
 ifdef property_overrides_split_enabled
 	$(hide) mkdir -p $(TARGET_ROOT_OUT)
@@ -471,7 +467,6 @@ endif
 	            echo "#" >> $@; )
 	$(hide) $(foreach line,$(FINAL_BUILD_PROPERTIES), \
 	    echo "$(line)" >> $@;)
-	$(hide) cat $(INSTALLED_ANDROID_INFO_TXT_TARGET) | grep 'require version-' | sed -e 's/require version-/ro.build.expect./g' >> $@
 	$(hide) build/make/tools/post_process_props.py $@ $(PRODUCT_SYSTEM_PROPERTY_BLACKLIST)
 
 build_desc :=
@@ -516,10 +511,15 @@ ifdef TARGET_SCREEN_DENSITY
 	$(hide) echo ro.sf.lcd_density="$(TARGET_SCREEN_DENSITY)">>$@
 endif
 	$(hide) $(call generate-common-build-props,vendor,$@)
-ifdef property_overrides_split_enabled
+	$(hide) echo "#" >> $@; \
+	        echo "# BOOTIMAGE_BUILD_PROPERTIES" >> $@; \
+	        echo "#" >> $@;
+	$(hide) $(call generate-common-build-props,bootimage,$@)
 	$(hide) echo "#" >> $@; \
 	        echo "# ADDITIONAL VENDOR BUILD PROPERTIES" >> $@; \
 	        echo "#" >> $@;
+	$(hide) cat $(INSTALLED_ANDROID_INFO_TXT_TARGET) | grep 'require version-' | sed -e 's/require version-/ro.build.expect./g' >> $@
+ifdef property_overrides_split_enabled
 	$(hide) $(foreach line,$(FINAL_VENDOR_BUILD_PROPERTIES), \
 	    echo "$(line)" >> $@;)
 endif  # property_overrides_split_enabled
