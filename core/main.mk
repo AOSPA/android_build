@@ -257,6 +257,15 @@ ifneq (,$(PRODUCT_SYSTEM_SERVER_COMPILER_FILTER))
 ADDITIONAL_PRODUCT_PROPERTIES += dalvik.vm.systemservercompilerfilter=$(PRODUCT_SYSTEM_SERVER_COMPILER_FILTER)
 endif
 
+# Sets the default value of ro.postinstall.fstab.prefix to /system.
+# Device board config should override the value to /product when needed by:
+#
+#     PRODUCT_PRODUCT_PROPERTIES += ro.postinstall.fstab.prefix=/product
+#
+# It then uses ${ro.postinstall.fstab.prefix}/etc/fstab.postinstall to
+# mount system_other partition.
+ADDITIONAL_DEFAULT_PROPERTIES += ro.postinstall.fstab.prefix=/system
+
 # -----------------------------------------------------------------
 ###
 ### In this section we set up the things that are different
@@ -406,12 +415,8 @@ endif
 # Typical build; include any Android.mk files we can find.
 #
 
-# Before we go and include all of the module makefiles, strip values for easier
-# processing.
-$(call strip-product-vars)
-# Before we go and include all of the module makefiles, mark the PRODUCT_*
-# and ADDITIONAL*PROPERTIES values readonly so that they won't be modified.
-$(call readonly-product-vars)
+# Strip and readonly a few more variables so they won't be modified.
+$(readonly-final-product-vars)
 ADDITIONAL_DEFAULT_PROPERTIES := $(strip $(ADDITIONAL_DEFAULT_PROPERTIES))
 .KATI_READONLY := ADDITIONAL_DEFAULT_PROPERTIES
 ADDITIONAL_BUILD_PROPERTIES := $(strip $(ADDITIONAL_BUILD_PROPERTIES))
@@ -503,6 +508,10 @@ ifndef subdir_makefiles_total
 subdir_makefiles_total := $(words init post finish)
 endif
 
+droid_targets: no_vendor_variant_vndk_check
+.PHONY: no_vendor_variant_vndk_check
+no_vendor_variant_vndk_check:
+
 $(info [$(call inc_and_print,subdir_makefiles_inc)/$(subdir_makefiles_total)] finishing build rules ...)
 
 # -------------------------------------------------------------------
@@ -555,19 +564,15 @@ ifneq ($(TARGET_TRANSLATE_2ND_ARCH),true)
 define get-32-bit-modules
 $(sort $(foreach m,$(1),\
   $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX))\
-  $(if $(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(m)$(HOST_2ND_ARCH_MODULE_SUFFIX))\
-    ))
+    $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX))))
 endef
 # Get a list of corresponding 32-bit module names, if one exists;
 # otherwise return the original module name
 define get-32-bit-modules-if-we-can
 $(sort $(foreach m,$(1),\
-  $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS)$(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX)) \
-    $(if $(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX)),\
-  $(m))))
+  $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),\
+    $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX), \
+    $(m))))
 endef
 else  # TARGET_TRANSLATE_2ND_ARCH
 # For binary translation config, by default only install the first arch.
@@ -578,6 +583,22 @@ define get-32-bit-modules-if-we-can
 $(strip $(1))
 endef
 endif  # TARGET_TRANSLATE_2ND_ARCH
+
+# TODO: we can probably check to see if these modules are actually host
+# modules
+define get-host-32-bit-modules
+$(sort $(foreach m,$(1),\
+  $(if $(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),\
+    $(m)$(HOST_2ND_ARCH_MODULE_SUFFIX))))
+endef
+# Get a list of corresponding 32-bit module names, if one exists;
+# otherwise return the original module name
+define get-host-32-bit-modules-if-we-can
+$(sort $(foreach m,$(1),\
+  $(if $(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),\
+    $(m)$(HOST_2ND_ARCH_MODULE_SUFFIX),\
+    $(m))))
+endef
 
 # If a module is for a cross host os, the required modules must be for
 # that OS too.
@@ -1026,6 +1047,16 @@ $(if $(_erm_new_modules),\
   $(call expand-required-modules,$(1),$(_erm_new_modules),$(_erm_all_overrides)))
 endef
 
+# Same as expand-required-modules above, but does not handle module overrides, as
+# we don't intend to support them on the host.
+define expand-required-host-modules
+$(eval _erm_req := $(foreach m,$(2),$(ALL_MODULES.$(m).REQUIRED))) \
+$(eval _erm_new_modules := $(sort $(filter-out $($(1)),$(_erm_req)))) \
+$(eval $(1) += $(_erm_new_modules)) \
+$(if $(_erm_new_modules),\
+  $(call expand-required-host-modules,$(1),$(_erm_new_modules)))
+endef
+
 # Transforms paths relative to PRODUCT_OUT to absolute paths.
 # $(1): list of relative paths
 # $(2): optional suffix to append to paths
@@ -1042,6 +1073,8 @@ endef
 define auto-included-modules
   $(if $(BOARD_VNDK_VERSION),vndk_package) \
   $(if $(DEVICE_MANIFEST_FILE),device_manifest.xml) \
+  $(if $(ODM_MANIFEST_FILES),odm_manifest.xml) \
+  $(if $(ODM_MANIFEST_SKUS),$(foreach sku, $(ODM_MANIFEST_SKUS),odm_manifest_$(sku).xml)) \
 
 endef
 
@@ -1084,9 +1117,26 @@ define product-installed-files
   $(eval _pif_modules += $(call get-32-bit-modules, $(_pif_modules_rest))) \
   $(eval _pif_modules += $(_pif_modules_rest)) \
   $(call expand-required-modules,_pif_modules,$(_pif_modules),$(_pif_overrides)) \
-  $(call module-installed-files, $(_pif_modules)) \
+  $(filter-out $(HOST_OUT_ROOT)/%,$(call module-installed-files, $(_pif_modules))) \
   $(call resolve-product-relative-paths,\
     $(foreach cf,$(PRODUCTS.$(_mk).PRODUCT_COPY_FILES),$(call word-colon,2,$(cf))))
+endef
+
+# Similar to product-installed-files above, but handles PRODUCT_HOST_PACKAGES instead
+# This does support the :32 / :64 syntax, but does not support module overrides.
+define host-installed-files
+  $(eval _hif_modules := $(PRODUCTS.$(strip $(1)).PRODUCT_HOST_PACKAGES)) \
+  $(eval ### Resolve the :32 :64 module name) \
+  $(eval _hif_modules_32 := $(patsubst %:32,%,$(filter %:32, $(_hif_modules)))) \
+  $(eval _hif_modules_64 := $(patsubst %:64,%,$(filter %:64, $(_hif_modules)))) \
+  $(eval _hif_modules_rest := $(filter-out %:32 %:64,$(_hif_modules))) \
+  $(eval _hif_modules := $(call get-host-32-bit-modules-if-we-can, $(_hif_modules_32))) \
+  $(eval _hif_modules += $(_hif_modules_64)) \
+  $(eval ### For the rest we add both) \
+  $(eval _hif_modules += $(call get-host-32-bit-modules, $(_hif_modules_rest))) \
+  $(eval _hif_modules += $(_hif_modules_rest)) \
+  $(call expand-required-host-modules,_hif_modules,$(_hif_modules)) \
+  $(filter $(HOST_OUT_ROOT)/%,$(call module-installed-files, $(_hif_modules)))
 endef
 
 # Fails the build if the given list is non-empty, and prints it entries (stripping PRODUCT_OUT).
@@ -1101,22 +1151,52 @@ $(if $(strip $(1)), \
 )
 endef
 
-ifeq (true|,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_PACKAGES_EXIST)|$(filter true,$(ALLOW_MISSING_DEPENDENCIES)))
-  _whitelist := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_PACKAGES_EXIST_WHITELIST)
-  _modules := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES)
-  # Sanity check all modules in PRODUCT_PACKAGES exist. We check for the
-  # existence if either <module> or the <module>_32 variant.
-  _nonexistant_modules := $(filter-out $(ALL_MODULES),$(_modules))
-  _nonexistant_modules := $(foreach m,$(_nonexistant_modules),\
-    $(if $(call get-32-bit-modules,$(m)),,$(m)))
-  $(call maybe-print-list-and-error,$(filter-out $(_whitelist),$(_nonexistant_modules)),\
-    $(INTERNAL_PRODUCT) includes non-existant modules in PRODUCT_PACKAGES)
-  $(call maybe-print-list-and-error,$(filter-out $(_nonexistant_modules),$(_whitelist)),\
-    $(INTERNAL_PRODUCT) includes redundant whitelist entries for nonexistant PRODUCT_PACKAGES)
-endif
-
 ifdef FULL_BUILD
-  product_FILES := $(call product-installed-files, $(INTERNAL_PRODUCT))
+  ifneq (true,$(ALLOW_MISSING_DEPENDENCIES))
+    # Check to ensure that all modules in PRODUCT_PACKAGES exist (opt in per product)
+    ifeq (true,$(PRODUCT_ENFORCE_PACKAGES_EXIST))
+      _whitelist := $(PRODUCT_ENFORCE_PACKAGES_EXIST_WHITELIST)
+      _modules := $(PRODUCT_PACKAGES)
+      # Sanity check all modules in PRODUCT_PACKAGES exist. We check for the
+      # existence if either <module> or the <module>_32 variant.
+      _nonexistant_modules := $(filter-out $(ALL_MODULES),$(_modules))
+      _nonexistant_modules := $(foreach m,$(_nonexistant_modules),\
+        $(if $(call get-32-bit-modules,$(m)),,$(m)))
+      $(call maybe-print-list-and-error,$(filter-out $(_whitelist),$(_nonexistant_modules)),\
+        $(INTERNAL_PRODUCT) includes non-existant modules in PRODUCT_PACKAGES)
+      $(call maybe-print-list-and-error,$(filter-out $(_nonexistant_modules),$(_whitelist)),\
+        $(INTERNAL_PRODUCT) includes redundant whitelist entries for nonexistant PRODUCT_PACKAGES)
+    endif
+
+    # Check to ensure that all modules in PRODUCT_HOST_PACKAGES exist
+    #
+    # Many host modules are Linux-only, so skip this check on Mac. If we ever have Mac-only modules,
+    # maybe it would make sense to have PRODUCT_HOST_PACKAGES_LINUX/_DARWIN?
+    ifneq ($(HOST_OS),darwin)
+      _modules := $(PRODUCT_HOST_PACKAGES)
+      _nonexistant_modules := $(foreach m,$(_modules),\
+        $(if $(filter FAKE,$(ALL_MODULES.$(m).CLASS))$(filter $(HOST_OUT_ROOT)/%,$(ALL_MODULES.$(m).INSTALLED)),,$(m)))
+      $(call maybe-print-list-and-error,$(_nonexistant_modules),\
+        $(INTERNAL_PRODUCT) includes non-existant modules in PRODUCT_HOST_PACKAGES)
+    endif
+  endif
+
+  # Some modules produce only host installed files when building with TARGET_BUILD_APPS
+  ifeq ($(TARGET_BUILD_APPS),)
+    _modules := $(foreach m,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES) \
+                            $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_DEBUG) \
+                            $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_DEBUG_ASAN) \
+                            $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_ENG) \
+                            $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_TESTS),\
+                  $(if $(ALL_MODULES.$(m).INSTALLED),\
+                    $(if $(filter-out $(HOST_OUT_ROOT)/%,$(ALL_MODULES.$(m).INSTALLED)),,\
+                      $(m))))
+    $(call maybe-print-list-and-error,$(sort $(_modules)),\
+      Host modules should be in PRODUCT_HOST_PACKAGES$(comma) not PRODUCT_PACKAGES)
+  endif
+
+  product_host_FILES := $(call host-installed-files,$(INTERNAL_PRODUCT))
+  product_target_FILES := $(call product-installed-files, $(INTERNAL_PRODUCT))
   # WARNING: The product_MODULES variable is depended on by external files.
   product_MODULES := $(_pif_modules)
 
@@ -1126,7 +1206,8 @@ ifdef FULL_BUILD
   # Fakes don't get installed, host files are irrelevant, and NDK stubs aren't installed to device.
   static_whitelist_patterns := $(TARGET_OUT_FAKE)/% $(HOST_OUT)/% $(SOONG_OUT_DIR)/ndk/%
   # RROs become REQUIRED by the source module, but are always placed on the vendor partition.
-  static_whitelist_patterns += %__auto_generated_rro.apk
+  static_whitelist_patterns += %__auto_generated_rro_product.apk
+  static_whitelist_patterns += %__auto_generated_rro_vendor.apk
   # Auto-included targets are not considered
   static_whitelist_patterns += $(call module-installed-files,$(call auto-included-modules))
   # $(PRODUCT_OUT)/apex is where shared libraries in APEXes get installed.
@@ -1162,17 +1243,17 @@ $(call dist-for-goals,droidcore,$(CERTIFICATE_VIOLATION_MODULES_FILENAME))
     $(eval unused_whitelist := $(filter-out $(files),$(whitelist_patterns))) \
     $(call maybe-print-list-and-error,$(unused_whitelist),$(makefile) includes redundant whitelist entries in its artifact path requirement.) \
     $(eval ### Optionally verify that nothing else produces files inside this artifact path requirement.) \
-    $(eval extra_files := $(filter-out $(files) $(HOST_OUT)/%,$(product_FILES))) \
+    $(eval extra_files := $(filter-out $(files) $(HOST_OUT)/%,$(product_target_FILES))) \
     $(eval files_in_requirement := $(filter $(path_patterns),$(extra_files))) \
     $(eval all_offending_files += $(files_in_requirement)) \
-    $(eval whitelist := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST)) \
+    $(eval whitelist := $(PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST)) \
     $(eval whitelist_patterns := $(call resolve-product-relative-paths,$(whitelist))) \
     $(eval offending_files := $(filter-out $(whitelist_patterns),$(files_in_requirement))) \
-    $(eval enforcement := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS)) \
+    $(eval enforcement := $(PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS)) \
     $(if $(enforcement),\
       $(call maybe-print-list-and-error,$(offending_files),\
         $(INTERNAL_PRODUCT) produces files inside $(makefile)s artifact path requirement. \
-        $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_ARTIFACT_PATH_REQUIREMENT_HINT)) \
+        $(PRODUCT_ARTIFACT_PATH_REQUIREMENT_HINT)) \
       $(eval unused_whitelist := $(if $(filter true strict,$(enforcement)),\
         $(foreach p,$(whitelist_patterns),$(if $(filter $(p),$(extra_files)),,$(p))))) \
       $(call maybe-print-list-and-error,$(unused_whitelist),$(INTERNAL_PRODUCT) includes redundant artifact path requirement whitelist entries.) \
@@ -1187,14 +1268,16 @@ else
   # a subset of the module makefiles.  Don't try to build any modules
   # requested by the product, because we probably won't have rules
   # to build them.
-  product_FILES :=
+  product_target_FILES :=
+  product_host_FILES :=
 endif
 
 # TODO: Remove the 3 places in the tree that use ALL_DEFAULT_INSTALLED_MODULES
 # and get rid of it from this list.
 modules_to_install := $(sort \
     $(ALL_DEFAULT_INSTALLED_MODULES) \
-    $(product_FILES) \
+    $(product_target_FILES) \
+    $(product_host_FILES) \
     $(call get-tagged-modules,$(tags_to_install)) \
     $(CUSTOM_MODULES) \
   )
@@ -1224,19 +1307,19 @@ ifdef is_sdk_build
   # Ensure every module listed in PRODUCT_PACKAGES* gets something installed
   # TODO: Should we do this for all builds and not just the sdk?
   dangling_modules :=
-  $(foreach m, $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES), \
+  $(foreach m, $(PRODUCT_PACKAGES), \
     $(if $(strip $(ALL_MODULES.$(m).INSTALLED) $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).INSTALLED)),,\
       $(eval dangling_modules += $(m))))
   ifneq ($(dangling_modules),)
     $(warning: Modules '$(dangling_modules)' in PRODUCT_PACKAGES have nothing to install!)
   endif
-  $(foreach m, $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_DEBUG), \
+  $(foreach m, $(PRODUCT_PACKAGES_DEBUG), \
     $(if $(strip $(ALL_MODULES.$(m).INSTALLED)),,\
       $(warning $(ALL_MODULES.$(m).MAKEFILE): Module '$(m)' in PRODUCT_PACKAGES_DEBUG has nothing to install!)))
-  $(foreach m, $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_ENG), \
+  $(foreach m, $(PRODUCT_PACKAGES_ENG), \
     $(if $(strip $(ALL_MODULES.$(m).INSTALLED)),,\
       $(warning $(ALL_MODULES.$(m).MAKEFILE): Module '$(m)' in PRODUCT_PACKAGES_ENG has nothing to install!)))
-  $(foreach m, $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGES_TESTS), \
+  $(foreach m, $(PRODUCT_PACKAGES_TESTS), \
     $(if $(strip $(ALL_MODULES.$(m).INSTALLED)),,\
       $(warning $(ALL_MODULES.$(m).MAKEFILE): Module '$(m)' in PRODUCT_PACKAGES_TESTS has nothing to install!)))
 endif
@@ -1543,21 +1626,21 @@ else # TARGET_BUILD_APPS
   ifeq ($(EMMA_INSTRUMENT),true)
     $(JACOCO_REPORT_CLASSES_ALL) : $(INSTALLED_SYSTEMIMAGE_TARGET)
     $(call dist-for-goals, dist_files, $(JACOCO_REPORT_CLASSES_ALL))
+  endif
 
-    # Put XML formatted API files in the dist dir.
-    $(TARGET_OUT_COMMON_INTERMEDIATES)/api.xml: $(call java-lib-header-files,android_stubs_current) $(APICHECK)
-    $(TARGET_OUT_COMMON_INTERMEDIATES)/system-api.xml: $(call java-lib-header-files,android_system_stubs_current) $(APICHECK)
-    $(TARGET_OUT_COMMON_INTERMEDIATES)/test-api.xml: $(call java-lib-header-files,android_test_stubs_current) $(APICHECK)
+  # Put XML formatted API files in the dist dir.
+  $(TARGET_OUT_COMMON_INTERMEDIATES)/api.xml: $(call java-lib-header-files,android_stubs_current) $(APICHECK)
+  $(TARGET_OUT_COMMON_INTERMEDIATES)/system-api.xml: $(call java-lib-header-files,android_system_stubs_current) $(APICHECK)
+  $(TARGET_OUT_COMMON_INTERMEDIATES)/test-api.xml: $(call java-lib-header-files,android_test_stubs_current) $(APICHECK)
 
-    api_xmls := $(addprefix $(TARGET_OUT_COMMON_INTERMEDIATES)/,api.xml system-api.xml test-api.xml)
-    $(api_xmls):
+  api_xmls := $(addprefix $(TARGET_OUT_COMMON_INTERMEDIATES)/,api.xml system-api.xml test-api.xml)
+  $(api_xmls):
 	$(hide) echo "Converting API file to XML: $@"
 	$(hide) mkdir -p $(dir $@)
 	$(hide) $(APICHECK_COMMAND) --input-api-jar $< --api-xml $@
 
-    $(call dist-for-goals, dist_files, $(api_xmls))
-    api_xmls :=
-  endif
+  $(call dist-for-goals, dist_files, $(api_xmls))
+  api_xmls :=
 
 # Building a full system-- the default is to build droidcore
 droid_targets: droidcore dist_files
@@ -1638,8 +1721,8 @@ modules:
 
 .PHONY: dump-files
 dump-files:
-	$(info product_FILES for $(TARGET_DEVICE) ($(INTERNAL_PRODUCT)):)
-	$(foreach p,$(sort $(product_FILES)),$(info :   $(p)))
+	$(info product_target_FILES for $(TARGET_DEVICE) ($(INTERNAL_PRODUCT)):)
+	$(foreach p,$(sort $(product_target_FILES)),$(info :   $(p)))
 	@echo Successfully dumped product file list
 
 .PHONY: nothing

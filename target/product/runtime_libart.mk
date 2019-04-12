@@ -38,13 +38,9 @@ PRODUCT_PACKAGES += \
     libicui18n \
     libicuuc \
 
-# TODO(b/124498388): This currently needs to be in /system/lib for the debugger
-# transport to work.
-PRODUCT_PACKAGES += \
-    libnpt
-
 # Android Runtime APEX module.
 PRODUCT_PACKAGES += com.android.runtime
+PRODUCT_HOST_PACKAGES += com.android.runtime
 
 # Certificates.
 PRODUCT_PACKAGES += \
@@ -89,8 +85,8 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     pm.dexopt.shared=speed
 
 # Enable resolution of startup const strings.
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    dalvik.vm.dex2oat-resolve-startup-strings=true
+# PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+#    dalvik.vm.dex2oat-resolve-startup-strings=true
 
 # Enable minidebuginfo generation unless overridden.
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \

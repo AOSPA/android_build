@@ -88,7 +88,6 @@ PRODUCT_PACKAGES += \
     libminui \
     libnl \
     libprotobuf-cpp-full \
-    libprotobuf-cpp-full-rtti \
 
 PRODUCT_PACKAGES_DEBUG += \
     avbctl \
@@ -98,6 +97,9 @@ PRODUCT_PACKAGES_DEBUG += \
     tinymix \
     tinypcminfo \
     update_engine_client \
+
+PRODUCT_HOST_PACKAGES += \
+    tinyplay
 
 # Enable stats logging in LMKD
 TARGET_LMKD_STATS_LOG := true

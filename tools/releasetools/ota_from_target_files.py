@@ -235,8 +235,9 @@ OPTIONS.output_metadata_path = None
 METADATA_NAME = 'META-INF/com/android/metadata'
 POSTINSTALL_CONFIG = 'META/postinstall_config.txt'
 DYNAMIC_PARTITION_INFO = 'META/dynamic_partitions_info.txt'
-UNZIP_PATTERN = ['IMAGES/*', 'META/*']
-SUPER_SPLIT_PATTERN = ['OTA/super_*.img']
+AB_PARTITIONS = 'META/ab_partitions.txt'
+UNZIP_PATTERN = ['IMAGES/*', 'META/*', 'RADIO/*']
+RETROFIT_DAP_UNZIP_PATTERN = ['OTA/super_*.img', AB_PARTITIONS]
 
 
 class BuildInfo(object):
@@ -1060,6 +1061,9 @@ def GetPackageMetadata(target_info, source_info=None):
   if OPTIONS.wipe_user_data:
     metadata['ota-wipe'] = 'yes'
 
+  if OPTIONS.retrofit_dynamic_partitions:
+    metadata['ota-retrofit-dynamic-partitions'] = 'yes'
+
   is_incremental = source_info is not None
   if is_incremental:
     metadata['pre-build'] = source_info.fingerprint
@@ -1798,12 +1802,7 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
     infolist = input_zip.infolist()
     namelist = input_zip.namelist()
 
-  # Additionally unzip 'RADIO/*' if exists.
-  unzip_pattern = UNZIP_PATTERN[:]
-  if any([entry.startswith('RADIO/') for entry in namelist]):
-    unzip_pattern.append('RADIO/*')
-  input_tmp = common.UnzipTemp(input_file, unzip_pattern)
-
+  input_tmp = common.UnzipTemp(input_file, UNZIP_PATTERN)
   for info in infolist:
     unzipped_file = os.path.join(input_tmp, *info.filename.split('/'))
     if info.filename == 'IMAGES/system_other.img':
@@ -1852,7 +1851,8 @@ def GetTargetFilesZipWithoutPostinstallConfig(input_file):
 
 
 def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
-                                                  super_block_devices):
+                                                  super_block_devices,
+                                                  dynamic_partition_list):
   """Returns a target-files.zip for retrofitting dynamic partitions.
 
   This allows brillo_update_payload to generate an OTA based on the exact
@@ -1861,6 +1861,7 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
   Args:
     input_file: The input target-files.zip filename.
     super_block_devices: The list of super block devices
+    dynamic_partition_list: The list of dynamic partitions
 
   Returns:
     The filename of target-files.zip with *.img replaced with super_*.img for
@@ -1877,8 +1878,34 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
   with zipfile.ZipFile(input_file, 'r') as input_zip:
     namelist = input_zip.namelist()
 
+  input_tmp = common.UnzipTemp(input_file, RETROFIT_DAP_UNZIP_PATTERN)
+
+  # Remove partitions from META/ab_partitions.txt that is in
+  # dynamic_partition_list but not in super_block_devices so that
+  # brillo_update_payload won't generate update for those logical partitions.
+  ab_partitions_file = os.path.join(input_tmp, *AB_PARTITIONS.split('/'))
+  with open(ab_partitions_file) as f:
+    ab_partitions_lines = f.readlines()
+    ab_partitions = [line.strip() for line in ab_partitions_lines]
+  # Assert that all super_block_devices are in ab_partitions
+  super_device_not_updated = [partition for partition in super_block_devices
+                              if partition not in ab_partitions]
+  assert not super_device_not_updated, \
+      "{} is in super_block_devices but not in {}".format(
+          super_device_not_updated, AB_PARTITIONS)
+  # ab_partitions -= (dynamic_partition_list - super_block_devices)
+  new_ab_partitions = common.MakeTempFile(prefix="ab_partitions", suffix=".txt")
+  with open(new_ab_partitions, 'w') as f:
+    for partition in ab_partitions:
+      if (partition in dynamic_partition_list and
+          partition not in super_block_devices):
+          logger.info("Dropping %s from ab_partitions.txt", partition)
+          continue
+      f.write(partition + "\n")
+  to_delete = [AB_PARTITIONS]
+
   # Always skip postinstall for a retrofit update.
-  to_delete = [POSTINSTALL_CONFIG]
+  to_delete += [POSTINSTALL_CONFIG]
 
   # Delete dynamic_partitions_info.txt so that brillo_update_payload thinks this
   # is a regular update on devices without dynamic partitions support.
@@ -1890,7 +1917,6 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
 
   common.ZipDelete(target_file, to_delete)
 
-  input_tmp = common.UnzipTemp(input_file, SUPER_SPLIT_PATTERN)
   target_zip = zipfile.ZipFile(target_file, 'a', allowZip64=True)
 
   # Write super_{foo}.img as {foo}.img.
@@ -1899,6 +1925,9 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
           'Missing {} in {}; {} cannot be written'.format(src, input_file, dst)
     unzipped_file = os.path.join(input_tmp, *src.split('/'))
     common.ZipWrite(target_zip, unzipped_file, arcname=dst)
+
+  # Write new ab_partitions.txt file
+  common.ZipWrite(target_zip, new_ab_partitions, arcname=AB_PARTITIONS)
 
   common.ZipClose(target_zip)
 
@@ -1928,7 +1957,8 @@ def WriteABOTAPackageWithBrilloScript(target_file, output_file,
 
   if OPTIONS.retrofit_dynamic_partitions:
     target_file = GetTargetFilesZipForRetrofitDynamicPartitions(
-        target_file, target_info.get("super_block_devices").strip().split())
+        target_file, target_info.get("super_block_devices").strip().split(),
+        target_info.get("dynamic_partition_list").strip().split())
   elif OPTIONS.skip_postinstall:
     target_file = GetTargetFilesZipWithoutPostinstallConfig(target_file)
 

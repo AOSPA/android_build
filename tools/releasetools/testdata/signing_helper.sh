@@ -1,5 +1,6 @@
+#!/bin/sh
 #
-# Copyright (C) 2017 The Android Open-Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +15,7 @@
 # limitations under the License.
 #
 
-include build/make/target/board/BoardConfigGsiCommon.mk
-
-TARGET_CPU_ABI := x86_64
-TARGET_ARCH := x86_64
-TARGET_ARCH_VARIANT := x86_64
-
-TARGET_2ND_CPU_ABI := x86
-TARGET_2ND_ARCH := x86
-TARGET_2ND_ARCH_VARIANT := x86_64
-
-# This is a non-system-as-root Legacy GSI build target
-BOARD_BUILD_SYSTEM_ROOT_IMAGE := false
+tmpfile=$(mktemp)
+cat $3 | openssl rsautl -sign -inkey $2 -raw > $tmpfile
+cat $tmpfile > $3
+rm $tmpfile
