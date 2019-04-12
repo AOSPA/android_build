@@ -4739,3 +4739,16 @@ include $(BUILD_SYSTEM)/product-graph.mk
 ifneq ($(sdk_repo_goal),)
 include $(TOPDIR)development/build/tools/sdk_repo.mk
 endif
+
+ifeq (true,$(PRODUCT_USE_DYNAMIC_PARTITIONS))
+define build-dynamic-partition-metadata
+    $(if $(filter true,$(AB_OTA_UPDATER)), \
+       echo "ab_update=true" >> $(PRODUCT_OUT)/dynamic_partition_metadata.txt)
+    $(call dump-dynamic-partitions-info,$(PRODUCT_OUT)/dynamic_partition_metadata.txt)
+endef
+
+BUILT_DYNAMIC_INFORMATION:
+	@rm -f $(PRODUCT_OUT)/dynamic_partition_metadata.txt
+	$(call build-dynamic-partition-metadata)
+droidcore: BUILT_DYNAMIC_INFORMATION
+endif
