@@ -280,10 +280,6 @@ $(INSTALLED_DEFAULT_PROP_TARGET): $(BUILDINFO_COMMON_SH) $(intermediate_system_b
 	        echo "#" >> $@;
 	$(hide) $(foreach line,$(FINAL_DEFAULT_PROPERTIES), \
 	    echo "$(line)" >> $@;)
-	$(hide) echo "#" >> $@; \
-	        echo "# BOOTIMAGE_BUILD_PROPERTIES" >> $@; \
-	        echo "#" >> $@;
-	$(hide) $(call generate-common-build-props,bootimage,$@)
 	$(hide) build/make/tools/post_process_props.py $@
 ifdef property_overrides_split_enabled
 	$(hide) mkdir -p $(TARGET_ROOT_OUT)
@@ -471,7 +467,6 @@ endif
 	            echo "#" >> $@; )
 	$(hide) $(foreach line,$(FINAL_BUILD_PROPERTIES), \
 	    echo "$(line)" >> $@;)
-	$(hide) cat $(INSTALLED_ANDROID_INFO_TXT_TARGET) | grep 'require version-' | sed -e 's/require version-/ro.build.expect./g' >> $@
 	$(hide) build/make/tools/post_process_props.py $@ $(PRODUCT_SYSTEM_PROPERTY_BLACKLIST)
 
 build_desc :=
@@ -516,10 +511,15 @@ ifdef TARGET_SCREEN_DENSITY
 	$(hide) echo ro.sf.lcd_density="$(TARGET_SCREEN_DENSITY)">>$@
 endif
 	$(hide) $(call generate-common-build-props,vendor,$@)
-ifdef property_overrides_split_enabled
+	$(hide) echo "#" >> $@; \
+	        echo "# BOOTIMAGE_BUILD_PROPERTIES" >> $@; \
+	        echo "#" >> $@;
+	$(hide) $(call generate-common-build-props,bootimage,$@)
 	$(hide) echo "#" >> $@; \
 	        echo "# ADDITIONAL VENDOR BUILD PROPERTIES" >> $@; \
 	        echo "#" >> $@;
+	$(hide) cat $(INSTALLED_ANDROID_INFO_TXT_TARGET) | grep 'require version-' | sed -e 's/require version-/ro.build.expect./g' >> $@
+ifdef property_overrides_split_enabled
 	$(hide) $(foreach line,$(FINAL_VENDOR_BUILD_PROPERTIES), \
 	    echo "$(line)" >> $@;)
 endif  # property_overrides_split_enabled
@@ -3288,6 +3288,7 @@ define build-chained-vbmeta-image
       --output $@
 endef
 
+ifeq ($(PRODUCT_BUILD_SYSTEM_IMAGE),true)
 ifdef BOARD_AVB_VBMETA_SYSTEM
 INSTALLED_VBMETA_SYSTEMIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta_system.img
 $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET): \
@@ -3295,6 +3296,7 @@ $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET): \
 	    $(call images-for-partitions,$(BOARD_AVB_VBMETA_SYSTEM)) \
 	    $(BOARD_AVB_VBMETA_SYSTEM_KEY_PATH)
 	$(call build-chained-vbmeta-image,vbmeta_system)
+endif
 endif
 
 ifdef BOARD_AVB_VBMETA_VENDOR
@@ -3737,6 +3739,8 @@ define dump-dynamic-partitions-info
     echo "super_$(group)_group_size=$(BOARD_$(call to-upper,$(group))_SIZE)" >> $(1); \
     $(if $(BOARD_$(call to-upper,$(group))_PARTITION_LIST), \
       echo "super_$(group)_partition_list=$(BOARD_$(call to-upper,$(group))_PARTITION_LIST)" >> $(1);))
+  $(if $(filter true,$(TARGET_USERIMAGES_SPARSE_EXT_DISABLED)), \
+    echo "build_non_sparse_super_partition=true" >> $(1))
 endef
 
 # Depending on the various images guarantees that the underlying
@@ -4437,6 +4441,7 @@ superimage-nodeps supernod: | $(LPMAKE) $(BUILD_SUPER_IMAGE) \
 	$(call dump-super-image-info,$(intermediates)/misc_info.txt)
 	$(foreach p,$(BOARD_SUPER_PARTITION_PARTITION_LIST), \
 	  echo "$(p)_image=$(INSTALLED_$(call to-upper,$(p))IMAGE_TARGET)" >> $(intermediates)/misc_info.txt;)
+	mkdir -p $(dir $(INSTALLED_SUPERIMAGE_TARGET))
 	PATH=$(dir $(LPMAKE)):$$PATH \
 	  $(BUILD_SUPER_IMAGE) -v $(intermediates)/misc_info.txt $(INSTALLED_SUPERIMAGE_TARGET)
 
@@ -4733,4 +4738,17 @@ include $(BUILD_SYSTEM)/product-graph.mk
 # we need the addon rules defined.
 ifneq ($(sdk_repo_goal),)
 include $(TOPDIR)development/build/tools/sdk_repo.mk
+endif
+
+ifeq (true,$(PRODUCT_USE_DYNAMIC_PARTITIONS))
+define build-dynamic-partition-metadata
+    $(if $(filter true,$(AB_OTA_UPDATER)), \
+       echo "ab_update=true" >> $(PRODUCT_OUT)/dynamic_partition_metadata.txt)
+    $(call dump-dynamic-partitions-info,$(PRODUCT_OUT)/dynamic_partition_metadata.txt)
+endef
+
+BUILT_DYNAMIC_INFORMATION:
+	@rm -f $(PRODUCT_OUT)/dynamic_partition_metadata.txt
+	$(call build-dynamic-partition-metadata)
+droidcore: BUILT_DYNAMIC_INFORMATION
 endif
