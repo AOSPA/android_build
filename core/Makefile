@@ -650,6 +650,8 @@ $(INSTALLED_SDK_BUILD_PROP_TARGET): $(INSTALLED_BUILD_PROP_TARGET)
 
 # -----------------------------------------------------------------
 # package stats
+ifdef BUILDING_SYSTEM_IMAGE
+
 PACKAGE_STATS_FILE := $(PRODUCT_OUT)/package-stats.txt
 PACKAGES_TO_STAT := \
     $(sort $(filter $(TARGET_OUT)/% $(TARGET_OUT_DATA)/%, \
@@ -667,6 +669,8 @@ endif
 
 .PHONY: package-stats
 package-stats: $(PACKAGE_STATS_FILE)
+
+endif # BUILDING_SYSTEM_IMAGE
 
 # -----------------------------------------------------------------
 # Cert-to-package mapping.  Used by the post-build signing tools.
@@ -2032,6 +2036,8 @@ FULL_SYSTEMIMAGE_DEPS += $(INTERNAL_ROOT_FILES) $(INSTALLED_FILES_FILE_ROOT)
 # on the device because it depends on everything in a given device
 # image which defines a vintf_fragment.
 
+ifdef BUILDING_SYSTEM_IMAGE
+
 BUILT_ASSEMBLED_SYSTEM_MANIFEST := $(PRODUCT_OUT)/verified_assembled_system_manifest.xml
 $(BUILT_ASSEMBLED_SYSTEM_MANIFEST): $(HOST_OUT_EXECUTABLES)/assemble_vintf
 $(BUILT_ASSEMBLED_SYSTEM_MANIFEST): $(BUILT_VENDOR_MATRIX)
@@ -2045,6 +2051,8 @@ $(BUILT_ASSEMBLED_SYSTEM_MANIFEST): $(FULL_SYSTEMIMAGE_DEPS)
 	    $$([ -d $(TARGET_OUT)/etc/vintf/manifest ] && \
 	        find $(TARGET_OUT)/etc/vintf/manifest -type f -name "*.xml" | \
 	        sed "s/^/-i /" | tr '\n' ' ') -o $@
+
+endif # BUILDING_SYSTEM_IMAGE
 
 # -----------------------------------------------------------------
 ifdef BUILDING_SYSTEM_IMAGE
@@ -2222,7 +2230,6 @@ define build-systemimage-target
   $(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH \
       build/make/tools/releasetools/build_image.py \
       $(TARGET_OUT) $(systemimage_intermediates)/system_image_info.txt $(1) $(TARGET_OUT) \
-      $(systemimage_intermediates)/generated_system_image_info.txt \
       || ( mkdir -p $${DIST_DIR}; cp $(INSTALLED_FILES_FILE) $${DIST_DIR}/installed-files-rescued.txt; \
            exit 1 )
 endef
@@ -2270,22 +2277,7 @@ endif # INSTALLED_BOOTIMAGE_TARGET
 $(INSTALLED_SYSTEMIMAGE_TARGET): $(BUILT_SYSTEMIMAGE) $(RECOVERY_FROM_BOOT_PATCH)
 	@echo "Install system fs image: $@"
 	$(copy-file-to-target)
-ifdef RECOVERY_FROM_BOOT_PATCH
-ifeq ($(PRODUCT_USE_DYNAMIC_PARTITION_SIZE),true)
-ifeq ($(BOARD_SYSTEMIMAGE_PARTITION_SIZE),)
-	# system image size is dynamic, hence system_size in generated_system_image_info.txt does not
-	# have room for recovery from boot patch. Increase system_size so that check-all-partition-sizes
-	# accounts for the size of the patch.
-	sed -i'.bak' -e 's/^system_size=.*$$/system_size='"$$(( \
-	      $(call read-image-prop-dictionary,$(systemimage_intermediates)/generated_system_image_info.txt,system_size) + \
-	      $$($(call get-file-size,$(RECOVERY_FROM_BOOT_PATCH))) ))"'/' \
-	    $(systemimage_intermediates)/generated_system_image_info.txt
-endif
-endif
-endif
-	$(hide) $(call assert-max-image-size,$@ $(RECOVERY_FROM_BOOT_PATCH),\
-	    $(call read-image-prop-dictionary,\
-	        $(systemimage_intermediates)/generated_system_image_info.txt,system_size))
+	$(hide) $(call assert-max-image-size,$@ $(RECOVERY_FROM_BOOT_PATCH),$(BOARD_SYSTEMIMAGE_PARTITION_SIZE))
 
 systemimage: $(INSTALLED_SYSTEMIMAGE_TARGET)
 
@@ -2294,9 +2286,7 @@ systemimage-nodeps snod: $(filter-out systemimage-nodeps snod,$(MAKECMDGOALS)) \
 	            | $(INTERNAL_USERIMAGES_DEPS)
 	@echo "make $@: ignoring dependencies"
 	$(call build-systemimage-target,$(INSTALLED_SYSTEMIMAGE_TARGET))
-	$(hide) $(call assert-max-image-size,$(INSTALLED_SYSTEMIMAGE_TARGET),\
-	    $(call read-image-prop-dictionary,\
-	        $(systemimage_intermediates)/generated_system_image_info.txt,system_size))
+	$(hide) $(call assert-max-image-size,$(INSTALLED_SYSTEMIMAGE_TARGET),$(BOARD_SYSTEMIMAGE_PARTITION_SIZE))
 
 ifneq (,$(filter systemimage-nodeps snod, $(MAKECMDGOALS)))
 ifeq (true,$(WITH_DEXPREOPT))
@@ -2667,11 +2657,8 @@ define build-systemotherimage-target
   $(call generate-image-prop-dictionary, $(systemotherimage_intermediates)/system_other_image_info.txt,system,skip_fsck=true)
   $(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH \
       build/make/tools/releasetools/build_image.py \
-      $(TARGET_OUT_SYSTEM_OTHER) $(systemotherimage_intermediates)/system_other_image_info.txt $(INSTALLED_SYSTEMOTHERIMAGE_TARGET) $(TARGET_OUT)\
-      $(systemotherimage_intermediates)/generated_system_other_image_info.txt
-  $(hide) $(call assert-max-image-size,$(INSTALLED_SYSTEMOTHERIMAGE_TARGET),\
-    $(call read-image-prop-dictionary,\
-      $(systemotherimage_intermediates)/generated_system_other_image_info.txt,system_other_size))
+      $(TARGET_OUT_SYSTEM_OTHER) $(systemotherimage_intermediates)/system_other_image_info.txt $(INSTALLED_SYSTEMOTHERIMAGE_TARGET) $(TARGET_OUT)
+  $(hide) $(call assert-max-image-size,$(INSTALLED_SYSTEMOTHERIMAGE_TARGET),$(BOARD_SYSTEMIMAGE_PARTITION_SIZE))
 endef
 
 # We just build this directly to the install location.
@@ -2813,11 +2800,8 @@ define build-vendorimage-target
     $(call build-image-kernel-modules,$(BOARD_VENDOR_KERNEL_MODULES),$(TARGET_OUT_VENDOR),vendor/,$(call intermediates-dir-for,PACKAGING,depmod_vendor)))
   $(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH \
       build/make/tools/releasetools/build_image.py \
-      $(TARGET_OUT_VENDOR) $(vendorimage_intermediates)/vendor_image_info.txt $(INSTALLED_VENDORIMAGE_TARGET) $(TARGET_OUT) \
-      $(vendorimage_intermediates)/generated_vendor_image_info.txt
-  $(hide) $(call assert-max-image-size,$(INSTALLED_VENDORIMAGE_TARGET),\
-      $(call read-image-prop-dictionary,\
-          $(vendorimage_intermediates)/generated_vendor_image_info.txt,vendor_size))
+      $(TARGET_OUT_VENDOR) $(vendorimage_intermediates)/vendor_image_info.txt $(INSTALLED_VENDORIMAGE_TARGET) $(TARGET_OUT)
+  $(hide) $(call assert-max-image-size,$(INSTALLED_VENDORIMAGE_TARGET),$(BOARD_VENDORIMAGE_PARTITION_SIZE))
 endef
 
 # We just build this directly to the install location.
@@ -2871,11 +2855,8 @@ define build-productimage-target
   $(call generate-image-prop-dictionary, $(productimage_intermediates)/product_image_info.txt,product,skip_fsck=true)
   $(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH \
       ./build/tools/releasetools/build_image.py \
-      $(TARGET_OUT_PRODUCT) $(productimage_intermediates)/product_image_info.txt $(INSTALLED_PRODUCTIMAGE_TARGET) $(TARGET_OUT) \
-      $(productimage_intermediates)/generated_product_image_info.txt
-  $(hide) $(call assert-max-image-size,$(INSTALLED_PRODUCTIMAGE_TARGET),\
-      $(call read-image-prop-dictionary,\
-          $(productimage_intermediates)/generated_product_image_info.txt,product_size))
+      $(TARGET_OUT_PRODUCT) $(productimage_intermediates)/product_image_info.txt $(INSTALLED_PRODUCTIMAGE_TARGET) $(TARGET_OUT)
+  $(hide) $(call assert-max-image-size,$(INSTALLED_PRODUCTIMAGE_TARGET),$(BOARD_PRODUCTIMAGE_PARTITION_SIZE))
 endef
 
 # We just build this directly to the install location.
@@ -2926,11 +2907,8 @@ define build-product_servicesimage-target
   $(call generate-image-prop-dictionary, $(product_servicesimage_intermediates)/product_services_image_info.txt,product_services, skip_fsck=true)
   $(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH \
       ./build/tools/releasetools/build_image.py \
-      $(TARGET_OUT_PRODUCT_SERVICES) $(product_servicesimage_intermediates)/product_services_image_info.txt $(INSTALLED_PRODUCT_SERVICESIMAGE_TARGET) $(TARGET_OUT) \
-      $(product_servicesimage_intermediates)/generated_product_services_image_info.txt
-  $(hide) $(call assert-max-image-size,$(INSTALLED_PRODUCT_SERVICESIMAGE_TARGET),\
-      $(call read-image-prop-dictionary,\
-          $(product_servicesimage_intermediates)/generated_product_services_image_info.txt,product_services_size))
+      $(TARGET_OUT_PRODUCT_SERVICES) $(product_servicesimage_intermediates)/product_services_image_info.txt $(INSTALLED_PRODUCT_SERVICESIMAGE_TARGET) $(TARGET_OUT)
+  $(hide) $(call assert-max-image-size,$(INSTALLED_PRODUCT_SERVICESIMAGE_TARGET),$(BOARD_PRODUCT_SERVICESIMAGE_PARTITION_SIZE))
 endef
 
 # We just build this directly to the install location.
@@ -2982,11 +2960,8 @@ define build-odmimage-target
     $(call build-image-kernel-modules,$(BOARD_ODM_KERNEL_MODULES),$(TARGET_OUT_ODM),odm/,$(call intermediates-dir-for,PACKAGING,depmod_odm)))
   $(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH \
       ./build/tools/releasetools/build_image.py \
-      $(TARGET_OUT_ODM) $(odmimage_intermediates)/odm_image_info.txt $(INSTALLED_ODMIMAGE_TARGET) $(TARGET_OUT) \
-	  $(odmimage_intermediates)/generated_odm_image_info.txt
-  $(hide) $(call assert-max-image-size,$(INSTALLED_ODMIMAGE_TARGET),\
-      $(call read-image-prop-dictionary,\
-          $(odmimage_intermediates)/generated_odm_image_info.txt,odm_size))
+      $(TARGET_OUT_ODM) $(odmimage_intermediates)/odm_image_info.txt $(INSTALLED_ODMIMAGE_TARGET) $(TARGET_OUT)
+  $(hide) $(call assert-max-image-size,$(INSTALLED_ODMIMAGE_TARGET),$(BOARD_ODMIMAGE_PARTITION_SIZE))
 endef
 
 # We just build this directly to the install location.
@@ -3288,7 +3263,7 @@ define build-chained-vbmeta-image
       --output $@
 endef
 
-ifeq ($(PRODUCT_BUILD_SYSTEM_IMAGE),true)
+ifdef BUILDING_SYSTEM_IMAGE
 ifdef BOARD_AVB_VBMETA_SYSTEM
 INSTALLED_VBMETA_SYSTEMIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta_system.img
 $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET): \
@@ -3297,7 +3272,7 @@ $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET): \
 	    $(BOARD_AVB_VBMETA_SYSTEM_KEY_PATH)
 	$(call build-chained-vbmeta-image,vbmeta_system)
 endif
-endif
+endif # BUILDING_SYSTEM_IMAGE
 
 ifdef BOARD_AVB_VBMETA_VENDOR
 INSTALLED_VBMETA_VENDORIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta_vendor.img
@@ -3358,7 +3333,8 @@ ifeq (true,$(PRODUCT_BUILD_SUPER_PARTITION))
 # (1): list of items like "system", "vendor", "product", "product_services"
 # return: map each item into a command ( wrapped in $$() ) that reads the size
 define read-size-of-partitions
-$(foreach p,$(1),$(call read-image-prop-dictionary,$($(p)image_intermediates)/generated_$(p)_image_info.txt,$(p)_size))
+$(foreach image,$(call images-for-partitions,$(1)),$$( \
+    build/make/tools/releasetools/sparse_img.py --get_partition_size $(image)))
 endef
 
 # round result to BOARD_SUPER_PARTITION_ALIGNMENT
@@ -3382,7 +3358,9 @@ droid_targets: check-all-partition-sizes
 .PHONY: check-all-partition-sizes check-all-partition-sizes-nodeps
 
 # Add image dependencies so that generated_*_image_info.txt are written before checking.
-check-all-partition-sizes: $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
+check-all-partition-sizes: \
+    build/make/tools/releasetools/sparse_img.py \
+    $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
 
 ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
 # Check sum(super partition block devices) == super partition
@@ -3743,6 +3721,13 @@ define dump-dynamic-partitions-info
     echo "build_non_sparse_super_partition=true" >> $(1))
 endef
 
+# By conditionally including the dependency of the target files package on the
+# full system image deps, we speed up builds that do not build the system
+# image.
+ifdef BUILDING_SYSTEM_IMAGE
+$(BUILT_TARGET_FILES_PACKAGE): $(FULL_SYSTEMIMAGE_DEPS)
+endif
+
 # Depending on the various images guarantees that the underlying
 # directories are up-to-date.
 $(BUILT_TARGET_FILES_PACKAGE): \
@@ -3750,7 +3735,6 @@ $(BUILT_TARGET_FILES_PACKAGE): \
 	    $(INSTALLED_BOOTIMAGE_TARGET) \
 	    $(INSTALLED_RADIOIMAGE_TARGET) \
 	    $(INSTALLED_RECOVERYIMAGE_TARGET) \
-	    $(FULL_SYSTEMIMAGE_DEPS) \
 	    $(INSTALLED_USERDATAIMAGE_TARGET) \
 	    $(INSTALLED_CACHEIMAGE_TARGET) \
 	    $(INSTALLED_VENDORIMAGE_TARGET) \
@@ -4125,7 +4109,9 @@ ifdef BUILDING_SYSTEM_OTHER_IMAGE
 endif
 	@# Metadata for compatibility verification.
 	$(hide) cp $(BUILT_SYSTEM_MATRIX) $(zip_root)/META/system_matrix.xml
+ifdef BUILT_ASSEMBLED_SYSTEM_MANIFEST
 	$(hide) cp $(BUILT_ASSEMBLED_SYSTEM_MANIFEST) $(zip_root)/META/system_manifest.xml
+endif
 ifdef BUILT_ASSEMBLED_VENDOR_MANIFEST
 	$(hide) cp $(BUILT_ASSEMBLED_VENDOR_MANIFEST) $(zip_root)/META/vendor_manifest.xml
 endif
