@@ -91,12 +91,15 @@ Usage:  sign_target_files_apks [flags] input_target_files output_target_files
       Replace the veritykeyid in BOOT/cmdline of input_target_file_zip
       with keyid of the cert pointed by <path_to_X509_PEM_cert_file>.
 
-  --avb_{boot,system,system_other,vendor,dtbo,vbmeta}_algorithm <algorithm>
-  --avb_{boot,system,system_other,vendor,dtbo,vbmeta}_key <key>
+  --avb_{boot,system,system_other,vendor,dtbo,vbmeta,vbmeta_system,
+         vbmeta_vendor}_algorithm <algorithm>
+  --avb_{boot,system,system_other,vendor,dtbo,vbmeta,vbmeta_system,
+         vbmeta_vendor}_key <key>
       Use the specified algorithm (e.g. SHA256_RSA4096) and the key to AVB-sign
       the specified image. Otherwise it uses the existing values in info dict.
 
-  --avb_{apex,boot,system,system_other,vendor,dtbo,vbmeta}_extra_args <args>
+  --avb_{apex,boot,system,system_other,vendor,dtbo,vbmeta,vbmeta_system,
+         vbmeta_vendor}_extra_args <args>
       Specify any additional args that are needed to AVB-sign the image
       (e.g. "--signing_helper /path/to/helper"). The args will be appended to
       the existing ones in info dict.
@@ -535,6 +538,13 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
     # System properties.
     elif filename in ("SYSTEM/build.prop",
                       "VENDOR/build.prop",
+                      "SYSTEM/vendor/build.prop",
+                      "ODM/build.prop",
+                      "VENDOR/odm/build.prop",
+                      "PRODUCT/build.prop",
+                      "SYSTEM/product/build.prop",
+                      "PRODUCT_SERVICES/build.prop",
+                      "SYSTEM/product_services/build.prop",
                       "SYSTEM/etc/prop.default",
                       "BOOT/RAMDISK/prop.default",
                       "BOOT/RAMDISK/default.prop",  # legacy
@@ -729,8 +739,8 @@ def RewriteProps(data):
     original_line = line
     if line and line[0] != '#' and "=" in line:
       key, value = line.split("=", 1)
-      if key in ("ro.build.fingerprint", "ro.build.thumbprint",
-                 "ro.vendor.build.fingerprint", "ro.vendor.build.thumbprint"):
+      if (key.startswith("ro.") and
+          key.endswith((".build.fingerprint", ".build.thumbprint"))):
         pieces = value.split("/")
         pieces[-1] = EditTags(pieces[-1])
         value = "/".join(pieces)
@@ -743,7 +753,7 @@ def RewriteProps(data):
         assert len(pieces) == 5
         pieces[-1] = EditTags(pieces[-1])
         value = " ".join(pieces)
-      elif key == "ro.build.tags":
+      elif key.startswith("ro.") and key.endswith(".build.tags"):
         value = EditTags(value)
       elif key == "ro.build.display.id":
         # change, eg, "JWR66N dev-keys" to "JWR66N"
@@ -936,6 +946,8 @@ def ReplaceAvbSigningKeys(misc_info):
       'system_other' : 'avb_system_other_add_hashtree_footer_args',
       'vendor' : 'avb_vendor_add_hashtree_footer_args',
       'vbmeta' : 'avb_vbmeta_args',
+      'vbmeta_system' : 'avb_vbmeta_system_args',
+      'vbmeta_vendor' : 'avb_vbmeta_vendor_args',
   }
 
   def ReplaceAvbPartitionSigningKey(partition):
@@ -1163,6 +1175,18 @@ def main(argv):
       OPTIONS.avb_algorithms['vendor'] = a
     elif o == "--avb_vendor_extra_args":
       OPTIONS.avb_extra_args['vendor'] = a
+    elif o == "--avb_vbmeta_system_key":
+      OPTIONS.avb_keys['vbmeta_system'] = a
+    elif o == "--avb_vbmeta_system_algorithm":
+      OPTIONS.avb_algorithms['vbmeta_system'] = a
+    elif o == "--avb_vbmeta_system_extra_args":
+      OPTIONS.avb_extra_args['vbmeta_system'] = a
+    elif o == "--avb_vbmeta_vendor_key":
+      OPTIONS.avb_keys['vbmeta_vendor'] = a
+    elif o == "--avb_vbmeta_vendor_algorithm":
+      OPTIONS.avb_algorithms['vbmeta_vendor'] = a
+    elif o == "--avb_vbmeta_vendor_extra_args":
+      OPTIONS.avb_extra_args['vbmeta_vendor'] = a
     elif o == "--avb_apex_extra_args":
       OPTIONS.avb_extra_args['apex'] = a
     else:
@@ -1202,6 +1226,12 @@ def main(argv):
           "avb_vendor_algorithm=",
           "avb_vendor_key=",
           "avb_vendor_extra_args=",
+          "avb_vbmeta_system_algorithm=",
+          "avb_vbmeta_system_key=",
+          "avb_vbmeta_system_extra_args=",
+          "avb_vbmeta_vendor_algorithm=",
+          "avb_vbmeta_vendor_key=",
+          "avb_vbmeta_vendor_extra_args=",
       ],
       extra_option_handler=option_handler)
 
