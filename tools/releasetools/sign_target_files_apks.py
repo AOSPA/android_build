@@ -602,6 +602,13 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
         print("    Rewriting AVB public key of system_other in /product")
         common.ZipWrite(output_tf_zip, public_key, filename)
 
+    # Should NOT sign boot-debug.img.
+    elif filename in (
+        "BOOT/RAMDISK/force_debuggable",
+        "RECOVERY/RAMDISK/force_debuggable"
+        "RECOVERY/RAMDISK/first_stage_ramdisk/force_debuggable"):
+      raise common.ExternalError("debuggable boot.img cannot be signed")
+
     # A non-APK file; copy it verbatim.
     else:
       common.ZipWriteStr(output_tf_zip, out_info, data)
@@ -1067,13 +1074,16 @@ def ReadApexKeysInfo(tf_zip):
     # full names only.
     container_cert = matches.group("CONTAINER_CERT")
     container_private_key = matches.group("CONTAINER_PRIVATE_KEY")
-    if not CompareKeys(
+    if container_cert == 'PRESIGNED' and container_private_key == 'PRESIGNED':
+      container_key = 'PRESIGNED'
+    elif CompareKeys(
         container_cert, OPTIONS.public_key_suffix,
         container_private_key, OPTIONS.private_key_suffix):
+      container_key = container_cert[:-len(OPTIONS.public_key_suffix)]
+    else:
       raise ValueError("Failed to parse container keys: \n{}".format(line))
 
-    keys[name] = (payload_private_key,
-                  container_cert[:-len(OPTIONS.public_key_suffix)])
+    keys[name] = (payload_private_key, container_key)
 
   return keys
 
