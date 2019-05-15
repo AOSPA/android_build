@@ -4969,6 +4969,7 @@ define build-dynamic-partition-metadata
     $(call dump-dynamic-partitions-info,$(PRODUCT_OUT)/dynamic_partition_metadata.txt)
 endef
 
+.PHONY: BUILT_DYNAMIC_INFORMATION
 BUILT_DYNAMIC_INFORMATION:
 	@rm -f $(PRODUCT_OUT)/dynamic_partition_metadata.txt
 	$(call build-dynamic-partition-metadata)
