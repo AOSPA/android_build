@@ -1174,7 +1174,9 @@ dont_bother_goals := out \
     onod odmimage-nodeps \
     systemotherimage-nodeps \
     ramdisk-nodeps \
+    ramdisk_debug-nodeps \
     bootimage-nodeps \
+    bootimage_debug-nodeps \
     recoveryimage-nodeps \
     vbmetaimage-nodeps \
     product-graph dump-products

@@ -259,7 +259,6 @@ VNDK-core: libstagefright_bufferqueue_helper.so
 VNDK-core: libstagefright_enc_common.so
 VNDK-core: libstagefright_flacdec.so
 VNDK-core: libstagefright_foundation.so
-VNDK-core: libstagefright_foundation_ext.so
 VNDK-core: libstagefright_omx.so
 VNDK-core: libstagefright_omx_utils.so
 VNDK-core: libstagefright_softomx.so
