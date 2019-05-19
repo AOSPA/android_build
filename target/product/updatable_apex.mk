@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2017 The Android Open-Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,16 +14,7 @@
 # limitations under the License.
 #
 
-include build/make/target/board/BoardConfigGsiCommon.mk
+# Inherit this when the target needs to support updating APEXes
 
-TARGET_ARCH := arm
-TARGET_ARCH_VARIANT := armv7-a-neon
-TARGET_CPU_ABI := armeabi-v7a
-TARGET_CPU_ABI2 := armeabi
-TARGET_CPU_VARIANT := generic
-
-# Legacy GSI keeps 32 bits binder for 32 bits CPU Arch
-TARGET_USES_64_BIT_BINDER := false
-
-# This is a non-system-as-root Legacy GSI build target
-BOARD_BUILD_SYSTEM_ROOT_IMAGE := false
+PRODUCT_PROPERTY_OVERRIDES := ro.apex.updatable=true
+PRODUCT_PACKAGES := com.android.apex.cts.shim.v1_prebuilt

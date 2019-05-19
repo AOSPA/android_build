@@ -20,7 +20,6 @@ ifeq ($(PRODUCT_DEX_PREOPT_NEVER_ALLOW_STRIPPING),)
 endif
 # Conditional to building on linux, as dex2oat currently does not work on darwin.
 ifeq ($(HOST_OS),linux)
-  WITH_DEXPREOPT ?= true
   ifeq (eng,$(TARGET_BUILD_VARIANT))
     # Don't strip for quick development turnarounds.
     DEX_PREOPT_DEFAULT := nostripping
@@ -92,6 +91,7 @@ ifeq ($(WRITE_SOONG_VARIABLES),true)
   $(call add_json_list, DisablePreoptModules,               $(DEXPREOPT_DISABLED_MODULES))
   $(call add_json_bool, OnlyPreoptBootImageAndSystemServer, $(filter true,$(WITH_DEXPREOPT_BOOT_IMG_AND_SYSTEM_SERVER_ONLY)))
   $(call add_json_bool, GenerateApexImage,                  $(filter true,$(DEXPREOPT_GENERATE_APEX_IMAGE)))
+  $(call add_json_bool, UseApexImage,                       $(filter true,$(DEXPREOPT_USE_APEX_IMAGE)))
   $(call add_json_bool, DontUncompressPrivAppsDex,          $(filter true,$(DONT_UNCOMPRESS_PRIV_APPS_DEXS)))
   $(call add_json_list, ModulesLoadedByPrivilegedModules,   $(PRODUCT_LOADED_BY_PRIVILEGED_MODULES))
   $(call add_json_bool, HasSystemOther,                     $(BOARD_USES_SYSTEM_OTHER_ODEX))
@@ -111,6 +111,7 @@ ifeq ($(WRITE_SOONG_VARIABLES),true)
   $(call add_json_bool, GenerateDmFiles,                    $(PRODUCT_DEX_PREOPT_GENERATE_DM_FILES))
   $(call add_json_bool, NeverAllowStripping,                $(PRODUCT_DEX_PREOPT_NEVER_ALLOW_STRIPPING))
   $(call add_json_bool, NoDebugInfo,                        $(filter false,$(WITH_DEXPREOPT_DEBUG_INFO)))
+  $(call add_json_bool, DontResolveStartupStrings,          $(filter false,$(PRODUCT_DEX_PREOPT_RESOLVE_STARTUP_STRINGS)))
   $(call add_json_bool, AlwaysSystemServerDebugInfo,        $(filter true,$(PRODUCT_SYSTEM_SERVER_DEBUG_INFO)))
   $(call add_json_bool, NeverSystemServerDebugInfo,         $(filter false,$(PRODUCT_SYSTEM_SERVER_DEBUG_INFO)))
   $(call add_json_bool, AlwaysOtherDebugInfo,               $(filter true,$(PRODUCT_OTHER_JAVA_DEBUG_INFO)))

@@ -6,16 +6,10 @@
 
 include build/make/target/board/BoardConfigMainlineCommon.mk
 
-# Enable system property split for Treble
-BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED := true
+TARGET_NO_KERNEL := true
 
 # This flag is set by mainline but isn't desired for GSI.
 BOARD_USES_SYSTEM_OTHER_ODEX :=
-
-# GSIs are historically released in sparse format.
-# Some vendors' bootloaders don't work properly with raw format images. So
-# we explicit specify this need below (even though it's the current default).
-TARGET_USERIMAGES_SPARSE_EXT_DISABLED := false
 
 # system.img is always ext4 with sparse option
 # GSI also includes make_f2fs to support userdata parition in f2fs
@@ -27,6 +21,7 @@ BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE := 67108864
 
 # GSI forces product packages to /system for now.
 TARGET_COPY_OUT_PRODUCT := system/product
+BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE :=
 
 # Creates metadata partition mount point under root for
 # the devices with metadata parition
