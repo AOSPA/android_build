@@ -415,6 +415,7 @@ class OtaFromTargetFilesTest(test_utils.ReleaseToolsTestCase):
     # Reset the global options as in ota_from_target_files.py.
     common.OPTIONS.incremental_source = None
     common.OPTIONS.downgrade = False
+    common.OPTIONS.retrofit_dynamic_partitions = False
     common.OPTIONS.timestamp = False
     common.OPTIONS.wipe_user_data = False
     common.OPTIONS.no_signing = False
@@ -508,6 +509,23 @@ class OtaFromTargetFilesTest(test_utils.ReleaseToolsTestCase):
         {
             'ota-type' : 'BLOCK',
             'ota-wipe' : 'yes',
+            'post-build' : 'build-fingerprint-target',
+            'post-build-incremental' : 'build-version-incremental-target',
+            'post-sdk-level' : '27',
+            'post-security-patch-level' : '2017-12-01',
+            'post-timestamp' : '1500000000',
+            'pre-device' : 'product-device',
+        },
+        metadata)
+
+  def test_GetPackageMetadata_retrofitDynamicPartitions(self):
+    target_info = BuildInfo(self.TEST_TARGET_INFO_DICT, None)
+    common.OPTIONS.retrofit_dynamic_partitions = True
+    metadata = GetPackageMetadata(target_info)
+    self.assertDictEqual(
+        {
+            'ota-retrofit-dynamic-partitions' : 'yes',
+            'ota-type' : 'BLOCK',
             'post-build' : 'build-fingerprint-target',
             'post-build-incremental' : 'build-version-incremental-target',
             'post-sdk-level' : '27',
@@ -1164,6 +1182,7 @@ class PayloadSignerTest(test_utils.ReleaseToolsTestCase):
   def test_init(self):
     payload_signer = PayloadSigner()
     self.assertEqual('openssl', payload_signer.signer)
+    self.assertEqual(256, payload_signer.key_size)
 
   def test_init_withPassword(self):
     common.OPTIONS.package_key = os.path.join(
@@ -1177,9 +1196,16 @@ class PayloadSignerTest(test_utils.ReleaseToolsTestCase):
   def test_init_withExternalSigner(self):
     common.OPTIONS.payload_signer = 'abc'
     common.OPTIONS.payload_signer_args = ['arg1', 'arg2']
+    common.OPTIONS.payload_signer_key_size = '512'
     payload_signer = PayloadSigner()
     self.assertEqual('abc', payload_signer.signer)
     self.assertEqual(['arg1', 'arg2'], payload_signer.signer_args)
+    self.assertEqual(512, payload_signer.key_size)
+
+  def test_GetKeySizeInBytes_512Bytes(self):
+    signing_key = os.path.join(self.testdata_dir, 'testkey_RSA4096.key')
+    key_size = PayloadSigner._GetKeySizeInBytes(signing_key)
+    self.assertEqual(512, key_size)
 
   def test_Sign(self):
     payload_signer = PayloadSigner()

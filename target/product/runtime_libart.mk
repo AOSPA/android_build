@@ -33,18 +33,9 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     ext \
 
-# Libcore ICU. TODO(b/124218500): Remove them explicitly when the bug is resolved.
-PRODUCT_PACKAGES += \
-    libicui18n \
-    libicuuc \
-
-# TODO(b/124498388): This currently needs to be in /system/lib for the debugger
-# transport to work.
-PRODUCT_PACKAGES += \
-    libnpt
-
 # Android Runtime APEX module.
 PRODUCT_PACKAGES += com.android.runtime
+PRODUCT_HOST_PACKAGES += com.android.runtime
 
 # Certificates.
 PRODUCT_PACKAGES += \
@@ -63,7 +54,7 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     dalvik.vm.dexopt.secondary=true \
     dalvik.vm.appimageformat=lz4
 
-PRODUCT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.dalvik.vm.native.bridge=0
 
 # Different dexopt types for different package update/install times.
@@ -100,3 +91,5 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 # Disable iorapd by default
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.iorapd.enable=false
+
+PRODUCT_USES_ART := true

@@ -18,10 +18,8 @@
 Builds output_image from the given input_directory, properties_file,
 and writes the image to target_output_directory.
 
-If argument generated_prop_file exists, write additional properties to the file.
-
 Usage:  build_image.py input_directory properties_file output_image \\
-            target_output_directory [generated_prop_file]
+            target_output_directory
 """
 
 from __future__ import print_function
@@ -735,33 +733,8 @@ def GlobalDictFromImageProp(image_prop, mount_point):
   return d
 
 
-def SaveGlobalDict(filename, glob_dict):
-  with open(filename, "w") as f:
-    f.writelines(["%s=%s" % (key, value) for (key, value) in glob_dict.items()])
-
-def ExtractSystemOtherAvbKey(in_dir, glob_dict):
-  if glob_dict.get("avb_system_extract_system_other_key") != "true":
-    return
-
-  extract_to = os.path.join(in_dir, "etc/security/avb/system_other.avbpubkey")
-  extract_to_dir = os.path.dirname(extract_to)
-
-  if os.path.isdir(extract_to_dir):
-    shutil.rmtree(extract_to_dir)
-  elif os.path.isfile(extract_to_dir):
-    os.remove(extract_to_dir)
-  os.mkdir(extract_to_dir);
-
-  # Extracts the public key used to sign system_other.img, into system.img:
-  #   /system/etc/security/avb/system_other.avbpubkey.
-  avbtool = os.getenv('AVBTOOL') or glob_dict.get("avb_avbtool")
-  extract_from = glob_dict.get("avb_system_other_key_path")
-  cmd = [avbtool, "extract_public_key", "--key", extract_from,
-         "--output", extract_to]
-  common.RunAndCheckOutput(cmd, verbose=False)
-
 def main(argv):
-  if len(argv) < 4 or len(argv) > 5:
+  if len(argv) != 4:
     print(__doc__)
     sys.exit(1)
 
@@ -771,7 +744,6 @@ def main(argv):
   glob_dict_file = argv[1]
   out_file = argv[2]
   target_out = argv[3]
-  prop_file_out = argv[4] if len(argv) >= 5 else None
 
   glob_dict = LoadGlobalDict(glob_dict_file)
   if "mount_point" in glob_dict:
@@ -783,7 +755,6 @@ def main(argv):
     mount_point = ""
     if image_filename == "system.img":
       mount_point = "system"
-      ExtractSystemOtherAvbKey(in_dir, glob_dict)
     elif image_filename == "system_other.img":
       mount_point = "system_other"
     elif image_filename == "userdata.img":
@@ -811,10 +782,6 @@ def main(argv):
   except:
     logger.error("Failed to build %s from %s", out_file, in_dir)
     raise
-
-  if prop_file_out:
-    glob_dict_out = GlobalDictFromImageProp(image_properties, mount_point)
-    SaveGlobalDict(prop_file_out, glob_dict_out)
 
 
 if __name__ == '__main__':
