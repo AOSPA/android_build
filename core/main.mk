@@ -218,8 +218,7 @@ include build/make/core/pdk_config.mk
 
 #
 # -----------------------------------------------------------------
-# Enable dynamic linker and hidden API developer warnings for
-# userdebug, eng and non-REL builds
+# Enable dynamic linker warnings for userdebug, eng and non-REL builds
 ifneq ($(TARGET_BUILD_VARIANT),user)
   ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1
 else
@@ -255,6 +254,11 @@ endif
 # Add the system server compiler filter if they are specified for the product.
 ifneq (,$(PRODUCT_SYSTEM_SERVER_COMPILER_FILTER))
 ADDITIONAL_PRODUCT_PROPERTIES += dalvik.vm.systemservercompilerfilter=$(PRODUCT_SYSTEM_SERVER_COMPILER_FILTER)
+endif
+
+# Enable core platform API violation warnings on userdebug and eng builds.
+ifneq ($(TARGET_BUILD_VARIANT),user)
+ADDITIONAL_BUILD_PROPERTIES += persist.debug.dalvik.vm.core_platform_api_policy=just-warn
 endif
 
 # Sets the default value of ro.postinstall.fstab.prefix to /system.
@@ -606,12 +610,10 @@ endef
 # Otherwise if the module is an executable or shared library,
 #   the required modules must be 64-bit;
 #   otherwise we require both 64-bit and 32-bit variant, if one exists.
-define select-bitness-of-required-modules
+define target-select-bitness-of-required-modules
 $(foreach m,$(ALL_MODULES),\
-  $(eval r := $(ALL_MODULES.$(m).REQUIRED))\
+  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_TARGET))\
   $(if $(r),\
-    $(if $(ALL_MODULES.$(m).FOR_HOST_CROSS),\
-      $(eval r := $(addprefix host_cross_,$(r))))\
     $(if $(ALL_MODULES.$(m).FOR_2ND_ARCH),\
       $(eval r_r := $(call get-32-bit-modules-if-we-can,$(r))),\
       $(if $(filter EXECUTABLES SHARED_LIBRARIES NATIVE_TESTS,$(ALL_MODULES.$(m).CLASS)),\
@@ -619,11 +621,47 @@ $(foreach m,$(ALL_MODULES),\
         $(eval r_r := $(r) $(call get-32-bit-modules,$(r)))\
        )\
      )\
-     $(eval ALL_MODULES.$(m).REQUIRED := $(strip $(r_r)))\
+     $(eval ALL_MODULES.$(m).REQUIRED_FROM_TARGET := $(strip $(r_r)))\
   )\
 )
 endef
-$(call select-bitness-of-required-modules)
+$(call target-select-bitness-of-required-modules)
+
+define host-select-bitness-of-required-modules
+$(foreach m,$(ALL_MODULES),\
+  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_HOST))\
+  $(if $(r),\
+    $(if $(ALL_MODULES.$(m).FOR_2ND_ARCH),\
+      $(eval r_r := $(call get-host-32-bit-modules-if-we-can,$(r))),\
+      $(if $(filter EXECUTABLES SHARED_LIBRARIES NATIVE_TESTS,$(ALL_MODULES.$(m).CLASS)),\
+        $(eval r_r := $(r)),\
+        $(eval r_r := $(r) $(call get-host-32-bit-modules,$(r)))\
+       )\
+     )\
+     $(eval ALL_MODULES.$(m).REQUIRED_FROM_HOST := $(strip $(r_r)))\
+  )\
+)
+endef
+$(call host-select-bitness-of-required-modules)
+
+define host-cross-select-bitness-of-required-modules
+$(foreach m,$(ALL_MODULES),\
+  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_HOST_CROSS))\
+  $(if $(r),\
+    $(if $(ALL_MODULES.$(m).FOR_HOST_CROSS),,$(error Only expected REQUIRED_FROM_HOST_CROSS on FOR_HOST_CROSS modules - $(m)))\
+    $(eval r := $(addprefix host_cross_,$(r)))\
+    $(if $(ALL_MODULES.$(m).FOR_2ND_ARCH),\
+      $(eval r_r := $(call get-host-32-bit-modules-if-we-can,$(r))),\
+      $(if $(filter EXECUTABLES SHARED_LIBRARIES NATIVE_TESTS,$(ALL_MODULES.$(m).CLASS)),\
+        $(eval r_r := $(r)),\
+        $(eval r_r := $(r) $(call get-host-32-bit-modules,$(r)))\
+       )\
+     )\
+     $(eval ALL_MODULES.$(m).REQUIRED_FROM_HOST_CROSS := $(strip $(r_r)))\
+  )\
+)
+endef
+$(call host-cross-select-bitness-of-required-modules)
 r_r :=
 
 define add-required-deps
@@ -639,30 +677,42 @@ $(1): $(2)
 endef
 
 # Sets up dependencies such that whenever a host module is installed,
-# any other host modules listed in $(ALL_MODULES.$(m).REQUIRED) will also be installed
+# any other host modules listed in $(ALL_MODULES.$(m).REQUIRED_FROM_HOST) will also be installed
 define add-all-host-to-host-required-modules-deps
 $(foreach m,$(ALL_MODULES), \
-  $(eval r := $(ALL_MODULES.$(m).REQUIRED)) \
+  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_HOST)) \
   $(if $(r), \
     $(eval r := $(call module-installed-files,$(r))) \
     $(eval h_m := $(filter $(HOST_OUT)/%, $(ALL_MODULES.$(m).INSTALLED))) \
-    $(eval hc_m := $(filter $(HOST_CROSS_OUT)/%, $(ALL_MODULES.$(m).INSTALLED))) \
     $(eval h_r := $(filter $(HOST_OUT)/%, $(r))) \
-    $(eval hc_r := $(filter $(HOST_CROSS_OUT)/%, $(r))) \
     $(eval h_m := $(filter-out $(h_r), $(h_m))) \
-    $(eval hc_m := $(filter-out $(hc_r), $(hc_m))) \
     $(if $(h_m), $(eval $(call add-required-deps, $(h_m),$(h_r)))) \
-    $(if $(hc_m), $(eval $(call add-required-deps, $(hc_m),$(hc_r)))) \
   ) \
 )
 endef
 $(call add-all-host-to-host-required-modules-deps)
 
+# Sets up dependencies such that whenever a host cross module is installed,
+# any other host cross modules listed in $(ALL_MODULES.$(m).REQUIRED_FROM_HOST_CROSS) will also be installed
+define add-all-host-cross-to-host-cross-required-modules-deps
+$(foreach m,$(ALL_MODULES), \
+  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_HOST_CROSS)) \
+  $(if $(r), \
+    $(eval r := $(call module-installed-files,$(r))) \
+    $(eval hc_m := $(filter $(HOST_CROSS_OUT)/%, $(ALL_MODULES.$(m).INSTALLED))) \
+    $(eval hc_r := $(filter $(HOST_CROSS_OUT)/%, $(r))) \
+    $(eval hc_m := $(filter-out $(hc_r), $(hc_m))) \
+    $(if $(hc_m), $(eval $(call add-required-deps, $(hc_m),$(hc_r)))) \
+  ) \
+)
+endef
+$(call add-all-host-cross-to-host-cross-required-modules-deps)
+
 # Sets up dependencies such that whenever a target module is installed,
-# any other target modules listed in $(ALL_MODULES.$(m).REQUIRED) will also be installed
+# any other target modules listed in $(ALL_MODULES.$(m).REQUIRED_FROM_TARGET) will also be installed
 define add-all-target-to-target-required-modules-deps
 $(foreach m,$(ALL_MODULES), \
-  $(eval r := $(ALL_MODULES.$(m).REQUIRED)) \
+  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_TARGET)) \
   $(if $(r), \
     $(eval r := $(call module-installed-files,$(r))) \
     $(eval t_m := $(filter $(TARGET_OUT_ROOT)/%, $(ALL_MODULES.$(m).INSTALLED))) \
@@ -675,10 +725,10 @@ endef
 $(call add-all-target-to-target-required-modules-deps)
 
 # Sets up dependencies such that whenever a host module is installed,
-# any target modules listed in $(ALL_MODULES.$(m).TARGET_REQUIRED) will also be installed
+# any target modules listed in $(ALL_MODULES.$(m).TARGET_REQUIRED_FROM_HOST) will also be installed
 define add-all-host-to-target-required-modules-deps
 $(foreach m,$(ALL_MODULES), \
-  $(eval req_mods := $(ALL_MODULES.$(m).TARGET_REQUIRED))\
+  $(eval req_mods := $(ALL_MODULES.$(m).TARGET_REQUIRED_FROM_HOST))\
   $(if $(req_mods), \
     $(eval req_files := )\
     $(foreach req_mod,$(req_mods), \
@@ -701,10 +751,10 @@ endef
 $(call add-all-host-to-target-required-modules-deps)
 
 # Sets up dependencies such that whenever a target module is installed,
-# any host modules listed in $(ALL_MODULES.$(m).HOST_REQUIRED) will also be installed
+# any host modules listed in $(ALL_MODULES.$(m).HOST_REQUIRED_FROM_TARGET) will also be installed
 define add-all-target-to-host-required-modules-deps
 $(foreach m,$(ALL_MODULES), \
-  $(eval req_mods := $(ALL_MODULES.$(m).HOST_REQUIRED))\
+  $(eval req_mods := $(ALL_MODULES.$(m).HOST_REQUIRED_FROM_TARGET))\
   $(if $(req_mods), \
     $(eval req_files := )\
     $(foreach req_mod,$(req_mods), \
@@ -734,7 +784,7 @@ h_r :=
 hc_r :=
 
 # Establish the dependencies on the shared libraries.
-# It also adds the shared library module names to ALL_MODULES.$(m).REQUIRED,
+# It also adds the shared library module names to ALL_MODULES.$(m).REQUIRED_FROM_(TARGET|HOST|HOST_CROSS),
 # so they can be expanded to product_MODULES later.
 # $(1): TARGET_ or HOST_ or HOST_CROSS_.
 # $(2): non-empty for 2nd arch.
@@ -754,7 +804,7 @@ $(foreach m,$($(if $(2),$($(1)2ND_ARCH_VAR_PREFIX))$(1)DEPENDENCIES_ON_SHARED_LI
     $(eval ALL_MODULES.$(mod).HOST_SHARED_LIBRARIES := $$(ALL_MODULES.$(mod).HOST_SHARED_LIBRARIES) $(deps))\
     $(eval $(call add-required-host-so-deps,$(word 2,$(p)),$(r))),\
     $(eval $(call add-required-deps,$(word 2,$(p)),$(r))))\
-  $(eval ALL_MODULES.$(mod).REQUIRED += $(deps)))
+  $(eval ALL_MODULES.$(mod).REQUIRED_FROM_$(patsubst %_,%,$(1)) += $(deps)))
 endef
 
 # Recursively resolve host shared library dependency for a given module.
@@ -1036,7 +1086,7 @@ endef
 # $(3): The list of overridden modules.
 # Returns empty string (maybe with some whitespaces).
 define expand-required-modules
-$(eval _erm_req := $(foreach m,$(2),$(ALL_MODULES.$(m).REQUIRED))) \
+$(eval _erm_req := $(foreach m,$(2),$(ALL_MODULES.$(m).REQUIRED_FROM_TARGET))) \
 $(eval _erm_new_modules := $(sort $(filter-out $($(1)),$(_erm_req)))) \
 $(eval _erm_new_overrides := $(call module-overrides,$(_erm_new_modules))) \
 $(eval _erm_all_overrides := $(3) $(_erm_new_overrides)) \
@@ -1049,12 +1099,17 @@ endef
 
 # Same as expand-required-modules above, but does not handle module overrides, as
 # we don't intend to support them on the host.
+# $(1): The variable name that holds the initial module name list.
+#       the variable will be modified to hold the expanded results.
+# $(2): The initial module name list.
+# $(3): HOST or HOST_CROSS depending on whether we're expanding host or host cross modules
+# Returns empty string (maybe with some whitespaces).
 define expand-required-host-modules
-$(eval _erm_req := $(foreach m,$(2),$(ALL_MODULES.$(m).REQUIRED))) \
+$(eval _erm_req := $(foreach m,$(2),$(ALL_MODULES.$(m).REQUIRED_FROM_$(3)))) \
 $(eval _erm_new_modules := $(sort $(filter-out $($(1)),$(_erm_req)))) \
 $(eval $(1) += $(_erm_new_modules)) \
 $(if $(_erm_new_modules),\
-  $(call expand-required-host-modules,$(1),$(_erm_new_modules)))
+  $(call expand-required-host-modules,$(1),$(_erm_new_modules),$(3)))
 endef
 
 # Transforms paths relative to PRODUCT_OUT to absolute paths.
@@ -1135,8 +1190,13 @@ define host-installed-files
   $(eval ### For the rest we add both) \
   $(eval _hif_modules += $(call get-host-32-bit-modules, $(_hif_modules_rest))) \
   $(eval _hif_modules += $(_hif_modules_rest)) \
-  $(call expand-required-host-modules,_hif_modules,$(_hif_modules)) \
-  $(filter $(HOST_OUT_ROOT)/%,$(call module-installed-files, $(_hif_modules)))
+  $(eval ### Split host vs host cross modules) \
+  $(eval _hcif_modules := $(filter host_cross_%,$(_hif_modules))) \
+  $(eval _hif_modules := $(filter-out host_cross_%,$(_hif_modules))) \
+  $(call expand-required-host-modules,_hif_modules,$(_hif_modules),HOST) \
+  $(call expand-required-host-modules,_hcif_modules,$(_hcif_modules),HOST_CROSS) \
+  $(filter $(HOST_OUT)/%,$(call module-installed-files, $(_hif_modules))) \
+  $(filter $(HOST_CROSS_OUT)/%,$(call module-installed-files, $(_hcif_modules)))
 endef
 
 # Fails the build if the given list is non-empty, and prints it entries (stripping PRODUCT_OUT).
@@ -1175,7 +1235,7 @@ ifdef FULL_BUILD
     ifneq ($(HOST_OS),darwin)
       _modules := $(PRODUCT_HOST_PACKAGES)
       _nonexistant_modules := $(foreach m,$(_modules),\
-        $(if $(filter FAKE,$(ALL_MODULES.$(m).CLASS))$(filter $(HOST_OUT_ROOT)/%,$(ALL_MODULES.$(m).INSTALLED)),,$(m)))
+        $(if $(ALL_MODULES.$(m).REQUIRED_FROM_HOST)$(filter $(HOST_OUT_ROOT)/%,$(ALL_MODULES.$(m).INSTALLED)),,$(m)))
       $(call maybe-print-list-and-error,$(_nonexistant_modules),\
         $(INTERNAL_PRODUCT) includes non-existant modules in PRODUCT_HOST_PACKAGES)
     endif
@@ -1380,6 +1440,9 @@ endif
 .PHONY: ramdisk
 ramdisk: $(INSTALLED_RAMDISK_TARGET)
 
+.PHONY: ramdisk_debug
+ramdisk_debug: $(INSTALLED_DEBUG_RAMDISK_TARGET)
+
 .PHONY: systemtarball
 systemtarball: $(INSTALLED_SYSTEMTARBALL_TARGET)
 
@@ -1417,14 +1480,14 @@ odmimage: $(INSTALLED_ODMIMAGE_TARGET)
 .PHONY: systemotherimage
 systemotherimage: $(INSTALLED_SYSTEMOTHERIMAGE_TARGET)
 
-.PHONY: superimage
-superimage: $(INSTALLED_SUPERIMAGE_TARGET)
-
 .PHONY: superimage_empty
 superimage_empty: $(INSTALLED_SUPERIMAGE_EMPTY_TARGET)
 
 .PHONY: bootimage
 bootimage: $(INSTALLED_BOOTIMAGE_TARGET)
+
+.PHONY: bootimage_debug
+bootimage_debug: $(INSTALLED_DEBUG_BOOTIMAGE_TARGET)
 
 .PHONY: vbmetaimage
 vbmetaimage: $(INSTALLED_VBMETAIMAGE_TARGET)
@@ -1438,6 +1501,8 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_SYSTEMIMAGE_TARGET) \
     $(INSTALLED_RAMDISK_TARGET) \
     $(INSTALLED_BOOTIMAGE_TARGET) \
+    $(INSTALLED_DEBUG_RAMDISK_TARGET) \
+    $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) \
     $(INSTALLED_RECOVERYIMAGE_TARGET) \
     $(INSTALLED_VBMETAIMAGE_TARGET) \
     $(INSTALLED_USERDATAIMAGE_TARGET) \
@@ -1462,6 +1527,8 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_FILES_JSON_SYSTEMOTHER) \
     $(INSTALLED_FILES_FILE_RAMDISK) \
     $(INSTALLED_FILES_JSON_RAMDISK) \
+    $(INSTALLED_FILES_FILE_DEBUG_RAMDISK) \
+    $(INSTALLED_FILES_JSON_DEBUG_RAMDISK) \
     $(INSTALLED_FILES_FILE_ROOT) \
     $(INSTALLED_FILES_JSON_ROOT) \
     $(INSTALLED_FILES_FILE_RECOVERY) \
@@ -1620,6 +1687,10 @@ else # TARGET_BUILD_APPS
     $(call dist-for-goals, droidcore, \
       $(INSTALLED_FILES_FILE_RAMDISK) \
       $(INSTALLED_FILES_JSON_RAMDISK) \
+      $(INSTALLED_FILES_FILE_DEBUG_RAMDISK) \
+      $(INSTALLED_FILES_JSON_DEBUG_RAMDISK) \
+      $(INSTALLED_DEBUG_RAMDISK_TARGET) \
+      $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) \
     )
   endif
 
@@ -1717,7 +1788,7 @@ check-elf-files:
 modules:
 	@echo "Available sub-modules:"
 	@echo "$(call module-names-for-tag-list,$(ALL_MODULE_TAGS))" | \
-	      tr -s ' ' '\n' | sort -u | $(COLUMN)
+	      tr -s ' ' '\n' | sort -u
 
 .PHONY: dump-files
 dump-files:

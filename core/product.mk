@@ -240,11 +240,13 @@ _product_var_list += PRODUCT_DEX_PREOPT_BOOT_FLAGS
 _product_var_list += PRODUCT_DEX_PREOPT_PROFILE_DIR
 _product_var_list += PRODUCT_DEX_PREOPT_GENERATE_DM_FILES
 _product_var_list += PRODUCT_DEX_PREOPT_NEVER_ALLOW_STRIPPING
+_product_var_list += PRODUCT_DEX_PREOPT_RESOLVE_STARTUP_STRINGS
 
 # Boot image options.
 _product_var_list += \
     PRODUCT_USE_PROFILE_FOR_BOOT_IMAGE \
     PRODUCT_DEX_PREOPT_BOOT_IMAGE_PROFILE_LOCATION \
+    PRODUCT_USES_ART \
 
 _product_var_list += PRODUCT_SYSTEM_SERVER_COMPILER_FILTER
 # Per-module sanitizer configs

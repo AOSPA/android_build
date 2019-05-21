@@ -618,8 +618,6 @@ JETIFIER := prebuilts/sdk/tools/jetifier/jetifier-standalone/bin/jetifier-standa
 
 EXTRACT_KERNEL := build/make/tools/extract_kernel.py
 
-COLUMN:= column
-
 USE_OPENJDK9 := true
 
 ifeq ($(EXPERIMENTAL_USE_OPENJDK9),)
@@ -1176,7 +1174,9 @@ dont_bother_goals := out \
     onod odmimage-nodeps \
     systemotherimage-nodeps \
     ramdisk-nodeps \
+    ramdisk_debug-nodeps \
     bootimage-nodeps \
+    bootimage_debug-nodeps \
     recoveryimage-nodeps \
     vbmetaimage-nodeps \
     product-graph dump-products

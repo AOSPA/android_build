@@ -20,10 +20,13 @@ BUILD_QEMU_IMAGES := true
 # the GLES renderer disables itself if host GL acceleration isn't available.
 USE_OPENGL_RENDERER := true
 
+# Emulator doesn't support sparse image format.
+TARGET_USERIMAGES_SPARSE_EXT_DISABLED := true
+
 # ~140 MB vendor image. Please adjust system image / vendor image sizes
 # when finalizing them. The partition size needs to be a multiple of image
 # block size: 4096.
-BOARD_VENDORIMAGE_PARTITION_SIZE := 140963840
+BOARD_VENDORIMAGE_PARTITION_SIZE := 146800640
 BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_FLASH_BLOCK_SIZE := 512
 DEVICE_MATRIX_FILE   := device/generic/goldfish/compatibility_matrix.xml

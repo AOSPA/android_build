@@ -108,7 +108,7 @@ aidl_preprocess_import :=
 ifdef LOCAL_SDK_VERSION
 ifneq ($(filter current system_current test_current core_current, $(LOCAL_SDK_VERSION)$(TARGET_BUILD_APPS_USE_PREBUILT_SDK)),)
   # LOCAL_SDK_VERSION is current and no TARGET_BUILD_APPS
-  aidl_preprocess_import := $(TARGET_OUT_COMMON_INTERMEDIATES)/framework.aidl
+  aidl_preprocess_import := $(FRAMEWORK_AIDL)
 else
   aidl_preprocess_import := $(call resolve-prebuilt-sdk-aidl-path,$(LOCAL_SDK_VERSION))
 endif # not current or system_current
@@ -394,6 +394,13 @@ else
   # For platform build, we can't just raise to the "current" SDK,
   # that would break apps that use APIs removed from the current SDK.
   my_proguard_sdk_raise := $(call java-lib-header-files,$(TARGET_DEFAULT_BOOTCLASSPATH_LIBRARIES) $(TARGET_DEFAULT_JAVA_LIBRARIES))
+endif
+ifdef BOARD_SYSTEMSDK_VERSIONS
+ifneq (,$(filter true,$(LOCAL_VENDOR_MODULE) $(LOCAL_ODM_MODULE) $(LOCAL_PROPRIETARY_MODULE)))
+  # But for vendor or odm apks, don't raise SDK as the apks are required to
+  # use SDK APIs only
+  my_proguard_sdk_raise :=
+endif
 endif
 endif
 

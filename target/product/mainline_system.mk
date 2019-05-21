@@ -18,6 +18,10 @@
 $(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_system.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_system.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/languages_default.mk)
+# Enable updating of APEXes
+# TODO(b/130652892, b/129035564): uncomment following line when Pixel 2019 kernel
+# is updated to support APEX.
+#$(call inherit-product, $(SRC_TARGET_DIR)/product/updatable_apex.mk)
 # Add adb keys to debuggable AOSP builds (if they exist)
 $(call inherit-product-if-exists, vendor/google/security/adb/vendor_key.mk)
 
@@ -61,13 +65,6 @@ PRODUCT_PACKAGES += \
     audio.a2dp.default \
     audio.hearing_aid.default \
 
-# Media libraries
-# - These libraries are used by the new media code path that relies on new
-#   plugins and HAL implementations that may not exist on older devices.
-PRODUCT_PACKAGES += \
-    com.android.media.swcodec \
-    libsfplugin_ccodec \
-
 # For ringtones that rely on forward lock encryption
 PRODUCT_PACKAGES += libfwdlockengine
 
@@ -83,6 +80,7 @@ PRODUCT_PACKAGES += \
     android.hardware.secure_element@1.0 \
     android.hardware.wifi@1.0 \
     libaudio-resampler \
+    libdrm \
     liblogwrap \
     liblz4 \
     libminui \

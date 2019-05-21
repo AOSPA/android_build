@@ -53,6 +53,7 @@ PRODUCT_PACKAGES += \
     com.android.conscrypt \
     com.android.location.provider \
     com.android.media \
+    com.android.media.swcodec \
     com.android.resolv \
     com.android.tzdata \
     ContactsProvider \
@@ -167,6 +168,7 @@ PRODUCT_PACKAGES += \
     libradio_metadata \
     librtp_jni \
     libsensorservice \
+    libsfplugin_ccodec \
     libskia \
     libsonic \
     libsonivox \
@@ -270,7 +272,7 @@ PRODUCT_PACKAGES += \
 
 # VINTF data for system image
 PRODUCT_PACKAGES += \
-    framework_manifest.xml \
+    system_manifest.xml \
     system_compatibility_matrix.xml \
 
 # Host tools to install

@@ -619,6 +619,18 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/bin/hw/android.frameworks.bu
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/etc/init/android.frameworks.bufferhub@1.0-service.rc)
 
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/super.img)
+
+$(call add-clean-step, find $(PRODUCT_OUT) -type f -name "generated_*_image_info.txt" -print0 | xargs -0 rm -f)
+
+# Clean up libicuuc.so and libicui18n.so
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libicu*)
+
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/target/common/obj/framework.aidl)
+
+# Clean up adb_debug.propr
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/etc/adb_debug.prop)
+
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libjavacrypto.so)
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
 # ************************************************

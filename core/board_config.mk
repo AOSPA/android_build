@@ -44,6 +44,7 @@ _board_strip_readonly_list := \
   TARGET_BOARD_PLATFORM \
   TARGET_BOARD_PLATFORM_GPU \
   TARGET_BOOTLOADER_BOARD_NAME \
+  TARGET_FS_CONFIG_GEN \
   TARGET_NO_BOOTLOADER \
   TARGET_NO_KERNEL \
   TARGET_NO_RECOVERY \
@@ -89,6 +90,7 @@ _build_broken_var_list := \
   BUILD_BROKEN_DUP_RULES \
   BUILD_BROKEN_PHONY_TARGETS \
   BUILD_BROKEN_ENG_DEBUG_TAGS \
+  BUILD_BROKEN_USES_NETWORK \
 
 _board_true_false_vars := $(_build_broken_var_list)
 _board_strip_readonly_list += $(_build_broken_var_list)
@@ -101,11 +103,7 @@ endif
 # ###############################################################
 # Broken build defaults
 # ###############################################################
-BUILD_BROKEN_ANDROIDMK_EXPORTS :=
-BUILD_BROKEN_DUP_COPY_HEADERS :=
-BUILD_BROKEN_DUP_RULES :=
-BUILD_BROKEN_PHONY_TARGETS :=
-BUILD_BROKEN_ENG_DEBUG_TAGS :=
+$(foreach v,$(_build_broken_var_list),$(eval $(v) :=))
 
 # Boards may be defined under $(SRC_TARGET_DIR)/board/$(TARGET_DEVICE)
 # or under vendor/*/$(TARGET_DEVICE).  Search in both places, but
@@ -236,6 +234,12 @@ endif
 # Now we can substitute with the real value of TARGET_COPY_OUT_RAMDISK
 ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
 TARGET_COPY_OUT_RAMDISK := $(TARGET_COPY_OUT_ROOT)
+endif
+
+###########################################
+# Now we can substitute with the real value of TARGET_COPY_OUT_DEBUG_RAMDISK
+ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+TARGET_COPY_OUT_DEBUG_RAMDISK := debug_ramdisk/first_stage_ramdisk
 endif
 
 ###########################################
@@ -452,7 +456,7 @@ else ifdef BOARD_USES_ODMIMAGE
 endif
 
 BUILDING_ODM_IMAGE :=
-ifeq ($(ODM_BUILD_ODM_IMAGE),)
+ifeq ($(PRODUCT_BUILD_ODM_IMAGE),)
   ifdef BOARD_ODMIMAGE_FILE_SYSTEM_TYPE
     BUILDING_ODM_IMAGE := true
   endif
