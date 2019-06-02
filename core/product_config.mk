@@ -406,7 +406,9 @@ $(foreach image, \
     ODM \
     CACHE \
     RAMDISK \
-    USERDATA, \
+    USERDATA \
+    BOOT \
+    RECOVERY, \
   $(eval $(call product-build-image-config,$(image))))
 
 product-build-image-config :=
