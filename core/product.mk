@@ -338,6 +338,8 @@ _product_var_list += PRODUCT_BUILD_ODM_IMAGE
 _product_var_list += PRODUCT_BUILD_CACHE_IMAGE
 _product_var_list += PRODUCT_BUILD_RAMDISK_IMAGE
 _product_var_list += PRODUCT_BUILD_USERDATA_IMAGE
+_product_var_list += PRODUCT_BUILD_RECOVERY_IMAGE
+_product_var_list += PRODUCT_BUILD_BOOT_IMAGE
 _product_var_list += PRODUCT_UPDATABLE_BOOT_MODULES
 _product_var_list += PRODUCT_UPDATABLE_BOOT_LOCATIONS
 
