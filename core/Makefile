@@ -2130,7 +2130,6 @@ endif # TARGET_NO_KERNEL
 # -----------------------------------------------------------------
 # system image
 #
-ifndef BOARD_PREBUILT_SYSTEMIMAGE
 # Remove overridden packages from $(ALL_PDK_FUSION_FILES)
 PDK_FUSION_SYSIMG_FILES := \
     $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk), \
@@ -2322,11 +2321,6 @@ endif # BUILDING_SYSTEM_IMAGE
 
 .PHONY: sync syncsys
 sync syncsys: $(INTERNAL_SYSTEMIMAGE_FILES)
-
-else
-INSTALLED_SYSTEMIMAGE_TARGET := $(PRODUCT_OUT)/system.img
-$(eval $(call copy-one-file,$(BOARD_PREBUILT_SYSTEMIMAGE),$(INSTALLED_SYSTEMIMAGE_TARGET)))
-endif
 
 #######
 ## system tarball
@@ -2697,9 +2691,6 @@ endif
 systemotherimage-nodeps: | $(INTERNAL_USERIMAGES_DEPS)
 	$(build-systemotherimage-target)
 
-else ifdef BOARD_PREBUILT_SYSTEMOTHERIMAGE
-INSTALLED_SYSTEMOTHERIMAGE_TARGET := $(PRODUCT_OUT)/system_other.img
-$(eval $(call copy-one-file,$(BOARD_PREBUILT_SYSTEMOTHERIMAGE),$(INSTALLED_SYSTEMOTHERIMAGE_TARGET)))
 endif # BOARD_USES_SYSTEM_OTHER
 
 
