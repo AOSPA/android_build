@@ -28,8 +28,7 @@ Usage:  add_img_to_target_files [flag] target_files
 
   -r  (--rebuild_recovery)
       Rebuild the recovery patch and write it to the system image. Only
-      meaningful when system image needs to be rebuilt and there're separate
-      boot / recovery images.
+      meaningful when system image needs to be rebuilt.
 
   --replace_verity_private_key
       Replace the private key used for verity signing. (same as the option
@@ -154,8 +153,7 @@ def AddSystem(output_zip, recovery_img=None, boot_img=None):
       else:
         common.ZipWrite(output_zip, ofile.name, arc_name)
 
-  if (OPTIONS.rebuild_recovery and recovery_img is not None and
-      boot_img is not None):
+  if OPTIONS.rebuild_recovery:
     logger.info("Building new recovery patch")
     common.MakeRecoveryPatch(OPTIONS.input_tmp, output_sink, recovery_img,
                              boot_img, info_dict=OPTIONS.info_dict)
