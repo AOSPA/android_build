@@ -286,8 +286,33 @@ else ifeq ($(PRODUCT_BUILD_CACHE_IMAGE),true)
 endif
 .KATI_READONLY := BUILDING_CACHE_IMAGE
 
-# TODO: Add BUILDING_BOOT_IMAGE / BUILDING_RECOVERY_IMAGE
-# This gets complicated with BOARD_USES_RECOVERY_AS_BOOT, so skipping for now.
+# Are we building a boot image
+BUILDING_BOOT_IMAGE :=
+ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+  BUILDING_BOOT_IMAGE :=
+else ifeq ($(PRODUCT_BUILD_BOOT_IMAGE),)
+  ifdef BOARD_BOOTIMAGE_PARTITION_SIZE
+    BUILDING_BOOT_IMAGE := true
+  endif
+else ifeq ($(PRODUCT_BUILD_BOOT_IMAGE),true)
+  BUILDING_BOOT_IMAGE := true
+endif
+.KATI_READONLY := BUILDING_BOOT_IMAGE
+
+# Are we building a recovery image
+BUILDING_RECOVERY_IMAGE :=
+ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+  BUILDING_RECOVERY_IMAGE := true
+else ifeq ($(PRODUCT_BUILD_RECOVERY_IMAGE),)
+  ifdef BOARD_RECOVERYIMAGE_PARTITION_SIZE
+    ifeq (,$(filter true, $(TARGET_NO_KERNEL) $(TARGET_NO_RECOVERY)))
+      BUILDING_RECOVERY_IMAGE := true
+    endif
+  endif
+else ifeq ($(PRODUCT_BUILD_RECOVERY_IMAGE),true)
+  BUILDING_RECOVERY_IMAGE := true
+endif
+.KATI_READONLY := BUILDING_RECOVERY_IMAGE
 
 # Are we building a ramdisk image
 BUILDING_RAMDISK_IMAGE := true
@@ -482,6 +507,12 @@ ifeq ($(AB_OTA_UPDATER),true)
   endif
 endif
 
+ifdef BOARD_PREBUILT_DTBIMAGE_DIR
+  ifneq ($(BOARD_INCLUDE_DTB_IN_BOOTIMG),true)
+    $(error BOARD_PREBUILT_DTBIMAGE_DIR with 'BOARD_INCLUDE_DTB_IN_BOOTIMG != true' is not supported)
+  endif
+endif
+
 # Check BOARD_VNDK_VERSION
 define check_vndk_version
   $(eval vndk_path := prebuilts/vndk/v$(1)) \
@@ -496,6 +527,14 @@ ifdef BOARD_VNDK_VERSION
   TARGET_VENDOR_TEST_SUFFIX := /vendor
 else
   TARGET_VENDOR_TEST_SUFFIX :=
+endif
+
+###########################################
+# APEXes are by default flattened, i.e. non-updatable.
+# It can be unflattened (and updatable) by inheriting from
+# updatable_apex.mk
+ifeq (,$(TARGET_FLATTEN_APEX))
+TARGET_FLATTEN_APEX := true
 endif
 
 ifeq (,$(TARGET_BUILD_APPS))
