@@ -91,6 +91,7 @@ import img_from_target_files
 import ota_from_target_files
 
 logger = logging.getLogger(__name__)
+
 OPTIONS = common.OPTIONS
 OPTIONS.verbose = True
 OPTIONS.system_target_files = None
@@ -224,7 +225,7 @@ def extract_items(target_files, target_files_temp_dir, extract_item_list):
   # zip file. Otherwise, the extraction step will fail.
 
   with zipfile.ZipFile(
-      target_files, 'r', allowZip64=True) as target_files_zipfile:
+      target_files, allowZip64=True) as target_files_zipfile:
     target_files_namelist = target_files_zipfile.namelist()
 
   filtered_extract_item_list = []
@@ -844,7 +845,7 @@ def merge_target_files(temp_dir, system_target_files, system_item_list,
                                            stdin=find_process.stdout,
                                            verbose=False)
 
-  with open(output_target_files_list, 'wb') as f:
+  with open(output_target_files_list, 'w') as f:
     f.write(meta_content)
     f.write(other_content)
 
