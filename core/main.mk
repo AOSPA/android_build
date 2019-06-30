@@ -370,17 +370,6 @@ BUILD_WITHOUT_PV := true
 
 ADDITIONAL_BUILD_PROPERTIES += net.bt.name=Android
 
-# QCV: initialize property - used to detect framework type
-ifeq ($(TARGET_FWK_SUPPORTS_FULL_VALUEADDS), true)
-  ADDITIONAL_BUILD_PROPERTIES += \
-        ro.vendor.qti.va_aosp.support=1
-  $(warning "Compile using modified AOSP tree supporting full vendor value-adds")
-else
-  ADDITIONAL_BUILD_PROPERTIES += \
-        ro.vendor.qti.va_aosp.support=0
-  $(warning "Compile using pure AOSP tree")
-endif
-
 # ------------------------------------------------------------
 # Define a function that, given a list of module tags, returns
 # non-empty if that module should be installed in /system.
@@ -1656,44 +1645,6 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_FILES_JSON_RECOVERY) \
     $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
     auxiliary \
-    soong_docs
-
-.PHONY: droidcore_system
-droidcore_system: \
-    $(INSTALLED_SYSTEMIMAGE_TARGET) \
-    $(INSTALLED_PRODUCTIMAGE_TARGET) \
-    $(INSTALLED_SYSTEMOTHERIMAGE_TARGET) \
-    $(INSTALLED_FILES_FILE) \
-    $(INSTALLED_FILES_JSON) \
-    $(INSTALLED_FILES_FILE_SYSTEMOTHER) \
-    $(INSTALLED_FILES_JSON_SYSTEMOTHER) \
-    $(INSTALLED_FILES_FILE_PRODUCT_SERVICES) \
-    $(INSTALLED_FILES_JSON_PRODUCT_SERVICES) \
-    $(INSTALLED_FILES_FILE_PRODUCT) \
-    $(INSTALLED_FILES_JSON_PRODUCT) \
-    $(INSTALLED_FILES_FILE_ROOT) \
-    $(INSTALLED_FILES_JSON_ROOT)
-
-.PHONY: droidcore_non_system
-droidcore_non_system: \
-    $(INSTALLED_RAMDISK_TARGET) \
-    $(INSTALLED_BOOTIMAGE_TARGET) \
-    $(INSTALLED_VBMETAIMAGE_TARGET) \
-    $(INSTALLED_RECOVERYIMAGE_TARGET) \
-    $(INSTALLED_USERDATAIMAGE_TARGET) \
-    $(INSTALLED_CACHEIMAGE_TARGET) \
-    $(INSTALLED_BPTIMAGE_TARGET) \
-    $(INSTALLED_VENDORIMAGE_TARGET) \
-    $(INSTALLED_ODMIMAGE_TARGET) \
-    $(INSTALLED_SUPERIMAGE_EMPTY_TARGET) \
-    $(INSTALLED_FILES_FILE_VENDOR) \
-    $(INSTALLED_FILES_JSON_VENDOR) \
-    $(INSTALLED_FILES_FILE_ODM) \
-    $(INSTALLED_FILES_JSON_ODM) \
-    $(INSTALLED_FILES_FILE_RAMDISK) \
-    $(INSTALLED_FILES_JSON_RAMDISK) \
-    $(INSTALLED_FILES_FILE_RECOVERY) \
-    $(INSTALLED_FILES_JSON_RECOVERY) \
     soong_docs
 
 # dist_files only for putting your library into the dist directory with a full build.
