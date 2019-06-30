@@ -2130,7 +2130,6 @@ endif # TARGET_NO_KERNEL
 # -----------------------------------------------------------------
 # system image
 #
-ifndef BOARD_PREBUILT_SYSTEMIMAGE
 # Remove overridden packages from $(ALL_PDK_FUSION_FILES)
 PDK_FUSION_SYSIMG_FILES := \
     $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk), \
@@ -2322,11 +2321,6 @@ endif # BUILDING_SYSTEM_IMAGE
 
 .PHONY: sync syncsys
 sync syncsys: $(INTERNAL_SYSTEMIMAGE_FILES)
-
-else
-INSTALLED_SYSTEMIMAGE_TARGET := $(PRODUCT_OUT)/system.img
-$(eval $(call copy-one-file,$(BOARD_PREBUILT_SYSTEMIMAGE),$(INSTALLED_SYSTEMIMAGE_TARGET)))
-endif
 
 #######
 ## system tarball
@@ -2697,9 +2691,6 @@ endif
 systemotherimage-nodeps: | $(INTERNAL_USERIMAGES_DEPS)
 	$(build-systemotherimage-target)
 
-else ifdef BOARD_PREBUILT_SYSTEMOTHERIMAGE
-INSTALLED_SYSTEMOTHERIMAGE_TARGET := $(PRODUCT_OUT)/system_other.img
-$(eval $(call copy-one-file,$(BOARD_PREBUILT_SYSTEMOTHERIMAGE),$(INSTALLED_SYSTEMOTHERIMAGE_TARGET)))
 endif # BOARD_USES_SYSTEM_OTHER
 
 
@@ -4228,8 +4219,9 @@ ifneq ($(BOARD_SUPER_PARTITION_GROUPS),)
 	    $(if $(_group_partition_list), \
 	        echo "$(group)_partition_list=$(_group_partition_list)" >> $(zip_root)/META/dynamic_partitions_info.txt;))
 endif # BOARD_SUPER_PARTITION_GROUPS
+	@# TODO(b/134525174): Remove `-r` after addressing the issue with recovery patch generation.
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \
-	    build/make/tools/releasetools/add_img_to_target_files -a -v -p $(HOST_OUT) $(zip_root)
+	    build/make/tools/releasetools/add_img_to_target_files -a -r -v -p $(HOST_OUT) $(zip_root)
 	@# Zip everything up, preserving symlinks and placing META/ files first to
 	@# help early validation of the .zip file while uploading it.
 	$(hide) find $(zip_root)/META | sort >$@.list
