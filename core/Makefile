@@ -574,11 +574,11 @@ $(INSTALLED_ODM_BUILD_PROP_TARGET): $(BUILDINFO_COMMON_SH)
 	$(hide) $(foreach line,$(FINAL_ODM_BUILD_PROPERTIES), \
 	    echo "$(line)" >> $@;)
 ifeq (true,$(TARGET_FWK_SUPPORTS_FULL_VALUEADDS))
-	$(hide) echo ro.vendor.qti.va_aosp.support="1">>$@
-	$(warning "Compile using modified AOSP tree supporting full vendor value-adds")
+	$(hide) echo ro.vendor.qti.va_odm.support="1">>$@
+	$(warning "Compile using ODM with QC value-adds...")
 else
-	$(hide) echo ro.vendor.qti.va_aosp.support="0">>$@
-	$(warning "Compile using pure AOSP tree")
+	$(hide) echo ro.vendor.qti.va_odm.support="0">>$@
+	$(warning "Compile using ODM from Pure AOSP...")
 endif
 	$(hide) build/make/tools/post_process_props.py $@
 
