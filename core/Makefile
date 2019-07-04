@@ -2226,21 +2226,6 @@ define create-system-product_services-symlink
 endef
 endif
 
-# Create symlink /vendor/odm to /odm if necessary.
-ifdef BOARD_USES_ODMIMAGE
-define create-vendor-odm-symlink
-$(hide) if [ -d $(TARGET_OUT_VENDOR)/odm ] && [ ! -h $(TARGET_OUT_VENDOR)/odm ]; then \
-  echo 'Non-symlink $(TARGET_OUT_VENDOR)/odm detected!' 1>&2; \
-  echo 'You cannot install files to $(TARGET_OUT_VENDOR)/odm while building a separate odm.img!' 1>&2; \
-  exit 1; \
-fi
-$(hide) ln -sf /odm $(TARGET_OUT_VENDOR)/odm
-endef
-else
-define create-vendor-odm-symlink
-endef
-endif
-
 # $(1): output file
 define build-systemimage-target
   @echo "Target system fs image: $(1)"
@@ -2318,6 +2303,21 @@ endif
 endif
 
 endif # BUILDING_SYSTEM_IMAGE
+
+# Create symlink /vendor/odm to /odm if necessary.
+ifdef BOARD_USES_ODMIMAGE
+define create-vendor-odm-symlink
+$(hide) if [ -d $(TARGET_OUT_VENDOR)/odm ] && [ ! -h $(TARGET_OUT_VENDOR)/odm ]; then \
+  echo 'Non-symlink $(TARGET_OUT_VENDOR)/odm detected!' 1>&2; \
+  echo 'You cannot install files to $(TARGET_OUT_VENDOR)/odm while building a separate odm.img!' 1>&2; \
+  exit 1; \
+fi
+$(hide) ln -sf /odm $(TARGET_OUT_VENDOR)/odm
+endef
+else
+define create-vendor-odm-symlink
+endef
+endif
 
 .PHONY: sync syncsys
 sync syncsys: $(INTERNAL_SYSTEMIMAGE_FILES)
