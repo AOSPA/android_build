@@ -574,11 +574,11 @@ $(INSTALLED_ODM_BUILD_PROP_TARGET): $(BUILDINFO_COMMON_SH)
 	$(hide) $(foreach line,$(FINAL_ODM_BUILD_PROPERTIES), \
 	    echo "$(line)" >> $@;)
 ifeq (true,$(TARGET_FWK_SUPPORTS_FULL_VALUEADDS))
-	$(hide) echo ro.vendor.qti.va_aosp.support="1">>$@
-	$(warning "Compile using modified AOSP tree supporting full vendor value-adds")
+	$(hide) echo ro.vendor.qti.va_odm.support="1">>$@
+	$(warning "Compile using ODM with QC value-adds...")
 else
-	$(hide) echo ro.vendor.qti.va_aosp.support="0">>$@
-	$(warning "Compile using pure AOSP tree")
+	$(hide) echo ro.vendor.qti.va_odm.support="0">>$@
+	$(warning "Compile using ODM from Pure AOSP...")
 endif
 	$(hide) build/make/tools/post_process_props.py $@
 
@@ -2130,7 +2130,6 @@ endif # TARGET_NO_KERNEL
 # -----------------------------------------------------------------
 # system image
 #
-ifndef BOARD_PREBUILT_SYSTEMIMAGE
 # Remove overridden packages from $(ALL_PDK_FUSION_FILES)
 PDK_FUSION_SYSIMG_FILES := \
     $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk), \
@@ -2227,21 +2226,6 @@ define create-system-product_services-symlink
 endef
 endif
 
-# Create symlink /vendor/odm to /odm if necessary.
-ifdef BOARD_USES_ODMIMAGE
-define create-vendor-odm-symlink
-$(hide) if [ -d $(TARGET_OUT_VENDOR)/odm ] && [ ! -h $(TARGET_OUT_VENDOR)/odm ]; then \
-  echo 'Non-symlink $(TARGET_OUT_VENDOR)/odm detected!' 1>&2; \
-  echo 'You cannot install files to $(TARGET_OUT_VENDOR)/odm while building a separate odm.img!' 1>&2; \
-  exit 1; \
-fi
-$(hide) ln -sf /odm $(TARGET_OUT_VENDOR)/odm
-endef
-else
-define create-vendor-odm-symlink
-endef
-endif
-
 # $(1): output file
 define build-systemimage-target
   @echo "Target system fs image: $(1)"
@@ -2320,13 +2304,23 @@ endif
 
 endif # BUILDING_SYSTEM_IMAGE
 
+# Create symlink /vendor/odm to /odm if necessary.
+ifdef BOARD_USES_ODMIMAGE
+define create-vendor-odm-symlink
+$(hide) if [ -d $(TARGET_OUT_VENDOR)/odm ] && [ ! -h $(TARGET_OUT_VENDOR)/odm ]; then \
+  echo 'Non-symlink $(TARGET_OUT_VENDOR)/odm detected!' 1>&2; \
+  echo 'You cannot install files to $(TARGET_OUT_VENDOR)/odm while building a separate odm.img!' 1>&2; \
+  exit 1; \
+fi
+$(hide) ln -sf /odm $(TARGET_OUT_VENDOR)/odm
+endef
+else
+define create-vendor-odm-symlink
+endef
+endif
+
 .PHONY: sync syncsys
 sync syncsys: $(INTERNAL_SYSTEMIMAGE_FILES)
-
-else
-INSTALLED_SYSTEMIMAGE_TARGET := $(PRODUCT_OUT)/system.img
-$(eval $(call copy-one-file,$(BOARD_PREBUILT_SYSTEMIMAGE),$(INSTALLED_SYSTEMIMAGE_TARGET)))
-endif
 
 #######
 ## system tarball
@@ -2697,9 +2691,6 @@ endif
 systemotherimage-nodeps: | $(INTERNAL_USERIMAGES_DEPS)
 	$(build-systemotherimage-target)
 
-else ifdef BOARD_PREBUILT_SYSTEMOTHERIMAGE
-INSTALLED_SYSTEMOTHERIMAGE_TARGET := $(PRODUCT_OUT)/system_other.img
-$(eval $(call copy-one-file,$(BOARD_PREBUILT_SYSTEMOTHERIMAGE),$(INSTALLED_SYSTEMOTHERIMAGE_TARGET)))
 endif # BOARD_USES_SYSTEM_OTHER
 
 
@@ -4228,8 +4219,9 @@ ifneq ($(BOARD_SUPER_PARTITION_GROUPS),)
 	    $(if $(_group_partition_list), \
 	        echo "$(group)_partition_list=$(_group_partition_list)" >> $(zip_root)/META/dynamic_partitions_info.txt;))
 endif # BOARD_SUPER_PARTITION_GROUPS
+	@# TODO(b/134525174): Remove `-r` after addressing the issue with recovery patch generation.
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \
-	    build/make/tools/releasetools/add_img_to_target_files -a -v -p $(HOST_OUT) $(zip_root)
+	    build/make/tools/releasetools/add_img_to_target_files -a -r -v -p $(HOST_OUT) $(zip_root)
 	@# Zip everything up, preserving symlinks and placing META/ files first to
 	@# help early validation of the .zip file while uploading it.
 	$(hide) find $(zip_root)/META | sort >$@.list
