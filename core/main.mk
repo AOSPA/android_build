@@ -725,7 +725,7 @@ $(foreach m,$(ALL_MODULES), \
     $(eval req_files := )\
     $(foreach req_mod,$(req_mods), \
       $(eval req_file := $(filter $(TARGET_OUT_ROOT)/%, $(call module-installed-files,$(req_mod)))) \
-      $(if $(strip $(req_file)),\
+      $(if $(strip $(req_file))$(ONE_SHOT_MAKEFILE),\
         ,\
         $(error $(m).LOCAL_TARGET_REQUIRED_MODULES : illegal value $(req_mod) : not a device module. If you want to specify host modules to be required to be installed along with your host module, add those module names to LOCAL_REQUIRED_MODULES instead)\
       )\
@@ -751,7 +751,7 @@ $(foreach m,$(ALL_MODULES), \
     $(eval req_files := )\
     $(foreach req_mod,$(req_mods), \
       $(eval req_file := $(filter $(HOST_OUT)/%, $(call module-installed-files,$(req_mod)))) \
-      $(if $(strip $(req_file)),\
+      $(if $(strip $(req_file))$(ONE_SHOT_MAKEFILE),\
         ,\
         $(error $(m).LOCAL_HOST_REQUIRED_MODULES : illegal value $(req_mod) : not a host module. If you want to specify target modules to be required to be installed along with your target module, add those module names to LOCAL_REQUIRED_MODULES instead)\
       )\
@@ -1225,6 +1225,8 @@ APEX_MODULE_LIBS := \
   libartd.so \
   libartpalette.so \
   libc.so \
+  libc_malloc_debug.so \
+  libc_malloc_hooks.so \
   libdexfile.so \
   libdexfile_external.so \
   libdexfiled.so \
@@ -1262,14 +1264,14 @@ DISABLE_APEX_LIBS_ABSENCE_CHECK ?=
 # Bionic should not be in /system, except for the bootstrap instance.
 APEX_LIBS_ABSENCE_CHECK_EXCLUDE := lib/bootstrap lib64/bootstrap
 
-# Exclude lib/arm and lib/arm64 which contain the native bridge proxy libs. They
+# Exclude lib/arm and lib64/arm64 which contain the native bridge proxy libs. They
 # are compiled for the guest architecture and used with an entirely different
 # linker config. The native libs are then linked to as usual via exported
 # interfaces, so the proxy libs do not violate the interface boundaries on the
 # native architecture.
 # TODO(b/130630776): Introduce a make variable for the appropriate directory
 # when native bridge is active.
-APEX_LIBS_ABSENCE_CHECK_EXCLUDE += lib/arm lib/arm64
+APEX_LIBS_ABSENCE_CHECK_EXCLUDE += lib/arm lib64/arm64
 
 # Exclude vndk-* subdirectories which contain prebuilts from older releases.
 APEX_LIBS_ABSENCE_CHECK_EXCLUDE += lib/vndk-% lib64/vndk-%
@@ -1459,7 +1461,6 @@ modules_to_install := $(sort \
     $(ALL_DEFAULT_INSTALLED_MODULES) \
     $(product_target_FILES) \
     $(product_host_FILES) \
-    $(call get-tagged-modules,$(tags_to_install)) \
     $(CUSTOM_MODULES) \
   )
 
@@ -1622,6 +1623,7 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_SYSTEMIMAGE_TARGET) \
     $(INSTALLED_RAMDISK_TARGET) \
     $(INSTALLED_BOOTIMAGE_TARGET) \
+    $(INSTALLED_RADIOIMAGE_TARGET) \
     $(INSTALLED_DEBUG_RAMDISK_TARGET) \
     $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) \
     $(INSTALLED_RECOVERYIMAGE_TARGET) \
@@ -1833,22 +1835,6 @@ tests : host-tests target-tests
 
 # Phony target to run all java compilations that use javac
 .PHONY: javac-check
-
-ifneq (,$(filter samplecode, $(MAKECMDGOALS)))
-.PHONY: samplecode
-sample_MODULES := $(sort $(call get-tagged-modules,samples))
-sample_APKS_DEST_PATH := $(TARGET_COMMON_OUT_ROOT)/samples
-sample_APKS_COLLECTION := \
-        $(foreach module,$(sample_MODULES),$(sample_APKS_DEST_PATH)/$(notdir $(module)))
-$(foreach module,$(sample_MODULES),$(eval $(call \
-        copy-one-file,$(module),$(sample_APKS_DEST_PATH)/$(notdir $(module)))))
-sample_ADDITIONAL_INSTALLED := \
-        $(filter-out $(modules_to_install) $(modules_to_check),$(sample_MODULES))
-samplecode: $(sample_APKS_COLLECTION)
-	@echo "Collect sample code apks: $^"
-	# remove apks that are not intended to be installed.
-	rm -f $(sample_ADDITIONAL_INSTALLED)
-endif  # samplecode in $(MAKECMDGOALS)
 
 .PHONY: findbugs
 findbugs: $(INTERNAL_FINDBUGS_HTML_TARGET) $(INTERNAL_FINDBUGS_XML_TARGET)

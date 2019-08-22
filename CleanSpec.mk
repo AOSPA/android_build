@@ -632,6 +632,13 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/etc/adb_debug.prop)
 
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libjavacrypto.so)
 
+# Clean up old verity tools.
+$(call add-clean-step, rm -rf $(HOST_OUT_JAVA_LIBRARIES)/BootSignature.jar)
+$(call add-clean-step, rm -rf $(HOST_OUT_JAVA_LIBRARIES)/VeritySigner.jar)
+$(call add-clean-step, rm -rf $(HOST_OUT_EXECUTABLES)/build_verity_metadata.py)
+
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libc_malloc*)
+
 # Clean up old location of soft OMX plugins
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libstagefright_soft*)
 
