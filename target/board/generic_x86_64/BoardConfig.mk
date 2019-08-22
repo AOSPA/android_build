@@ -40,6 +40,3 @@ WPA_SUPPLICANT_VERSION      := VER_0_8_X
 WIFI_DRIVER_FW_PATH_PARAM   := "/dev/null"
 WIFI_DRIVER_FW_PATH_STA     := "/dev/null"
 WIFI_DRIVER_FW_PATH_AP      := "/dev/null"
-
-# TODO(b/129092102): Remove workaround flag when LOCAL_MODULE_TAGS are addressed
-BUILD_BROKEN_ENG_DEBUG_TAGS := true

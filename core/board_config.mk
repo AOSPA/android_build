@@ -86,11 +86,14 @@ _board_strip_readonly_list += $(_dynamic_partitions_var_list)
 
 _build_broken_var_list := \
   BUILD_BROKEN_ANDROIDMK_EXPORTS \
-  BUILD_BROKEN_DUP_COPY_HEADERS \
   BUILD_BROKEN_DUP_RULES \
-  BUILD_BROKEN_PHONY_TARGETS \
-  BUILD_BROKEN_ENG_DEBUG_TAGS \
   BUILD_BROKEN_USES_NETWORK \
+
+_build_broken_var_list += \
+  $(foreach m,$(AVAILABLE_BUILD_MODULE_TYPES) \
+              $(DEFAULT_WARNING_BUILD_MODULE_TYPES) \
+              $(DEFAULT_ERROR_BUILD_MODULE_TYPES), \
+    BUILD_BROKEN_USES_$(m))
 
 _board_true_false_vars := $(_build_broken_var_list)
 _board_strip_readonly_list += $(_build_broken_var_list)
@@ -177,7 +180,7 @@ endif
 # Sanity check to warn about likely cryptic errors later in the build.
 ifeq ($(TARGET_IS_64_BIT),true)
   ifeq (,$(filter true false,$(TARGET_SUPPORTS_64_BIT_APPS)))
-    $(warning Building a 32-bit-app-only product on a 64-bit device. \
+    $(error Building a 32-bit-app-only product on a 64-bit device. \
       If this is intentional, set TARGET_SUPPORTS_64_BIT_APPS := false)
   endif
 endif
@@ -507,6 +510,13 @@ ifeq ($(AB_OTA_UPDATER),true)
   endif
 endif
 
+# Sanity check for building generic OTA packages. Currently it only supports A/B OTAs.
+ifeq ($(PRODUCT_BUILD_GENERIC_OTA_PACKAGE),true)
+  ifneq ($(AB_OTA_UPDATER),true)
+    $(error PRODUCT_BUILD_GENERIC_OTA_PACKAGE with 'AB_OTA_UPDATER != true' is not supported)
+  endif
+endif
+
 ifdef BOARD_PREBUILT_DTBIMAGE_DIR
   ifneq ($(BOARD_INCLUDE_DTB_IN_BOOTIMG),true)
     $(error BOARD_PREBUILT_DTBIMAGE_DIR with 'BOARD_INCLUDE_DTB_IN_BOOTIMG != true' is not supported)
@@ -549,3 +559,16 @@ ifneq (,$(_unsupported_systemsdk_versions))
   $(error System SDK versions '$(_unsupported_systemsdk_versions)' in BOARD_SYSTEMSDK_VERSIONS are not supported.\
           Supported versions are $(PLATFORM_SYSTEMSDK_VERSIONS))
 endif
+
+###########################################
+# Handle BUILD_BROKEN_USES_BUILD_*
+
+$(foreach m,$(DEFAULT_WARNING_BUILD_MODULE_TYPES),\
+  $(if $(filter false,$(BUILD_BROKEN_USES_$(m))),\
+    $(KATI_obsolete_var $(m),Please convert to Soong),\
+    $(KATI_deprecated_var $(m),Please convert to Soong)))
+
+$(foreach m,$(DEFAULT_ERROR_BUILD_MODULE_TYPES),\
+  $(if $(filter true,$(BUILD_BROKEN_USES_$(m))),\
+    $(KATI_deprecated_var $(m),Please convert to Soong),\
+    $(KATI_obsolete_var $(m),Please convert to Soong)))

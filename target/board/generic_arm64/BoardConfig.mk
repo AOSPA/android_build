@@ -67,7 +67,7 @@ BOARD_ROOT_EXTRA_SYMLINKS += /vendor/firmware_mnt:/firmware
 
 # TODO(b/36764215): remove this setting when the generic system image
 # no longer has QCOM-specific directories under /.
-BOARD_SEPOLICY_DIRS += build/target/board/generic_arm64_ab/sepolicy
+BOARD_SEPOLICY_DIRS += build/make/target/board/generic_arm64_ab/sepolicy
 
 # Wifi.
 BOARD_WLAN_DEVICE           := emulator
@@ -79,6 +79,3 @@ WPA_SUPPLICANT_VERSION      := VER_0_8_X
 WIFI_DRIVER_FW_PATH_PARAM   := "/dev/null"
 WIFI_DRIVER_FW_PATH_STA     := "/dev/null"
 WIFI_DRIVER_FW_PATH_AP      := "/dev/null"
-
-# TODO(b/129092102): Remove workaround flag when LOCAL_MODULE_TAGS are addressed
-BUILD_BROKEN_ENG_DEBUG_TAGS := true

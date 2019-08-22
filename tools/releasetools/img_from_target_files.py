@@ -22,7 +22,8 @@ Usage:  img_from_target_files [flags] input_target_files output_image_zip
 
 input_target_files: one of the following:
   - directory containing extracted target files. It will load info from
-    OTA/android-info.txt and build the image zipfile using images from IMAGES/.
+    OTA/android-info.txt, META/misc_info.txt and build the image zipfile using
+    images from IMAGES/.
   - target files package. Same as above, but extracts the archive before
     building the image zipfile.
 
