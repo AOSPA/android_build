@@ -34,4 +34,9 @@ PRODUCT_PACKAGES += \
     PhotoTable \
     WallpaperPicker \
 
+ifeq ($(PA_BUILD),)
 PRODUCT_COPY_FILES += device/sample/etc/apns-full-conf.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/apns-conf.xml
+else
+PRODUCT_COPY_FILES += \
+    vendor/pa/prebuilt/etc/apns-conf.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/apns-conf.xml
+endif
