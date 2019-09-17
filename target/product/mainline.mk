@@ -26,11 +26,16 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_system_ext.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_vendor.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_product.mk)
 
+ifeq ($(PA_BUILD),)
 $(call inherit-product, frameworks/base/data/sounds/AllAudio.mk)
+endif
 
+ifeq ($(PA_BUILD),)
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.config.ringtone=Ring_Synth_04.ogg \
     ro.com.android.dataroaming=true \
+
+endif
 
 PRODUCT_PACKAGES += \
     PhotoTable \
