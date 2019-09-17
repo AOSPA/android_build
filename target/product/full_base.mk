@@ -50,7 +50,11 @@ PRODUCT_PROPERTY_OVERRIDES := \
 PRODUCT_LOCALES := en_US
 
 # Get some sounds
+ifeq ($(PA_BUILD),)
 $(call inherit-product-if-exists, frameworks/base/data/sounds/AllAudio.mk)
+else
+$(call inherit-product-if-exists, vendor/pa/prebuilt/audio/ParanoidAudio.mk)
+endif
 
 # Get a list of languages.
 $(call inherit-product, $(SRC_TARGET_DIR)/product/languages_full.mk)
