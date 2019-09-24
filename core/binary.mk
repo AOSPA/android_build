@@ -1627,6 +1627,9 @@ ifeq ($(my_sdclang),true)
     ifeq ($(strip $(my_cxx)),)
         my_cxx := $(SDCLANG_PATH)/clang++
     endif
+    ifeq ($(strip $(my_cxx_link)),)
+        my_cxx_link := $(SDCLANG_PATH)/clang++
+    endif
 endif
 ifeq ($(my_sdclang_2),true)
     ifeq ($(strip $(my_cc)),)
@@ -1634,6 +1637,9 @@ ifeq ($(my_sdclang_2),true)
     endif
     ifeq ($(strip $(my_cxx)),)
         my_cxx := $(SDCLANG_PATH_2)/clang++
+    endif
+    ifeq ($(strip $(my_cxx_link)),)
+        my_cxx_link := $(SDCLANG_PATH_2)/clang++
     endif
 endif
 
