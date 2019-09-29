@@ -103,20 +103,9 @@ ifeq (true,$(my_process_profile))
   endif
 endif
 
-# If LOCAL_ENFORCE_USES_LIBRARIES is not set, default to true if either of LOCAL_USES_LIBRARIES or
-# LOCAL_OPTIONAL_USES_LIBRARIES are specified.
-ifeq (,$(LOCAL_ENFORCE_USES_LIBRARIES))
-  # Will change the default to true unconditionally in the future.
-  ifneq (,$(LOCAL_OPTIONAL_USES_LIBRARIES))
-    LOCAL_ENFORCE_USES_LIBRARIES := true
-  endif
-  ifneq (,$(LOCAL_USES_LIBRARIES))
-    LOCAL_ENFORCE_USES_LIBRARIES := true
-  endif
-endif
-
 my_dexpreopt_archs :=
 my_dexpreopt_images :=
+my_dexpreopt_images_deps :=
 my_dexpreopt_infix := boot
 ifeq (true, $(DEXPREOPT_USE_APEX_IMAGE))
   my_dexpreopt_infix := apex
@@ -155,12 +144,14 @@ ifdef LOCAL_DEX_PREOPT
     # Odex for the 1st arch
     my_dexpreopt_archs += $(TARGET_ARCH)
     my_dexpreopt_images += $(DEXPREOPT_IMAGE_$(my_dexpreopt_infix)_$(TARGET_ARCH))
+    my_dexpreopt_images_deps += $(DEXPREOPT_IMAGE_DEPS_$(my_dexpreopt_infix)_$(TARGET_ARCH))
     # Odex for the 2nd arch
     ifdef TARGET_2ND_ARCH
       ifneq ($(TARGET_TRANSLATE_2ND_ARCH),true)
         ifneq (first,$(my_module_multilib))
           my_dexpreopt_archs += $(TARGET_2ND_ARCH)
           my_dexpreopt_images += $(DEXPREOPT_IMAGE_$(my_dexpreopt_infix)_$(TARGET_2ND_ARCH))
+          my_dexpreopt_images_deps += $(DEXPREOPT_IMAGE_DEPS_$(my_dexpreopt_infix)_$(TARGET_2ND_ARCH))
         endif  # my_module_multilib is not first.
       endif  # TARGET_TRANSLATE_2ND_ARCH not true
     endif  # TARGET_2ND_ARCH
@@ -172,6 +163,8 @@ ifdef LOCAL_DEX_PREOPT
     my_dexpreopt_archs += $(TARGET_$(my_2nd_arch_prefix)ARCH)
     my_dexpreopt_images += \
         $(DEXPREOPT_IMAGE_$(my_dexpreopt_infix)_$(TARGET_$(my_2nd_arch_prefix)ARCH))
+    my_dexpreopt_images_deps += \
+        $(DEXPREOPT_IMAGE_DEPS_$(my_dexpreopt_infix)_$(TARGET_$(my_2nd_arch_prefix)ARCH))
     ifdef TARGET_2ND_ARCH
       ifeq ($(my_module_multilib),both)
         # The non-preferred arch
@@ -179,9 +172,27 @@ ifdef LOCAL_DEX_PREOPT
         my_dexpreopt_archs += $(TARGET_$(my_2nd_arch_prefix)ARCH)
         my_dexpreopt_images += \
             $(DEXPREOPT_IMAGE_$(my_dexpreopt_infix)_$(TARGET_$(my_2nd_arch_prefix)ARCH))
+        my_dexpreopt_images_deps += \
+            $(DEXPREOPT_IMAGE_DEPS_$(my_dexpreopt_infix)_$(TARGET_$(my_2nd_arch_prefix)ARCH))
       endif  # LOCAL_MULTILIB is both
     endif  # TARGET_2ND_ARCH
   endif  # LOCAL_MODULE_CLASS
+
+  my_filtered_optional_uses_libraries := $(filter-out $(INTERNAL_PLATFORM_MISSING_USES_LIBRARIES), \
+    $(LOCAL_OPTIONAL_USES_LIBRARIES))
+
+  # dexpreopt needs the paths to the dex jars of these libraries in case
+  # construct_context.sh needs to pass them to dex2oat.
+  my_extra_dexpreopt_libs := \
+    org.apache.http.legacy \
+    android.hidl.base-V1.0-java \
+    android.hidl.manager-V1.0-java \
+
+  my_dexpreopt_libs := $(sort \
+    $(LOCAL_USES_LIBRARIES) \
+    $(my_filtered_optional_uses_libraries) \
+    $(my_extra_dexpreopt_libs) \
+  )
 
   # Record dex-preopt config.
   DEXPREOPT.$(LOCAL_MODULE).DEX_PREOPT := $(LOCAL_DEX_PREOPT)
@@ -202,6 +213,7 @@ ifdef LOCAL_DEX_PREOPT
   $(call add_json_str,  Name,                           $(LOCAL_MODULE))
   $(call add_json_str,  DexLocation,                    $(patsubst $(PRODUCT_OUT)%,%,$(LOCAL_INSTALLED_MODULE)))
   $(call add_json_str,  BuildPath,                      $(LOCAL_BUILT_MODULE))
+  $(call add_json_str,  ManifestPath,                   $(full_android_manifest))
   $(call add_json_str,  ExtrasOutputPath,               $$2)
   $(call add_json_bool, Privileged,                     $(filter true,$(LOCAL_PRIVILEGED_MODULE)))
   $(call add_json_bool, UncompressedDex,                $(filter true,$(LOCAL_UNCOMPRESS_DEX)))
@@ -210,10 +222,10 @@ ifdef LOCAL_DEX_PREOPT
   $(call add_json_str,  ProfileClassListing,            $(if $(my_process_profile),$(LOCAL_DEX_PREOPT_PROFILE)))
   $(call add_json_bool, ProfileIsTextListing,           $(my_profile_is_text_listing))
   $(call add_json_bool, EnforceUsesLibraries,           $(LOCAL_ENFORCE_USES_LIBRARIES))
-  $(call add_json_list, OptionalUsesLibraries,          $(LOCAL_OPTIONAL_USES_LIBRARIES))
+  $(call add_json_list, OptionalUsesLibraries,          $(my_filtered_optional_uses_libraries))
   $(call add_json_list, UsesLibraries,                  $(LOCAL_USES_LIBRARIES))
   $(call add_json_map,  LibraryPaths)
-  $(foreach lib,$(sort $(LOCAL_USES_LIBRARIES) $(LOCAL_OPTIONAL_USES_LIBRARIES) org.apache.http.legacy android.hidl.base-V1.0-java android.hidl.manager-V1.0-java),\
+  $(foreach lib,$(my_dexpreopt_libs),\
     $(call add_json_str, $(lib), $(call intermediates-dir-for,JAVA_LIBRARIES,$(lib),,COMMON)/javalib.jar))
   $(call end_json_map)
   $(call add_json_list, Archs,                          $(my_dexpreopt_archs))
@@ -256,9 +268,9 @@ ifdef LOCAL_DEX_PREOPT
   my_dexpreopt_deps := $(my_dex_jar)
   my_dexpreopt_deps += $(if $(my_process_profile),$(LOCAL_DEX_PREOPT_PROFILE))
   my_dexpreopt_deps += \
-    $(foreach lib,$(sort $(LOCAL_USES_LIBRARIES) $(LOCAL_OPTIONAL_USES_LIBRARIES) org.apache.http.legacy android.hidl.base-V1.0-java android.hidl.manager-V1.0-java),\
+    $(foreach lib, $(my_dexpreopt_libs), \
       $(call intermediates-dir-for,JAVA_LIBRARIES,$(lib),,COMMON)/javalib.jar)
-  my_dexpreopt_deps += $(my_dexpreopt_images)
+  my_dexpreopt_deps += $(my_dexpreopt_images_deps)
   my_dexpreopt_deps += $(DEXPREOPT_BOOTCLASSPATH_DEX_FILES)
 
   $(my_dexpreopt_zip): PRIVATE_MODULE := $(LOCAL_MODULE)

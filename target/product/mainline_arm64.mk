@@ -16,14 +16,14 @@
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/mainline.mk)
-$(call enforce-product-packages-exist,)
+whitelist := product_manifest.xml
+$(call enforce-product-packages-exist,$(whitelist))
 
 PRODUCT_NAME := mainline_arm64
 PRODUCT_DEVICE := mainline_arm64
 PRODUCT_BRAND := generic
 PRODUCT_SHIPPING_API_LEVEL := 28
-# TODO(b/137033385): change this back to "all"
-PRODUCT_RESTRICT_VENDOR_FILES := owner
+PRODUCT_RESTRICT_VENDOR_FILES := all
 
 PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS := relaxed
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST += \

@@ -38,8 +38,8 @@ Common options that apply to both of non-A/B and A/B OTAs
   -k  (--package_key) <key>
       Key to use to sign the package (default is the value of
       default_system_dev_certificate from the input target-files's
-      META/misc_info.txt, or "build/make/target/product/security/testkey" if that
-      value is not specified).
+      META/misc_info.txt, or "build/make/target/product/security/testkey" if
+      that value is not specified).
 
       For incremental OTAs, the default value is based on the source
       target-file, not the target build.
@@ -181,6 +181,7 @@ A/B OTA specific options
 
 from __future__ import print_function
 
+import collections
 import logging
 import multiprocessing
 import os.path
@@ -240,7 +241,10 @@ METADATA_NAME = 'META-INF/com/android/metadata'
 POSTINSTALL_CONFIG = 'META/postinstall_config.txt'
 DYNAMIC_PARTITION_INFO = 'META/dynamic_partitions_info.txt'
 AB_PARTITIONS = 'META/ab_partitions.txt'
-UNZIP_PATTERN = ['IMAGES/*', 'META/*', 'RADIO/*']
+UNZIP_PATTERN = ['IMAGES/*', 'META/*', 'OTA/*', 'RADIO/*']
+# Files to be unzipped for target diffing purpose.
+TARGET_DIFFING_UNZIP_PATTERN = ['BOOT', 'RECOVERY', 'SYSTEM/*', 'VENDOR/*',
+                                'PRODUCT/*', 'SYSTEM_EXT/*', 'ODM/*']
 RETROFIT_DAP_UNZIP_PATTERN = ['OTA/super_*.img', AB_PARTITIONS]
 
 
@@ -276,8 +280,8 @@ class BuildInfo(object):
   _RO_PRODUCT_RESOLVE_PROPS = ["ro.product.brand", "ro.product.device",
                                "ro.product.manufacturer", "ro.product.model",
                                "ro.product.name"]
-  _RO_PRODUCT_PROPS_DEFAULT_SOURCE_ORDER = ["product", "product_services",
-                                            "odm", "vendor", "system"]
+  _RO_PRODUCT_PROPS_DEFAULT_SOURCE_ORDER = ["product", "odm", "vendor",
+                                            "system_ext", "system"]
 
   def __init__(self, info_dict, oem_dicts):
     """Initializes a BuildInfo instance with the given dicts.
@@ -371,7 +375,7 @@ class BuildInfo(object):
       return prop_val
 
     source_order_val = self.info_dict.get("build.prop", {}).get(
-      "ro.product.property_source_order")
+        "ro.product.property_source_order")
     if source_order_val:
       source_order = source_order_val.split(",")
     else:
@@ -381,13 +385,13 @@ class BuildInfo(object):
     if any([x not in BuildInfo._RO_PRODUCT_PROPS_DEFAULT_SOURCE_ORDER
             for x in source_order]):
       raise common.ExternalError(
-        "Invalid ro.product.property_source_order '{}'".format(source_order))
+          "Invalid ro.product.property_source_order '{}'".format(source_order))
 
     for source in source_order:
-      source_prop = prop.replace("ro.product", "ro.product.{}".format(source),
-                                 1)
-      prop_val = self.info_dict.get("{}.build.prop".format(source), {}).get(
-        source_prop)
+      source_prop = prop.replace(
+          "ro.product", "ro.product.{}".format(source), 1)
+      prop_val = self.info_dict.get(
+          "{}.build.prop".format(source), {}).get(source_prop)
       if prop_val:
         return prop_val
 
@@ -412,14 +416,14 @@ class BuildInfo(object):
         return self.GetBuildProp("ro.build.fingerprint")
       except common.ExternalError:
         return "{}/{}/{}:{}/{}/{}:{}/{}".format(
-          self.GetBuildProp("ro.product.brand"),
-          self.GetBuildProp("ro.product.name"),
-          self.GetBuildProp("ro.product.device"),
-          self.GetBuildProp("ro.build.version.release"),
-          self.GetBuildProp("ro.build.id"),
-          self.GetBuildProp("ro.build.version.incremental"),
-          self.GetBuildProp("ro.build.type"),
-          self.GetBuildProp("ro.build.tags"))
+            self.GetBuildProp("ro.product.brand"),
+            self.GetBuildProp("ro.product.name"),
+            self.GetBuildProp("ro.product.device"),
+            self.GetBuildProp("ro.build.version.release"),
+            self.GetBuildProp("ro.build.id"),
+            self.GetBuildProp("ro.build.version.incremental"),
+            self.GetBuildProp("ro.build.type"),
+            self.GetBuildProp("ro.build.tags"))
     return "%s/%s/%s:%s" % (
         self.GetOemProperty("ro.product.brand"),
         self.GetOemProperty("ro.product.name"),
@@ -508,7 +512,7 @@ class PayloadSigner(object):
     MODULUS_PREFIX = "Modulus="
     assert modulus_string.startswith(MODULUS_PREFIX)
     modulus_string = modulus_string[len(MODULUS_PREFIX):]
-    key_size = len(modulus_string) / 2
+    key_size = len(modulus_string) // 2
     assert key_size == 256 or key_size == 512, \
         "Unsupported key size {}".format(key_size)
     return key_size
@@ -539,6 +543,15 @@ class Payload(object):
     self.payload_properties = None
     self.secondary = secondary
 
+  def _Run(self, cmd):  # pylint: disable=no-self-use
+    # Don't pipe (buffer) the output if verbose is set. Let
+    # brillo_update_payload write to stdout/stderr directly, so its progress can
+    # be monitored.
+    if OPTIONS.verbose:
+      common.RunAndCheckOutput(cmd, stdout=None, stderr=None)
+    else:
+      common.RunAndCheckOutput(cmd)
+
   def Generate(self, target_file, source_file=None, additional_args=None):
     """Generates a payload from the given target-files zip(s).
 
@@ -559,7 +572,7 @@ class Payload(object):
     if source_file is not None:
       cmd.extend(["--source_image", source_file])
     cmd.extend(additional_args)
-    common.RunAndCheckOutput(cmd)
+    self._Run(cmd)
 
     self.payload_file = payload_file
     self.payload_properties = None
@@ -583,7 +596,7 @@ class Payload(object):
            "--signature_size", str(payload_signer.key_size),
            "--metadata_hash_file", metadata_sig_file,
            "--payload_hash_file", payload_sig_file]
-    common.RunAndCheckOutput(cmd)
+    self._Run(cmd)
 
     # 2. Sign the hashes.
     signed_payload_sig_file = payload_signer.Sign(payload_sig_file)
@@ -598,7 +611,7 @@ class Payload(object):
            "--signature_size", str(payload_signer.key_size),
            "--metadata_signature_file", signed_metadata_sig_file,
            "--payload_signature_file", signed_payload_sig_file]
-    common.RunAndCheckOutput(cmd)
+    self._Run(cmd)
 
     # 4. Dump the signed payload properties.
     properties_file = common.MakeTempFile(prefix="payload-properties-",
@@ -606,7 +619,7 @@ class Payload(object):
     cmd = ["brillo_update_payload", "properties",
            "--payload", signed_payload_file,
            "--properties_file", properties_file]
-    common.RunAndCheckOutput(cmd)
+    self._Run(cmd)
 
     if self.secondary:
       with open(properties_file, "a") as f:
@@ -681,13 +694,12 @@ def _WriteRecoveryImageToBoot(script, output_zip):
 
   recovery_two_step_img_name = "recovery-two-step.img"
   recovery_two_step_img_path = os.path.join(
-      OPTIONS.input_tmp, "IMAGES", recovery_two_step_img_name)
+      OPTIONS.input_tmp, "OTA", recovery_two_step_img_name)
   if os.path.exists(recovery_two_step_img_path):
-    recovery_two_step_img = common.GetBootableImage(
-        recovery_two_step_img_name, recovery_two_step_img_name,
-        OPTIONS.input_tmp, "RECOVERY")
-    common.ZipWriteStr(
-        output_zip, recovery_two_step_img_name, recovery_two_step_img.data)
+    common.ZipWrite(
+        output_zip,
+        recovery_two_step_img_path,
+        arcname=recovery_two_step_img_name)
     logger.info(
         "two-step package: using %s in stage 1/3", recovery_two_step_img_name)
     script.WriteRawImage("/boot", recovery_two_step_img_name)
@@ -848,6 +860,94 @@ def AddCompatibilityArchiveIfTrebleEnabled(target_zip, output_zip, target_info,
                           vendor_updated or odm_updated)
 
 
+def GetBlockDifferences(target_zip, source_zip, target_info, source_info,
+                        device_specific):
+  """Returns a ordered dict of block differences with partition name as key."""
+
+  def GetIncrementalBlockDifferenceForPartition(name):
+    if not HasPartition(source_zip, name):
+      raise RuntimeError("can't generate incremental that adds {}".format(name))
+
+    partition_src = common.GetUserImage(name, OPTIONS.source_tmp, source_zip,
+                                        info_dict=source_info,
+                                        allow_shared_blocks=allow_shared_blocks)
+
+    hashtree_info_generator = verity_utils.CreateHashtreeInfoGenerator(
+        name, 4096, target_info)
+    partition_tgt = common.GetUserImage(name, OPTIONS.target_tmp, target_zip,
+                                        info_dict=target_info,
+                                        allow_shared_blocks=allow_shared_blocks,
+                                        hashtree_info_generator=
+                                        hashtree_info_generator)
+
+    # Check the first block of the source system partition for remount R/W only
+    # if the filesystem is ext4.
+    partition_source_info = source_info["fstab"]["/" + name]
+    check_first_block = partition_source_info.fs_type == "ext4"
+    # Disable using imgdiff for squashfs. 'imgdiff -z' expects input files to be
+    # in zip formats. However with squashfs, a) all files are compressed in LZ4;
+    # b) the blocks listed in block map may not contain all the bytes for a
+    # given file (because they're rounded to be 4K-aligned).
+    partition_target_info = target_info["fstab"]["/" + name]
+    disable_imgdiff = (partition_source_info.fs_type == "squashfs" or
+                       partition_target_info.fs_type == "squashfs")
+    return common.BlockDifference(name, partition_src, partition_tgt,
+                                  check_first_block,
+                                  version=blockimgdiff_version,
+                                  disable_imgdiff=disable_imgdiff)
+
+  if source_zip:
+    # See notes in common.GetUserImage()
+    allow_shared_blocks = (source_info.get('ext4_share_dup_blocks') == "true" or
+                           target_info.get('ext4_share_dup_blocks') == "true")
+    blockimgdiff_version = max(
+        int(i) for i in target_info.get(
+            "blockimgdiff_versions", "1").split(","))
+    assert blockimgdiff_version >= 3
+
+  block_diff_dict = collections.OrderedDict()
+  partition_names = ["system", "vendor", "product", "odm", "system_ext"]
+  for partition in partition_names:
+    if not HasPartition(target_zip, partition):
+      continue
+    # Full OTA update.
+    if not source_zip:
+      tgt = common.GetUserImage(partition, OPTIONS.input_tmp, target_zip,
+                                info_dict=target_info,
+                                reset_file_map=True)
+      block_diff_dict[partition] = common.BlockDifference(partition, tgt,
+                                                          src=None)
+    # Incremental OTA update.
+    else:
+      block_diff_dict[partition] = GetIncrementalBlockDifferenceForPartition(
+          partition)
+  assert "system" in block_diff_dict
+
+  # Get the block diffs from the device specific script. If there is a
+  # duplicate block diff for a partition, ignore the diff in the generic script
+  # and use the one in the device specific script instead.
+  if source_zip:
+    device_specific_diffs = device_specific.IncrementalOTA_GetBlockDifferences()
+    function_name = "IncrementalOTA_GetBlockDifferences"
+  else:
+    device_specific_diffs = device_specific.FullOTA_GetBlockDifferences()
+    function_name = "FullOTA_GetBlockDifferences"
+
+  if device_specific_diffs:
+    assert all(isinstance(diff, common.BlockDifference)
+               for diff in device_specific_diffs), \
+        "{} is not returning a list of BlockDifference objects".format(
+            function_name)
+    for diff in device_specific_diffs:
+      if diff.partition in block_diff_dict:
+        logger.warning("Duplicate block difference found. Device specific block"
+                       " diff for partition '%s' overrides the one in generic"
+                       " script.", diff.partition)
+      block_diff_dict[diff.partition] = diff
+
+  return block_diff_dict
+
+
 def WriteFullOTAPackage(input_zip, output_file):
   target_info = BuildInfo(OPTIONS.info_dict, OPTIONS.oem_dicts)
 
@@ -888,6 +988,11 @@ def WriteFullOTAPackage(input_zip, output_file):
 
   target_info.WriteDeviceAssertions(script, OPTIONS.oem_no_mount)
   device_specific.FullOTA_Assertions()
+
+  block_diff_dict = GetBlockDifferences(target_zip=input_zip, source_zip=None,
+                                        target_info=target_info,
+                                        source_info=None,
+                                        device_specific=device_specific)
 
   # Two-step package strategy (in chronological order, which is *not*
   # the order in which the generated script has things):
@@ -940,52 +1045,25 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 
   device_specific.FullOTA_InstallBegin()
 
-  system_progress = 0.75
-
+  # All other partitions as well as the data wipe use 10% of the progress, and
+  # the update of the system partition takes the remaining progress.
+  system_progress = 0.9 - (len(block_diff_dict) - 1) * 0.1
   if OPTIONS.wipe_user_data:
     system_progress -= 0.1
-  if HasVendorPartition(input_zip):
-    system_progress -= 0.1
-
-  script.ShowProgress(system_progress, 0)
-
-  def GetBlockDifference(partition):
-    # Full OTA is done as an "incremental" against an empty source image. This
-    # has the effect of writing new data from the package to the entire
-    # partition, but lets us reuse the updater code that writes incrementals to
-    # do it.
-    tgt = common.GetUserImage(partition, OPTIONS.input_tmp, input_zip,
-                              info_dict=target_info,
-                              reset_file_map=True)
-    diff = common.BlockDifference(partition, tgt, src=None)
-    return diff
-
-  device_specific_diffs = device_specific.FullOTA_GetBlockDifferences()
-  if device_specific_diffs:
-    assert all(isinstance(diff, common.BlockDifference)
-               for diff in device_specific_diffs), \
-        "FullOTA_GetBlockDifferences is not returning a list of " \
-        "BlockDifference objects"
-
-  progress_dict = dict()
-  block_diffs = [GetBlockDifference("system")]
-  if HasVendorPartition(input_zip):
-    block_diffs.append(GetBlockDifference("vendor"))
-    progress_dict["vendor"] = 0.1
-  if device_specific_diffs:
-    block_diffs += device_specific_diffs
+  progress_dict = {partition: 0.1 for partition in block_diff_dict}
+  progress_dict["system"] = system_progress
 
   if target_info.get('use_dynamic_partitions') == "true":
     # Use empty source_info_dict to indicate that all partitions / groups must
     # be re-added.
     dynamic_partitions_diff = common.DynamicPartitionsDifference(
         info_dict=OPTIONS.info_dict,
-        block_diffs=block_diffs,
+        block_diffs=block_diff_dict.values(),
         progress_dict=progress_dict)
     dynamic_partitions_diff.WriteScript(script, output_zip,
                                         write_verify_script=OPTIONS.verify)
   else:
-    for block_diff in block_diffs:
+    for block_diff in block_diff_dict.values():
       block_diff.WriteScript(script, output_zip,
                              progress=progress_dict.get(block_diff.partition),
                              write_verify_script=OPTIONS.verify)
@@ -997,10 +1075,9 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   common.CheckSize(boot_img.data, "boot.img", target_info)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
 
-  script.ShowProgress(0.05, 5)
   script.WriteRawImage("/boot", "boot.img")
 
-  script.ShowProgress(0.2, 10)
+  script.ShowProgress(0.1, 10)
   device_specific.FullOTA_InstallEnd()
 
   if OPTIONS.extra_script is not None:
@@ -1051,7 +1128,7 @@ def WriteMetadata(metadata, output):
     output: A ZipFile object or a string of the output file path.
   """
 
-  value = "".join(["%s=%s\n" % kv for kv in sorted(metadata.iteritems())])
+  value = "".join(["%s=%s\n" % kv for kv in sorted(metadata.items())])
   if isinstance(output, zipfile.ZipFile):
     common.ZipWriteStr(output, METADATA_NAME, value,
                        compress_type=zipfile.ZIP_STORED)
@@ -1067,7 +1144,7 @@ def HandleDowngradeMetadata(metadata, target_info, source_info):
 
   post_timestamp = target_info.GetBuildProp("ro.build.date.utc")
   pre_timestamp = source_info.GetBuildProp("ro.build.date.utc")
-  is_downgrade = long(post_timestamp) < long(pre_timestamp)
+  is_downgrade = int(post_timestamp) < int(pre_timestamp)
 
   if OPTIONS.downgrade:
     if not is_downgrade:
@@ -1392,7 +1469,7 @@ class AbOtaPropertyFiles(StreamingPropertyFiles):
     payload_offset += len(payload_info.extra) + len(payload_info.filename)
     payload_size = payload_info.file_size
 
-    with input_zip.open('payload.bin', 'r') as payload_fp:
+    with input_zip.open('payload.bin') as payload_fp:
       header_bin = payload_fp.read(24)
 
     # network byte order (big-endian)
@@ -1560,66 +1637,11 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_file):
   target_recovery = common.GetBootableImage(
       "/tmp/recovery.img", "recovery.img", OPTIONS.target_tmp, "RECOVERY")
 
-  # See notes in common.GetUserImage()
-  allow_shared_blocks = (source_info.get('ext4_share_dup_blocks') == "true" or
-                         target_info.get('ext4_share_dup_blocks') == "true")
-  system_src = common.GetUserImage("system", OPTIONS.source_tmp, source_zip,
-                                   info_dict=source_info,
-                                   allow_shared_blocks=allow_shared_blocks)
-
-  hashtree_info_generator = verity_utils.CreateHashtreeInfoGenerator(
-      "system", 4096, target_info)
-  system_tgt = common.GetUserImage("system", OPTIONS.target_tmp, target_zip,
-                                   info_dict=target_info,
-                                   allow_shared_blocks=allow_shared_blocks,
-                                   hashtree_info_generator=
-                                   hashtree_info_generator)
-
-  blockimgdiff_version = max(
-      int(i) for i in target_info.get("blockimgdiff_versions", "1").split(","))
-  assert blockimgdiff_version >= 3
-
-  # Check the first block of the source system partition for remount R/W only
-  # if the filesystem is ext4.
-  system_src_partition = source_info["fstab"]["/system"]
-  check_first_block = system_src_partition.fs_type == "ext4"
-  # Disable using imgdiff for squashfs. 'imgdiff -z' expects input files to be
-  # in zip formats. However with squashfs, a) all files are compressed in LZ4;
-  # b) the blocks listed in block map may not contain all the bytes for a given
-  # file (because they're rounded to be 4K-aligned).
-  system_tgt_partition = target_info["fstab"]["/system"]
-  disable_imgdiff = (system_src_partition.fs_type == "squashfs" or
-                     system_tgt_partition.fs_type == "squashfs")
-  system_diff = common.BlockDifference("system", system_tgt, system_src,
-                                       check_first_block,
-                                       version=blockimgdiff_version,
-                                       disable_imgdiff=disable_imgdiff)
-
-  if HasVendorPartition(target_zip):
-    if not HasVendorPartition(source_zip):
-      raise RuntimeError("can't generate incremental that adds /vendor")
-    vendor_src = common.GetUserImage("vendor", OPTIONS.source_tmp, source_zip,
-                                     info_dict=source_info,
-                                     allow_shared_blocks=allow_shared_blocks)
-    hashtree_info_generator = verity_utils.CreateHashtreeInfoGenerator(
-        "vendor", 4096, target_info)
-    vendor_tgt = common.GetUserImage(
-        "vendor", OPTIONS.target_tmp, target_zip,
-        info_dict=target_info,
-        allow_shared_blocks=allow_shared_blocks,
-        hashtree_info_generator=hashtree_info_generator)
-
-    # Check first block of vendor partition for remount R/W only if
-    # disk type is ext4
-    vendor_partition = source_info["fstab"]["/vendor"]
-    check_first_block = vendor_partition.fs_type == "ext4"
-    disable_imgdiff = vendor_partition.fs_type == "squashfs"
-    vendor_diff = common.BlockDifference("vendor", vendor_tgt, vendor_src,
-                                         check_first_block,
-                                         version=blockimgdiff_version,
-                                         disable_imgdiff=disable_imgdiff)
-  else:
-    vendor_diff = None
+  block_diff_dict = GetBlockDifferences(target_zip=target_zip,
+                                        source_zip=source_zip,
+                                        target_info=target_info,
+                                        source_info=source_info,
+                                        device_specific=device_specific)
 
   AddCompatibilityArchiveIfTrebleEnabled(
       target_zip, output_zip, target_info, source_info)
@@ -1686,12 +1708,8 @@ else if get_stage("%(bcb_dev)s") != "3/3" then
   WriteFingerprintAssertion(script, target_info, source_info)
 
   # Check the required cache size (i.e. stashed blocks).
-  size = []
-  if system_diff:
-    size.append(system_diff.required_cache)
-  if vendor_diff:
-    size.append(vendor_diff.required_cache)
-
+  required_cache_sizes = [diff.required_cache for diff in
+                          block_diff_dict.values()]
   if updating_boot:
     boot_type, boot_device = common.GetTypeAndDevice("/boot", source_info)
     d = common.Difference(target_boot, source_boot)
@@ -1714,10 +1732,14 @@ else if get_stage("%(bcb_dev)s") != "3/3" then
           "{}:{}:{}:{}".format(
               boot_type, boot_device, source_boot.size, source_boot.sha1))
 
-      size.append(target_boot.size)
+      required_cache_sizes.append(target_boot.size)
 
-  if size:
-    script.CacheFreeSpaceCheck(max(size))
+  if required_cache_sizes:
+    script.CacheFreeSpaceCheck(max(required_cache_sizes))
+
+  # Verify the existing partitions.
+  for diff in block_diff_dict.values():
+    diff.WriteVerifyScript(script, touched_blocks_only=True)
 
   device_specific.IncrementalOTA_VerifyEnd()
 
@@ -1734,30 +1756,12 @@ else
     # Stage 3/3: Make changes.
     script.Comment("Stage 3/3")
 
-  # Verify the existing partitions.
-  system_diff.WriteVerifyScript(script, touched_blocks_only=True)
-  if vendor_diff:
-    vendor_diff.WriteVerifyScript(script, touched_blocks_only=True)
-  device_specific_diffs = device_specific.IncrementalOTA_GetBlockDifferences()
-  if device_specific_diffs:
-    assert all(isinstance(diff, common.BlockDifference)
-               for diff in device_specific_diffs), \
-        "IncrementalOTA_GetBlockDifferences is not returning a list of " \
-        "BlockDifference objects"
-    for diff in device_specific_diffs:
-      diff.WriteVerifyScript(script, touched_blocks_only=True)
-
   script.Comment("---- start making changes here ----")
 
   device_specific.IncrementalOTA_InstallBegin()
 
-  block_diffs = [system_diff]
-  progress_dict = {"system": 0.8 if vendor_diff else 0.9}
-  if vendor_diff:
-    block_diffs.append(vendor_diff)
-    progress_dict["vendor"] = 0.1
-  if device_specific_diffs:
-    block_diffs += device_specific_diffs
+  progress_dict = {partition: 0.1 for partition in block_diff_dict}
+  progress_dict["system"] = 1 - len(block_diff_dict) * 0.1
 
   if OPTIONS.source_info_dict.get("use_dynamic_partitions") == "true":
     if OPTIONS.target_info_dict.get("use_dynamic_partitions") != "true":
@@ -1766,12 +1770,12 @@ else
     dynamic_partitions_diff = common.DynamicPartitionsDifference(
         info_dict=OPTIONS.target_info_dict,
         source_info_dict=OPTIONS.source_info_dict,
-        block_diffs=block_diffs,
+        block_diffs=block_diff_dict.values(),
         progress_dict=progress_dict)
     dynamic_partitions_diff.WriteScript(
         script, output_zip, write_verify_script=OPTIONS.verify)
   else:
-    for block_diff in block_diffs:
+    for block_diff in block_diff_dict.values():
       block_diff.WriteScript(script, output_zip,
                              progress=progress_dict.get(block_diff.partition),
                              write_verify_script=OPTIONS.verify)
@@ -1864,7 +1868,6 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
 
   with zipfile.ZipFile(input_file, 'r') as input_zip:
     infolist = input_zip.infolist()
-    namelist = input_zip.namelist()
 
   input_tmp = common.UnzipTemp(input_file, UNZIP_PATTERN)
   for info in infolist:
@@ -1939,7 +1942,7 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
   target_file = common.MakeTempFile(prefix="targetfiles-", suffix=".zip")
   shutil.copyfile(input_file, target_file)
 
-  with zipfile.ZipFile(input_file, 'r') as input_zip:
+  with zipfile.ZipFile(input_file) as input_zip:
     namelist = input_zip.namelist()
 
   input_tmp = common.UnzipTemp(input_file, RETROFIT_DAP_UNZIP_PATTERN)
@@ -1963,8 +1966,8 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
     for partition in ab_partitions:
       if (partition in dynamic_partition_list and
           partition not in super_block_devices):
-          logger.info("Dropping %s from ab_partitions.txt", partition)
-          continue
+        logger.info("Dropping %s from ab_partitions.txt", partition)
+        continue
       f.write(partition + "\n")
   to_delete = [AB_PARTITIONS]
 
@@ -1976,7 +1979,7 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
   to_delete += [DYNAMIC_PARTITION_INFO]
 
   # Remove the existing partition images as well as the map files.
-  to_delete += replace.values()
+  to_delete += list(replace.values())
   to_delete += ['IMAGES/{}.map'.format(dev) for dev in super_block_devices]
 
   common.ZipDelete(target_file, to_delete)
@@ -1986,7 +1989,7 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
   # Write super_{foo}.img as {foo}.img.
   for src, dst in replace.items():
     assert src in namelist, \
-          'Missing {} in {}; {} cannot be written'.format(src, input_file, dst)
+        'Missing {} in {}; {} cannot be written'.format(src, input_file, dst)
     unzipped_file = os.path.join(input_tmp, *src.split('/'))
     common.ZipWrite(target_zip, unzipped_file, arcname=dst)
 
@@ -1998,8 +2001,7 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
   return target_file
 
 
-def WriteABOTAPackageWithBrilloScript(target_file, output_file,
-                                      source_file=None):
+def GenerateAbOtaPackage(target_file, output_file, source_file=None):
   """Generates an Android OTA package that has A/B update payload."""
   # Stage the output zip package for package signing.
   if not OPTIONS.no_signing:
@@ -2095,6 +2097,66 @@ def WriteABOTAPackageWithBrilloScript(target_file, output_file,
       StreamingPropertyFiles(),
   )
   FinalizeMetadata(metadata, staging_file, output_file, needed_property_files)
+
+
+def GenerateNonAbOtaPackage(target_file, output_file, source_file=None):
+  """Generates a non-A/B OTA package."""
+  # Sanity check the loaded info dicts first.
+  if OPTIONS.info_dict.get("no_recovery") == "true":
+    raise common.ExternalError(
+        "--- target build has specified no recovery ---")
+
+  # Non-A/B OTAs rely on /cache partition to store temporary files.
+  cache_size = OPTIONS.info_dict.get("cache_size")
+  if cache_size is None:
+    logger.warning("--- can't determine the cache partition size ---")
+  OPTIONS.cache_size = cache_size
+
+  if OPTIONS.extra_script is not None:
+    with open(OPTIONS.extra_script) as fp:
+      OPTIONS.extra_script = fp.read()
+
+  if OPTIONS.extracted_input is not None:
+    OPTIONS.input_tmp = OPTIONS.extracted_input
+  else:
+    logger.info("unzipping target target-files...")
+    OPTIONS.input_tmp = common.UnzipTemp(target_file, UNZIP_PATTERN)
+  OPTIONS.target_tmp = OPTIONS.input_tmp
+
+  # If the caller explicitly specified the device-specific extensions path via
+  # -s / --device_specific, use that. Otherwise, use META/releasetools.py if it
+  # is present in the target target_files. Otherwise, take the path of the file
+  # from 'tool_extensions' in the info dict and look for that in the local
+  # filesystem, relative to the current directory.
+  if OPTIONS.device_specific is None:
+    from_input = os.path.join(OPTIONS.input_tmp, "META", "releasetools.py")
+    if os.path.exists(from_input):
+      logger.info("(using device-specific extensions from target_files)")
+      OPTIONS.device_specific = from_input
+    else:
+      OPTIONS.device_specific = OPTIONS.info_dict.get("tool_extensions")
+
+  if OPTIONS.device_specific is not None:
+    OPTIONS.device_specific = os.path.abspath(OPTIONS.device_specific)
+
+  # Generate a full OTA.
+  if source_file is None:
+    with zipfile.ZipFile(target_file) as input_zip:
+      WriteFullOTAPackage(
+          input_zip,
+          output_file)
+
+  # Generate an incremental OTA.
+  else:
+    logger.info("unzipping source target-files...")
+    OPTIONS.source_tmp = common.UnzipTemp(
+        OPTIONS.incremental_source, UNZIP_PATTERN)
+    with zipfile.ZipFile(target_file) as input_zip, \
+        zipfile.ZipFile(source_file) as source_zip:
+      WriteBlockIncrementalOTAPackage(
+          input_zip,
+          source_zip,
+          output_file)
 
 
 def main(argv):
@@ -2271,75 +2333,29 @@ def main(argv):
     OPTIONS.key_passwords = common.GetKeyPasswords([OPTIONS.package_key])
 
   if ab_update:
-    WriteABOTAPackageWithBrilloScript(
+    GenerateAbOtaPackage(
         target_file=args[0],
         output_file=args[1],
         source_file=OPTIONS.incremental_source)
 
-    logger.info("done.")
-    return
-
-  # Sanity check the loaded info dicts first.
-  if OPTIONS.info_dict.get("no_recovery") == "true":
-    raise common.ExternalError(
-        "--- target build has specified no recovery ---")
-
-  # Non-A/B OTAs rely on /cache partition to store temporary files.
-  cache_size = OPTIONS.info_dict.get("cache_size")
-  if cache_size is None:
-    logger.warning("--- can't determine the cache partition size ---")
-  OPTIONS.cache_size = cache_size
-
-  if OPTIONS.extra_script is not None:
-    OPTIONS.extra_script = open(OPTIONS.extra_script).read()
-
-  if OPTIONS.extracted_input is not None:
-    OPTIONS.input_tmp = OPTIONS.extracted_input
   else:
-    logger.info("unzipping target target-files...")
-    OPTIONS.input_tmp = common.UnzipTemp(args[0], UNZIP_PATTERN)
-  OPTIONS.target_tmp = OPTIONS.input_tmp
+    GenerateNonAbOtaPackage(
+        target_file=args[0],
+        output_file=args[1],
+        source_file=OPTIONS.incremental_source)
 
-  # If the caller explicitly specified the device-specific extensions path via
-  # -s / --device_specific, use that. Otherwise, use META/releasetools.py if it
-  # is present in the target target_files. Otherwise, take the path of the file
-  # from 'tool_extensions' in the info dict and look for that in the local
-  # filesystem, relative to the current directory.
-  if OPTIONS.device_specific is None:
-    from_input = os.path.join(OPTIONS.input_tmp, "META", "releasetools.py")
-    if os.path.exists(from_input):
-      logger.info("(using device-specific extensions from target_files)")
-      OPTIONS.device_specific = from_input
-    else:
-      OPTIONS.device_specific = OPTIONS.info_dict.get("tool_extensions")
+  # Post OTA generation works.
+  if OPTIONS.incremental_source is not None and OPTIONS.log_diff:
+    logger.info("Generating diff logs...")
+    logger.info("Unzipping target-files for diffing...")
+    target_dir = common.UnzipTemp(args[0], TARGET_DIFFING_UNZIP_PATTERN)
+    source_dir = common.UnzipTemp(
+        OPTIONS.incremental_source, TARGET_DIFFING_UNZIP_PATTERN)
 
-  if OPTIONS.device_specific is not None:
-    OPTIONS.device_specific = os.path.abspath(OPTIONS.device_specific)
-
-  # Generate a full OTA.
-  if OPTIONS.incremental_source is None:
-    with zipfile.ZipFile(args[0], 'r') as input_zip:
-      WriteFullOTAPackage(
-          input_zip,
-          output_file=args[1])
-
-  # Generate an incremental OTA.
-  else:
-    logger.info("unzipping source target-files...")
-    OPTIONS.source_tmp = common.UnzipTemp(
-        OPTIONS.incremental_source, UNZIP_PATTERN)
-    with zipfile.ZipFile(args[0], 'r') as input_zip, \
-        zipfile.ZipFile(OPTIONS.incremental_source, 'r') as source_zip:
-      WriteBlockIncrementalOTAPackage(
-          input_zip,
-          source_zip,
-          output_file=args[1])
-
-    if OPTIONS.log_diff:
-      with open(OPTIONS.log_diff, 'w') as out_file:
-        import target_files_diff
-        target_files_diff.recursiveDiff(
-            '', OPTIONS.source_tmp, OPTIONS.input_tmp, out_file)
+    with open(OPTIONS.log_diff, 'w') as out_file:
+      import target_files_diff
+      target_files_diff.recursiveDiff(
+          '', source_dir, target_dir, out_file)
 
   logger.info("done.")
 
