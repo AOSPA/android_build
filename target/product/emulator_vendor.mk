@@ -26,14 +26,11 @@ PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST := \
     system/bin/vintf \
     system/etc/permissions/android.software.verified_boot.xml \
     system/etc/permissions/privapp-permissions-goldfish.xml \
-    system/lib/egl/libGLES_android.so \
-    system/lib64/egl/libGLES_android.so \
     system/priv-app/SdkSetup/SdkSetup.apk \
     system/priv-app/SdkSetup/oat/% \
 
 # Device modules
 PRODUCT_PACKAGES += \
-    libGLES_android \
     vintf \
 
 # need this for gles libraries to load properly
@@ -58,14 +55,14 @@ $(call inherit-product-if-exists, device/generic/goldfish/vendor.mk)
 #config.disable_location=true
 
 # Enable Perfetto traced
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+PRODUCT_SYSTEM_EXT_PROPERTIES += \
     persist.traced.enable=1
 
 # enable Google-specific location features,
 # like NetworkLocationProvider and LocationCollector
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+PRODUCT_SYSTEM_EXT_PROPERTIES += \
     ro.com.google.locationfeatures=1
 
 # disable setupwizard
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+PRODUCT_SYSTEM_EXT_PROPERTIES += \
     ro.setupwizard.mode=DISABLED

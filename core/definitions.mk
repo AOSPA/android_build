@@ -2276,7 +2276,7 @@ endef
 # $(1): the package file we are signing.
 define sign-package-arg
 $(hide) mv $(1) $(1).unsigned
-$(hide) $(JAVA) -Djava.library.path=$(SIGNAPK_JNI_LIBRARY_PATH) -jar $(SIGNAPK_JAR) \
+$(hide) $(JAVA) -Djava.library.path=$$(dirname $(SIGNAPK_JNI_LIBRARY_PATH)) -jar $(SIGNAPK_JAR) \
     $(PRIVATE_CERTIFICATE) $(PRIVATE_PRIVATE_KEY) \
     $(PRIVATE_ADDITIONAL_CERTIFICATES) $(1).unsigned $(1).signed
 $(hide) mv $(1).signed $(1)
@@ -2423,6 +2423,16 @@ endef
 # The format of copy pair is src:dst
 define compat-copy-pair
 $(if $(filter-out $(2), $(LOCAL_INSTALLED_MODULE)), $(1):$(2))
+endef
+
+# Create copy pair for $(1) $(2)
+# If $(2) is substring of $(3) do nothing.
+# $(1): source path
+# $(2): destination path
+# $(3): filter-out target
+# The format of copy pair is src:dst
+define filter-copy-pair
+$(if $(findstring $(2), $(3)),,$(1):$(2))
 endef
 
 # Copies many files.
@@ -2684,9 +2694,9 @@ endef
 ###########################################################
 
 # $(1): The file to check
-ifndef get-file-size
-$(error HOST_OS must define get-file-size)
-endif
+define get-file-size
+stat -c "%s" "$(1)" | tr -d '\n'
+endef
 
 # $(1): The file(s) to check (often $@)
 # $(2): The partition size.
@@ -2853,7 +2863,9 @@ endef
 # Can be passed a subdirectory to use for the common testcase directory.
 define compatibility_suite_dirs
   $(strip \
-    $(COMPATIBILITY_TESTCASES_OUT_$(1)) \
+    $(if $(COMPATIBILITY_TESTCASES_OUT_INCLUDE_MODULE_FOLDER_$(1)),\
+      $(COMPATIBILITY_TESTCASES_OUT_$(1))/$(LOCAL_MODULE)$(2),\
+      $(COMPATIBILITY_TESTCASES_OUT_$(1))) \
     $($(my_prefix)OUT_TESTCASES)/$(LOCAL_MODULE)$(2))
 endef
 

@@ -44,11 +44,7 @@ BUILD_NUMBER_FILE := $(OUT_DIR)/build_number.txt
 .KATI_READONLY := BUILD_NUMBER_FILE
 $(KATI_obsolete_var BUILD_NUMBER,See https://android.googlesource.com/platform/build/+/master/Changes.md#BUILD_NUMBER)
 
-ifeq ($(HOST_OS),darwin)
-DATE_FROM_FILE := date -r $(BUILD_DATETIME_FROM_FILE)
-else
 DATE_FROM_FILE := date -d @$(BUILD_DATETIME_FROM_FILE)
-endif
 .KATI_READONLY := DATE_FROM_FILE
 
 # Pick a reasonable string to use to identify files.
@@ -79,6 +75,8 @@ $(shell mkdir -p $(EMPTY_DIRECTORY) && rm -rf $(EMPTY_DIRECTORY)/*)
 -include test/suite_harness/tools/cts-instant-tradefed/build/config.mk
 # MTS-specific config.
 -include test/mts/tools/build/config.mk
+# VTS-Core-specific config.
+-include test/vts/tools/vts-core-tradefed/build/config.mk
 
 # Clean rules
 .PHONY: clean-dex-files
@@ -505,7 +503,6 @@ CUSTOM_MODULES := \
 #
 # Resolve the required module name to 32-bit or 64-bit variant.
 # Get a list of corresponding 32-bit module names, if one exists.
-ifneq ($(TARGET_TRANSLATE_2ND_ARCH),true)
 define get-32-bit-modules
 $(sort $(foreach m,$(1),\
   $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),\
@@ -519,15 +516,6 @@ $(sort $(foreach m,$(1),\
     $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX), \
     $(m))))
 endef
-else  # TARGET_TRANSLATE_2ND_ARCH
-# For binary translation config, by default only install the first arch.
-define get-32-bit-modules
-endef
-
-define get-32-bit-modules-if-we-can
-$(strip $(1))
-endef
-endif  # TARGET_TRANSLATE_2ND_ARCH
 
 # TODO: we can probably check to see if these modules are actually host
 # modules
@@ -1509,7 +1497,7 @@ files: $(modules_to_install) \
 # -------------------------------------------------------------------
 
 .PHONY: checkbuild
-checkbuild: $(modules_to_check) droid_targets
+checkbuild: $(modules_to_check) droid_targets check-elf-files
 
 ifeq (true,$(ANDROID_BUILD_EVERYTHING_BY_DEFAULT))
 droid: checkbuild
@@ -1674,6 +1662,7 @@ else # TARGET_BUILD_APPS
     $(INTERNAL_OTA_RETROFIT_DYNAMIC_PARTITIONS_PACKAGE_TARGET) \
     $(BUILT_OTATOOLS_PACKAGE) \
     $(SYMBOLS_ZIP) \
+    $(PROGUARD_DICT_ZIP) \
     $(COVERAGE_ZIP) \
     $(APPCOMPAT_ZIP) \
     $(INSTALLED_FILES_FILE) \
@@ -1705,7 +1694,6 @@ else # TARGET_BUILD_APPS
     $(call dist-for-goals, droidcore, \
       $(APPS_ZIP) \
       $(INTERNAL_EMULATOR_PACKAGE_TARGET) \
-      $(PACKAGE_STATS_FILE) \
     )
   endif
   endif

@@ -122,6 +122,7 @@ $(KATI_obsolete_var \
   ARCH_X86_HAVE_SSSE3 \
 )
 $(KATI_obsolete_var PRODUCT_IOT)
+$(KATI_obsolete_var MD5SUM)
 
 # Used to force goals to build.  Only use for conditionally defined goals.
 .PHONY: FORCE
@@ -509,22 +510,12 @@ USE_D8 := true
 # Tools that are prebuilts for TARGET_BUILD_APPS
 #
 ifeq (,$(TARGET_BUILD_APPS)$(filter true,$(TARGET_BUILD_PDK)))
-  AIDL := $(HOST_OUT_EXECUTABLES)/aidl
   AAPT := $(HOST_OUT_EXECUTABLES)/aapt
-  AAPT2 := $(HOST_OUT_EXECUTABLES)/aapt2
   MAINDEXCLASSES := $(HOST_OUT_EXECUTABLES)/mainDexClasses
-  SIGNAPK_JAR := $(HOST_OUT_JAVA_LIBRARIES)/signapk$(COMMON_JAVA_PACKAGE_SUFFIX)
-  SIGNAPK_JNI_LIBRARY_PATH := $(HOST_OUT_SHARED_LIBRARIES)
-  ZIPALIGN := $(HOST_OUT_EXECUTABLES)/zipalign
 
 else # TARGET_BUILD_APPS || TARGET_BUILD_PDK
-  AIDL := $(prebuilt_build_tools_bin)/aidl
   AAPT := $(prebuilt_sdk_tools_bin)/aapt
-  AAPT2 := $(prebuilt_sdk_tools_bin)/aapt2
   MAINDEXCLASSES := $(prebuilt_sdk_tools)/mainDexClasses
-  SIGNAPK_JAR := $(prebuilt_sdk_tools)/lib/signapk$(COMMON_JAVA_PACKAGE_SUFFIX)
-  SIGNAPK_JNI_LIBRARY_PATH := $(prebuilt_sdk_tools)/$(HOST_OS)/lib64
-  ZIPALIGN := $(prebuilt_build_tools_bin)/zipalign
 endif # TARGET_BUILD_APPS || TARGET_BUILD_PDK
 
 ifeq (,$(TARGET_BUILD_APPS))
@@ -545,12 +536,11 @@ DEPMOD := $(HOST_OUT_EXECUTABLES)/depmod
 FILESLIST := $(SOONG_HOST_OUT_EXECUTABLES)/fileslist
 FILESLIST_UTIL :=$= build/make/tools/fileslist_util.py
 HOST_INIT_VERIFIER := $(HOST_OUT_EXECUTABLES)/host_init_verifier
-SOONG_JAVAC_WRAPPER := $(SOONG_HOST_OUT_EXECUTABLES)/soong_javac_wrapper
-SOONG_ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/soong_zip
-MERGE_ZIPS := $(SOONG_HOST_OUT_EXECUTABLES)/merge_zips
 XMLLINT := $(SOONG_HOST_OUT_EXECUTABLES)/xmllint
-ZIP2ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/zip2zip
-ZIPTIME := $(prebuilt_build_tools_bin)/ziptime
+
+# SOONG_ZIP is exported by Soong, but needs to be defined early for
+# $OUT/dexpreopt.global.  It will be verified against the Soong version.
+SOONG_ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/soong_zip
 
 # ---------------------------------------------------------------
 # Generic tools.
@@ -611,6 +601,7 @@ LPMAKE := $(HOST_OUT_EXECUTABLES)/lpmake$(HOST_EXECUTABLE_SUFFIX)
 ADD_IMG_TO_TARGET_FILES := $(HOST_OUT_EXECUTABLES)/add_img_to_target_files$(HOST_EXECUTABLE_SUFFIX)
 BUILD_IMAGE := $(HOST_OUT_EXECUTABLES)/build_image$(HOST_EXECUTABLE_SUFFIX)
 BUILD_SUPER_IMAGE := $(HOST_OUT_EXECUTABLES)/build_super_image$(HOST_EXECUTABLE_SUFFIX)
+IMG_FROM_TARGET_FILES := $(HOST_OUT_EXECUTABLES)/img_from_target_files$(HOST_EXECUTABLE_SUFFIX)
 MAKE_RECOVERY_PATCH := $(HOST_OUT_EXECUTABLES)/make_recovery_patch$(HOST_EXECUTABLE_SUFFIX)
 OTA_FROM_TARGET_FILES := $(HOST_OUT_EXECUTABLES)/ota_from_target_files$(HOST_EXECUTABLE_SUFFIX)
 SPARSE_IMG := $(HOST_OUT_EXECUTABLES)/sparse_img$(HOST_EXECUTABLE_SUFFIX)
@@ -649,13 +640,6 @@ endif
 
 # Path to tools.jar
 HOST_JDK_TOOLS_JAR := $(ANDROID_JAVA8_HOME)/lib/tools.jar
-
-# It's called md5 on Mac OS and md5sum on Linux
-ifeq ($(HOST_OS),darwin)
-MD5SUM:=md5 -q
-else
-MD5SUM:=md5sum
-endif
 
 APICHECK_COMMAND := $(JAVA) -Xmx4g -jar $(APICHECK) --no-banner --compatible-output=yes
 
