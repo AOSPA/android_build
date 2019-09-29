@@ -23,6 +23,11 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_product.mk)
 # Default AOSP sounds
 $(call inherit-product-if-exists, frameworks/base/data/sounds/AllAudio.mk)
 
+# GSI doesn't support apex for now.
+# Properties set in product take precedence over those in vendor.
+PRODUCT_PRODUCT_PROPERTIES += \
+    ro.apex.updatable=false
+
 # Additional settings used in all AOSP builds
 PRODUCT_PRODUCT_PROPERTIES += \
     ro.config.ringtone=Ring_Synth_04.ogg \
@@ -50,10 +55,10 @@ PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST += \
     system/etc/init/config/skip_mount.cfg \
     system/etc/init/init.gsi.rc \
 
-# Exclude all files under system/product and system/product_services
+# Exclude all files under system/product and system/system_ext
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST += \
     system/product/% \
-    system/product_services/%
+    system/system_ext/%
 
 
 # Split selinux policy
@@ -71,7 +76,7 @@ PRODUCT_COPY_FILES += \
     build/make/target/product/gsi/init.gsi.rc:system/etc/init/init.gsi.rc \
 
 # Support addtional P vendor interface
-PRODUCT_EXTRA_VNDK_VERSIONS := 28
+PRODUCT_EXTRA_VNDK_VERSIONS := 28 29
 
 # More AOSP packages
 PRODUCT_PACKAGES += \
