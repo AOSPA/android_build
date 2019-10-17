@@ -33,17 +33,11 @@ BOARD_USES_METADATA_PARTITION := true
 #   updating the last seen rollback index in the tamper-evident storage.
 BOARD_AVB_ROLLBACK_INDEX := 0
 
-# Enable chain partition for system.
-BOARD_AVB_SYSTEM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
-BOARD_AVB_SYSTEM_ALGORITHM := SHA256_RSA2048
-BOARD_AVB_SYSTEM_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
-BOARD_AVB_SYSTEM_ROLLBACK_INDEX_LOCATION := 1
-
 # GSI specific System Properties
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
-TARGET_SYSTEM_PROP := build/make/target/board/gsi_system.prop
+TARGET_SYSTEM_EXT_PROP := build/make/target/board/gsi_system_ext.prop
 else
-TARGET_SYSTEM_PROP := build/make/target/board/gsi_system_user.prop
+TARGET_SYSTEM_EXT_PROP := build/make/target/board/gsi_system_ext_user.prop
 endif
 
 # Set this to create /cache mount point for non-A/B devices that mounts /cache.

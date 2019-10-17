@@ -163,7 +163,6 @@ PRODUCT_PACKAGES += \
     libOpenMAXAL \
     libOpenSLES \
     libpdfium \
-    libpixelflinger \
     libpower \
     libpowermanager \
     libradio_metadata \
@@ -248,6 +247,7 @@ PRODUCT_PACKAGES += \
     Shell \
     shell_and_utilities_system \
     sm \
+    SoundPicker \
     statsd \
     storaged \
     surfaceflinger \
@@ -268,8 +268,6 @@ PRODUCT_PACKAGES += \
     viewcompiler \
     voip-common \
     vold \
-    vndkcore.libraries.txt \
-    vndkprivate.libraries.txt \
     WallpaperBackup \
     watchdogd \
     InProcessWifiStack \
@@ -332,7 +330,6 @@ PRODUCT_BOOT_JARS := \
     $(TARGET_CORE_JARS) \
     framework \
     ext \
-    telephony-common \
     voip-common \
     ims-common \
     updatable-media
@@ -368,8 +365,10 @@ PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     arping \
     gdbserver \
+    idlcli \
     init-debug.rc \
     iotop \
+    iperf3 \
     iw \
     logpersist.start \
     logtagd.rc \

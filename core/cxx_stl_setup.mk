@@ -55,8 +55,6 @@ endif
 
 my_cxx_ldlibs :=
 ifneq ($(filter $(my_cxx_stl),libc++ libc++_static),)
-    my_cflags += -D_USING_LIBCXX
-
     ifeq ($($(my_prefix)OS),darwin)
         # libc++'s headers are annotated with availability macros that indicate
         # which version of Mac OS was the first to ship with a libc++ feature
@@ -84,6 +82,7 @@ ifneq ($(filter $(my_cxx_stl),libc++ libc++_static),)
         my_ldflags += -nodefaultlibs
         my_cxx_ldlibs += $($($(my_prefix)OS)_$(my_link_type)_gcclibs)
     else
+        my_static_libraries += libc++demangle
         ifeq (arm,$($(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH))
             my_static_libraries += libunwind_llvm
             my_ldflags += -Wl,--exclude-libs,libunwind_llvm.a

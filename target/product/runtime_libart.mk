@@ -33,9 +33,12 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     ext \
 
-# Android Runtime APEX module.
+# Runtime (Bionic) APEX module.
 PRODUCT_PACKAGES += com.android.runtime
-PRODUCT_HOST_PACKAGES += com.android.runtime
+
+# ART APEX module.
+PRODUCT_PACKAGES += com.android.art
+PRODUCT_HOST_PACKAGES += com.android.art
 
 # Certificates.
 PRODUCT_PACKAGES += \
@@ -92,8 +95,16 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     dalvik.vm.minidebuginfo=true \
     dalvik.vm.dex2oat-minidebuginfo=true
 
-# Disable iorapd by default
+# Enable iorapd by default
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.iorapd.enable=true
+
+# Enable iorapd prefetching by default
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+    iorapd.readahead.enable=true
+
+# Disable Camera Pinning by default
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+    pinner.pin_camera=false
 
 PRODUCT_USES_DEFAULT_ART_CONFIG := true
