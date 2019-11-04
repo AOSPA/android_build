@@ -95,6 +95,12 @@ PLATFORM_VERSION_LAST_STABLE := 11
 # release build.  If this is a final release build, it is simply "REL".
 PLATFORM_VERSION_CODENAME.RP1A := REL
 
+ifndef PRODUCT_TARGET_VNDK_VERSION
+  # This is the SDK version of the prebuilt vendor image and is used to
+  # overlay vendor image from TARGET_COPY_OUT_VENDOR.
+  PRODUCT_TARGET_VNDK_VERSION := $(PLATFORM_SDK_VERSION)
+endif
+
 ifndef PLATFORM_VERSION_CODENAME
   PLATFORM_VERSION_CODENAME := $(PLATFORM_VERSION_CODENAME.$(TARGET_PLATFORM_VERSION))
   ifndef PLATFORM_VERSION_CODENAME
