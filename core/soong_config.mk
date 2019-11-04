@@ -190,6 +190,7 @@ $(call add_json_str,  VendorDlkmPath,                    $(TARGET_COPY_OUT_VENDO
 $(call add_json_str,  OdmDlkmPath,                       $(TARGET_COPY_OUT_ODM_DLKM))
 $(call add_json_str,  ProductPath,                       $(TARGET_COPY_OUT_PRODUCT))
 $(call add_json_str,  SystemExtPath,                     $(TARGET_COPY_OUT_SYSTEM_EXT))
+$(call add_json_str,  VendorOverlayPath,                 $(TARGET_COPY_OUT_VENDOR_OVERLAY))
 $(call add_json_bool, MinimizeJavaDebugInfo,             $(filter true,$(PRODUCT_MINIMIZE_JAVA_DEBUG_INFO)))
 
 $(call add_json_bool, UseGoma,                           $(filter-out false,$(USE_GOMA)))
