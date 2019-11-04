@@ -83,6 +83,8 @@ else ifneq ($(filter $(TARGET_OUT_PRODUCT)/%,$(_path)),)
 LOCAL_PRODUCT_MODULE := true
 else ifneq ($(filter $(TARGET_OUT_SYSTEM_EXT)/%,$(_path)),)
 LOCAL_SYSTEM_EXT_MODULE := true
+else ifneq ($(filter $(TARGET_OUT_VENDOR_OVERLAY)/%,$(_path)),)
+LOCAL_VENDOR_OVERLAY_MODULE := true
 endif
 _path :=
 
@@ -120,7 +122,8 @@ non_system_module := $(filter true, \
    $(LOCAL_PRODUCT_MODULE) \
    $(LOCAL_SYSTEM_EXT_MODULE) \
    $(LOCAL_VENDOR_MODULE) \
-   $(LOCAL_PROPRIETARY_MODULE))
+   $(LOCAL_PROPRIETARY_MODULE) \
+   $(LOCAL_VENDOR_OVERLAY_MODULE))
 
 include $(BUILD_SYSTEM)/local_vndk.mk
 include $(BUILD_SYSTEM)/local_systemsdk.mk
@@ -223,7 +226,10 @@ ifdef LOCAL_IS_HOST_MODULE
   partition_tag :=
   actual_partition_tag :=
 else
-ifeq (true,$(strip $(LOCAL_VENDOR_MODULE)))
+ifeq (true,$(strip $(LOCAL_VENDOR_OVERLAY_MODULE)))
+  partition_tag := _VENDOR_OVERLAY
+  actual_partition_tag := $(if $(filter true,$(BOARD_USES_PRODUCTIMAGE)),product,system)
+else ifeq (true,$(strip $(LOCAL_VENDOR_MODULE)))
   partition_tag := _VENDOR
   # A vendor module could be on the vendor partition at "vendor" or the system
   # partition at "system/vendor".
