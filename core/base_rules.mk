@@ -83,6 +83,8 @@ else ifneq ($(filter $(TARGET_OUT_PRODUCT)/%,$(_path)),)
 LOCAL_PRODUCT_MODULE := true
 else ifneq ($(filter $(TARGET_OUT_SYSTEM_EXT)/%,$(_path)),)
 LOCAL_SYSTEM_EXT_MODULE := true
+else ifneq ($(filter $(TARGET_OUT_VENDOR_OVERLAY)/%,$(_path)),)
+LOCAL_VENDOR_OVERLAY_MODULE := true
 endif
 _path :=
 
@@ -120,7 +122,8 @@ non_system_module := $(filter true, \
    $(LOCAL_PRODUCT_MODULE) \
    $(LOCAL_SYSTEM_EXT_MODULE) \
    $(LOCAL_VENDOR_MODULE) \
-   $(LOCAL_PROPRIETARY_MODULE))
+   $(LOCAL_PROPRIETARY_MODULE) \
+   $(LOCAL_VENDOR_OVERLAY_MODULE))
 
 include $(BUILD_SYSTEM)/local_vndk.mk
 include $(BUILD_SYSTEM)/local_systemsdk.mk
@@ -249,6 +252,9 @@ else ifeq (true,$(strip $(LOCAL_SYSTEM_EXT_MODULE)))
 else ifeq (NATIVE_TESTS,$(LOCAL_MODULE_CLASS))
   partition_tag := _DATA
   actual_partition_tag := data
+else ifeq (true,$(strip $(LOCAL_VENDOR_OVERLAY_MODULE)))
+  partition_tag := _VENDOR_OVERLAY
+  actual_partition_tag := $(if $(filter true,$(BOARD_USES_PRODUCTIMAGE)),product,system)
 else
   # The definition of should-install-to-system will be different depending
   # on which goal (e.g., sdk or just droid) is being built.
