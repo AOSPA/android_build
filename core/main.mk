@@ -77,6 +77,8 @@ $(shell mkdir -p $(EMPTY_DIRECTORY) && rm -rf $(EMPTY_DIRECTORY)/*)
 -include test/mts/tools/build/config.mk
 # VTS-Core-specific config.
 -include test/vts/tools/vts-core-tradefed/build/config.mk
+# CSUITE-specific config.
+-include test/app_compat/csuite/tools/build/config.mk
 
 # Clean rules
 .PHONY: clean-dex-files
@@ -193,17 +195,7 @@ TARGET_BUILD_JAVA_SUPPORT_LEVEL := platform
 # The pdk (Platform Development Kit) build
 include build/make/core/pdk_config.mk
 
-#
 # -----------------------------------------------------------------
-# Enable dynamic linker warnings for userdebug, eng and non-REL builds
-ifneq ($(TARGET_BUILD_VARIANT),user)
-  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1
-else
-# Enable it for user builds as long as they are not final.
-ifneq ($(PLATFORM_VERSION_CODENAME),REL)
-  ADDITIONAL_BUILD_PROPERTIES += ro.bionic.ld.warning=1
-endif
-endif
 
 ADDITIONAL_BUILD_PROPERTIES += ro.treble.enabled=${PRODUCT_FULL_TREBLE}
 
@@ -229,6 +221,9 @@ endif
 ifneq ($(TARGET_BUILD_VARIANT),user)
 ADDITIONAL_BUILD_PROPERTIES += persist.debug.dalvik.vm.core_platform_api_policy=just-warn
 endif
+
+# Define ro.sanitize.<name> properties for all global sanitizers.
+ADDITIONAL_BUILD_PROPERTIES += $(foreach s,$(SANITIZE_TARGET),ro.sanitize.$(s)=true)
 
 # Sets the default value of ro.postinstall.fstab.prefix to /system.
 # Device board config should override the value to /product when needed by:
@@ -1159,6 +1154,7 @@ APEX_MODULE_LIBS := \
   libdt_socket.so \
   libicui18n.so \
   libicuuc.so \
+  libicu_jni.so \
   libjavacore.so \
   libjdwp.so \
   libm.so \
@@ -1270,6 +1266,8 @@ else
   endef
 endif
 
+# TODO(b/142944799): Implement Java library absence check for Core Libraries.
+
 ifdef FULL_BUILD
   ifneq (true,$(ALLOW_MISSING_DEPENDENCIES))
     # Check to ensure that all modules in PRODUCT_PACKAGES exist (opt in per product)
@@ -1364,7 +1362,9 @@ $(call dist-for-goals,droidcore,$(CERTIFICATE_VIOLATION_MODULES_FILENAME))
     $(eval whitelist_patterns := $(call resolve-product-relative-paths,$(whitelist))) \
     $(eval files := $(call product-installed-files, $(makefile))) \
     $(eval offending_files := $(filter-out $(path_patterns) $(whitelist_patterns) $(static_whitelist_patterns),$(files))) \
-    $(call maybe-print-list-and-error,$(offending_files),$(makefile) produces files outside its artifact path requirement.) \
+    $(call maybe-print-list-and-error,$(offending_files),\
+      $(makefile) produces files outside its artifact path requirement. \
+      Allowed paths are $(subst $(space),$(comma)$(space),$(addsuffix *,$(requirements)))) \
     $(eval unused_whitelist := $(filter-out $(files),$(whitelist_patterns))) \
     $(call maybe-print-list-and-error,$(unused_whitelist),$(makefile) includes redundant whitelist entries in its artifact path requirement.) \
     $(eval ### Optionally verify that nothing else produces files inside this artifact path requirement.) \
@@ -1509,6 +1509,9 @@ ramdisk: $(INSTALLED_RAMDISK_TARGET)
 .PHONY: ramdisk_debug
 ramdisk_debug: $(INSTALLED_DEBUG_RAMDISK_TARGET)
 
+.PHONY: ramdisk_test_harness
+ramdisk_test_harness: $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
+
 .PHONY: userdataimage
 userdataimage: $(INSTALLED_USERDATAIMAGE_TARGET)
 
@@ -1524,6 +1527,9 @@ bptimage: $(INSTALLED_BPTIMAGE_TARGET)
 
 .PHONY: vendorimage
 vendorimage: $(INSTALLED_VENDORIMAGE_TARGET)
+
+.PHONY: vendorbootimage
+vendorbootimage: $(INSTALLED_VENDOR_BOOTIMAGE_TARGET)
 
 .PHONY: productimage
 productimage: $(INSTALLED_PRODUCTIMAGE_TARGET)
@@ -1546,6 +1552,9 @@ bootimage: $(INSTALLED_BOOTIMAGE_TARGET)
 .PHONY: bootimage_debug
 bootimage_debug: $(INSTALLED_DEBUG_BOOTIMAGE_TARGET)
 
+.PHONY: bootimage_test_harness
+bootimage_test_harness: $(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET)
+
 .PHONY: vbmetaimage
 vbmetaimage: $(INSTALLED_VBMETAIMAGE_TARGET)
 
@@ -1567,6 +1576,7 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_CACHEIMAGE_TARGET) \
     $(INSTALLED_BPTIMAGE_TARGET) \
     $(INSTALLED_VENDORIMAGE_TARGET) \
+    $(INSTALLED_VENDOR_BOOTIMAGE_TARGET) \
     $(INSTALLED_ODMIMAGE_TARGET) \
     $(INSTALLED_SUPERIMAGE_EMPTY_TARGET) \
     $(INSTALLED_PRODUCTIMAGE_TARGET) \
@@ -1711,6 +1721,10 @@ else # TARGET_BUILD_APPS
       $(INSTALLED_FILES_JSON_DEBUG_RAMDISK) \
       $(INSTALLED_DEBUG_RAMDISK_TARGET) \
       $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) \
+    )
+    $(call dist-for-goals, bootimage_test_harness, \
+      $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET) \
+      $(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET) \
     )
   endif
 

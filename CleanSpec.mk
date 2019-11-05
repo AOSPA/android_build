@@ -679,6 +679,21 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/symbols/data/fuzz/*)
 $(call add-clean-step, rm -rf $(HOST_OUT)/fuzz/*)
 $(call add-clean-step, rm -rf $(SOONG_OUT_DIR)/host/*/fuzz/*)
 
+# Change file layout of system_other
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system_other)
+
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/apex)
+
+# Migrate preopt files to system_other for some devices
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/*/*app/*/oat)
+
+# Migrate preopt files from system_other for some devices
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system_other)
+
+# Remove Android Core Library artifacts from the system partition, now
+# that they live in the ART APEX (b/142944799).
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/framework/*.jar)
+
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
 # ************************************************

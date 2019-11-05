@@ -86,6 +86,8 @@ _board_strip_readonly_list += $(_dynamic_partitions_var_list)
 
 _build_broken_var_list := \
   BUILD_BROKEN_DUP_RULES \
+  BUILD_BROKEN_PREBUILT_ELF_FILES \
+  BUILD_BROKEN_TREBLE_SYSPROP_NEVERALLOW \
   BUILD_BROKEN_USES_NETWORK \
 
 _build_broken_var_list += \
@@ -262,6 +264,7 @@ endif
 # Now we can substitute with the real value of TARGET_COPY_OUT_DEBUG_RAMDISK
 ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
 TARGET_COPY_OUT_DEBUG_RAMDISK := debug_ramdisk/first_stage_ramdisk
+TARGET_COPY_OUT_TEST_HARNESS_RAMDISK := test_harness_ramdisk/first_stage_ramdisk
 endif
 
 ###########################################
@@ -335,6 +338,20 @@ else ifeq ($(PRODUCT_BUILD_RECOVERY_IMAGE),true)
   BUILDING_RECOVERY_IMAGE := true
 endif
 .KATI_READONLY := BUILDING_RECOVERY_IMAGE
+
+# Are we building a vendor boot image
+BUILDING_VENDOR_BOOT_IMAGE :=
+ifdef BOARD_BOOT_HEADER_VERSION
+  ifneq ($(call math_gt_or_eq,$(BOARD_BOOT_HEADER_VERSION),3),)
+    BUILDING_VENDOR_BOOT_IMAGE := true
+    ifdef BUILDING_RECOVERY_IMAGE
+      ifneq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+        $(error Boot header version >=3 requires recovery as boot)
+      endif
+    endif
+  endif
+endif
+.KATI_READONLY := BUILDING_VENDOR_BOOT_IMAGE
 
 # Are we building a ramdisk image
 BUILDING_RAMDISK_IMAGE := true
@@ -490,9 +507,9 @@ endif
 ###########################################
 # Now we can substitute with the real value of TARGET_COPY_OUT_ODM
 ifeq ($(TARGET_COPY_OUT_ODM),$(_odm_path_placeholder))
-  TARGET_COPY_OUT_ODM := vendor/odm
-else ifeq ($(filter odm vendor/odm,$(TARGET_COPY_OUT_ODM)),)
-  $(error TARGET_COPY_OUT_ODM must be either 'odm' or 'vendor/odm', seeing '$(TARGET_COPY_OUT_ODM)'.)
+  TARGET_COPY_OUT_ODM := $(TARGET_COPY_OUT_VENDOR)/odm
+else ifeq ($(filter odm system/vendor/odm vendor/odm,$(TARGET_COPY_OUT_ODM)),)
+  $(error TARGET_COPY_OUT_ODM must be either 'odm', 'system/vendor/odm' or 'vendor/odm', seeing '$(TARGET_COPY_OUT_ODM)'.)
 endif
 PRODUCT_COPY_FILES := $(subst $(_odm_path_placeholder),$(TARGET_COPY_OUT_ODM),$(PRODUCT_COPY_FILES))
 
@@ -569,8 +586,16 @@ endif
 # APEXes are by default flattened, i.e. non-updatable.
 # It can be unflattened (and updatable) by inheriting from
 # updatable_apex.mk
-ifeq (,$(TARGET_FLATTEN_APEX))
-TARGET_FLATTEN_APEX := true
+#
+# APEX flattening can also be forcibly enabled (resp. disabled) by
+# setting OVERRIDE_TARGET_FLATTEN_APEX to true (resp. false), e.g. by
+# setting the OVERRIDE_TARGET_FLATTEN_APEX environment variable.
+ifdef OVERRIDE_TARGET_FLATTEN_APEX
+  TARGET_FLATTEN_APEX := $(OVERRIDE_TARGET_FLATTEN_APEX)
+else
+  ifeq (,$(TARGET_FLATTEN_APEX))
+    TARGET_FLATTEN_APEX := true
+  endif
 endif
 
 ifeq (,$(TARGET_BUILD_APPS))
