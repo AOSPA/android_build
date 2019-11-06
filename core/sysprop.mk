@@ -46,6 +46,7 @@ define generate-common-build-props
         echo "ro.product.$(1).manufacturer=$(PRODUCT_MANUFACTURER)" >> $(2);\
         echo "ro.product.$(1).model=$(PRODUCT_MODEL)" >> $(2);\
         echo "ro.product.$(1).name=$(TARGET_PRODUCT)" >> $(2);\
+        echo "ro.build.fingerprint=$(BUILD_FINGERPRINT)" >> $(2);\
     )\
     $(if $(filter system vendor odm,$(1)),\
         echo "ro.$(1).product.cpu.abilist=$(TARGET_CPU_ABI_LIST) " >> $(2);\
