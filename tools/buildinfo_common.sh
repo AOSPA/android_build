@@ -27,4 +27,6 @@ echo "ro.product.${partition}.manufacturer=$PRODUCT_MANUFACTURER"
 echo "ro.product.${partition}.model=$PRODUCT_MODEL"
 echo "ro.product.${partition}.name=$PRODUCT_NAME"
 
+echo "ro.build.fingerprint=$BUILD_FINGERPRINT"
+
 echo "# end common build properties"
