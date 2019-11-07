@@ -462,15 +462,19 @@ class BuildInfo(object):
       try:
         return self.GetBuildProp("ro.build.fingerprint")
       except ExternalError:
-        return "{}/{}/{}:{}/{}/{}:{}/{}".format(
-            self.GetBuildProp("ro.product.brand"),
-            self.GetBuildProp("ro.product.name"),
-            self.GetBuildProp("ro.product.device"),
-            self.GetBuildProp("ro.build.version.release"),
-            self.GetBuildProp("ro.build.id"),
-            self.GetBuildProp("ro.build.version.incremental"),
-            self.GetBuildProp("ro.build.type"),
-            self.GetBuildProp("ro.build.tags"))
+        # TODO(b/144101993): revert this change when bug fixed.
+        try:
+          return "{}/{}/{}:{}/{}/{}:{}/{}".format(
+              self.GetBuildProp("ro.product.brand"),
+              self.GetBuildProp("ro.product.name"),
+              self.GetBuildProp("ro.product.device"),
+              self.GetBuildProp("ro.build.version.release"),
+              self.GetBuildProp("ro.build.id"),
+              self.GetBuildProp("ro.build.version.incremental"),
+              self.GetBuildProp("ro.build.type"),
+              self.GetBuildProp("ro.build.tags"))
+        except ExternalError:
+          return self.GetVendorBuildProp("ro.vendor.build.fingerprint")
     return "%s/%s/%s:%s" % (
         self.GetOemProperty("ro.product.brand"),
         self.GetOemProperty("ro.product.name"),
