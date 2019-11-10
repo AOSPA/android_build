@@ -19,9 +19,6 @@ PRODUCT_PACKAGES += \
     abb \
     adbd \
     am \
-    android.hardware.neuralnetworks@1.0 \
-    android.hardware.neuralnetworks@1.1 \
-    android.hardware.neuralnetworks@1.2 \
     android.hidl.allocator@1.0-service \
     android.hidl.base-V1.0-java \
     android.hidl.manager-V1.0-java \
@@ -32,11 +29,9 @@ PRODUCT_PACKAGES += \
     android.test.mock \
     android.test.runner \
     apexd \
-    applypatch \
     appops \
     app_process \
     appwidget \
-    ashmemd \
     atrace \
     audioserver \
     BackupRestoreConfirmation \
@@ -53,6 +48,7 @@ PRODUCT_PACKAGES += \
     cgroups.json \
     charger \
     cmd \
+    com.android.apex.cts.shim.v1_prebuilt \
     com.android.conscrypt \
     com.android.i18n \
     com.android.location.provider \
@@ -124,7 +120,6 @@ PRODUCT_PACKAGES += \
     libandroid_runtime \
     libandroid_servers \
     libartpalette-system \
-    libashmemd_client \
     libaudioeffect_jni \
     libbinder \
     libbinder_ndk \
@@ -160,6 +155,7 @@ PRODUCT_PACKAGES += \
     libnetd_client \
     libnetlink \
     libnetutils \
+    libneuralnetworks_packageinfo \
     libOpenMAXAL \
     libOpenSLES \
     libpdfium \
@@ -176,8 +172,6 @@ PRODUCT_PACKAGES += \
     libspeexresampler \
     libsqlite \
     libstagefright \
-    libstagefright_amrnb_common \
-    libstagefright_enc_common \
     libstagefright_foundation \
     libstagefright_omx \
     libstdc++ \
@@ -186,7 +180,6 @@ PRODUCT_PACKAGES += \
     libui \
     libusbhost \
     libutils \
-    libvorbisidec \
     libvulkan \
     libwilhelm \
     linker \
@@ -224,6 +217,7 @@ PRODUCT_PACKAGES += \
     platform.xml \
     pm \
     pppd \
+    preinstalled-packages-platform.xml \
     privapp-permissions-platform.xml \
     racoon \
     recovery-persist \
@@ -247,8 +241,10 @@ PRODUCT_PACKAGES += \
     Shell \
     shell_and_utilities_system \
     sm \
+    snapshotctl \
     SoundPicker \
     statsd \
+    statsd-service \
     storaged \
     surfaceflinger \
     svc \
@@ -330,6 +326,7 @@ PRODUCT_BOOT_JARS := \
     $(TARGET_CORE_JARS) \
     framework \
     ext \
+    telephony-common \
     voip-common \
     ims-common \
     updatable-media
@@ -373,6 +370,7 @@ PRODUCT_PACKAGES_DEBUG := \
     logpersist.start \
     logtagd.rc \
     procrank \
+    remount \
     showmap \
     sqlite3 \
     ss \

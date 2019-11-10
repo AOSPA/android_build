@@ -633,9 +633,11 @@ EXTRACT_KERNEL := build/make/tools/extract_kernel.py
 USE_OPENJDK9 := true
 
 ifeq ($(EXPERIMENTAL_JAVA_LANGUAGE_LEVEL_9),)
-TARGET_OPENJDK9 :=
+TARGET_OPENJDK9 := true
 else ifeq ($(EXPERIMENTAL_JAVA_LANGUAGE_LEVEL_9),true)
 TARGET_OPENJDK9 := true
+else ifeq ($(EXPERIMENTAL_JAVA_LANGUAGE_LEVEL_9),false)
+TARGET_OPENJDK9 :=
 endif
 
 # Path to tools.jar
@@ -1174,8 +1176,10 @@ dont_bother_goals := out \
     systemotherimage-nodeps \
     ramdisk-nodeps \
     ramdisk_debug-nodeps \
+    ramdisk_test_harness-nodeps \
     bootimage-nodeps \
     bootimage_debug-nodeps \
+    bootimage_test_harness-nodeps \
     recoveryimage-nodeps \
     vbmetaimage-nodeps \
     product-graph dump-products

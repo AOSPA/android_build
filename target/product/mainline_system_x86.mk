@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,14 +17,11 @@
 #
 # All components inherited here go to system image
 #
-$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/mainline_system.mk)
 $(call enforce-product-packages-exist,)
 
 # Enable mainline checking
 PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS := true
-PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST += \
-  root/init.zygote64_32.rc \
 
 PRODUCT_BUILD_CACHE_IMAGE := false
 PRODUCT_BUILD_ODM_IMAGE := false
@@ -36,8 +33,8 @@ PRODUCT_BUILD_SYSTEM_OTHER_IMAGE := false
 PRODUCT_BUILD_USERDATA_IMAGE := false
 PRODUCT_BUILD_VENDOR_IMAGE := false
 
-PRODUCT_NAME := mainline_system_arm64
-PRODUCT_DEVICE := mainline_arm64
+PRODUCT_NAME := mainline_system_x86
+PRODUCT_DEVICE := mainline_x86
 PRODUCT_BRAND := generic
 PRODUCT_SHIPPING_API_LEVEL := 28
 PRODUCT_RESTRICT_VENDOR_FILES := all
