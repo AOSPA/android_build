@@ -222,9 +222,6 @@ ifneq ($(TARGET_BUILD_VARIANT),user)
 ADDITIONAL_BUILD_PROPERTIES += persist.debug.dalvik.vm.core_platform_api_policy=just-warn
 endif
 
-# Define ro.sanitize.<name> properties for all global sanitizers.
-ADDITIONAL_BUILD_PROPERTIES += $(foreach s,$(SANITIZE_TARGET),ro.sanitize.$(s)=true)
-
 # Sets the default value of ro.postinstall.fstab.prefix to /system.
 # Device board config should override the value to /product when needed by:
 #
@@ -1265,8 +1262,6 @@ else
     )
   endef
 endif
-
-# TODO(b/142944799): Implement Java library absence check for Core Libraries.
 
 ifdef FULL_BUILD
   ifneq (true,$(ALLOW_MISSING_DEPENDENCIES))
