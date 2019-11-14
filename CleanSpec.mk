@@ -700,6 +700,14 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/vndk-*)
 # Switch to symlinks for VNDK libs
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/vndk-*)
 
+# Remove Android Core Library artifacts from the system partition
+# again, as the original change removing them was reverted.
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/framework/*.jar)
+
+# Remove cas@1.1 from the vendor partition
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/bin/hw/android.hardware.cas@1.1*)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/etc/init/android.hardware.cas@1.1*)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/etc/vintf/manifest/android.hardware.cas@1.1*)
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
 # ************************************************

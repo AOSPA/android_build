@@ -16,7 +16,6 @@
 
 # Base modules and settings for the system partition.
 PRODUCT_PACKAGES += \
-    adbd \
     adbd_system_binaries \
     am \
     android.hidl.allocator@1.0-service \
@@ -38,6 +37,7 @@ PRODUCT_PACKAGES += \
     bcc \
     blank_screen \
     blkid \
+    blobstore-service \
     bmgr \
     bootanimation \
     bootstat \
@@ -48,6 +48,7 @@ PRODUCT_PACKAGES += \
     cgroups.json \
     charger \
     cmd \
+    com.android.adbd \
     com.android.apex.cts.shim.v1_prebuilt \
     com.android.conscrypt \
     com.android.i18n \
@@ -99,7 +100,6 @@ PRODUCT_PACKAGES += \
     incidentd \
     incident_helper \
     init.environ.rc \
-    init.rc \
     init_system \
     input \
     installd \
@@ -205,7 +205,7 @@ PRODUCT_PACKAGES += \
     mtpd \
     ndc \
     netd \
-    NetworkStack \
+    NetworkStackNext \
     org.apache.http.legacy \
     otacerts \
     PackageInstaller \
@@ -337,9 +337,8 @@ PRODUCT_UPDATABLE_BOOT_LOCATIONS := \
 
 
 PRODUCT_COPY_FILES += \
-    system/core/rootdir/init.usb.rc:root/init.usb.rc \
-    system/core/rootdir/init.usb.configfs.rc:root/init.usb.configfs.rc \
-    system/core/rootdir/ueventd.rc:root/ueventd.rc \
+    system/core/rootdir/init.usb.rc:system/etc/init/hw/init.usb.rc \
+    system/core/rootdir/init.usb.configfs.rc:system/etc/init/hw/init.usb.configfs.rc \
     system/core/rootdir/etc/hosts:system/etc/hosts
 
 # Add the compatibility library that is needed when android.test.base
@@ -352,7 +351,7 @@ else
 PRODUCT_BOOT_JARS += android.test.base
 endif
 
-PRODUCT_COPY_FILES += system/core/rootdir/init.zygote32.rc:root/init.zygote32.rc
+PRODUCT_COPY_FILES += system/core/rootdir/init.zygote32.rc:system/etc/init/hw/init.zygote32.rc
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.zygote=zygote32
 
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += debug.atrace.tags.enableflags=0
