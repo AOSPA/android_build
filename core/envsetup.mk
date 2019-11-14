@@ -235,6 +235,7 @@ _vendor_path_placeholder := ||VENDOR-PATH-PH||
 _product_path_placeholder := ||PRODUCT-PATH-PH||
 _product_services_path_placeholder := ||PRODUCT_SERVICES-PATH-PH||
 _odm_path_placeholder := ||ODM-PATH-PH||
+_vendor_overlay_path_placeholder := ||VENDOR-OVERLAY-PATH-PH||
 TARGET_COPY_OUT_VENDOR := $(_vendor_path_placeholder)
 TARGET_COPY_OUT_PRODUCT := $(_product_path_placeholder)
 TARGET_COPY_OUT_PRODUCT_SERVICES := $(_product_services_path_placeholder)
