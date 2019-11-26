@@ -2105,8 +2105,12 @@ $(hide) if [ -s $(PRIVATE_JAVA_SOURCE_LIST) -o -n "$(PRIVATE_SRCJARS)" ] ; then 
     --output $@.premerged --temp_dir $(dir $@)/classes-turbine \
     --sources \@$(PRIVATE_JAVA_SOURCE_LIST) --source_jars $(PRIVATE_SRCJARS) \
     --javacopts $(PRIVATE_JAVACFLAGS) $(COMMON_JDK_FLAGS) -- \
-    $(addprefix --bootclasspath ,$(strip $(PRIVATE_BOOTCLASSPATH))) \
-    $(addprefix --classpath ,$(strip $(PRIVATE_ALL_JAVA_HEADER_LIBRARIES))) \
+    $(if $(PRIVATE_USE_SYSTEM_MODULES), \
+      --system $(PRIVATE_SYSTEM_MODULES_DIR), \
+      --bootclasspath $(strip $(PRIVATE_BOOTCLASSPATH))) \
+    --classpath $(strip $(if $(PRIVATE_USE_SYSTEM_MODULES), \
+        $(filter-out $(PRIVATE_SYSTEM_MODULES_LIBS),$(PRIVATE_BOOTCLASSPATH))) \
+      $(PRIVATE_ALL_JAVA_HEADER_LIBRARIES)) \
     || ( rm -rf $(dir $@)/classes-turbine ; exit 41 ) && \
     $(MERGE_ZIPS) -j --ignore-duplicates -stripDir META-INF $@.tmp $@.premerged $(PRIVATE_STATIC_JAVA_HEADER_LIBRARIES) ; \
 else \
@@ -2463,12 +2467,22 @@ $(2): \
 	$(call intermediates-dir-for,ETC,passwd_system)/passwd_system \
 	$(call intermediates-dir-for,ETC,passwd_vendor)/passwd_vendor \
 	$(call intermediates-dir-for,ETC,passwd_odm)/passwd_odm \
-	$(call intermediates-dir-for,ETC,passwd_product)/passwd_product
+	$(call intermediates-dir-for,ETC,passwd_product)/passwd_product \
+	$(call intermediates-dir-for,ETC,plat_property_contexts)/plat_property_contexts \
+	$(call intermediates-dir-for,ETC,system_ext_property_contexts)/system_ext_property_contexts \
+	$(call intermediates-dir-for,ETC,product_property_contexts)/product_property_contexts \
+	$(call intermediates-dir-for,ETC,vendor_property_contexts)/vendor_property_contexts \
+	$(call intermediates-dir-for,ETC,odm_property_contexts)/odm_property_contexts
 	$(hide) $(HOST_INIT_VERIFIER) \
 	  -p $(call intermediates-dir-for,ETC,passwd_system)/passwd_system \
 	  -p $(call intermediates-dir-for,ETC,passwd_vendor)/passwd_vendor \
 	  -p $(call intermediates-dir-for,ETC,passwd_odm)/passwd_odm \
 	  -p $(call intermediates-dir-for,ETC,passwd_product)/passwd_product \
+	  --property-contexts=$(call intermediates-dir-for,ETC,plat_property_contexts)/plat_property_contexts \
+	  --property-contexts=$(call intermediates-dir-for,ETC,system_ext_property_contexts)/system_ext_property_contexts \
+	  --property-contexts=$(call intermediates-dir-for,ETC,product_property_contexts)/product_property_contexts \
+	  --property-contexts=$(call intermediates-dir-for,ETC,vendor_property_contexts)/vendor_property_contexts \
+	  --property-contexts=$(call intermediates-dir-for,ETC,odm_property_contexts)/odm_property_contexts \
 	  $$<
 else
 $(2): $(1)
