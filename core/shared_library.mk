@@ -21,9 +21,10 @@ endif
 endif
 endif # my_module_multilib == both
 
-
+ifneq ($(FORCE_SDCLANG_OFF),true)
 ifeq ($(LOCAL_SDCLANG),true)
 include $(SDCLANG_FLAG_DEFS)
+endif
 endif
 
 LOCAL_2ND_ARCH_VAR_PREFIX :=
@@ -52,9 +53,11 @@ LOCAL_2ND_ARCH_VAR_PREFIX :=
 
 endif # TARGET_2ND_ARCH
 
+ifneq ($(FORCE_SDCLANG_OFF),true)
 ifeq ($(LOCAL_SDCLANG),true)
 ifeq ($(LOCAL_SDCLANG_LTO),true)
 include $(SDCLANG_LTO_DEFS)
+endif
 endif
 endif
 

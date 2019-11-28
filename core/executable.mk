@@ -47,8 +47,10 @@ endif
 
 my_skip_non_preferred_arch :=
 
+ifneq ($(FORCE_SDCLANG_OFF),true)
 ifeq ($(LOCAL_SDCLANG),true)
 include $(SDCLANG_FLAG_DEFS)
+endif
 endif
 
 # check if preferred arch is supported

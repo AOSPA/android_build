@@ -404,6 +404,10 @@ ifeq ($(SDCLANG),true)
     endif
 endif
 
+ifeq ($(FORCE_SDCLANG_OFF),true)
+    my_sdclang := false
+endif
+
 ifeq ($(LOCAL_C_STD),)
     my_c_std_version := $(DEFAULT_C_STD_VERSION)
 else ifeq ($(LOCAL_C_STD),experimental)
