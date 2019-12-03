@@ -131,6 +131,29 @@ ifneq ($(filter integer_overflow signed-integer-overflow unsigned-integer-overfl
 endif
 endif
 
+ifndef LOCAL_IS_HOST_MODULE
+# Enable bounds in included paths.
+ifeq ($(filter bounds, $(my_sanitize)),)
+  combined_include_paths := $(BOUNDS_INCLUDE_PATHS) \
+                              $(PRODUCT_BOUNDS_INCLUDE_PATHS)
+  ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_include_paths)),\
+           $(filter $(dir)%,$(LOCAL_PATH)))),)
+    my_sanitize := bounds $(my_sanitize)
+  endif
+endif
+
+# Disable bounds in excluded paths.
+ifneq ($(filter bounds, $(my_sanitize)),)
+  combined_exclude_paths := $(BOUNDS_EXCLUDE_PATHS) \
+                            $(PRODUCT_BOUNDS_EXCLUDE_PATHS)
+  ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_exclude_paths)),\
+         $(filter $(dir)%,$(LOCAL_PATH)))),)
+    my_sanitize := $(filter-out bounds,$(my_sanitize))
+    my_sanitize_diag := $(filter-out bounds,$(my_sanitize_diag))
+  endif
+endif
+endif
+
 # Enable CFI in included paths (for Arm64 only).
 ifeq ($(filter cfi, $(my_sanitize)),)
   ifneq ($(filter arm64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)),)

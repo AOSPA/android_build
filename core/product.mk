@@ -295,6 +295,12 @@ _product_list_vars += PRODUCT_INTEGER_OVERFLOW_EXCLUDE_PATHS
 # Whether any paths should have INTEGER OVERFLOW enabled for components
 _product_var_list += PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS
 
+# Whether any paths are excluded from sanitization when SANITIZE_TARGET=bounds
+_product_var_list += PRODUCT_BOUNDS_EXCLUDE_PATHS
+
+# Whether any paths should have ubsan  enabled for components
+_product_var_list += PRODUCT_BOUNDS_INCLUDE_PATHS
+
 _product_single_value_vars += PRODUCT_ADB_KEYS
 
 # Whether any paths should have CFI enabled for components
