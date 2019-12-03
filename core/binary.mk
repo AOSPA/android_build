@@ -1311,6 +1311,8 @@ ifeq ($(LOCAL_SDK_VERSION)$(LOCAL_USE_VNDK),)
   my_c_includes += $(JNI_H_INCLUDE)
 endif
 
+my_c_includes := $(foreach inc,$(my_c_includes),$(call clean-path,$(inc)))
+
 # Find $1 in the exception project list.
 define find_in_cincludes_exception_projects
 $(subst $(space),, \
@@ -1852,7 +1854,7 @@ export_include_deps += $(strip \
 
 ifneq ($(strip $(my_export_c_include_dirs)$(export_include_deps)),)
   EXPORTS_LIST := $(EXPORTS_LIST) $(intermediates)
-  EXPORTS.$(intermediates).FLAGS := $(foreach d,$(my_export_c_include_dirs),-I $(d))
+  EXPORTS.$(intermediates).FLAGS := $(foreach d,$(my_export_c_include_dirs),-I $(call clean-path,$(d)))
   EXPORTS.$(intermediates).REEXPORT := $(export_include_deps)
   EXPORTS.$(intermediates).DEPS := $(my_export_c_include_deps) $(my_generated_sources) $(LOCAL_EXPORT_C_INCLUDE_DEPS)
 endif

@@ -661,10 +661,11 @@ DEPMOD_STAGING_SUBDIR :=$= lib/modules/0.0
 # $(4): staging dir
 # $(5): module load list
 # $(6): module load list filename
+# $(7): module archive
 # Returns the a list of src:dest pairs to install the modules using copy-many-files.
 define build-image-kernel-modules
   $(foreach module,$(1),$(module):$(2)/lib/modules/$(notdir $(module))) \
-  $(eval $(call build-image-kernel-modules-depmod,$(1),$(3),$(4),$(5),$(6))) \
+  $(eval $(call build-image-kernel-modules-depmod,$(1),$(3),$(4),$(5),$(6),$(7),$(2))) \
   $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.dep:$(2)/lib/modules/modules.dep \
   $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.alias:$(2)/lib/modules/modules.alias \
   $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.softdep:$(2)/lib/modules/modules.softdep \
@@ -676,6 +677,13 @@ endef
 # $(3): staging dir
 # $(4): module load list
 # $(5): module load list filename
+# $(6): module archive
+# $(7): output dir
+# TODO(b/144844424): If a module archive is being used, this step (which
+# generates obj/PACKAGING/.../modules.dep) also unzips the module archive into
+# the output directory. This should be moved to a module with a
+# LOCAL_POST_INSTALL_CMD so that if modules.dep is removed from the output dir,
+# the archive modules are restored along with modules.dep.
 define build-image-kernel-modules-depmod
 $(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: .KATI_IMPLICIT_OUTPUTS := $(3)/$(DEPMOD_STAGING_SUBDIR)/modules.alias $(3)/$(DEPMOD_STAGING_SUBDIR)/modules.softdep $(3)/$(DEPMOD_STAGING_SUBDIR)/$(5)
 $(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: $(DEPMOD)
@@ -685,16 +693,29 @@ $(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: PRIVATE_MODULE_DIR := $(3)/$(DEPMOD_S
 $(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: PRIVATE_STAGING_DIR := $(3)
 $(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: PRIVATE_LOAD_MODULES := $(4)
 $(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: PRIVATE_LOAD_FILE := $(3)/$(DEPMOD_STAGING_SUBDIR)/$(5)
-$(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: $(1)
+$(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: PRIVATE_MODULE_ARCHIVE := $(6)
+$(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: PRIVATE_OUTPUT_DIR := $(7)
+$(3)/$(DEPMOD_STAGING_SUBDIR)/modules.dep: $(1) $(6)
 	@echo depmod $$(PRIVATE_STAGING_DIR)
 	rm -rf $$(PRIVATE_STAGING_DIR)
 	mkdir -p $$(PRIVATE_MODULE_DIR)
-	cp $$(PRIVATE_MODULES) $$(PRIVATE_MODULE_DIR)/
+	$(if $(6),\
+	  unzip -qo -d $$(PRIVATE_MODULE_DIR) $$(PRIVATE_MODULE_ARCHIVE); \
+	  mkdir -p $$(PRIVATE_OUTPUT_DIR)/lib; \
+	  rm -rf $$(PRIVATE_OUTPUT_DIR)/lib/modules; \
+	  cp -r $$(PRIVATE_MODULE_DIR) $$(PRIVATE_OUTPUT_DIR)/lib/; \
+	  find $$(PRIVATE_MODULE_DIR) -type f -name *.ko | xargs basename -a > $$(PRIVATE_LOAD_FILE); \
+	)
+	$(if $(1),\
+	  cp $$(PRIVATE_MODULES) $$(PRIVATE_MODULE_DIR)/; \
+	  for MODULE in $$(PRIVATE_LOAD_MODULES); do \
+	    basename $$$$MODULE >> $$(PRIVATE_LOAD_FILE); \
+	  done; \
+	)
 	$(DEPMOD) -b $$(PRIVATE_STAGING_DIR) 0.0
 	# Turn paths in modules.dep into absolute paths
 	sed -i.tmp -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' $$(PRIVATE_STAGING_DIR)/$$(DEPMOD_STAGING_SUBDIR)/modules.dep
 	touch $$(PRIVATE_LOAD_FILE)
-	(for MODULE in $$(PRIVATE_LOAD_MODULES); do basename $$$$MODULE >> $$(PRIVATE_LOAD_FILE); done)
 endef
 
 # $(1): staging dir
@@ -738,40 +759,40 @@ ifneq ($(strip $(BOARD_GENERIC_RAMDISK_KERNEL_MODULES)),)
   endif
 endif
 
-ifneq ($(strip $(BOARD_RECOVERY_KERNEL_MODULES)),)
+ifneq ($(strip $(BOARD_RECOVERY_KERNEL_MODULES))$(strip $(BOARD_RECOVERY_KERNEL_MODULES_ARCHIVE)),)
   ifeq ($(BOARD_USES_RECOVERY_AS_BOOT), true)
     ifdef BOARD_GENERIC_RAMDISK_KERNEL_MODULES_LOAD
       ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call module-load-list-copy-paths,$(call intermediates-dir-for,PACKAGING,ramdisk_modules),$(BOARD_GENERIC_RAMDISK_KERNEL_MODULES_LOAD),modules.load,$(TARGET_RECOVERY_ROOT_OUT)))
     endif
   endif
-  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_RECOVERY_KERNEL_MODULES),$(TARGET_RECOVERY_ROOT_OUT),,$(call intermediates-dir-for,PACKAGING,depmod_recovery),$(BOARD_RECOVERY_KERNEL_MODULES_LOAD),modules.load.recovery))
+  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_RECOVERY_KERNEL_MODULES),$(TARGET_RECOVERY_ROOT_OUT),,$(call intermediates-dir-for,PACKAGING,depmod_recovery),$(BOARD_RECOVERY_KERNEL_MODULES_LOAD),modules.load.recovery,$(BOARD_RECOVERY_KERNEL_MODULES_ARCHIVE)))
 endif
 
-ifneq ($(strip $(BOARD_VENDOR_RAMDISK_KERNEL_MODULES)),)
+ifneq ($(strip $(BOARD_VENDOR_RAMDISK_KERNEL_MODULES))$(strip $(BOARD_VENDOR_RAMDISK_KERNEL_MODULES_ARCHIVE)),)
   ifeq ($(BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD),)
     BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD := $(BOARD_VENDOR_RAMDISK_KERNEL_MODULES)
   endif
-  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_VENDOR_RAMDISK_KERNEL_MODULES),$(TARGET_VENDOR_RAMDISK_OUT),,$(call intermediates-dir-for,PACKAGING,depmod_vendor_ramdisk),$(BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD),modules.load))
+  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_VENDOR_RAMDISK_KERNEL_MODULES),$(TARGET_VENDOR_RAMDISK_OUT),,$(call intermediates-dir-for,PACKAGING,depmod_vendor_ramdisk),$(BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD),modules.load,$(BOARD_VENDOR_RAMDISK_KERNEL_MODULES_ARCHIVE)))
 endif
 
 ifneq ($(BOARD_USES_RECOVERY_AS_BOOT), true)
   ifneq ($(strip $(BOARD_GENERIC_RAMDISK_KERNEL_MODULES)),)
-    ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_GENERIC_RAMDISK_KERNEL_MODULES),$(TARGET_RAMDISK_OUT),,$(call intermediates-dir-for,PACKAGING,depmod_ramdisk),$(BOARD_GENERIC_RAMDISK_KERNEL_MODULES_LOAD),modules.load))
+    ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_GENERIC_RAMDISK_KERNEL_MODULES),$(TARGET_RAMDISK_OUT),,$(call intermediates-dir-for,PACKAGING,depmod_ramdisk),$(BOARD_GENERIC_RAMDISK_KERNEL_MODULES_LOAD),modules.load,))
   endif
 endif
 
-ifneq ($(strip $(BOARD_VENDOR_KERNEL_MODULES)),)
+ifneq ($(strip $(BOARD_VENDOR_KERNEL_MODULES)$(strip $(BOARD_VENDOR_KERNEL_MODULES_ARCHIVE))),)
   ifeq ($(BOARD_VENDOR_KERNEL_MODULES_LOAD),)
     BOARD_VENDOR_KERNEL_MODULES_LOAD := $(BOARD_VENDOR_KERNEL_MODULES)
   endif
-  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_VENDOR_KERNEL_MODULES),$(TARGET_OUT_VENDOR),vendor,$(call intermediates-dir-for,PACKAGING,depmod_vendor),$(BOARD_VENDOR_KERNEL_MODULES_LOAD),modules.load))
+  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_VENDOR_KERNEL_MODULES),$(TARGET_OUT_VENDOR),vendor,$(call intermediates-dir-for,PACKAGING,depmod_vendor),$(BOARD_VENDOR_KERNEL_MODULES_LOAD),modules.load,$(BOARD_VENDOR_KERNEL_MODULES_ARCHIVE)))
 endif
 
-ifneq ($(strip $(BOARD_ODM_KERNEL_MODULES)),)
+ifneq ($(strip $(BOARD_ODM_KERNEL_MODULES))$(strip $(BOARD_ODM_KERNEL_MODULES_ARCHIVE)),)
   ifeq ($(BOARD_RECOVERY_KERNEL_MODULES_LOAD),)
     BOARD_ODM_KERNEL_MODULES_LOAD := $(BOARD_ODM_KERNEL_MODULES)
   endif
-  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_ODM_KERNEL_MODULES),$(TARGET_OUT_ODM),odm,$(call intermediates-dir-for,PACKAGING,depmod_odm),$(BOARD_ODM_KERNEL_MODULES_LOAD),modules.load))
+  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(call build-image-kernel-modules,$(BOARD_ODM_KERNEL_MODULES),$(TARGET_OUT_ODM),odm,$(call intermediates-dir-for,PACKAGING,depmod_odm),$(BOARD_ODM_KERNEL_MODULES_LOAD),modules.load,$(BOARD_ODM_KERNEL_MODULES_ARCHIVE)))
 endif
 
 # -----------------------------------------------------------------
@@ -1453,6 +1474,9 @@ endif
 ifneq (true,$(TARGET_USERIMAGES_SPARSE_SQUASHFS_DISABLED))
   INTERNAL_USERIMAGES_SPARSE_SQUASHFS_FLAG := -s
 endif
+ifneq (true,$(TARGET_USERIMAGES_SPARSE_F2FS_DISABLED))
+  INTERNAL_USERIMAGES_SPARSE_F2FS_FLAG := -S
+endif
 
 INTERNAL_USERIMAGES_DEPS := \
     $(BUILD_IMAGE) \
@@ -1589,6 +1613,7 @@ $(hide) echo "ext_mkuserimg=$(notdir $(MKEXTUSERIMG))" >> $(1)
 $(if $(INTERNAL_USERIMAGES_EXT_VARIANT),$(hide) echo "fs_type=$(INTERNAL_USERIMAGES_EXT_VARIANT)" >> $(1))
 $(if $(INTERNAL_USERIMAGES_SPARSE_EXT_FLAG),$(hide) echo "extfs_sparse_flag=$(INTERNAL_USERIMAGES_SPARSE_EXT_FLAG)" >> $(1))
 $(if $(INTERNAL_USERIMAGES_SPARSE_SQUASHFS_FLAG),$(hide) echo "squashfs_sparse_flag=$(INTERNAL_USERIMAGES_SPARSE_SQUASHFS_FLAG)" >> $(1))
+$(if $(INTERNAL_USERIMAGES_SPARSE_F2FS_FLAG),$(hide) echo "f2fs_sparse_flag=$(INTERNAL_USERIMAGES_SPARSE_F2FS_FLAG)" >> $(1))
 $(if $(BOARD_EXT4_SHARE_DUP_BLOCKS),$(hide) echo "ext4_share_dup_blocks=$(BOARD_EXT4_SHARE_DUP_BLOCKS)" >> $(1))
 $(if $(BOARD_FLASH_LOGICAL_BLOCK_SIZE), $(hide) echo "flash_logical_block_size=$(BOARD_FLASH_LOGICAL_BLOCK_SIZE)" >> $(1))
 $(if $(BOARD_FLASH_ERASE_BLOCK_SIZE), $(hide) echo "flash_erase_block_size=$(BOARD_FLASH_ERASE_BLOCK_SIZE)" >> $(1))
@@ -3632,33 +3657,32 @@ ifeq (,$(TARGET_BUILD_APPS))
 
 ifeq (true,$(PRODUCT_BUILD_SUPER_PARTITION))
 
-droid_targets: check-all-partition-sizes
-
-.PHONY: check-all-partition-sizes check-all-partition-sizes-nodeps
-
-check_all_partition_sizes_file := $(call intermediates-dir-for,PACKAGING,check-all-partition-sizes)/timestamp
-
-check-all-partition-sizes: $(check_all_partition_sizes_file)
-
-$(check_all_partition_sizes_file): \
-    $(CHECK_PARTITION_SIZES) \
-    $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
-
 # $(1): misc_info.txt
+# #(2): optional log file
 define check-all-partition-sizes-target
   mkdir -p $(dir $(1))
   rm -f $(1)
   $(call dump-super-image-info, $(1))
   $(foreach partition,$(BOARD_SUPER_PARTITION_PARTITION_LIST), \
     echo "$(partition)_image="$(call images-for-partitions,$(partition)) >> $(1);)
-  $(CHECK_PARTITION_SIZES) -v $(1)
+  $(CHECK_PARTITION_SIZES) $(if $(2),--logfile $(2),-v) $(1)
 endef
 
-$(check_all_partition_sizes_file):
-	$(call check-all-partition-sizes-target, \
-	  $(call intermediates-dir-for,PACKAGING,check-all-partition-sizes)/misc_info.txt)
-	touch $@
+check_all_partition_sizes_log := $(call intermediates-dir-for,PACKAGING,check-all-partition-sizes)/check_all_partition_sizes_log
+droid_targets: $(check_all_partition_sizes_log)
+$(call dist-for-goals, droid_targets, $(check_all_partition_sizes_log))
 
+$(check_all_partition_sizes_log): \
+    $(CHECK_PARTITION_SIZES) \
+    $(call images-for-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))
+	$(call check-all-partition-sizes-target, \
+	  $(call intermediates-dir-for,PACKAGING,check-all-partition-sizes)/misc_info.txt, \
+	  $@)
+
+.PHONY: check-all-partition-sizes
+check-all-partition-sizes: $(check_all_partition_sizes_log)
+
+.PHONY: check-all-partition-sizes-nodeps
 check-all-partition-sizes-nodeps:
 	$(call check-all-partition-sizes-target, \
 	  $(call intermediates-dir-for,PACKAGING,check-all-partition-sizes-nodeps)/misc_info.txt)
@@ -4106,6 +4130,8 @@ define dump-dynamic-partitions-info
     $(if $(BOARD_$(call to-upper,$(group))_PARTITION_LIST), \
       echo "super_$(group)_partition_list=$(call filter-out-missing-vendor, $(BOARD_$(call to-upper,$(group))_PARTITION_LIST))" >> $(1);))
   $(if $(filter true,$(TARGET_USERIMAGES_SPARSE_EXT_DISABLED)), \
+    echo "build_non_sparse_super_partition=true" >> $(1))
+  $(if $(filter true,$(TARGET_USERIMAGES_SPARSE_F2FS_DISABLED)), \
     echo "build_non_sparse_super_partition=true" >> $(1))
   $(if $(filter true,$(BOARD_SUPER_IMAGE_IN_UPDATE_PACKAGE)), \
     echo "super_image_in_update_package=true" >> $(1))
@@ -5135,11 +5161,11 @@ FUZZ_SHARED_DEPS := $(call copy-many-files,$(strip $(FUZZ_TARGET_SHARED_DEPS_INS
 # target defined in make. MakeVarsContext.DistForGoal doesn't take
 # into account that a PHONY rule create by Soong won't be available
 # during make, and such will fail with `writing to readonly
-# directory`, because kati will see 'fuzz' as being a file, not a
+# directory`, because kati will see 'haiku' as being a file, not a
 # phony target.
-.PHONY: fuzz
-fuzz: $(SOONG_FUZZ_PACKAGING_ARCH_MODULES) $(ALL_FUZZ_TARGETS)
-$(call dist-for-goals,fuzz,$(SOONG_FUZZ_PACKAGING_ARCH_MODULES))
+.PHONY: haiku
+haiku: $(SOONG_FUZZ_PACKAGING_ARCH_MODULES) $(ALL_FUZZ_TARGETS)
+$(call dist-for-goals,haiku,$(SOONG_FUZZ_PACKAGING_ARCH_MODULES))
 
 ifeq (true,$(PRODUCT_USE_DYNAMIC_PARTITIONS))
 define build-dynamic-partition-metadata
