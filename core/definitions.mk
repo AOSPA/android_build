@@ -1369,8 +1369,10 @@ DOTDOT_REPLACEMENT := dotdot/
 # $(1): the C++ source file in LOCAL_SRC_FILES.
 # $(2): the additional dependencies.
 # $(3): the variable name to collect the output object file.
+# $(4): the ninja pool to use for the rule
 define compile-dotdot-cpp-file
 o := $(intermediates)/$(patsubst %$(LOCAL_CPP_EXTENSION),%.o,$(subst ../,$(DOTDOT_REPLACEMENT),$(1)))
+$$(o) : .KATI_NINJA_POOL := $(4)
 $$(o) : $(TOPDIR)$(LOCAL_PATH)/$(1) $(2) $(CLANG_CXX)
 	$$(transform-$$(PRIVATE_HOST)cpp-to-o)
 $$(call include-depfiles-for-objs, $$(o))
@@ -1382,8 +1384,10 @@ endef
 # $(1): the C source file in LOCAL_SRC_FILES.
 # $(2): the additional dependencies.
 # $(3): the variable name to collect the output object file.
+# $(4): the ninja pool to use for the rule
 define compile-dotdot-c-file
 o := $(intermediates)/$(patsubst %.c,%.o,$(subst ../,$(DOTDOT_REPLACEMENT),$(1)))
+$$(o) : .KATI_NINJA_POOL := $(4)
 $$(o) : $(TOPDIR)$(LOCAL_PATH)/$(1) $(2) $(CLANG)
 	$$(transform-$$(PRIVATE_HOST)c-to-o)
 $$(call include-depfiles-for-objs, $$(o))
@@ -1395,8 +1399,10 @@ endef
 # $(1): the .S source file in LOCAL_SRC_FILES.
 # $(2): the additional dependencies.
 # $(3): the variable name to collect the output object file.
+# $(4): the ninja pool to use for the rule
 define compile-dotdot-s-file
 o := $(intermediates)/$(patsubst %.S,%.o,$(subst ../,$(DOTDOT_REPLACEMENT),$(1)))
+$$(o) : .KATI_NINJA_POOL := $(4)
 $$(o) : $(TOPDIR)$(LOCAL_PATH)/$(1) $(2) $(CLANG)
 	$$(transform-$$(PRIVATE_HOST)s-to-o)
 $$(call include-depfiles-for-objs, $$(o))
@@ -1408,8 +1414,10 @@ endef
 # $(1): the .s source file in LOCAL_SRC_FILES.
 # $(2): the additional dependencies.
 # $(3): the variable name to collect the output object file.
+# $(4): the ninja pool to use for the rule
 define compile-dotdot-s-file-no-deps
 o := $(intermediates)/$(patsubst %.s,%.o,$(subst ../,$(DOTDOT_REPLACEMENT),$(1)))
+$$(o) : .KATI_NINJA_POOL := $(4)
 $$(o) : $(TOPDIR)$(LOCAL_PATH)/$(1) $(2) $(CLANG)
 	$$(transform-$$(PRIVATE_HOST)s-to-o)
 $(3) += $$(o)
