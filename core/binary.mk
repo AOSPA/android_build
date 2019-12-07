@@ -398,18 +398,14 @@ ifeq ($(my_clang),false)
 endif
 
 my_sdclang := $(strip $(LOCAL_SDCLANG))
-my_sdclang_2 := $(strip $(LOCAL_SDCLANG_2))
-ifeq ($(my_sdclang),true)
-    ifeq ($(my_sdclang_2),true)
-        $(error LOCAL_SDCLANG and LOCAL_SDCLANG_2 can not be set to true at the same time!)
-    endif
-endif
 ifeq ($(SDCLANG),true)
     ifeq ($(my_sdclang),)
-        ifneq ($(my_sdclang_2),true)
-            my_sdclang := true
-        endif
+        my_sdclang := true
     endif
+endif
+
+ifeq ($(FORCE_SDCLANG_OFF),true)
+    my_sdclang := false
 endif
 
 ifeq ($(LOCAL_C_STD),)
@@ -1655,17 +1651,6 @@ ifeq ($(my_sdclang),true)
     endif
     ifeq ($(strip $(my_cxx_link)),)
         my_cxx_link := $(SDCLANG_PATH)/clang++
-    endif
-endif
-ifeq ($(my_sdclang_2),true)
-    ifeq ($(strip $(my_cc)),)
-        my_cc := $(SDCLANG_PATH_2)/clang
-    endif
-    ifeq ($(strip $(my_cxx)),)
-        my_cxx := $(SDCLANG_PATH_2)/clang++
-    endif
-    ifeq ($(strip $(my_cxx_link)),)
-        my_cxx_link := $(SDCLANG_PATH_2)/clang++
     endif
 endif
 

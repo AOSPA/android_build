@@ -1162,7 +1162,6 @@ $(if $(PRIVATE_TIDY_CHECKS),$(clang-tidy-cpp))
 $(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
   $(transform-cpp-to-o-compiler-args) \
   $(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS)) \
-  $(if $(findstring $(SDCLANG_PATH_2),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS_2)) \
   -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
 endef
 endif
@@ -1210,7 +1209,6 @@ $(if $(PRIVATE_TIDY_CHECKS),$(clang-tidy-c))
 $(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
   $(transform-c-to-o-compiler-args) \
   $(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS)) \
-  $(if $(findstring $(SDCLANG_PATH_2),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS_2)) \
   -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
 endef
 endif
@@ -1221,7 +1219,6 @@ define transform-s-to-o
 $(RELATIVE_PWD) $(PRIVATE_CC) \
   $(call transform-c-or-s-to-o-compiler-args, $(PRIVATE_ASFLAGS)) \
   $(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS)) \
-  $(if $(findstring $(SDCLANG_PATH_2),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS_2)) \
   -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
 endef
 
