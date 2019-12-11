@@ -4,6 +4,9 @@ MODULE_INFO_JSON := $(PRODUCT_OUT)/module-info.json
 
 $(MODULE_INFO_JSON):
 	@echo Generating $@
+	$(foreach m, $(sort $(ALL_MODULES)), $(eval ALL_MODULES.$(m).INCS := \
+					$(patsubst -D%,,$(subst -I,,$(foreach imp,$(ALL_MODULES.$(m).IMPORTS), \
+					$(EXPORTS.$(imp).FLAGS))) $(ALL_MODULES.$(m).INCS))))
 	$(hide) echo -ne '{\n ' > $@
 	$(hide) echo -ne $(foreach m, $(sort $(ALL_MODULES)), \
 		' "$(m)": {' \
@@ -17,6 +20,7 @@ $(MODULE_INFO_JSON):
 			'"test_config": [$(if $(ALL_MODULES.$(m).TEST_CONFIG),"$(ALL_MODULES.$(m).TEST_CONFIG)")], ' \
 			'"dependencies": [$(foreach w,$(sort $(ALL_DEPS.$(m).ALL_DEPS)),"$(w)", )], ' \
 			'"srcs": [$(foreach w,$(sort $(ALL_MODULES.$(m).SRCS)),"$(w)", )], ' \
+			'"incs": [$(foreach w,$(sort $(ALL_MODULES.$(m).INCS)),"$(w)", )], ' \
                         '"static": [$(foreach w,$(sort $(ALL_MODULES.$(m).STATIC)),"$(w)", )], ' \
 			'"srcjars": [$(foreach w,$(sort $(ALL_MODULES.$(m).SRCJARS)),"$(w)", )], ' \
 			'"classes_jar": [$(foreach w,$(sort $(ALL_MODULES.$(m).CLASSES_JAR)),"$(w)", )], ' \

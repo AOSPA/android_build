@@ -769,6 +769,8 @@ ALL_MODULES.$(my_register_name).SRCS := \
     $(ALL_MODULES.$(my_register_name).SRCS) $(LOCAL_SRC_FILES)
 ALL_MODULES.$(my_register_name).STATIC := \
     $(ALL_MODULES.$(my_register_name).STATIC) $(LOCAL_STATIC_LIBRARIES)
+ALL_MODULES.$(my_register_name).INCS := \
+    $(ALL_MODULES.$(my_register_name).INCS) $(LOCAL_C_INCLUDES)
 ALL_MODULES.$(my_register_name).PATH := \
     $(ALL_MODULES.$(my_register_name).PATH) $(LOCAL_PATH)
 ALL_MODULES.$(my_register_name).TAGS := \
