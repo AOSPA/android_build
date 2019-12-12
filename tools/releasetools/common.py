@@ -87,6 +87,7 @@ class Options(object):
     # Stash size cannot exceed cache_size * threshold.
     self.cache_size = None
     self.stash_threshold = 0.8
+    self.logfile = None
 
 
 OPTIONS = Options()
@@ -158,13 +159,14 @@ def InitLogging():
           'default': {
               'class': 'logging.StreamHandler',
               'formatter': 'standard',
+              'level': 'WARNING',
           },
       },
       'loggers': {
           '': {
               'handlers': ['default'],
-              'level': 'WARNING',
               'propagate': True,
+              'level': 'INFO',
           }
       }
   }
@@ -177,8 +179,19 @@ def InitLogging():
 
     # Increase the logging level for verbose mode.
     if OPTIONS.verbose:
-      config = copy.deepcopy(DEFAULT_LOGGING_CONFIG)
-      config['loggers']['']['level'] = 'INFO'
+      config = copy.deepcopy(config)
+      config['handlers']['default']['level'] = 'INFO'
+
+    if OPTIONS.logfile:
+      config = copy.deepcopy(config)
+      config['handlers']['logfile'] = {
+        'class': 'logging.FileHandler',
+        'formatter': 'standard',
+        'level': 'INFO',
+        'mode': 'w',
+        'filename': OPTIONS.logfile,
+      }
+      config['loggers']['']['handlers'].append('logfile')
 
   logging.config.dictConfig(config)
 
@@ -783,13 +796,7 @@ def DumpInfoDict(d):
     logger.info("%-25s = (%s) %s", k, type(v).__name__, v)
 
 
-def MergeDynamicPartitionInfoDicts(framework_dict,
-                                   vendor_dict,
-                                   include_dynamic_partition_list=True,
-                                   size_prefix="",
-                                   size_suffix="",
-                                   list_prefix="",
-                                   list_suffix=""):
+def MergeDynamicPartitionInfoDicts(framework_dict, vendor_dict):
   """Merges dynamic partition info variables.
 
   Args:
@@ -797,18 +804,6 @@ def MergeDynamicPartitionInfoDicts(framework_dict,
       partial framework target files.
     vendor_dict: The dictionary of dynamic partition info variables from the
       partial vendor target files.
-    include_dynamic_partition_list: If true, merges the dynamic_partition_list
-      variable. Not all use cases need this variable merged.
-    size_prefix: The prefix in partition group size variables that precedes the
-      name of the partition group. For example, partition group 'group_a' with
-      corresponding size variable 'super_group_a_group_size' would have the
-      size_prefix 'super_'.
-    size_suffix: Similar to size_prefix but for the variable's suffix. For
-      example, 'super_group_a_group_size' would have size_suffix '_group_size'.
-    list_prefix: Similar to size_prefix but for the partition group's
-      partition_list variable.
-    list_suffix: Similar to size_suffix but for the partition group's
-      partition_list variable.
 
   Returns:
     The merged dynamic partition info dictionary.
@@ -817,24 +812,21 @@ def MergeDynamicPartitionInfoDicts(framework_dict,
   # Partition groups and group sizes are defined by the vendor dict because
   # these values may vary for each board that uses a shared system image.
   merged_dict["super_partition_groups"] = vendor_dict["super_partition_groups"]
-  if include_dynamic_partition_list:
-    framework_dynamic_partition_list = framework_dict.get(
-        "dynamic_partition_list", "")
-    vendor_dynamic_partition_list = vendor_dict.get("dynamic_partition_list",
-                                                    "")
-    merged_dict["dynamic_partition_list"] = (
-        "%s %s" % (framework_dynamic_partition_list,
-                   vendor_dynamic_partition_list)).strip()
+  framework_dynamic_partition_list = framework_dict.get(
+      "dynamic_partition_list", "")
+  vendor_dynamic_partition_list = vendor_dict.get("dynamic_partition_list", "")
+  merged_dict["dynamic_partition_list"] = ("%s %s" % (
+      framework_dynamic_partition_list, vendor_dynamic_partition_list)).strip()
   for partition_group in merged_dict["super_partition_groups"].split(" "):
     # Set the partition group's size using the value from the vendor dict.
-    key = "%s%s%s" % (size_prefix, partition_group, size_suffix)
+    key = "super_%s_group_size" % partition_group
     if key not in vendor_dict:
       raise ValueError("Vendor dict does not contain required key %s." % key)
     merged_dict[key] = vendor_dict[key]
 
     # Set the partition group's partition list using a concatenation of the
     # framework and vendor partition lists.
-    key = "%s%s%s" % (list_prefix, partition_group, list_suffix)
+    key = "super_%s_partition_list" % partition_group
     merged_dict[key] = (
         "%s %s" %
         (framework_dict.get(key, ""), vendor_dict.get(key, ""))).strip()
@@ -1801,6 +1793,9 @@ Global options
 
   -h  (--help)
       Display this usage message and exit.
+
+  --logfile <file>
+      Put verbose logs to specified file (regardless of --verbose option.)
 """
 
 def Usage(docstring):
@@ -1826,7 +1821,7 @@ def ParseOptions(argv,
          "java_path=", "java_args=", "public_key_suffix=",
          "private_key_suffix=", "boot_signer_path=", "boot_signer_args=",
          "verity_signer_path=", "verity_signer_args=", "device_specific=",
-         "extra="] +
+         "extra=", "logfile="] +
         list(extra_long_opts))
   except getopt.GetoptError as err:
     Usage(docstring)
@@ -1868,6 +1863,8 @@ def ParseOptions(argv,
     elif o in ("-x", "--extra"):
       key, value = a.split("=", 1)
       OPTIONS.extras[key] = value
+    elif o in ("--logfile",):
+      OPTIONS.logfile = a
     else:
       if extra_option_handler is None or not extra_option_handler(o, a):
         assert False, "unknown option \"%s\"" % (o,)
