@@ -30,6 +30,7 @@ PRODUCT_PACKAGES += \
     apexd \
     appops \
     app_process \
+    service-appsearch \
     appwidget \
     atrace \
     audioserver \
@@ -37,7 +38,7 @@ PRODUCT_PACKAGES += \
     bcc \
     blank_screen \
     blkid \
-    blobstore-service \
+    service-blobstore \
     bmgr \
     bootanimation \
     bootstat \
@@ -45,6 +46,7 @@ PRODUCT_PACKAGES += \
     bu \
     bugreport \
     bugreportz \
+    cacerts_wfa \
     cgroups.json \
     charger \
     cmd \
@@ -52,12 +54,14 @@ PRODUCT_PACKAGES += \
     com.android.apex.cts.shim.v1_prebuilt \
     com.android.conscrypt \
     com.android.i18n \
+    com.android.ipsec \
     com.android.location.provider \
     com.android.media \
     com.android.media.swcodec \
     com.android.resolv \
     com.android.neuralnetworks \
     com.android.tzdata \
+    com.android.wifi \
     ContactsProvider \
     content \
     crash_dump \
@@ -91,7 +95,6 @@ PRODUCT_PACKAGES += \
     gpuservice \
     hid \
     hwservicemanager \
-    idmap \
     idmap2 \
     idmap2d \
     ime \
@@ -101,6 +104,7 @@ PRODUCT_PACKAGES += \
     incident_helper \
     init.environ.rc \
     init_system \
+    InProcessTethering \
     input \
     installd \
     iorapd \
@@ -109,7 +113,7 @@ PRODUCT_PACKAGES += \
     iptables \
     ip-up-vpn \
     javax.obex \
-    jobscheduler-service \
+    service-jobscheduler \
     keystore \
     ld.config.txt \
     ld.mc \
@@ -127,6 +131,7 @@ PRODUCT_PACKAGES += \
     libcamera2ndk \
     libcutils \
     libdl.bootstrap \
+    libdl_android.bootstrap \
     libdrmframework \
     libdrmframework_jni \
     libEGL \
@@ -243,7 +248,7 @@ PRODUCT_PACKAGES += \
     snapshotctl \
     SoundPicker \
     statsd \
-    statsd-service \
+    service-statsd \
     storaged \
     surfaceflinger \
     svc \
@@ -265,7 +270,6 @@ PRODUCT_PACKAGES += \
     vold \
     WallpaperBackup \
     watchdogd \
-    InProcessWifiStack \
     wificond \
     wm \
 
@@ -328,12 +332,13 @@ PRODUCT_BOOT_JARS := \
     telephony-common \
     voip-common \
     ims-common \
+    ike \
     updatable-media
-PRODUCT_UPDATABLE_BOOT_MODULES := conscrypt updatable-media
-PRODUCT_UPDATABLE_BOOT_LOCATIONS := \
-    /apex/com.android.conscrypt/javalib/conscrypt.jar \
-    /apex/com.android.media/javalib/updatable-media.jar
 
+PRODUCT_UPDATABLE_BOOT_JARS := \
+    com.android.conscrypt:conscrypt \
+    com.android.ipsec:ike \
+    com.android.media:updatable-media
 
 PRODUCT_COPY_FILES += \
     system/core/rootdir/init.usb.rc:system/etc/init/hw/init.usb.rc \
