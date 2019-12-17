@@ -1823,6 +1823,16 @@ $(RECOVERY_INSTALL_OTA_KEYS): $(SOONG_ZIP) $(OTA_PUBLIC_KEYS) $(extra_keys)
 RECOVERYIMAGE_ID_FILE := $(PRODUCT_OUT)/recovery.id
 
 # $(1): output file
+ifneq ($(TARGET_PREBUILT_RECOVERY_RAMDISK_CPIO),)
+define build-recoveryimage-target
+  @echo -e ${CL_CYN}"----- Applying prebuilt recovery ramdisk ------"${CL_RST}
+  $(hide) mkdir -p $(TARGET_RECOVERY_OUT)
+  $(hide) mkdir -p $(TARGET_RECOVERY_ROOT_OUT)
+  $(hide) rm -rf $(TARGET_RECOVERY_ROOT_OUT)/*
+  $(hide) cp $(TARGET_PREBUILT_RECOVERY_RAMDISK_CPIO) $(OUT_DIR)/prebuilt_ramdisk-recovery.cpio
+  $(hide) cd $(TARGET_RECOVERY_ROOT_OUT) && cpio -id < $(OUT_DIR)/prebuilt_ramdisk-recovery.cpio && cd -
+endef
+else
 define build-recoveryimage-target
   # Making recovery image
   $(hide) mkdir -p $(TARGET_RECOVERY_OUT)
@@ -1875,6 +1885,7 @@ define build-recoveryimage-target
       $(hide) $(AVBTOOL) add_hash_footer --image $(1) --partition_size $(BOARD_BOOTIMAGE_PARTITION_SIZE) --partition_name boot $(INTERNAL_AVB_BOOT_SIGNING_ARGS) $(BOARD_AVB_BOOT_ADD_HASH_FOOTER_ARGS),\
       $(hide) $(AVBTOOL) add_hash_footer --image $(1) --partition_size $(BOARD_RECOVERYIMAGE_PARTITION_SIZE) --partition_name recovery $(INTERNAL_AVB_RECOVERY_SIGNING_ARGS) $(BOARD_AVB_RECOVERY_ADD_HASH_FOOTER_ARGS)))
 endef
+endif
 
 ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
 ifeq (true,$(PRODUCT_SUPPORTS_BOOT_SIGNER))
