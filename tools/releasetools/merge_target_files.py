@@ -500,6 +500,10 @@ def process_misc_info_txt(system_target_files_temp_dir,
         list_prefix='super_',
         list_suffix='_partition_list')
     merged_info_dict.update(merged_dynamic_partitions_dict)
+    # Ensure that add_img_to_target_files rebuilds super split images for
+    # devices that retrofit dynamic partitions. This flag may have been set to
+    # false in the partial builds to prevent duplicate building of super.img.
+    merged_info_dict['build_super_partition'] = 'true'
 
   output_misc_info_txt = os.path.join(output_target_files_temp_dir, 'META',
                                       'misc_info.txt')
