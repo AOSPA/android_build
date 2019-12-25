@@ -22,6 +22,9 @@ $(MODULE_INFO_JSON):
 			'"srcs": [$(foreach w,$(sort $(ALL_MODULES.$(m).SRCS)),"$(w)", )], ' \
 			'"incs": [$(foreach w,$(sort $(ALL_MODULES.$(m).INCS)),"$(w)", )], ' \
                         '"static": [$(foreach w,$(sort $(ALL_MODULES.$(m).STATIC)),"$(w)", )], ' \
+                        '"wstatic": [$(foreach w,$(sort $(ALL_MODULES.$(m).WSTATIC)),"$(w)", )], ' \
+                        '"export": [$(foreach w,$(sort $(ALL_MODULES.$(m).EXPORT)),"$(w)", )], ' \
+                        '"cflags": [$(foreach w,$(sort $(ALL_MODULES.$(m).CFLAGS)),"$(w)", )], ' \
 			'"srcjars": [$(foreach w,$(sort $(ALL_MODULES.$(m).SRCJARS)),"$(w)", )], ' \
 			'"classes_jar": [$(foreach w,$(sort $(ALL_MODULES.$(m).CLASSES_JAR)),"$(w)", )], ' \
 			'},\n' \
