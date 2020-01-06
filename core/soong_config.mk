@@ -104,6 +104,7 @@ $(call add_json_list, CFIIncludePaths,                   $(CFI_INCLUDE_PATHS) $(
 $(call add_json_bool, EnableXOM,                         $(call invert_bool,$(filter false,$(ENABLE_XOM))))
 $(call add_json_list, XOMExcludePaths,                   $(XOM_EXCLUDE_PATHS) $(PRODUCT_XOM_EXCLUDE_PATHS))
 $(call add_json_list, IntegerOverflowExcludePaths,       $(INTEGER_OVERFLOW_EXCLUDE_PATHS) $(PRODUCT_INTEGER_OVERFLOW_EXCLUDE_PATHS))
+$(call add_json_list, IntegerOverflowIncludePaths,       $(INTEGER_OVERFLOW_INCLUDE_PATHS) $(PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS))
 
 $(call add_json_bool, Experimental_mte,                  $(filter true,$(TARGET_EXPERIMENTAL_MTE)))
 

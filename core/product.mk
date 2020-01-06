@@ -292,6 +292,9 @@ _product_single_value_vars += PRODUCT_MINIMIZE_JAVA_DEBUG_INFO
 # Whether any paths are excluded from sanitization when SANITIZE_TARGET=integer_overflow
 _product_list_vars += PRODUCT_INTEGER_OVERFLOW_EXCLUDE_PATHS
 
+# Whether any paths should have INTEGER OVERFLOW enabled for components
+_product_var_list += PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS
+
 _product_single_value_vars += PRODUCT_ADB_KEYS
 
 # Whether any paths should have CFI enabled for components

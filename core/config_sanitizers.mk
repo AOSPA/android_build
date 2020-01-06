@@ -26,8 +26,8 @@ ifneq ($(filter integer_overflow, $(my_global_sanitize)),)
 
   ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_exclude_paths)),\
          $(filter $(dir)%,$(LOCAL_PATH)))),)
-    my_global_sanitize := $(filter-out integer_overflow,$(my_global_sanitize))
-    my_global_sanitize_diag := $(filter-out integer_overflow,$(my_global_sanitize_diag))
+    my_global_sanitize := $(filter-out integer_overflow signed-integer-overflow unsigned-integer-overflow,$(my_global_sanitize))
+    my_global_sanitize_diag := $(filter-out integer_overflow signed-integer-overflow unsigned-integer-overflow,$(my_global_sanitize_diag))
   endif
 endif
 
@@ -103,16 +103,32 @@ ifeq ($(LOCAL_SANITIZE),never)
   my_sanitize_diag :=
 endif
 
+ifndef LOCAL_IS_HOST_MODULE
 # Enable integer_overflow in included paths.
-ifeq ($(filter integer_overflow, $(my_sanitize)),)
+ifeq ($(filter integer_overflow signed-integer-overflow unsigned-integer-overflow, $(my_sanitize)),)
   ifneq ($(filter arm64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)),)
-    combined_include_paths := $(PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS)
+    combined_include_paths := $(INTEGER_OVERFLOW_INCLUDE_PATHS) \
+                              $(PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS)
 
     ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_include_paths)),\
            $(filter $(dir)%,$(LOCAL_PATH)))),)
-      my_sanitize := integer_overflow $(my_sanitize)
+      my_sanitize := signed-integer-overflow $(my_sanitize)
+      my_sanitize := unsigned-integer-overflow $(my_sanitize)
     endif
   endif
+endif
+
+#Disable integer_overflow in excluded paths
+ifneq ($(filter integer_overflow signed-integer-overflow unsigned-integer-overflow, $(my_sanitize)),)
+  combined_exclude_paths := $(INTEGER_OVERFLOW_EXCLUDE_PATHS) \
+                            $(PRODUCT_INTEGER_OVERFLOW_EXCLUDE_PATHS)
+
+  ifneq ($(strip $(foreach dir,$(subst $(comma),$(space),$(combined_exclude_paths)),\
+         $(filter $(dir)%,$(LOCAL_PATH)))),)
+    my_sanitize := $(filter-out integer_overflow signed-integer-overflow unsigned-integer-overflow,$(my_sanitize))
+    my_sanitize_diag := $(filter-out integer_overflow signed-integer-overflow unsigned-integer-overflow,$(my_sanitize_diag))
+  endif
+endif
 endif
 
 # Enable CFI in included paths (for Arm64 only).
