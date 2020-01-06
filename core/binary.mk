@@ -84,6 +84,12 @@ ifneq ($(NATIVE_COVERAGE),true)
   my_native_coverage := false
 endif
 
+# Exclude directories from manual binder interface whitelisting.
+# TODO(b/145621474): Move this check into IInterface.h when clang-tidy no longer uses absolute paths.
+ifneq (,$(filter $(addsuffix %,$(ALLOWED_MANUAL_INTERFACE_PATHS)),$(LOCAL_PATH)))
+  my_cflags += -DDO_NOT_CHECK_MANUAL_BINDER_INTERFACES
+endif
+
 ifneq ($(strip $(ENABLE_XOM)),false)
   ifndef LOCAL_IS_HOST_MODULE
     my_xom := true
@@ -445,15 +451,6 @@ my_whole_static_libraries := $(LOCAL_WHOLE_STATIC_LIBRARIES_$($(my_prefix)$(LOCA
 my_header_libraries := $(LOCAL_HEADER_LIBRARIES_$($(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)) $(LOCAL_HEADER_LIBRARIES_$(my_32_64_bit_suffix)) $(my_header_libraries)
 
 include $(BUILD_SYSTEM)/cxx_stl_setup.mk
-
-# Add static HAL libraries
-ifdef LOCAL_HAL_STATIC_LIBRARIES
-$(foreach lib, $(LOCAL_HAL_STATIC_LIBRARIES), \
-    $(eval b_lib := $(filter $(lib).%,$(BOARD_HAL_STATIC_LIBRARIES)))\
-    $(if $(b_lib), $(eval my_static_libraries += $(b_lib)),\
-                   $(eval my_static_libraries += $(lib).default)))
-b_lib :=
-endif
 
 ifneq ($(strip $(CUSTOM_$(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)LINKER)),)
   my_linker := $(CUSTOM_$(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)LINKER)
@@ -1318,11 +1315,15 @@ $(subst $(space),, \
 )
 endef
 
-my_outside_includes := $(filter-out $(OUT_DIR)/%,$(filter /%,$(my_c_includes)))
+my_outside_includes := $(filter-out $(OUT_DIR)/%,$(filter /%,$(my_c_includes)) $(filter ../%,$(my_c_includes)))
 ifneq ($(my_outside_includes),)
 # Further filter out optional exceptions
   ifeq ($(call find_in_cincludes_exception_projects,$(LOCAL_MODULE_MAKEFILE)),)
-    $(error $(LOCAL_MODULE_MAKEFILE): $(LOCAL_MODULE): C_INCLUDES must be under the source or output directories: $(my_outside_includes))
+    ifeq ($(BUILD_BROKEN_OUTSIDE_INCLUDE_DIRS),true)
+      $(call pretty-warning,C_INCLUDES must be under the source or output directories: $(my_outside_includes))
+    else
+      $(call pretty-error,C_INCLUDES must be under the source or output directories: $(my_outside_includes))
+    endif
   endif
 endif
 

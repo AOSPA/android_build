@@ -58,8 +58,12 @@ PRODUCT_PACKAGES += \
     com.android.location.provider \
     com.android.media \
     com.android.media.swcodec \
+    com.android.mediaprovider \
+    com.android.permission \
     com.android.resolv \
     com.android.neuralnetworks \
+    com.android.sdkext \
+    com.android.telephony \
     com.android.tzdata \
     com.android.wifi \
     ContactsProvider \
@@ -98,7 +102,6 @@ PRODUCT_PACKAGES += \
     idmap2 \
     idmap2d \
     ime \
-    ims-common \
     incident \
     incidentd \
     incident_helper \
@@ -202,8 +205,9 @@ PRODUCT_PACKAGES += \
     mediaextractor \
     mediametrics \
     media_profiles_V1_0.dtd \
-    MediaProvider \
+    MediaProviderLegacy \
     mediaserver \
+    mediatranscoding \
     mke2fs \
     monkey \
     mtpd \
@@ -255,7 +259,6 @@ PRODUCT_PACKAGES += \
     task_profiles.json \
     tc \
     telecom \
-    telephony-common \
     tombstoned \
     traced \
     traced_probes \
@@ -332,13 +335,17 @@ PRODUCT_BOOT_JARS := \
     telephony-common \
     voip-common \
     ims-common \
+    framework-sdkext \
     ike \
     updatable-media
 
 PRODUCT_UPDATABLE_BOOT_JARS := \
     com.android.conscrypt:conscrypt \
     com.android.ipsec:ike \
-    com.android.media:updatable-media
+    com.android.media:updatable-media \
+    com.android.sdkext:framework-sdkext \
+    com.android.telephony:telephony-common \
+    com.android.telephony:ims-common
 
 PRODUCT_COPY_FILES += \
     system/core/rootdir/init.usb.rc:system/etc/init/hw/init.usb.rc \
