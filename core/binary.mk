@@ -1734,6 +1734,8 @@ imported_includes := $(strip \
 $(foreach dep,$(imported_includes),\
   $(eval EXPORTS.$$(dep).USERS := $$(EXPORTS.$$(dep).USERS) $$(all_objects)))
 
+ALL_MODULES.$(LOCAL_MODULE).IMPORTS := $(imported_includes)
+
 ###########################################################
 ## Define PRIVATE_ variables used by multiple module types
 ###########################################################

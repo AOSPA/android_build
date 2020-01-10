@@ -62,6 +62,11 @@ endif
 endif
 
 my_module_arch_supported :=
+LOCAL_SRC_FILES :=
+LOCAL_STATIC_LIBRARIES :=
+LOCAL_WHOLE_STATIC_LIBRARIES :=
+LOCAL_EXPORT_C_INCLUDES :=
+LOCAL_CFLAGS :=
 
 ###########################################################
 ## Copy headers to the install tree
