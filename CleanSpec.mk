@@ -500,8 +500,8 @@ $(call add-clean-step, find $(PRODUCT_OUT) -type f -name "*product-services*" -p
 $(call add-clean-step, find $(PRODUCT_OUT) -type d -name "*product-services*" -print0 | xargs -0 rm -rf)
 $(call add-clean-step, find $(PRODUCT_OUT) -type l -name "*product-services*" -print0 | xargs -0 rm -rf)
 
-# Remove obsolete recovery etc files
-$(call add-clean-step, rm -rf $(TARGET_RECOVERY_ROOT_OUT)/etc)
+# Remove obsolete recovery files
+$(call add-clean-step, rm -rf $(TARGET_RECOVERY_ROOT_OUT))
 
 # Remove *_OUT_INTERMEDIATE_LIBRARIES
 $(call add-clean-step, rm -rf $(addsuffix /lib,\
@@ -638,8 +638,6 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libstagefright_soft*)
 # Move odm build.prop to /odm/etc/.
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/odm/build.prop)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/odm/build.prop)
-
-$(call add-clean-step, rm -rf $(PRODUCT_OUT)/recovery/root/system)
 
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
