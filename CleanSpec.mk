@@ -639,6 +639,8 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libstagefright_soft*)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/odm/build.prop)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/odm/build.prop)
 
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/recovery/root/system)
+
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
 # ************************************************
