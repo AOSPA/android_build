@@ -643,6 +643,8 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/odm/build.prop)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libcameraservice.so)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib*/libcamera_client.so)
 
+$(call add-clean-step, rm -rf $(TARGET_RECOVERY_ROOT_OUT))
+
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
 # ************************************************
