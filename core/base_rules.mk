@@ -773,8 +773,9 @@ ALL_MODULES.$(my_register_name).WSTATIC := \
     $(ALL_MODULES.$(my_register_name).WSTATIC) $(LOCAL_WHOLE_STATIC_LIBRARIES)
 ALL_MODULES.$(my_register_name).EXPORT := \
     $(ALL_MODULES.$(my_register_name).EXPORT) $(LOCAL_EXPORT_C_INCLUDES)
-ALL_MODULES.$(my_register_name).CFLAGS := \
-    $(ALL_MODULES.$(my_register_name).CFLAGS) $(shell echo '$(LOCAL_CFLAGS)'| tr -d '"\')
+# TODO(b/147688606): Partial revert of 87a04382bb341636d2103178c3f6a71edf433752
+#ALL_MODULES.$(my_register_name).CFLAGS := \
+#    $(ALL_MODULES.$(my_register_name).CFLAGS) $(shell echo '$(LOCAL_CFLAGS)'| tr -d '"\')
 ALL_MODULES.$(my_register_name).INCS := \
     $(ALL_MODULES.$(my_register_name).INCS) $(LOCAL_C_INCLUDES)
 ALL_MODULES.$(my_register_name).PATH := \
