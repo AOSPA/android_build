@@ -851,7 +851,7 @@ endif
 ifdef BUILDING_RAMDISK_IMAGE
 BOOT_RAMDISK_COMPRESSOR := $(MINIGZIP)
 RECOVERY_RAMDISK_COMPRESSOR := $(MINIGZIP)
-LZMA := prebuilts/tools-lineage/${HOST_OS}-x86/bin/lzma
+LZMA := prebuilts/tools-pa/${HOST_OS}-x86/bin/lzma
 ifneq ($(LZMA_RAMDISK_TARGETS),)
   ifneq (,$(findstring boot,$(LZMA_RAMDISK_TARGETS)))
     BOOT_RAMDISK_COMPRESSOR := $(LZMA) -f -c
