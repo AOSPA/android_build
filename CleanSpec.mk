@@ -505,9 +505,9 @@ $(call add-clean-step, rm -rf $(TARGET_RECOVERY_ROOT_OUT)/etc)
 
 # Remove *_OUT_INTERMEDIATE_LIBRARIES
 $(call add-clean-step, rm -rf $(addsuffix /lib,\
-  $(HOST_OUT_INTERMEDIATES) $(2ND_HOST_OUT_INTERMEDIATES) \
-  $(HOST_CROSS_OUT_INTERMEDIATES) $(2ND_HOST_CROSS_OUT_INTERMEDIATES) \
-  $(TARGET_OUT_INTERMEDIATES) $(2ND_TARGET_OUT_INTERMEDIATES)))
+$(HOST_OUT_INTERMEDIATES) $(2ND_HOST_OUT_INTERMEDIATES) \
+$(HOST_CROSS_OUT_INTERMEDIATES) $(2ND_HOST_CROSS_OUT_INTERMEDIATES) \
+$(TARGET_OUT_INTERMEDIATES) $(2ND_TARGET_OUT_INTERMEDIATES)))
 
 # Remove strip.sh intermediates to save space
 $(call add-clean-step, find $(OUT_DIR) \( -name "*.so.debug" -o -name "*.so.dynsyms" -o -name "*.so.funcsyms" -o -name "*.so.keep_symbols" -o -name "*.so.mini_debuginfo.xz" \) -print0 | xargs -0 rm -f)
@@ -715,6 +715,23 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/apex/com.android.cellbroadcast)
 
 # Remove MediaProvider after moving into APEX
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/priv-app/MediaProvider)
+
+# The core image variant has been renamed to ""
+$(call add-clean-step, find $(SOONG_OUT_DIR)/.intermediates -type d -name "android_*_core*" -print0 | xargs -0 rm -rf)
+
+# Remove 'media' command
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/bin/media)
+
+# Remove CtsShim apks from system partition, since the have been moved inside
+# the cts shim apex. Also remove the cts shim apex prebuilt since it has been
+# removed in flattened apexs configurations.
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/priv-app/CtsShimPrivPrebuilt)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/app/CtsShimPrebuilt)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/apex/com.android.apex.cts.shim.apex)
+
+# Remove vendor and recovery variants, the directory name has changed.
+$(call add-clean-step, find $(SOONG_OUT_DIR)/.intermediates -type d -name "android_*_recovery*" -print0 | xargs -0 rm -rf)
+$(call add-clean-step, find $(SOONG_OUT_DIR)/.intermediates -type d -name "android_*_vendor*" -print0 | xargs -0 rm -rf)
 
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST

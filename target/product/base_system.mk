@@ -30,7 +30,6 @@ PRODUCT_PACKAGES += \
     apexd \
     appops \
     app_process \
-    service-appsearch \
     appwidget \
     atrace \
     audioserver \
@@ -51,26 +50,29 @@ PRODUCT_PACKAGES += \
     charger \
     cmd \
     com.android.adbd \
-    com.android.apex.cts.shim.v1_prebuilt \
+    com.android.apex.cts.shim.v1 \
+    com.android.appsearch \
     com.android.conscrypt \
+    com.android.cronet \
     com.android.i18n \
     com.android.ipsec \
     com.android.location.provider \
     com.android.media \
     com.android.media.swcodec \
     com.android.mediaprovider \
+    com.android.os.statsd \
     com.android.permission \
     com.android.resolv \
     com.android.neuralnetworks \
+    com.android.os.statsd \
     com.android.sdkext \
     com.android.telephony \
+    com.android.tethering \
     com.android.tzdata \
     com.android.wifi \
     ContactsProvider \
     content \
     crash_dump \
-    CtsShimPrebuilt \
-    CtsShimPrivPrebuilt \
     debuggerd\
     device_config \
     dmctl \
@@ -102,12 +104,12 @@ PRODUCT_PACKAGES += \
     idmap2 \
     idmap2d \
     ime \
+    ims-common \
     incident \
     incidentd \
     incident_helper \
     init.environ.rc \
     init_system \
-    InProcessTethering \
     input \
     installd \
     iorapd \
@@ -118,7 +120,6 @@ PRODUCT_PACKAGES += \
     javax.obex \
     service-jobscheduler \
     keystore \
-    ld.config.txt \
     ld.mc \
     libaaudio \
     libamidi \
@@ -200,7 +201,6 @@ PRODUCT_PACKAGES += \
     lpdump \
     lshal \
     mdnsd \
-    media \
     mediacodec.policy \
     mediaextractor \
     mediametrics \
@@ -213,6 +213,7 @@ PRODUCT_PACKAGES += \
     mtpd \
     ndc \
     netd \
+    NativeAdbDataLoaderService \
     NetworkStackNext \
     org.apache.http.legacy \
     otacerts \
@@ -252,13 +253,13 @@ PRODUCT_PACKAGES += \
     snapshotctl \
     SoundPicker \
     statsd \
-    service-statsd \
     storaged \
     surfaceflinger \
     svc \
     task_profiles.json \
     tc \
     telecom \
+    telephony-common \
     tombstoned \
     traced \
     traced_probes \
@@ -275,6 +276,10 @@ PRODUCT_PACKAGES += \
     watchdogd \
     wificond \
     wm \
+
+# TODO(b/146549048) remove this
+PRODUCT_PACKAGES += \
+    boringssl_self_test
 
 # VINTF data for system image
 PRODUCT_PACKAGES += \
@@ -336,16 +341,24 @@ PRODUCT_BOOT_JARS := \
     voip-common \
     ims-common \
     framework-sdkext \
+    framework-statsd \
     ike \
-    updatable-media
+    updatable-media \
+    framework-mediaprovider \
+    framework-appsearch \
+    framework-wifi \
+    framework-tethering
 
 PRODUCT_UPDATABLE_BOOT_JARS := \
+    com.android.appsearch:framework-appsearch \
     com.android.conscrypt:conscrypt \
     com.android.ipsec:ike \
     com.android.media:updatable-media \
+    com.android.mediaprovider:framework-mediaprovider \
+    com.android.os.statsd:framework-statsd \
     com.android.sdkext:framework-sdkext \
-    com.android.telephony:telephony-common \
-    com.android.telephony:ims-common
+    com.android.wifi:framework-wifi \
+    com.android.tethering:framework-tethering
 
 PRODUCT_COPY_FILES += \
     system/core/rootdir/init.usb.rc:system/etc/init/hw/init.usb.rc \
@@ -366,6 +379,7 @@ PRODUCT_COPY_FILES += system/core/rootdir/init.zygote32.rc:system/etc/init/hw/in
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.zygote=zygote32
 
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += debug.atrace.tags.enableflags=0
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += persist.traced.enable=1
 
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \

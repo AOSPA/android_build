@@ -55,13 +55,13 @@ PRODUCT_SYSTEM_SERVER_JARS := \
     ethernet-service \
     com.android.location.provider \
     service-jobscheduler \
-    service-statsd \
-    service-blobstore \
-    service-appsearch \
+    service-blobstore
 
 # system server jars which are updated via apex modules.
 # The values should be of the format <apex name>:<jar name>
 PRODUCT_UPDATABLE_SYSTEM_SERVER_JARS := \
+    com.android.appsearch:service-appsearch \
+    com.android.os.statsd:service-statsd \
     com.android.wifi:wifi-service
 
 PRODUCT_COPY_FILES += \
