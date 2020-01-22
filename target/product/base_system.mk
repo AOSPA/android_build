@@ -286,12 +286,6 @@ PRODUCT_PACKAGES += \
     system_manifest.xml \
     system_compatibility_matrix.xml \
 
-# mainline network framework modules
-PRODUCT_PACKAGES += \
-    InProcessNetworkStack \
-    PlatformCaptivePortalLogin \
-    PlatformNetworkPermissionConfig
-
 # Host tools to install
 PRODUCT_HOST_PACKAGES += \
     BugReport \
