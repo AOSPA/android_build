@@ -765,6 +765,8 @@ ALL_MODULES += $(my_register_name)
 # recursively expanded.
 ALL_MODULES.$(my_register_name).CLASS := \
     $(ALL_MODULES.$(my_register_name).CLASS) $(LOCAL_MODULE_CLASS)
+ifdef LOCAL_ABI_CHECKER
+ifeq ($(LOCAL_ABI_CHECKER),true)
 ALL_MODULES.$(my_register_name).SRCS := \
     $(ALL_MODULES.$(my_register_name).SRCS) $(LOCAL_SRC_FILES)
 ALL_MODULES.$(my_register_name).STATIC := \
@@ -773,11 +775,14 @@ ALL_MODULES.$(my_register_name).WSTATIC := \
     $(ALL_MODULES.$(my_register_name).WSTATIC) $(LOCAL_WHOLE_STATIC_LIBRARIES)
 ALL_MODULES.$(my_register_name).EXPORT := \
     $(ALL_MODULES.$(my_register_name).EXPORT) $(LOCAL_EXPORT_C_INCLUDES)
-# TODO(b/147688606): Partial revert of 87a04382bb341636d2103178c3f6a71edf433752
-#ALL_MODULES.$(my_register_name).CFLAGS := \
-#    $(ALL_MODULES.$(my_register_name).CFLAGS) $(shell echo '$(LOCAL_CFLAGS)'| tr -d '"\')
+ALL_MODULES.$(my_register_name).CFLAGS := \
+    $(ALL_MODULES.$(my_register_name).CFLAGS) $(LOCAL_CFLAGS)
+ALL_MODULES.$(my_register_name).ABI_CHECKER := \
+   $(ALL_MODULES.$(my_register_name).ABI_CHECKER) $(LOCAL_ABI_CHECKER)
 ALL_MODULES.$(my_register_name).INCS := \
     $(ALL_MODULES.$(my_register_name).INCS) $(LOCAL_C_INCLUDES)
+endif
+endif
 ALL_MODULES.$(my_register_name).PATH := \
     $(ALL_MODULES.$(my_register_name).PATH) $(LOCAL_PATH)
 ALL_MODULES.$(my_register_name).TAGS := \

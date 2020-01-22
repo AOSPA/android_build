@@ -25,6 +25,7 @@ $(MODULE_INFO_JSON):
                         '"wstatic": [$(foreach w,$(sort $(ALL_MODULES.$(m).WSTATIC)),"$(w)", )], ' \
                         '"export": [$(foreach w,$(sort $(ALL_MODULES.$(m).EXPORT)),"$(w)", )], ' \
                         '"cflags": [$(foreach w,$(sort $(ALL_MODULES.$(m).CFLAGS)),"$(w)", )], ' \
+                        '"abi_checker": [$(foreach w,$(sort $(ALL_MODULES.$(m).ABI_CHECKER)),"$(w)", )], ' \
 			'"srcjars": [$(foreach w,$(sort $(ALL_MODULES.$(m).SRCJARS)),"$(w)", )], ' \
 			'"classes_jar": [$(foreach w,$(sort $(ALL_MODULES.$(m).CLASSES_JAR)),"$(w)", )], ' \
 			'},\n' \
