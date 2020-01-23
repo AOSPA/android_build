@@ -1,4 +1,3 @@
-#!/usr/bin/python
 #
 # Copyright (C) 2019 The Android Open Source Project
 #
@@ -13,23 +12,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-"""Call -m warn.warn to process warning messages.
+TARGET_ARCH := x86_64
+TARGET_ARCH_VARIANT := x86_64
+TARGET_CPU_ABI := x86_64
 
-This script is used by Android continuous build bots for all branches.
-Old frozen branches will continue to use the old warn.py, and active
-branches will use this new version to call -m warn.warn.
-"""
+TARGET_2ND_ARCH := x86
+TARGET_2ND_ARCH_VARIANT := x86_64
+TARGET_2ND_CPU_ABI := x86
 
-import os
-import subprocess
-import sys
+include build/make/target/board/BoardConfigMainlineCommon.mk
 
+TARGET_NO_KERNEL := true
 
-def main():
-  os.environ['PYTHONPATH'] = os.path.dirname(os.path.abspath(__file__))
-  subprocess.check_call(['/usr/bin/python', '-m', 'warn.warn'] + sys.argv[1:])
+# Build generic A/B format system-only OTA.
+AB_OTA_UPDATER := true
+AB_OTA_PARTITIONS := system
 
-
-if __name__ == '__main__':
-  main()
+BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE := ext4
+BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_TYPE := ext4
+BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4

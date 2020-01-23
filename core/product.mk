@@ -312,6 +312,10 @@ _product_single_value_vars += PRODUCT_COMPATIBLE_PROPERTY_OVERRIDE
 # List of extra VNDK versions to be included
 _product_list_vars += PRODUCT_EXTRA_VNDK_VERSIONS
 
+# VNDK version of product partition. It can be 'current' if the product
+# partitions uses PLATFORM_VNDK_VERSION.
+_product_single_value_var += PRODUCT_PRODUCT_VNDK_VERSION
+
 # Whether the whitelist of actionable compatible properties should be disabled or not
 _product_single_value_vars += PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE
 
@@ -383,6 +387,8 @@ _product_single_value_vars += PRODUCT_VIRTUAL_AB_OTA_RETROFIT
 
 # If set, Java module in product partition cannot use hidden APIs.
 _product_single_value_vars += PRODUCT_ENFORCE_PRODUCT_PARTITION_INTERFACE
+
+_product_single_value_vars += PRODUCT_INSTALL_EXTRA_FLATTENED_APEXES
 
 .KATI_READONLY := _product_single_value_vars _product_list_vars
 _product_var_list :=$= $(_product_single_value_vars) $(_product_list_vars)

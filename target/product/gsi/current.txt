@@ -52,6 +52,7 @@ VNDK-SP: libunwindstack.so
 VNDK-SP: libutils.so
 VNDK-SP: libutilscallstack.so
 VNDK-SP: libz.so
+VNDK-SP: vintf-common-V1-ndk_platform.so
 VNDK-SP: vintf-graphics-common-V1-ndk_platform.so
 VNDK-core: android.frameworks.cameraservice.common@2.0.so
 VNDK-core: android.frameworks.cameraservice.device@2.0.so
@@ -96,6 +97,7 @@ VNDK-core: android.hardware.camera.device@3.2.so
 VNDK-core: android.hardware.camera.device@3.3.so
 VNDK-core: android.hardware.camera.device@3.4.so
 VNDK-core: android.hardware.camera.device@3.5.so
+VNDK-core: android.hardware.camera.device@3.6.so
 VNDK-core: android.hardware.camera.metadata@3.2.so
 VNDK-core: android.hardware.camera.metadata@3.3.so
 VNDK-core: android.hardware.camera.metadata@3.4.so
@@ -184,6 +186,7 @@ VNDK-core: android.hardware.soundtrigger@2.0-core.so
 VNDK-core: android.hardware.soundtrigger@2.0.so
 VNDK-core: android.hardware.soundtrigger@2.1.so
 VNDK-core: android.hardware.soundtrigger@2.2.so
+VNDK-core: android.hardware.soundtrigger@2.3.so
 VNDK-core: android.hardware.tetheroffload.config@1.0.so
 VNDK-core: android.hardware.tetheroffload.control@1.0.so
 VNDK-core: android.hardware.thermal@1.0.so
@@ -287,6 +290,7 @@ VNDK-core: libwifi-system-iface.so
 VNDK-core: libxml2.so
 VNDK-core: libyuv.so
 VNDK-core: libziparchive.so
+VNDK-core: vintf-rebootescrow-V1-ndk_platform.so
 VNDK-core: vintf-vibrator-V1-ndk_platform.so
 VNDK-private: libbacktrace.so
 VNDK-private: libbinderthreadstate.so
