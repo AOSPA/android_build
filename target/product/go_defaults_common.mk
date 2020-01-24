@@ -20,7 +20,6 @@
 # Set lowram options and enable traced by default
 PRODUCT_PROPERTY_OVERRIDES += \
      ro.config.low_ram=true \
-     persist.traced.enable=1 \
 
 # Speed profile services and wifi-service to reduce RAM and storage.
 PRODUCT_SYSTEM_SERVER_COMPILER_FILTER := speed-profile
@@ -41,6 +40,7 @@ PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD := false
 PRODUCT_PACKAGES += InProcessNetworkStack
 PRODUCT_PACKAGES += CellBroadcastAppPlatform
 PRODUCT_PACKAGES += CellBroadcastServiceModulePlatform
+PRODUCT_PACKAGES += InProcessTethering
 
 # Strip the local variable table and the local variable type table to reduce
 # the size of the system image. This has no bearing on stack traces, but will
