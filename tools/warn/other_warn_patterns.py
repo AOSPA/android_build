@@ -1,4 +1,4 @@
-#
+# python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,10 @@
 
 """Warning patterns from other tools."""
 
-from severity import Severity
+# pylint:disable=relative-beyond-top-level
+from .cpp_warn_patterns import compile_patterns
+# pylint:disable=g-importing-member
+from .severity import Severity
 
 
 def warn(name, severity, description, pattern_list):
@@ -39,9 +42,19 @@ def asm(description, pattern_list):
   return warn('asm', Severity.MEDIUM, description, pattern_list)
 
 
-patterns = [
+def kotlin(description, pattern_list):
+  return warn('Kotlin', Severity.MEDIUM, description, pattern_list)
+
+
+def yacc(description, pattern_list):
+  return warn('yacc', Severity.MEDIUM, description, pattern_list)
+
+
+warn_patterns = [
     # pylint:disable=line-too-long,g-inconsistent-quotes
     # aapt warnings
+    aapt('No comment for public symbol',
+         [r".*: warning: No comment for public symbol .+"]),
     aapt('No default translation',
          [r".*: warning: string '.+' has no default translation in .*"]),
     aapt('Missing default or required localization',
@@ -90,22 +103,30 @@ patterns = [
      'patterns': [r".*: warning: .* generate guard with empty availability: obsoleted ="]},
     # Protoc warnings
     {'category': 'Protoc', 'severity': Severity.MEDIUM,
-     'description': 'Proto: Enum name colision after strip',
+     'description': 'Proto: Enum name collision after strip',
      'patterns': [r".*: warning: Enum .* has the same name .* ignore case and strip"]},
     {'category': 'Protoc', 'severity': Severity.MEDIUM,
      'description': 'Proto: Import not used',
      'patterns': [r".*: warning: Import .*/.*\.proto but not used.$"]},
     # Kotlin warnings
-    {'category': 'Kotlin', 'severity': Severity.MEDIUM,
-     'description': 'Kotlin: never used parameter or variable',
-     'patterns': [r".*: warning: (parameter|variable) '.*' is never used$"]},
-    {'category': 'Kotlin', 'severity': Severity.MEDIUM,
-     'description': 'Kotlin: Deprecated in Java',
-     'patterns': [r".*: warning: '.*' is deprecated. Deprecated in Java"]},
-    {'category': 'Kotlin', 'severity': Severity.MEDIUM,
-     'description': 'Kotlin: library has Kotlin runtime',
-     'patterns': [r".*: warning: library has Kotlin runtime bundled into it",
-                  r".*: warning: some JAR files .* have the Kotlin Runtime library"]},
+    kotlin('never used parameter or variable',
+           [r".*\.kt:.*: warning: (parameter|variable) '.*' is never used$",
+            r".*\.kt:.*: warning: (parameter|variable) '.*' is never used, could be renamed to _$"]),
+    kotlin('unchecked cast',
+           [r".*\.kt:.*: warning: unchecked cast: .* to .*$"]),
+    kotlin('Deprecated in Java',
+           [r".*\.kt:.*: warning: '.*' is deprecated. Deprecated in Java"]),
+    kotlin('library has Kotlin runtime',
+           [r".*: warning: library has Kotlin runtime bundled into it",
+            r".*: warning: some JAR files .* have the Kotlin Runtime library"]),
+    # Yacc warnings
+    yacc('deprecate directive',
+         [r".*\.yy?:.*: warning: deprecated directive: "]),
+    yacc('shift/reduce conflicts',
+         [r".*\.yy?: warning: .+ shift/reduce conflicts "]),
+    {'category': 'yacc', 'severity': Severity.SKIP,
+     'description': 'yacc: fix-its can be applied',
+     'patterns': [r".*\.yy?: warning: fix-its can be applied."]},
     # Rust warnings
     {'category': 'Rust', 'severity': Severity.HIGH,
      'description': 'Rust: Does not derive Copy',
@@ -124,7 +145,10 @@ patterns = [
      'description': 'skip, In file included from ...',
      'patterns': [r".*: warning: In file included from .+,"]},
     # catch-all for warnings this script doesn't know about yet
-    {'category': 'C/C++', 'severity': Severity.UNKNOWN,
+    {'category': 'C/C++', 'severity': Severity.UNMATCHED,
      'description': 'Unclassified/unrecognized warnings',
      'patterns': [r".*: warning: .+"]},
 ]
+
+
+compile_patterns(warn_patterns)
