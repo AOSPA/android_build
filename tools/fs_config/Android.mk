@@ -386,6 +386,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := liboemaids_system
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(dir $(my_gen_oem_aid))
 LOCAL_EXPORT_C_INCLUDE_DEPS := $(my_gen_oem_aid)
+LOCAL_SYSTEM_EXT_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
