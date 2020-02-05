@@ -1040,7 +1040,7 @@ endef
 # variables being set.
 define auto-included-modules
   $(if $(BOARD_VNDK_VERSION),vndk_package) \
-  $(if $(DEVICE_MANIFEST_FILE),device_manifest.xml) \
+  $(if $(DEVICE_MANIFEST_FILE),vendor_manifest.xml) \
   $(if $(ODM_MANIFEST_FILES),odm_manifest.xml) \
   $(if $(ODM_MANIFEST_SKUS),$(foreach sku, $(ODM_MANIFEST_SKUS),odm_manifest_$(sku).xml)) \
 
@@ -1612,7 +1612,7 @@ else # TARGET_BUILD_APPS
   endif
 
   ifeq ($(EMMA_INSTRUMENT),true)
-    $(JACOCO_REPORT_CLASSES_ALL) : $(INSTALLED_SYSTEMIMAGE_TARGET)
+    $(JACOCO_REPORT_CLASSES_ALL) : $(modules_to_install)
     $(call dist-for-goals, dist_files, $(JACOCO_REPORT_CLASSES_ALL))
   endif
 

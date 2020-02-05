@@ -889,7 +889,7 @@ endef
 define transform-l-to-c-or-cpp
 @echo "Lex: $(PRIVATE_MODULE) <= $<"
 @mkdir -p $(dir $@)
-$(hide) $(LEX) -o$@ $<
+M4=$(M4) $(LEX) -o$@ $<
 endef
 
 ###########################################################
@@ -900,7 +900,7 @@ endef
 define transform-y-to-c-or-cpp
 @echo "Yacc: $(PRIVATE_MODULE) <= $<"
 @mkdir -p $(dir $@)
-$(YACC) $(PRIVATE_YACCFLAGS) \
+M4=$(M4) $(YACC) $(PRIVATE_YACCFLAGS) \
   --defines=$(basename $@).h \
   -o $@ $<
 endef
@@ -1723,7 +1723,6 @@ $(hide) $(PRIVATE_CXX_LINK) \
   $(if $(filter true,$(NATIVE_COVERAGE)),$(PRIVATE_TARGET_COVERAGE_LIB)) \
   $(PRIVATE_TARGET_LIBCRT_BUILTINS) \
   $(PRIVATE_TARGET_LIBATOMIC) \
-  $(PRIVATE_TARGET_LIBGCC) \
   $(PRIVATE_TARGET_GLOBAL_LDFLAGS) \
   $(PRIVATE_LDFLAGS) \
   $(PRIVATE_ALL_SHARED_LIBRARIES) \
@@ -1759,7 +1758,6 @@ $(hide) $(PRIVATE_CXX_LINK) -pie \
   $(if $(filter true,$(NATIVE_COVERAGE)),$(PRIVATE_TARGET_COVERAGE_LIB)) \
   $(PRIVATE_TARGET_LIBCRT_BUILTINS) \
   $(PRIVATE_TARGET_LIBATOMIC) \
-  $(PRIVATE_TARGET_LIBGCC) \
   $(PRIVATE_TARGET_GLOBAL_LDFLAGS) \
   $(PRIVATE_LDFLAGS) \
   $(PRIVATE_ALL_SHARED_LIBRARIES) \
@@ -1806,7 +1804,6 @@ $(hide) $(PRIVATE_CXX_LINK) \
   $(PRIVATE_TARGET_LIBATOMIC) \
   $(filter %libcompiler_rt.a %libcompiler_rt.hwasan.a,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
   $(PRIVATE_TARGET_LIBCRT_BUILTINS) \
-  $(PRIVATE_TARGET_LIBGCC) \
   -Wl,--end-group \
   $(PRIVATE_TARGET_CRTEND_O)
 endef
@@ -2631,17 +2628,15 @@ $(foreach t,$(1),\
 endef
 
 # Define a rule to create a symlink to a file.
-# $(1): full path to source
+# $(1): any dependencies
 # $(2): source (may be relative)
 # $(3): full path to destination
 define symlink-file
 $(eval $(_symlink-file))
 endef
 
-# Order-only dependency because make/ninja will follow the link when checking
-# the timestamp, so the file must exist
 define _symlink-file
-$(3): | $(1)
+$(3): $(1)
 	@echo "Symlink: $$@ -> $(2)"
 	@mkdir -p $(dir $$@)
 	@rm -rf $$@
