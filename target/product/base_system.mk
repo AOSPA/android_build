@@ -54,6 +54,7 @@ PRODUCT_PACKAGES += \
     com.android.appsearch \
     com.android.conscrypt \
     com.android.cronet \
+    com.android.extservices \
     com.android.i18n \
     com.android.ipsec \
     com.android.location.provider \
@@ -83,12 +84,12 @@ PRODUCT_PACKAGES += \
     dumpsys \
     DynamicSystemInstallationService \
     e2fsck \
-    ExtServices \
     ExtShared \
     flags_health_check \
     framework-minus-apex \
     framework-res \
     framework-sysconfig.xml \
+    framework-telephony \
     fsck_msdos \
     fs_config_files_system \
     fs_config_dirs_system \
@@ -108,6 +109,7 @@ PRODUCT_PACKAGES += \
     incident \
     incidentd \
     incident_helper \
+    incident-helper-cmd \
     init.environ.rc \
     init_system \
     input \
@@ -220,7 +222,6 @@ PRODUCT_PACKAGES += \
     PackageInstaller \
     passwd_system \
     perfetto \
-    PermissionController \
     ping \
     ping6 \
     platform.xml \
@@ -277,10 +278,6 @@ PRODUCT_PACKAGES += \
     wificond \
     wm \
 
-# TODO(b/146549048) remove this
-PRODUCT_PACKAGES += \
-    boringssl_self_test
-
 # VINTF data for system image
 PRODUCT_PACKAGES += \
     system_manifest.xml \
@@ -334,14 +331,16 @@ PRODUCT_BOOT_JARS := \
     telephony-common \
     voip-common \
     ims-common \
-    framework-sdkext \
+    framework-sdkextensions \
     framework-statsd \
     ike \
     updatable-media \
     framework-mediaprovider \
+    framework-permission \
     framework-appsearch \
     framework-wifi \
-    framework-tethering
+    framework-tethering \
+    framework-telephony
 
 PRODUCT_UPDATABLE_BOOT_JARS := \
     com.android.appsearch:framework-appsearch \
@@ -350,7 +349,8 @@ PRODUCT_UPDATABLE_BOOT_JARS := \
     com.android.media:updatable-media \
     com.android.mediaprovider:framework-mediaprovider \
     com.android.os.statsd:framework-statsd \
-    com.android.sdkext:framework-sdkext \
+    com.android.permission:framework-permission \
+    com.android.sdkext:framework-sdkextensions \
     com.android.wifi:framework-wifi \
     com.android.tethering:framework-tethering
 
