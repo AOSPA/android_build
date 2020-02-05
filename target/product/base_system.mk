@@ -45,7 +45,6 @@ PRODUCT_PACKAGES += \
     bu \
     bugreport \
     bugreportz \
-    cacerts_wfa \
     cgroups.json \
     charger \
     cmd \
@@ -142,6 +141,7 @@ PRODUCT_PACKAGES += \
     libdrmframework_jni \
     libEGL \
     libETC1 \
+    libfdtrack \
     libFFTEm \
     libfilterfw \
     libgatekeeper \
@@ -209,7 +209,6 @@ PRODUCT_PACKAGES += \
     media_profiles_V1_0.dtd \
     MediaProviderLegacy \
     mediaserver \
-    mediatranscoding \
     mke2fs \
     monkey \
     mtpd \

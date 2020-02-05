@@ -113,7 +113,8 @@ $(call add_json_bool, DisableScudo,                      $(filter true,$(PRODUCT
 $(call add_json_bool, ClangTidy,                         $(filter 1 true,$(WITH_TIDY)))
 $(call add_json_str,  TidyChecks,                        $(WITH_TIDY_CHECKS))
 
-$(call add_json_bool, NativeCoverage,                    $(filter true,$(NATIVE_COVERAGE)))
+$(call add_json_bool, Native_coverage,                   $(filter true,$(NATIVE_COVERAGE)))
+$(call add_json_bool, ClangCoverage,                     $(filter true,$(CLANG_COVERAGE)))
 $(call add_json_list, CoveragePaths,                     $(COVERAGE_PATHS))
 $(call add_json_list, CoverageExcludePaths,              $(COVERAGE_EXCLUDE_PATHS))
 
@@ -158,6 +159,9 @@ $(call add_json_bool, MinimizeJavaDebugInfo,             $(filter true,$(PRODUCT
 
 $(call add_json_bool, UseGoma,                           $(filter-out false,$(USE_GOMA)))
 $(call add_json_bool, UseRBE,                            $(filter-out false,$(USE_RBE)))
+$(call add_json_bool, UseRBEJAVAC,                       $(filter-out false,$(RBE_JAVAC)))
+$(call add_json_bool, UseRBER8,                          $(filter-out false,$(RBE_R8)))
+$(call add_json_bool, UseRBED8,                          $(filter-out false,$(RBE_D8)))
 $(call add_json_bool, Arc,                               $(filter true,$(TARGET_ARC)))
 $(call add_json_bool, Qmaa_hal,                          $(filter true,$(TARGET_USES_QMAA_HAL)))
 $(call add_json_bool, Real_hal,                          $(filter true,$(TARGET_USES_REAL_HAL)))
@@ -206,6 +210,8 @@ $(call end_json_map)
 $(call add_json_bool, EnforceProductPartitionInterface,  $(PRODUCT_ENFORCE_PRODUCT_PARTITION_INTERFACE))
 
 $(call add_json_bool, InstallExtraFlattenedApexes, $(PRODUCT_INSTALL_EXTRA_FLATTENED_APEXES))
+
+$(call add_json_bool, BoardUsesRecoveryAsBoot, $(BOARD_USES_RECOVERY_AS_BOOT))
 
 $(call json_end)
 
