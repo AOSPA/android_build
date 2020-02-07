@@ -141,6 +141,22 @@ PRODUCT_SYSTEM_DEVICE := generic
 
 _base_mk_whitelist :=
 
+ifeq (true,$(TARGET_USES_QSSI))
+ifeq (true,$(TARGET_HW_DISK_ENCRYPTION))
+_base_mk_whitelist += \
+    $(TARGET_COPY_OUT_PRODUCT)/lib64/libcryptfs_hw.so \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.cryptfshw@1.0.so
+endif
+
+ifeq (1,$(USE_CUSTOM_AUDIO_POLICY))
+_base_mk_whitelist += \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.audiohalext@1.0.so
+endif
+
+_base_mk_whitelist += \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib/vendor.qti.hardware.camera.device@1.0.so
+endif
+
 _my_whitelist := $(_base_mk_whitelist)
 
 # For mainline, system.img should be mounted at /, so we include ROOT here.
