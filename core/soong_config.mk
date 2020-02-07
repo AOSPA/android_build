@@ -106,6 +106,9 @@ $(call add_json_list, XOMExcludePaths,                   $(XOM_EXCLUDE_PATHS) $(
 $(call add_json_list, IntegerOverflowExcludePaths,       $(INTEGER_OVERFLOW_EXCLUDE_PATHS) $(PRODUCT_INTEGER_OVERFLOW_EXCLUDE_PATHS))
 $(call add_json_list, IntegerOverflowIncludePaths,       $(INTEGER_OVERFLOW_INCLUDE_PATHS) $(PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS))
 
+$(call add_json_list, BoundSanitizerExcludePaths ,	 	 $(BOUNDS_EXCLUDE_PATHS) $(PRODUCT_BOUNDS_EXCLUDE_PATHS))
+$(call add_json_list, BoundSanitizerIncludePaths ,       $(BOUNDS_INCLUDE_PATHS) $(PRODUCT_BOUNDS_INCLUDE_PATHS))
+
 $(call add_json_bool, Experimental_mte,                  $(filter true,$(TARGET_EXPERIMENTAL_MTE)))
 
 $(call add_json_bool, DisableScudo,                      $(filter true,$(PRODUCT_DISABLE_SCUDO)))
