@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2019 The Android Open-Source Project
+# Copyright (C) 2017 The Android Open-Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,12 @@
 # limitations under the License.
 #
 
-PRODUCT_VIRTUAL_AB_OTA := true
+include build/make/target/board/BoardConfigGsiCommon.mk
 
-PRODUCT_PRODUCT_PROPERTIES += ro.virtual_ab.enabled=true
+TARGET_CPU_ABI := x86_64
+TARGET_ARCH := x86_64
+TARGET_ARCH_VARIANT := x86_64
 
-PRODUCT_PACKAGES += e2fsck_ramdisk
+TARGET_2ND_CPU_ABI := x86
+TARGET_2ND_ARCH := x86
+TARGET_2ND_ARCH_VARIANT := x86_64

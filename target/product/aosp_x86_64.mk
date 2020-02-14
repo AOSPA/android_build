@@ -64,6 +64,12 @@ ifeq (aosp_x86_64,$(TARGET_PRODUCT))
 $(call inherit-product, $(SRC_TARGET_DIR)/product/gsi_release.mk)
 endif
 
+#
+# The Bluetooth namespace needs to be selected to include the default
+# Bluetooth implementation
+#
+PRODUCT_SOONG_NAMESPACES += packages/apps/Bluetooth
+
 
 PRODUCT_NAME := aosp_x86_64
 PRODUCT_DEVICE := generic_x86_64
