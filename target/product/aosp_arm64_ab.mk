@@ -14,28 +14,25 @@
 # limitations under the License.
 #
 
-PRODUCT_USE_DYNAMIC_PARTITIONS := true
+# PRODUCT_PROPERTY_OVERRIDES cannot be used here because sysprops will be at
+# /vendor/[build|default].prop when build split is on. In order to have sysprops
+# on the generic system image, place them in build/make/target/board/
+# gsi_system.prop.
 
-# The system image of aosp_arm64-userdebug is a GSI for the devices with:
+# aosp_arm64_ab-userdebug is a Legacy GSI for the devices with:
 # - ARM 64 bits user space
 # - 64 bits binder interface
 # - system-as-root
-# - VNDK enforcement
-# - compatible property override enabled
-
-# This is a build configuration for a full-featured build of the
-# Open-Source part of the tree. It's geared toward a US-centric
-# build quite specifically for the emulator, and might not be
-# entirely appropriate to inherit from for on-device configurations.
 
 #
 # All components inherited here go to system image
+# (The system image of Legacy GSI is not CSI)
 #
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/mainline_system.mk)
 
 # Enable mainline checking for excat this product name
-ifeq (aosp_arm64,$(TARGET_PRODUCT))
+ifeq (aosp_arm64_ab,$(TARGET_PRODUCT))
 PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS := relaxed
 endif
 
@@ -51,27 +48,11 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_system_ext.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_product.mk)
 
 #
-# All components inherited here go to vendor image
-#
-$(call inherit-product-if-exists, device/generic/goldfish/arm64-vendor.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/emulator_vendor.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/board/generic_arm64/device.mk)
-
-#
 # Special settings for GSI releasing
 #
-ifeq (aosp_arm64,$(TARGET_PRODUCT))
-$(call inherit-product, $(SRC_TARGET_DIR)/product/gsi_release.mk)
-endif
+$(call inherit-product, $(SRC_TARGET_DIR)/product/legacy_gsi_release.mk)
 
-#
-# The Bluetooth namespace needs to be selected to include the default
-# Bluetooth implementation
-#
-PRODUCT_SOONG_NAMESPACES += packages/apps/Bluetooth
-
-
-PRODUCT_NAME := aosp_arm64
-PRODUCT_DEVICE := generic_arm64
+PRODUCT_NAME := aosp_arm64_ab
+PRODUCT_DEVICE := generic_arm64_ab
 PRODUCT_BRAND := Android
 PRODUCT_MODEL := AOSP on ARM64
