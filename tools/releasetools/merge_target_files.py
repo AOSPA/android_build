@@ -521,7 +521,7 @@ def process_apex_keys_apk_certs_common(framework_target_files_dir,
 
   for key in framework_dict:
     if key in vendor_dict and vendor_dict[key] != framework_dict[key]:
-      raise ValueError('Conflicting entries found in %s:\n %s and\n %s' %
+      logger.warning('Conflicting entries found in %s:\n %s and\n %s' %
                        (file_name, framework_dict[key], vendor_dict[key]))
     vendor_dict[key] = framework_dict[key]
 
