@@ -220,7 +220,7 @@ _product_var_list += PRODUCT_SYSTEM_SERVER_JARS
 
 # All of the apps that we force preopt, this overrides WITH_DEXPREOPT.
 _product_var_list += PRODUCT_ALWAYS_PREOPT_EXTRACTED_APK
-_product_var_list += PRODUCT_DEXPREOPT_SPEED_APPS
+_product_var_list += PRODUCT_DEXPREOPT_QUICKEN_APPS
 _product_var_list += PRODUCT_LOADED_BY_PRIVILEGED_MODULES
 _product_var_list += PRODUCT_VBOOT_SIGNING_KEY
 _product_var_list += PRODUCT_VBOOT_SIGNING_SUBKEY
