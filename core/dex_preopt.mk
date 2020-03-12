@@ -10,7 +10,7 @@ include $(BUILD_SYSTEM)/dex_preopt_config.mk
 ifeq ($(SANITIZE_LITE),true)
 install-on-system-other =
 else
-install-on-system-other = $(filter-out $(PRODUCT_DEXPREOPT_SPEED_APPS) $(PRODUCT_SYSTEM_SERVER_APPS),$(basename $(notdir $(filter $(foreach f,$(SYSTEM_OTHER_ODEX_FILTER),$(TARGET_OUT)/$(f)),$(1)))))
+install-on-system-other = $(filter-out $(PRODUCT_DEXPREOPT_QUICKEN_APPS) $(PRODUCT_SYSTEM_SERVER_APPS),$(basename $(notdir $(filter $(foreach f,$(SYSTEM_OTHER_ODEX_FILTER),$(TARGET_OUT)/$(f)),$(1)))))
 endif
 
 # We want to install the profile even if we are not using preopt since it is required to generate
