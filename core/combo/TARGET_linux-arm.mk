@@ -31,9 +31,9 @@
 #
 
 KNOWN_ARMv8_CORES := cortex-a53 cortex-a53.a57 cortex-a55 cortex-a73 cortex-a75 cortex-a76
-KNOWN_ARMv8_CORES += kryo kryo385 exynos-m1 exynos-m2
+KNOWN_ARMv8_CORES += kryo kryo240 kryo250 kryo260 kryo280 kryo360 kryo385 kryo460 kryo465 kryo470 kryo475 kryo485 exynos-m1 exynos-m2 exynos-m3 exynos-m4
 
-KNOWN_ARMv82a_CORES := cortex-a55 cortex-a75 cortex-a76 kryo385
+KNOWN_ARMv82a_CORES := cortex-a55 cortex-a75 cortex-a76 kryo360 kryo385 kryo460 kryo465 kryo470 kryo475 kryo485 exynos-m3 exynos-m4
 
 ifeq (,$(strip $(TARGET_$(combo_2nd_arch_prefix)CPU_VARIANT)))
   TARGET_$(combo_2nd_arch_prefix)CPU_VARIANT := generic
