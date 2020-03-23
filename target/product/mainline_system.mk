@@ -136,7 +136,7 @@ _base_mk_whitelist :=
 ifeq (true,$(TARGET_USES_QSSI))
 ifeq (true,$(TARGET_HW_DISK_ENCRYPTION))
 _base_mk_whitelist += \
-    $(TARGET_COPY_OUT_PRODUCT)/lib64/libcryptfs_hw.so \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/libcryptfs_hw.so \
     $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.cryptfshw@1.0.so
 endif
 
@@ -146,7 +146,11 @@ _base_mk_whitelist += \
 endif
 
 _base_mk_whitelist += \
-    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib/vendor.qti.hardware.camera.device@1.0.so
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib/vendor.qti.hardware.camera.device@1.0.so \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/libvr_amb_engine.so \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/libvr_object_engine.so \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/libvr_sam_wrapper.so \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/libvraudio.so
 endif
 
 _my_whitelist := $(_base_mk_whitelist)
