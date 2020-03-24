@@ -445,7 +445,7 @@ def LoadInfoDict(input_file, repacking=False):
       elif "ro.build.thumbprint" in build_prop:
         fp = build_prop["ro.build.thumbprint"]
     if fp:
-      d["avb_salt"] = sha256(fp).hexdigest()
+      d["avb_salt"] = sha256(fp.encode()).hexdigest()
 
   return d
 
@@ -2197,7 +2197,7 @@ class BlockDifference(object):
     zero_block = '\x00' * 4096
     ctx = sha1()
     for _ in range(num_blocks):
-      ctx.update(zero_block)
+      ctx.update(zero_block.encode())
 
     return ctx.hexdigest()
 
