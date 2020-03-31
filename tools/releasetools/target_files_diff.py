@@ -19,7 +19,7 @@
 # Finds differences between two target files packages
 #
 
-from __future__ import print_function
+
 
 import argparse
 import contextlib

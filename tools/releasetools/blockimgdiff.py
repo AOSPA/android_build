@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
+
 
 import array
 import copy
@@ -471,8 +471,8 @@ class BlockImageDiff(object):
 
     # The range sets in each filemap should comprise a partition of
     # the care map.
-    self.AssertPartition(src.care_map, src.file_map.values())
-    self.AssertPartition(tgt.care_map, tgt.file_map.values())
+    self.AssertPartition(src.care_map, list(src.file_map.values()))
+    self.AssertPartition(tgt.care_map, list(tgt.file_map.values()))
 
   @property
   def max_stashed_size(self):
@@ -1829,7 +1829,7 @@ class BlockImageDiff(object):
       transfer_split.patch_info = PatchInfo(True, patch)
 
   def AbbreviateSourceNames(self):
-    for k in self.src.file_map.keys():
+    for k in list(self.src.file_map.keys()):
       b = os.path.basename(k)
       self.src_basenames[b] = k
       b = re.sub("[0-9]+", "#", b)
