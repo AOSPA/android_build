@@ -37,7 +37,7 @@ output_dir_or_file:
     argument is the output directory.
 """
 
-from __future__ import print_function
+
 
 import logging
 import os.path

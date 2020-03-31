@@ -186,7 +186,7 @@ A/B OTA specific options
       Disabled by default.
 """
 
-from __future__ import print_function
+
 
 import logging
 import multiprocessing
@@ -370,7 +370,7 @@ class BuildInfo(object):
     return self.info_dict.get(key, default)
 
   def items(self):
-    return self.info_dict.items()
+    return list(self.info_dict.items())
 
   def GetBuildProp(self, prop):
     """Returns the inquired build property."""
@@ -2103,7 +2103,7 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
   target_zip = zipfile.ZipFile(target_file, 'a', allowZip64=True)
 
   # Write super_{foo}.img as {foo}.img.
-  for src, dst in replace.items():
+  for src, dst in list(replace.items()):
     assert src in namelist, \
         'Missing {} in {}; {} cannot be written'.format(src, input_file, dst)
     unzipped_file = os.path.join(input_tmp, *src.split('/'))

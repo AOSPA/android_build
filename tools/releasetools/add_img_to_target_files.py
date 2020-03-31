@@ -44,7 +44,7 @@ Usage:  add_img_to_target_files [flag] target_files
       are signing the target files.
 """
 
-from __future__ import print_function
+
 
 import datetime
 import logging
@@ -435,7 +435,7 @@ def AddVBMeta(output_zip, partitions, name, needed_partitions):
   cmd = [avbtool, "make_vbmeta_image", "--output", img.name]
   common.AppendAVBSigningArgs(cmd, name)
 
-  for partition, path in partitions.items():
+  for partition, path in list(partitions.items()):
     if partition not in needed_partitions:
       continue
     assert (partition in common.AVB_PARTITIONS or

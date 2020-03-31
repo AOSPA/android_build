@@ -22,7 +22,7 @@ Usage:  build_image.py input_directory properties_file output_image \\
             target_output_directory
 """
 
-from __future__ import print_function
+
 
 import logging
 import os

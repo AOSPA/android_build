@@ -42,7 +42,7 @@ Usage: merge_dynamic_partition_metadata.py [args]
     information of dynamic partitions from qssi and target.
 """
 
-from __future__ import print_function
+
 
 import common
 import sys

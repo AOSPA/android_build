@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
+
 
 import base64
 import collections
@@ -445,7 +445,7 @@ def LoadInfoDict(input_file, repacking=False):
       elif "ro.build.thumbprint" in build_prop:
         fp = build_prop["ro.build.thumbprint"]
     if fp:
-      d["avb_salt"] = sha256(fp).hexdigest()
+      d["avb_salt"] = sha256(fp.encode('utf-8')).hexdigest()
 
   return d
 
@@ -1472,7 +1472,7 @@ class PasswordManager(object):
         print("key file %s still missing some passwords." % (self.pwfile,))
         if sys.version_info[0] >= 3:
           raw_input = input  # pylint: disable=redefined-builtin
-        answer = raw_input("try to edit again? [y]> ").strip()
+        answer = input("try to edit again? [y]> ").strip()
         if answer and answer[0] not in 'yY':
           raise RuntimeError("key passwords unavailable")
       first = False
@@ -1506,7 +1506,7 @@ class PasswordManager(object):
     f.write("# (Additional spaces are harmless.)\n\n")
 
     first_line = None
-    sorted_list = sorted([(not v, k, v) for (k, v) in current.items()])
+    sorted_list = sorted([(not v, k, v) for (k, v) in list(current.items())])
     for i, (_, k, v) in enumerate(sorted_list):
       f.write("[[[  %s  ]]] %s\n" % (v, k))
       if not v and first_line is None:
@@ -1672,7 +1672,7 @@ class DeviceSpecificParams(object):
     """Keyword arguments to the constructor become attributes of this
     object, which is passed to all functions in the device-specific
     module."""
-    for k, v in kwargs.items():
+    for k, v in list(kwargs.items()):
       setattr(self, k, v)
     self.extras = OPTIONS.extras
 
@@ -2438,16 +2438,16 @@ class DynamicPartitionsDifference(object):
     assert len(block_diff_dict) == len(block_diffs), \
         "Duplicated BlockDifference object for {}".format(
             [partition for partition, count in
-             collections.Counter(e.partition for e in block_diffs).items()
+             list(collections.Counter(e.partition for e in block_diffs).items())
              if count > 1])
 
     self._partition_updates = collections.OrderedDict()
 
-    for p, block_diff in block_diff_dict.items():
+    for p, block_diff in list(block_diff_dict.items()):
       self._partition_updates[p] = DynamicPartitionUpdate()
       self._partition_updates[p].block_difference = block_diff
 
-    for p, progress in progress_dict.items():
+    for p, progress in list(progress_dict.items()):
       if p in self._partition_updates:
         self._partition_updates[p].progress = progress
 
@@ -2474,7 +2474,7 @@ class DynamicPartitionsDifference(object):
 
     target_dynamic_partitions = set(shlex.split(info_dict.get(
         "dynamic_partition_list", "").strip()))
-    block_diffs_with_target = set(p for p, u in self._partition_updates.items()
+    block_diffs_with_target = set(p for p, u in list(self._partition_updates.items())
                                   if u.tgt_size)
     assert block_diffs_with_target == target_dynamic_partitions, \
         "Target Dynamic partitions: {}, BlockDifference with target: {}".format(
@@ -2482,7 +2482,7 @@ class DynamicPartitionsDifference(object):
 
     source_dynamic_partitions = set(shlex.split(source_info_dict.get(
         "dynamic_partition_list", "").strip()))
-    block_diffs_with_source = set(p for p, u in self._partition_updates.items()
+    block_diffs_with_source = set(p for p, u in list(self._partition_updates.items())
                                   if u.src_size)
     assert block_diffs_with_source == source_dynamic_partitions, \
         "Source Dynamic partitions: {}, BlockDifference with source: {}".format(
@@ -2490,7 +2490,7 @@ class DynamicPartitionsDifference(object):
 
     if self._partition_updates:
       logger.info("Updating dynamic partitions %s",
-                  self._partition_updates.keys())
+                  list(self._partition_updates.keys()))
 
     self._group_updates = collections.OrderedDict()
 
@@ -2509,7 +2509,7 @@ class DynamicPartitionsDifference(object):
 
   def WriteScript(self, script, output_zip, write_verify_script=False):
     script.Comment('--- Start patching dynamic partitions ---')
-    for p, u in self._partition_updates.items():
+    for p, u in list(self._partition_updates.items()):
       if u.src_size and u.tgt_size and u.src_size > u.tgt_size:
         script.Comment('Patch partition %s' % p)
         u.block_difference.WriteScript(script, output_zip, progress=u.progress,
@@ -2527,12 +2527,12 @@ class DynamicPartitionsDifference(object):
                        'package_extract_file("dynamic_partitions_op_list")));')
 
     if write_verify_script:
-      for p, u in self._partition_updates.items():
+      for p, u in list(self._partition_updates.items()):
         if u.src_size and u.tgt_size and u.src_size > u.tgt_size:
           u.block_difference.WritePostInstallVerifyScript(script)
           script.AppendExtra('unmap_partition("%s");' % p) # ignore errors
 
-    for p, u in self._partition_updates.items():
+    for p, u in list(self._partition_updates.items()):
       if u.tgt_size and u.src_size <= u.tgt_size:
         script.Comment('Patch partition %s' % p)
         u.block_difference.WriteScript(script, output_zip, progress=u.progress,
@@ -2556,22 +2556,22 @@ class DynamicPartitionsDifference(object):
               'applying full OTA')
       append('remove_all_groups')
 
-    for p, u in self._partition_updates.items():
+    for p, u in list(self._partition_updates.items()):
       if u.src_group and not u.tgt_group:
         append('remove %s' % p)
 
-    for p, u in self._partition_updates.items():
+    for p, u in list(self._partition_updates.items()):
       if u.src_group and u.tgt_group and u.src_group != u.tgt_group:
         comment('Move partition %s from %s to default' % (p, u.src_group))
         append('move %s default' % p)
 
-    for p, u in self._partition_updates.items():
+    for p, u in list(self._partition_updates.items()):
       if u.src_size and u.tgt_size and u.src_size > u.tgt_size:
         comment('Shrink partition %s from %d to %d' %
                 (p, u.src_size, u.tgt_size))
         append('resize %s %s' % (p, u.tgt_size))
 
-    for g, u in self._group_updates.items():
+    for g, u in list(self._group_updates.items()):
       if u.src_size is not None and u.tgt_size is None:
         append('remove_group %s' % g)
       if (u.src_size is not None and u.tgt_size is not None and
@@ -2579,7 +2579,7 @@ class DynamicPartitionsDifference(object):
         comment('Shrink group %s from %d to %d' % (g, u.src_size, u.tgt_size))
         append('resize_group %s %d' % (g, u.tgt_size))
 
-    for g, u in self._group_updates.items():
+    for g, u in list(self._group_updates.items()):
       if u.src_size is None and u.tgt_size is not None:
         comment('Add group %s with maximum size %d' % (g, u.tgt_size))
         append('add_group %s %d' % (g, u.tgt_size))
@@ -2588,17 +2588,17 @@ class DynamicPartitionsDifference(object):
         comment('Grow group %s from %d to %d' % (g, u.src_size, u.tgt_size))
         append('resize_group %s %d' % (g, u.tgt_size))
 
-    for p, u in self._partition_updates.items():
+    for p, u in list(self._partition_updates.items()):
       if u.tgt_group and not u.src_group:
         comment('Add partition %s to group %s' % (p, u.tgt_group))
         append('add %s %s' % (p, u.tgt_group))
 
-    for p, u in self._partition_updates.items():
+    for p, u in list(self._partition_updates.items()):
       if u.tgt_size and u.src_size < u.tgt_size:
         comment('Grow partition %s from %d to %d' % (p, u.src_size, u.tgt_size))
         append('resize %s %d' % (p, u.tgt_size))
 
-    for p, u in self._partition_updates.items():
+    for p, u in list(self._partition_updates.items()):
       if u.src_group and u.tgt_group and u.src_group != u.tgt_group:
         comment('Move partition %s from default to %s' %
                 (p, u.tgt_group))

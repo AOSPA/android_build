@@ -105,7 +105,7 @@ Usage:  sign_target_files_apks [flags] input_target_files output_target_files
       the existing ones in info dict.
 """
 
-from __future__ import print_function
+
 
 import base64
 import copy
@@ -155,11 +155,11 @@ OPTIONS.avb_extra_args = {}
 
 def GetApkCerts(certmap):
   # apply the key remapping to the contents of the file
-  for apk, cert in certmap.items():
+  for apk, cert in list(certmap.items()):
     certmap[apk] = OPTIONS.key_map.get(cert, cert)
 
   # apply all the -e options, overriding anything in the file
-  for apk, cert in OPTIONS.extra_apks.items():
+  for apk, cert in list(OPTIONS.extra_apks.items()):
     if not cert:
       cert = "PRESIGNED"
     certmap[apk] = OPTIONS.key_map.get(cert, cert)
@@ -183,7 +183,7 @@ def GetApexKeys(keys_info, key_map):
   """
   # Apply all the --extra_apex_payload_key options to override the payload
   # signing keys in the given keys_info.
-  for apex, key in OPTIONS.extra_apex_payload_keys.items():
+  for apex, key in list(OPTIONS.extra_apex_payload_keys.items()):
     if not key:
       key = 'PRESIGNED'
     if apex not in keys_info:
@@ -192,11 +192,11 @@ def GetApexKeys(keys_info, key_map):
     keys_info[apex] = (key, keys_info[apex][1])
 
   # Apply the key remapping to container keys.
-  for apex, (payload_key, container_key) in keys_info.items():
+  for apex, (payload_key, container_key) in list(keys_info.items()):
     keys_info[apex] = (payload_key, key_map.get(container_key, container_key))
 
   # Apply all the --extra_apks options to override the container keys.
-  for apex, key in OPTIONS.extra_apks.items():
+  for apex, key in list(OPTIONS.extra_apks.items()):
     # Skip non-APEX containers.
     if apex not in keys_info:
       continue
@@ -601,7 +601,7 @@ def ReplaceCerts(data):
   Raises:
     AssertionError: On finding duplicate entries.
   """
-  for old, new in OPTIONS.key_map.items():
+  for old, new in list(OPTIONS.key_map.items()):
     if OPTIONS.verbose:
       print("    Replacing %s.x509.pem with %s.x509.pem" % (old, new))
 
@@ -1197,7 +1197,7 @@ def main(argv):
       apex_keys)
 
   key_passwords = common.GetKeyPasswords(
-      set(apk_keys.values()) | set(itertools.chain(*apex_keys.values())))
+      set(apk_keys.values()) | set(itertools.chain(*list(apex_keys.values()))))
   platform_api_level, _ = GetApiLevelAndCodename(input_zip)
   codename_to_api_level_map = GetCodenameToApiLevelMap(input_zip)
 
