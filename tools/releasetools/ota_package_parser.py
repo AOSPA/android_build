@@ -41,7 +41,7 @@ class Stash(object):
     self.stash_map[SHA1] = blocks
 
   def FreeBlocks(self, SHA1):
-    assert self.stash_map.has_key(SHA1), "stash {} not found".format(SHA1)
+    assert SHA1 in self.stash_map, "stash {} not found".format(SHA1)
     self.current_stash_size -= self.stash_map[SHA1].size()
     del self.stash_map[SHA1]
 

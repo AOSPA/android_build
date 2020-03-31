@@ -18,7 +18,7 @@
 Verify a given OTA package with the specifed certificate.
 """
 
-from __future__ import print_function
+
 
 import argparse
 import logging

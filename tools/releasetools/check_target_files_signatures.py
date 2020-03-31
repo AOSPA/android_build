@@ -39,7 +39,7 @@ Usage:  check_target_file_signatures [flags] target_files
 
 """
 
-from __future__ import print_function
+
 
 import logging
 import os
@@ -298,7 +298,7 @@ class TargetFiles(object):
     """Look for any instances where packages signed with different
     certs request the same sharedUserId."""
     apks_by_uid = {}
-    for apk in self.apks.values():
+    for apk in list(self.apks.values()):
       if apk.shared_uid:
         apks_by_uid.setdefault(apk.shared_uid, []).append(apk)
 
@@ -321,7 +321,7 @@ class TargetFiles(object):
       print()
 
   def CheckExternalSignatures(self):
-    for apk_filename, certname in self.certmap.items():
+    for apk_filename, certname in list(self.certmap.items()):
       if certname == "EXTERNAL":
         # Apps marked EXTERNAL should be signed with the test key
         # during development, then manually re-signed after
@@ -337,11 +337,11 @@ class TargetFiles(object):
   def PrintCerts(self):
     """Display a table of packages grouped by cert."""
     by_cert = {}
-    for apk in self.apks.values():
+    for apk in list(self.apks.values()):
       for cert in apk.certs:
         by_cert.setdefault(cert, []).append((apk.package, apk))
 
-    order = [(-len(v), k) for (k, v) in by_cert.items()]
+    order = [(-len(v), k) for (k, v) in list(by_cert.items())]
     order.sort()
 
     for _, cert in order:
@@ -362,7 +362,7 @@ class TargetFiles(object):
     self and other have different certs."""
 
     all_apks = set(self.apks.keys())
-    all_apks.update(other.apks.keys())
+    all_apks.update(list(other.apks.keys()))
 
     max_pkg_len = max(self.max_pkg_len, other.max_pkg_len)
 

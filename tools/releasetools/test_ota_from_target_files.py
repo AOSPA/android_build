@@ -219,7 +219,7 @@ class BuildInfoTest(test_utils.ReleaseToolsTestCase):
 
   def test_items(self):
     target_info = BuildInfo(self.TEST_INFO_DICT, None)
-    items = target_info.items()
+    items = list(target_info.items())
     self.assertIn(('property1', 'value1'), items)
     self.assertIn(('property2', 4096), items)
 
@@ -810,7 +810,7 @@ class PropertyFilesTest(test_utils.ReleaseToolsTestCase):
 
   def _verify_entries(self, input_file, tokens, entries):
     for entry in entries:
-      offset, size = map(int, tokens[entry].split(':'))
+      offset, size = list(map(int, tokens[entry].split(':')))
       with open(input_file, 'rb') as input_fp:
         input_fp.seek(offset)
         if entry == 'metadata':

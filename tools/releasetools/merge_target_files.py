@@ -74,7 +74,7 @@ Usage: merge_target_files.py [args]
       Keep tempoary files for debugging purposes.
 """
 
-from __future__ import print_function
+
 
 import fnmatch
 import logging
@@ -607,7 +607,7 @@ def process_apex_keys_apk_certs_common(system_target_files_dir,
 
   output_file = os.path.join(output_target_files_dir, 'META', file_name)
 
-  write_sorted_data(data=other_dict.values(), path=output_file)
+  write_sorted_data(data=list(other_dict.values()), path=output_file)
 
 
 def process_special_cases(system_target_files_temp_dir,
