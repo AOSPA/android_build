@@ -84,7 +84,6 @@ PRODUCT_PACKAGES += \
     framework-minus-apex \
     framework-res \
     framework-sysconfig.xml \
-    framework-telephony \
     fsck_msdos \
     fs_config_files_system \
     fs_config_dirs_system \
@@ -313,8 +312,8 @@ PRODUCT_HOST_PACKAGES += \
     tz_version_host \
     tz_version_host_tzdata_apex \
 
-ifeq ($(TARGET_CORE_JARS),)
-$(error TARGET_CORE_JARS is empty; cannot initialize PRODUCT_BOOT_JARS variable)
+ifeq ($(ART_APEX_JARS),)
+$(error ART_APEX_JARS is empty; cannot initialize PRODUCT_BOOT_JARS variable)
 endif
 
 # The order matters for runtime class lookup performance.
@@ -324,8 +323,7 @@ PRODUCT_BOOT_JARS := \
     ext \
     telephony-common \
     voip-common \
-    ims-common \
-    framework-telephony
+    ims-common
 
 PRODUCT_UPDATABLE_BOOT_JARS := \
     com.android.conscrypt:conscrypt \

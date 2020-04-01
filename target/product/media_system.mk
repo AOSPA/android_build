@@ -50,9 +50,9 @@ endif
 
 # The order here is the same order they end up on the classpath, so it matters.
 PRODUCT_SYSTEM_SERVER_JARS := \
+    com.android.location.provider \
     services \
     ethernet-service \
-    com.android.location.provider \
     service-jobscheduler \
     service-blobstore
 
@@ -60,7 +60,7 @@ PRODUCT_SYSTEM_SERVER_JARS := \
 # The values should be of the format <apex name>:<jar name>
 PRODUCT_UPDATABLE_SYSTEM_SERVER_JARS := \
     com.android.permission:service-permission \
-    com.android.wifi:wifi-service \
+    com.android.wifi:service-wifi \
     com.android.ipsec:android.net.ipsec.ike \
 
 PRODUCT_COPY_FILES += \
