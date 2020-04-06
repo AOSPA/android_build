@@ -50,9 +50,7 @@ PRODUCT_PACKAGES += \
     cmd \
     com.android.adbd \
     com.android.apex.cts.shim.v1 \
-    com.android.appsearch \
     com.android.conscrypt \
-    com.android.cronet \
     com.android.extservices \
     com.android.i18n \
     com.android.ipsec \
@@ -212,7 +210,6 @@ PRODUCT_PACKAGES += \
     mtpd \
     ndc \
     netd \
-    NativeAdbDataLoaderService \
     NetworkStackNext \
     org.apache.http.legacy \
     otacerts \
@@ -331,7 +328,6 @@ PRODUCT_BOOT_JARS := \
     framework-telephony
 
 PRODUCT_UPDATABLE_BOOT_JARS := \
-    com.android.appsearch:framework-appsearch \
     com.android.conscrypt:conscrypt \
     com.android.media:updatable-media \
     com.android.mediaprovider:framework-mediaprovider \

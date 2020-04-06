@@ -1037,6 +1037,7 @@ endef
 define auto-included-modules
   $(if $(BOARD_VNDK_VERSION),vndk_package) \
   $(if $(DEVICE_MANIFEST_FILE),vendor_manifest.xml) \
+  $(if $(DEVICE_MANIFEST_SKUS),$(foreach sku, $(DEVICE_MANIFEST_SKUS),vendor_manifest_$(sku).xml)) \
   $(if $(ODM_MANIFEST_FILES),odm_manifest.xml) \
   $(if $(ODM_MANIFEST_SKUS),$(foreach sku, $(ODM_MANIFEST_SKUS),odm_manifest_$(sku).xml)) \
 
@@ -1229,7 +1230,7 @@ $(call dist-for-goals,droidcore,$(CERTIFICATE_VIOLATION_MODULES_FILENAME))
       $(makefile) produces files outside its artifact path requirement. \
       Allowed paths are $(subst $(space),$(comma)$(space),$(addsuffix *,$(requirements)))) \
     $(eval unused_whitelist := $(filter-out $(files),$(whitelist_patterns))) \
-    $(call maybe-print-list-and-error,$(unused_whitelist),$(makefile) includes redundant whitelist entries in its artifact path requirement.) \
+    $(call maybe-print-list-and-warn,$(unused_whitelist),$(makefile) includes redundant whitelist entries in its artifact path requirement.) \
     $(eval ### Optionally verify that nothing else produces files inside this artifact path requirement.) \
     $(eval extra_files := $(filter-out $(files) $(HOST_OUT)/%,$(product_target_FILES))) \
     $(eval files_in_requirement := $(filter $(path_patterns),$(extra_files))) \
@@ -1271,6 +1272,7 @@ modules_to_install := $(sort \
     $(CUSTOM_MODULES) \
   )
 
+ifdef FULL_BUILD
 #
 # Used by the cleanup logic in soong_ui to remove files that should no longer
 # be installed.
@@ -1291,6 +1293,7 @@ $(file >$(HOST_OUT)/.installable_test_files,$(sort \
     $(test_files)))))
 
 test_files :=
+endif
 
 
 # Don't include any GNU General Public License shared objects or static
