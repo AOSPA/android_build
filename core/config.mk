@@ -1185,9 +1185,11 @@ ifneq ($(wildcard device/pa/sepolicy/common/sepolicy.mk),)
 ## last, to avoid accidental resetting by device configs
 $(eval include device/pa/sepolicy/common/sepolicy.mk)
 endif
+ifneq ($(TARGET_EXCLUDE_QCOM_SEPOLICY), true)
 ifeq ($(call is-vendor-board-platform,QCOM),true)
 ifneq ($(wildcard device/pa/sepolicy/qcom/sepolicy.mk),)
 $(eval include device/pa/sepolicy/qcom/sepolicy.mk)
+endif
 endif
 endif
 endif
