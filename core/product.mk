@@ -193,6 +193,9 @@ _product_list_vars += PRODUCT_ENFORCE_RRO_EXCLUDED_OVERLAYS
 # Package list to apply enforcing RRO.
 _product_list_vars += PRODUCT_ENFORCE_RRO_TARGETS
 
+# Packages to skip auto-generating RROs for when PRODUCT_ENFORCE_RRO_TARGETS is set to *.
+_product_list_vars += PRODUCT_ENFORCE_RRO_EXEMPTED_TARGETS
+
 _product_list_vars += PRODUCT_SDK_ATREE_FILES
 _product_list_vars += PRODUCT_SDK_ADDON_NAME
 _product_list_vars += PRODUCT_SDK_ADDON_COPY_FILES
@@ -236,6 +239,10 @@ _product_list_vars += PRODUCT_SYSTEM_SERVER_APPS
 _product_list_vars += PRODUCT_SYSTEM_SERVER_JARS
 # List of system_server jars delivered via apex. Format = <apex name>:<jar name>.
 _product_list_vars += PRODUCT_UPDATABLE_SYSTEM_SERVER_JARS
+
+# Additional system server jars to be appended at the end of the common list.
+# This is necessary to avoid jars reordering due to makefile inheritance order.
+_product_list_vars += PRODUCT_SYSTEM_SERVER_JARS_EXTRA
 
 # All of the apps that we force preopt, this overrides WITH_DEXPREOPT.
 _product_list_vars += PRODUCT_ALWAYS_PREOPT_EXTRACTED_APK

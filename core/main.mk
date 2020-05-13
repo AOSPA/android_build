@@ -38,11 +38,13 @@ include $(BUILD_SYSTEM)/clang/config.mk
 # Write the build number to a file so it can be read back in
 # without changing the command line every time.  Avoids rebuilds
 # when using ninja.
-$(shell mkdir -p $(OUT_DIR) && \
-    echo -n $(BUILD_NUMBER) > $(OUT_DIR)/build_number.txt)
-BUILD_NUMBER_FILE := $(OUT_DIR)/build_number.txt
+$(shell mkdir -p $(SOONG_OUT_DIR) && \
+    echo -n $(BUILD_NUMBER) > $(SOONG_OUT_DIR)/build_number.txt)
+BUILD_NUMBER_FILE := $(SOONG_OUT_DIR)/build_number.txt
 .KATI_READONLY := BUILD_NUMBER_FILE
 $(KATI_obsolete_var BUILD_NUMBER,See https://android.googlesource.com/platform/build/+/master/Changes.md#BUILD_NUMBER)
+$(BUILD_NUMBER_FILE):
+	touch $@
 
 DATE_FROM_FILE := date -d @$(BUILD_DATETIME_FROM_FILE)
 .KATI_READONLY := DATE_FROM_FILE
@@ -751,15 +753,18 @@ $(if $(_all_deps_for_$(1)_set_),$(_all_deps_for_$(1)_),\
 $(_all_deps_for_$(1)_))
 endef
 
-# Scan all modules in general-tests and device-tests suite and flatten the
-# shared library dependencies.
+# Scan all modules in general-tests, device-tests and other selected suites and
+# flatten the shared library dependencies.
 define update-host-shared-libs-deps-for-suites
-$(foreach suite,general-tests device-tests,\
+$(foreach suite,general-tests device-tests vts,\
   $(foreach m,$(COMPATIBILITY.$(suite).MODULES),\
     $(eval my_deps := $(call get-all-shared-libs-deps,$(m)))\
     $(foreach dep,$(my_deps),\
       $(foreach f,$(ALL_MODULES.$(dep).HOST_SHARED_LIBRARY_FILES),\
-        $(eval target := $(HOST_OUT_TESTCASES)/$(lastword $(subst /, ,$(dir $(f))))/$(notdir $(f)))\
+        $(if $(filter $(suite),device-tests general-tests),\
+          $(eval my_testcases := $(HOST_OUT_TESTCASES)),\
+          $(eval my_testcases := $$(COMPATIBILITY_TESTCASES_OUT_$(suite))))\
+        $(eval target := $(my_testcases)/$(lastword $(subst /, ,$(dir $(f))))/$(notdir $(f)))\
         $(eval COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES := \
           $$(COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES) $(f):$(target))\
         $(eval COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES := \
@@ -1190,13 +1195,13 @@ ifdef FULL_BUILD
   # Verify the artifact path requirements made by included products.
   is_asan := $(if $(filter address,$(SANITIZE_TARGET)),true)
   ifneq (true,$(or $(is_asan),$(DISABLE_ARTIFACT_PATH_REQUIREMENTS)))
-  # Fakes don't get installed, host files are irrelevant, and NDK stubs aren't installed to device.
-  static_whitelist_patterns := $(TARGET_OUT_FAKE)/% $(HOST_OUT)/% $(SOONG_OUT_DIR)/ndk/%
+  # Fakes don't get installed, and NDK stubs aren't installed to device.
+  static_whitelist_patterns := $(TARGET_OUT_FAKE)/% $(SOONG_OUT_DIR)/ndk/%
   # RROs become REQUIRED by the source module, but are always placed on the vendor partition.
   static_whitelist_patterns += %__auto_generated_rro_product.apk
   static_whitelist_patterns += %__auto_generated_rro_vendor.apk
   # Auto-included targets are not considered
-  static_whitelist_patterns += $(call module-installed-files,$(call auto-included-modules))
+  static_whitelist_patterns += $(call product-installed-files,)
   # $(PRODUCT_OUT)/apex is where shared libraries in APEXes get installed.
   # The path can be considered as a fake path, as the shared libraries
   # are installed there just to have symbols files for them under

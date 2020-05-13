@@ -597,6 +597,7 @@ endif
 ## Compatibility suite files.
 ###########################################################
 ifdef LOCAL_COMPATIBILITY_SUITE
+ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
 
 # If we are building a native test or benchmark and its stem variants are not defined,
 # separate the multiple architectures into subdirectories of the testcase folder.
@@ -750,6 +751,7 @@ $(call create-suite-dependencies)
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
   $(eval my_compat_dist_config_$(suite) := ))
 
+endif  # LOCAL_UNINSTALLABLE_MODULE
 endif  # LOCAL_COMPATIBILITY_SUITE
 
 ###########################################################
@@ -917,7 +919,7 @@ INSTALLABLE_FILES.$(LOCAL_INSTALLED_MODULE).MODULE := $(my_register_name)
 ##########################################################
 # Track module-level dependencies.
 # Use $(LOCAL_MODULE) instead of $(my_register_name) to ignore module's bitness.
-ifneq (,$(filter deps-license,$(MAKECMDGOALS)))
+ifdef RECORD_ALL_DEPS
 ALL_DEPS.MODULES := $(ALL_DEPS.MODULES) $(LOCAL_MODULE)
 ALL_DEPS.$(LOCAL_MODULE).ALL_DEPS := $(sort \
   $(ALL_DEPS.$(LOCAL_MODULE).ALL_DEPS) \
