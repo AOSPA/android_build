@@ -668,8 +668,13 @@ def LoadInfoDict(input_file, repacking=False):
   makeint("userdata_size")
   makeint("cache_size")
   makeint("recovery_size")
-  makeint("boot_size")
   makeint("fstab_version")
+
+  boot_images = "boot.img"
+  if "boot_images" in d:
+    boot_images = d["boot_images"]
+  for b in boot_images.split():
+    makeint(b.replace(".img","_size"))
 
   # Load recovery fstab if applicable.
   d["fstab"] = _FindAndLoadRecoveryFstab(d, input_file, read_helper)
@@ -977,8 +982,9 @@ def BuildVBMeta(image_path, partitions, name, needed_partitions):
   Args:
     image_path: The output path for the new VBMeta image.
     partitions: A dict that's keyed by partition names with image paths as
-        values. Only valid partition names are accepted, as listed in
-        common.AVB_PARTITIONS.
+        values. Only valid partition names are accepted, as partitions listed
+        in common.AVB_PARTITIONS and custom partitions listed in
+        OPTIONS.info_dict.get("avb_custom_images_partition_list")
     name: Name of the VBMeta partition, e.g. 'vbmeta', 'vbmeta_system'.
     needed_partitions: Partitions whose descriptors should be included into the
         generated VBMeta image.
@@ -990,11 +996,15 @@ def BuildVBMeta(image_path, partitions, name, needed_partitions):
   cmd = [avbtool, "make_vbmeta_image", "--output", image_path]
   AppendAVBSigningArgs(cmd, name)
 
+  custom_partitions = OPTIONS.info_dict.get(
+      "avb_custom_images_partition_list", "").strip().split()
+
   for partition, path in partitions.items():
     if partition not in needed_partitions:
       continue
     assert (partition in AVB_PARTITIONS or
-            partition in AVB_VBMETA_PARTITIONS), \
+            partition in AVB_VBMETA_PARTITIONS or
+            partition in custom_partitions), \
         'Unknown partition: {}'.format(partition)
     assert os.path.exists(path), \
         'Failed to find {} for {}'.format(path, partition)
@@ -1192,7 +1202,10 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file, info_dict=None,
   # AVB: if enabled, calculate and add hash to boot.img or recovery.img.
   if info_dict.get("avb_enable") == "true":
     avbtool = info_dict["avb_avbtool"]
-    part_size = info_dict[partition_name + "_size"]
+    if partition_name == "recovery":
+      part_size = info_dict["recovery_size"]
+    else:
+      part_size = info_dict[image_name.replace(".img","_size")]
     cmd = [avbtool, "add_hash_footer", "--image", img.name,
            "--partition_size", str(part_size), "--partition_name",
            partition_name]
@@ -2980,8 +2993,8 @@ fi
        'recovery_sha1': recovery_img.sha1,
        'boot_type': boot_type,
        'boot_device': boot_device + '$(getprop ro.boot.slot_suffix)',
-       'recovery_type': recovery_type + '$(getprop ro.boot.slot_suffix)',
-       'recovery_device': recovery_device,
+       'recovery_type': recovery_type,
+       'recovery_device': recovery_device + '$(getprop ro.boot.slot_suffix)',
        'bonus_args': bonus_args}
 
   # The install script location moved from /system/etc to /system/bin in the L
