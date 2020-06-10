@@ -726,17 +726,20 @@ endef
 # $(9): module directory name
 # Returns the a list of src:dest pairs to install the modules using copy-many-files.
 define build-image-kernel-modules
+  $(if $(9), \
+    $(eval _dir := $(9)/), \
+    $(eval _dir :=)) \
   $(foreach module,$(1), \
     $(eval _src := $(module)) \
     $(if $(8), \
       $(eval _src := $(8)/$(notdir $(module))) \
       $(eval $(call copy-and-strip-kernel-module,$(module),$(_src)))) \
-    $(_src):$(2)/lib/modules/$(9)/$(notdir $(module))) \
+    $(_src):$(2)/lib/modules/$(_dir)$(notdir $(module))) \
   $(eval $(call build-image-kernel-modules-depmod,$(1),$(3),$(4),$(5),$(6),$(7),$(2),$(9))) \
-  $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.dep:$(2)/lib/modules/$(9)/modules.dep \
-  $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.alias:$(2)/lib/modules/$(9)/modules.alias \
-  $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.softdep:$(2)/lib/modules/$(9)/modules.softdep \
-  $(4)/$(DEPMOD_STAGING_SUBDIR)/$(6):$(2)/lib/modules/$(9)/$(6)
+  $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.dep:$(2)/lib/modules/$(_dir)modules.dep \
+  $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.alias:$(2)/lib/modules/$(_dir)modules.alias \
+  $(4)/$(DEPMOD_STAGING_SUBDIR)/modules.softdep:$(2)/lib/modules/$(_dir)modules.softdep \
+  $(4)/$(DEPMOD_STAGING_SUBDIR)/$(6):$(2)/lib/modules/$(_dir)$(6)
 endef
 
 # $(1): modules list
@@ -3564,6 +3567,9 @@ endef
 # configured as a chained partition, if BOARD_AVB_<partition>_KEY_PATH is defined. Otherwise the
 # image descriptor will be included into vbmeta.img, unless it has been already added to any chained
 # VBMeta image.
+# Multiple boot images can be generated based on BOARD_KERNEL_BINARIES
+# but vbmeta would capture the image descriptor of only the first boot
+# image specified in BUILT_BOOTIMAGE_TARGET.
 # $(1): Partition name, e.g. boot or system.
 define check-and-set-avb-args
 $(eval _in_chained_vbmeta := $(filter $(1),$(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES)))
@@ -3572,8 +3578,11 @@ $(if $(BOARD_AVB_$(call to-upper,$(1))_KEY_PATH),\
         $(error Chaining partition "$(1)" in chained VBMeta image is not supported)) \
     $(call _check-and-set-avb-chain-args,$(1)),\
     $(if $(_in_chained_vbmeta),,\
-        $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-            --include_descriptors_from_image $(call images-for-partitions,$(1)))))
+        $(if $(filter boot,$(1)),\
+            $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
+                --include_descriptors_from_image $(firstword $(call images-for-partitions,$(1)))),\
+            $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
+                --include_descriptors_from_image $(call images-for-partitions,$(1))))))
 endef
 
 # Checks and sets build variables for a custom chained partition to include it into vbmeta.img.
