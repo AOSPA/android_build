@@ -1714,6 +1714,7 @@ $(LSDUMP_PATHS_FILE): PRIVATE_LSDUMP_PATHS := $(LSDUMP_PATHS)
 $(LSDUMP_PATHS_FILE):
 	@echo "Generate $@"
 	@rm -rf $@ && echo -e "$(subst :,:$(space),$(subst $(space),\n,$(PRIVATE_LSDUMP_PATHS)))" > $@
+$(call dist-for-goals,droidcore,$(LSDUMP_PATHS_FILE))
 
 .PHONY: check-elf-files
 check-elf-files:
