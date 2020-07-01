@@ -1242,8 +1242,7 @@ $(call dist-for-goals,droidcore,$(CERTIFICATE_VIOLATION_MODULES_FILENAME))
     $(eval all_offending_files += $(files_in_requirement)) \
     $(eval ignore_path := $(PRODUCT_ARTIFACT_PATH_REQUIREMENT_IGNORE_PATHS)) \
     $(eval ignore_path_patterns := $(call resolve-product-relative-paths,$(ignore_path))) \
-    $(eval allowed := $(strip $(PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST) \
-      $(PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST))) \
+    $(eval allowed := $(PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST)) \
     $(eval allowed_patterns := $(call resolve-product-relative-paths,$(allowed))) \
     $(eval offending_files := $(filter-out $(allowed_patterns) $(ignore_path_patterns)%,$(files_in_requirement))) \
     $(eval enforcement := $(PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS)) \
