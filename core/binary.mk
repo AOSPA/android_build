@@ -84,7 +84,7 @@ ifneq ($(NATIVE_COVERAGE),true)
   my_native_coverage := false
 endif
 
-# Exclude directories from manual binder interface whitelisting.
+# Exclude directories from checking allowed manual binder interface lists.
 # TODO(b/145621474): Move this check into IInterface.h when clang-tidy no longer uses absolute paths.
 ifneq (,$(filter $(addsuffix %,$(ALLOWED_MANUAL_INTERFACE_PATHS)),$(LOCAL_PATH)))
   my_cflags += -DDO_NOT_CHECK_MANUAL_BINDER_INTERFACES
@@ -1852,7 +1852,7 @@ export_include_deps += $(strip \
      $(call intermediates-dir-for,HEADER_LIBRARIES,$(l),$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))))
 
 ifneq ($(strip $(my_export_c_include_dirs)$(export_include_deps)),)
-  EXPORTS_LIST := $(EXPORTS_LIST) $(intermediates)
+  EXPORTS_LIST += $(intermediates)
   EXPORTS.$(intermediates).FLAGS := $(foreach d,$(my_export_c_include_dirs),-I $(call clean-path,$(d)))
   EXPORTS.$(intermediates).REEXPORT := $(export_include_deps)
   EXPORTS.$(intermediates).DEPS := $(my_export_c_include_deps) $(my_generated_sources) $(LOCAL_EXPORT_C_INCLUDE_DEPS)

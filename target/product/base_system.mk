@@ -27,7 +27,6 @@ PRODUCT_PACKAGES += \
     android.test.base \
     android.test.mock \
     android.test.runner \
-    ANGLE \
     apexd \
     appops \
     app_process \
@@ -119,6 +118,7 @@ PRODUCT_PACKAGES += \
     javax.obex \
     service-jobscheduler \
     keystore \
+    credstore \
     ld.mc \
     libaaudio \
     libamidi \
