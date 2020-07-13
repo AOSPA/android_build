@@ -582,28 +582,23 @@ def process_apex_keys_apk_certs_common(framework_target_files_dir,
   vendor_dict = read_helper(vendor_target_files_dir)
   merged_dict = {}
 
-  def filter_into_merged_dict(item_dict, partition_set, enforce_partition_tag):
+  def filter_into_merged_dict(item_dict, partition_set):
     for key, value in item_dict.items():
       match = PARTITION_TAG_PATTERN.search(value)
 
-      if enforce_partition_tag and match is None:
+      if match is None:
         raise ValueError('Entry missing partition tag: %s' % value)
 
-      if match is None:
-        if key not in merged_dict:
-          merged_dict[key] = value
-      else:
-        partition_tag = match.group(1)
-        if partition_tag in partition_set:
-          if key not in merged_dict:
-            merged_dict[key] = value
+      partition_tag = match.group(1)
 
-  filter_into_merged_dict(framework_dict, framework_partition_set, True)
+      if partition_tag in partition_set:
+        if key in merged_dict:
+          raise ValueError('Duplicate key %s' % key)
 
-  # Don't enforce partition tag to be available for vendor.
-  # This is to support merging latest framework target files with older vendor
-  # target-files that was built without the partition tagging logic.
-  filter_into_merged_dict(vendor_dict, vendor_partition_set, False)
+        merged_dict[key] = value
+
+  filter_into_merged_dict(framework_dict, framework_partition_set)
+  filter_into_merged_dict(vendor_dict, vendor_partition_set)
 
   output_file = os.path.join(output_target_files_dir, 'META', file_name)
 
