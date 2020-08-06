@@ -1631,10 +1631,12 @@ else
 recovery_resources_common := $(recovery_resources_common)-xhdpi
 endif
 
-# Select the 18x32 font on high-density devices (xhdpi and up); and the 12x22 font on other devices.
+# Select fonts based off density (xxxhdpi & xxhdpi = 22x42, xhdpi = 18x32 and anything below is 12x22).
 # Note that the font selected here can be overridden for a particular device by putting a font.png
 # in its private recovery resources.
-ifneq (,$(filter xxxhdpi xxhdpi xhdpi,$(recovery_density)))
+ifneq (,$(filter xxxhdpi xxhdpi,$(recovery_density)))
+recovery_font := $(call include-path-for, recovery)/fonts/22x42.png
+else ifneq (,$(filter xhdpi,$(recovery_density)))
 recovery_font := $(call include-path-for, recovery)/fonts/18x32.png
 else
 recovery_font := $(call include-path-for, recovery)/fonts/12x22.png
