@@ -190,6 +190,12 @@ ifndef DEFAULT_APP_TARGET_SDK
 endif
 .KATI_READONLY := DEFAULT_APP_TARGET_SDK
 
+# TODO(b/159866756): Remove this workaround when building against
+# BOARD_VNDK_VERSION := current is supported.
+ifeq (true,$(BUILDING_WITH_VSDK))
+  PLATFORM_VNDK_VERSION := S
+endif
+
 ifndef PLATFORM_VNDK_VERSION
   # This is the definition of the VNDK version for the current VNDK libraries.
   # The version is only available when PLATFORM_VERSION_CODENAME == REL.
@@ -240,7 +246,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-      PLATFORM_SECURITY_PATCH := 2020-09-01
+      PLATFORM_SECURITY_PATCH := 2020-09-05
 endif
 .KATI_READONLY := PLATFORM_SECURITY_PATCH
 
