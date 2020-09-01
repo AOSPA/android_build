@@ -72,12 +72,18 @@ _board_strip_readonly_list += \
   BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_TYPE \
   BOARD_ODMIMAGE_PARTITION_SIZE \
   BOARD_ODMIMAGE_FILE_SYSTEM_TYPE \
+  BOARD_VENDOR_DLKMIMAGE_PARTITION_SIZE \
+  BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE \
+  BOARD_ODM_DLKMIMAGE_PARTITION_SIZE \
+  BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE \
 
 # Logical partitions related variables.
 _dynamic_partitions_var_list += \
   BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE \
   BOARD_VENDORIMAGE_PARTITION_RESERVED_SIZE \
   BOARD_ODMIMAGE_PARTITION_RESERVED_SIZE \
+  BOARD_VENDOR_DLKMIMAGE_PARTITION_RESERVED_SIZE \
+  BOARD_ODM_DLKMIMAGE_PARTITION_RESERVED_SIZE \
   BOARD_PRODUCTIMAGE_PARTITION_RESERVED_SIZE \
   BOARD_SYSTEM_EXTIMAGE_PARTITION_RESERVED_SIZE \
   BOARD_SUPER_PARTITION_SIZE \
@@ -87,6 +93,9 @@ _board_strip_readonly_list += $(_dynamic_partitions_var_list)
 
 _build_broken_var_list := \
   BUILD_BROKEN_DUP_RULES \
+  BUILD_BROKEN_DUP_SYSPROP \
+  BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES \
+  BUILD_BROKEN_MISSING_REQUIRED_MODULES \
   BUILD_BROKEN_OUTSIDE_INCLUDE_DIRS \
   BUILD_BROKEN_PREBUILT_ELF_FILES \
   BUILD_BROKEN_TREBLE_SYSPROP_NEVERALLOW \
@@ -241,13 +250,8 @@ endif
 # build a list out of the TARGET_CPU_ABIs specified by the config.
 # Add NATIVE_BRIDGE_ABIs at the end to keep order of preference.
 ifeq (,$(TARGET_CPU_ABI_LIST))
-  ifeq ($(TARGET_IS_64_BIT)|$(TARGET_PREFER_32_BIT_APPS),true|true)
-    TARGET_CPU_ABI_LIST := $(TARGET_CPU_ABI_LIST_32_BIT) $(TARGET_CPU_ABI_LIST_64_BIT) \
-                           $(_target_native_bridge_abi_list_32_bit) $(_target_native_bridge_abi_list_64_bit)
-  else
-    TARGET_CPU_ABI_LIST := $(TARGET_CPU_ABI_LIST_64_BIT) $(TARGET_CPU_ABI_LIST_32_BIT) \
-                           $(_target_native_bridge_abi_list_64_bit) $(_target_native_bridge_abi_list_32_bit)
-  endif
+  TARGET_CPU_ABI_LIST := $(TARGET_CPU_ABI_LIST_64_BIT) $(TARGET_CPU_ABI_LIST_32_BIT) \
+                         $(_target_native_bridge_abi_list_64_bit) $(_target_native_bridge_abi_list_32_bit)
 endif
 
 # Add NATIVE_BRIDGE_ABIs at the end of 32 and 64 bit CPU_ABIs to keep order of preference.
@@ -515,6 +519,40 @@ endif
 .KATI_READONLY := BUILDING_SYSTEM_EXT_IMAGE
 
 ###########################################
+# Now we can substitute with the real value of TARGET_COPY_OUT_VENDOR_DLKM
+ifeq ($(TARGET_COPY_OUT_VENDOR_DLKM),$(_vendor_dlkm_path_placeholder))
+  TARGET_COPY_OUT_VENDOR_DLKM := $(TARGET_COPY_OUT_VENDOR)/vendor_dlkm
+else ifeq ($(filter vendor_dlkm system/vendor/vendor_dlkm vendor/vendor_dlkm,$(TARGET_COPY_OUT_VENDOR_DLKM)),)
+  $(error TARGET_COPY_OUT_VENDOR_DLKM must be either 'vendor_dlkm', 'system/vendor/vendor_dlkm' or 'vendor/vendor_dlkm', seeing '$(TARGET_COPY_OUT_VENDOR_DLKM)'.)
+endif
+PRODUCT_COPY_FILES := $(subst $(_vendor_dlkm_path_placeholder),$(TARGET_COPY_OUT_VENDOR_DLKM),$(PRODUCT_COPY_FILES))
+
+BOARD_USES_VENDOR_DLKMIMAGE :=
+ifdef BOARD_PREBUILT_VENDOR_DLKMIMAGE
+  BOARD_USES_VENDOR_DLKMIMAGE := true
+endif
+ifdef BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE
+  BOARD_USES_VENDOR_DLKMIMAGE := true
+endif
+$(call check_image_config,vendor_dlkm)
+
+BUILDING_VENDOR_DLKM_IMAGE :=
+ifeq ($(PRODUCT_BUILD_VENDOR_DLKM_IMAGE),)
+  ifdef BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE
+    BUILDING_VENDOR_DLKM_IMAGE := true
+  endif
+else ifeq ($(PRODUCT_BUILD_VENDOR_DLKM_IMAGE),true)
+  BUILDING_VENDOR_DLKM_IMAGE := true
+  ifndef BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE
+    $(error PRODUCT_BUILD_VENDOR_DLKM_IMAGE set to true, but BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE not defined)
+  endif
+endif
+ifdef BOARD_PREBUILT_VENDOR_DLKMIMAGE
+  BUILDING_VENDOR_DLKM_IMAGE :=
+endif
+.KATI_READONLY := BUILDING_VENDOR_DLKM_IMAGE
+
+###########################################
 # Now we can substitute with the real value of TARGET_COPY_OUT_ODM
 ifeq ($(TARGET_COPY_OUT_ODM),$(_odm_path_placeholder))
   TARGET_COPY_OUT_ODM := $(TARGET_COPY_OUT_VENDOR)/odm
@@ -547,6 +585,41 @@ ifdef BOARD_PREBUILT_ODMIMAGE
   BUILDING_ODM_IMAGE :=
 endif
 .KATI_READONLY := BUILDING_ODM_IMAGE
+
+
+###########################################
+# Now we can substitute with the real value of TARGET_COPY_OUT_ODM_DLKM
+ifeq ($(TARGET_COPY_OUT_ODM_DLKM),$(_odm_dlkm_path_placeholder))
+  TARGET_COPY_OUT_ODM_DLKM := $(TARGET_COPY_OUT_VENDOR)/odm_dlkm
+else ifeq ($(filter odm_dlkm system/vendor/odm_dlkm vendor/odm_dlkm,$(TARGET_COPY_OUT_ODM_DLKM)),)
+  $(error TARGET_COPY_OUT_ODM_DLKM must be either 'odm_dlkm', 'system/vendor/odm_dlkm' or 'vendor/odm_dlkm', seeing '$(TARGET_COPY_OUT_ODM_DLKM)'.)
+endif
+PRODUCT_COPY_FILES := $(subst $(_odm_dlkm_path_placeholder),$(TARGET_COPY_OUT_ODM_DLKM),$(PRODUCT_COPY_FILES))
+
+BOARD_USES_ODM_DLKMIMAGE :=
+ifdef BOARD_PREBUILT_ODM_DLKMIMAGE
+  BOARD_USES_ODM_DLKMIMAGE := true
+endif
+ifdef BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE
+  BOARD_USES_ODM_DLKMIMAGE := true
+endif
+$(call check_image_config,odm_dlkm)
+
+BUILDING_ODM_DLKM_IMAGE :=
+ifeq ($(PRODUCT_BUILD_ODM_DLKM_IMAGE),)
+  ifdef BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE
+    BUILDING_ODM_DLKM_IMAGE := true
+  endif
+else ifeq ($(PRODUCT_BUILD_ODM_DLKM_IMAGE),true)
+  BUILDING_ODM_DLKM_IMAGE := true
+  ifndef BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE
+    $(error PRODUCT_BUILD_ODM_DLKM_IMAGE set to true, but BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE not defined)
+  endif
+endif
+ifdef BOARD_PREBUILT_ODM_DLKMIMAGE
+  BUILDING_ODM_DLKM_IMAGE :=
+endif
+.KATI_READONLY := BUILDING_ODM_DLKM_IMAGE
 
 ###########################################
 # Ensure consistency among TARGET_RECOVERY_UPDATER_LIBS, AB_OTA_UPDATER, and PRODUCT_OTA_FORCE_NON_AB_PACKAGE.
@@ -624,7 +697,7 @@ else
   endif
 endif
 
-ifeq (,$(TARGET_BUILD_APPS))
+ifeq (,$(TARGET_BUILD_UNBUNDLED))
 ifdef PRODUCT_EXTRA_VNDK_VERSIONS
   $(foreach v,$(PRODUCT_EXTRA_VNDK_VERSIONS),$(call check_vndk_version,$(v)))
 endif

@@ -22,6 +22,13 @@ BUILD_SYSTEM_COMMON :=$= build/make/common
 
 include $(BUILD_SYSTEM_COMMON)/core.mk
 
+# -----------------------------------------------------------------
+# Rules and functions to help copy important files to DIST_DIR
+# when requested. This must be included once only, and must be included before
+# soong_config (as soong_config calls make_vars-$(TARGET).mk, and soong may
+# propagate calls to dist-for-goals there).
+include $(BUILD_SYSTEM)/distdir.mk
+
 # Mark variables that should be coming as environment variables from soong_ui
 # as readonly
 .KATI_READONLY := OUT_DIR TMPDIR BUILD_DATETIME_FILE
@@ -125,8 +132,31 @@ $(KATI_obsolete_var PRODUCT_IOT)
 $(KATI_obsolete_var MD5SUM)
 $(KATI_obsolete_var BOARD_HAL_STATIC_LIBRARIES, See $(CHANGES_URL)#BOARD_HAL_STATIC_LIBRARIES)
 $(KATI_obsolete_var LOCAL_HAL_STATIC_LIBRARIES, See $(CHANGES_URL)#BOARD_HAL_STATIC_LIBRARIES)
+$(KATI_obsolete_var \
+  TARGET_AUX_OS_VARIANT_LIST \
+  LOCAL_AUX_ARCH \
+  LOCAL_AUX_CPU \
+  LOCAL_AUX_OS \
+  LOCAL_AUX_OS_VARIANT \
+  LOCAL_AUX_SUBARCH \
+  LOCAL_AUX_TOOLCHAIN \
+  LOCAL_CUSTOM_BUILD_STEP_INPUT \
+  LOCAL_CUSTOM_BUILD_STEP_OUTPUT \
+  LOCAL_IS_AUX_MODULE \
+  ,AUX support has been removed)
+$(KATI_obsolete_var HOST_OUT_TEST_CONFIG TARGET_OUT_TEST_CONFIG LOCAL_TEST_CONFIG_OPTIONS)
+$(KATI_obsolete_var \
+  TARGET_PROJECT_INCLUDES \
+  2ND_TARGET_PROJECT_INCLUDES \
+  TARGET_PROJECT_SYSTEM_INCLUDES \
+  2ND_TARGET_PROJECT_SYSTEM_INCLUDES \
+  ,Project include variables have been removed)
+$(KATI_obsolete_var TARGET_PREFER_32_BIT TARGET_PREFER_32_BIT_APPS TARGET_PREFER_32_BIT_EXECUTABLES)
 $(KATI_obsolete_var PRODUCT_ARTIFACT_SYSTEM_CERTIFICATE_REQUIREMENT_WHITELIST,Use PRODUCT_ARTIFACT_SYSTEM_CERTIFICATE_REQUIREMENT_ALLOW_LIST.)
 $(KATI_obsolete_var PRODUCT_ARTIFACT_PATH_REQUIREMENT_WHITELIST,Use PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST.)
+$(KATI_obsolete_var COVERAGE_PATHS,Use NATIVE_COVERAGE_PATHS instead)
+$(KATI_obsolete_var COVERAGE_EXCLUDE_PATHS,Use NATIVE_COVERAGE_EXCLUDE_PATHS instead)
+$(KATI_obsolete_var BOARD_VNDK_RUNTIME_DISABLE,VNDK-Lite is no longer supported.)
 
 # Used to force goals to build.  Only use for conditionally defined goals.
 .PHONY: FORCE
@@ -175,8 +205,6 @@ BUILD_HOST_STATIC_LIBRARY :=$= $(BUILD_SYSTEM)/host_static_library.mk
 BUILD_HOST_SHARED_LIBRARY :=$= $(BUILD_SYSTEM)/host_shared_library.mk
 BUILD_STATIC_LIBRARY :=$= $(BUILD_SYSTEM)/static_library.mk
 BUILD_HEADER_LIBRARY :=$= $(BUILD_SYSTEM)/header_library.mk
-BUILD_AUX_STATIC_LIBRARY :=$= $(BUILD_SYSTEM)/aux_static_library.mk
-BUILD_AUX_EXECUTABLE :=$= $(BUILD_SYSTEM)/aux_executable.mk
 BUILD_SHARED_LIBRARY :=$= $(BUILD_SYSTEM)/shared_library.mk
 BUILD_EXECUTABLE :=$= $(BUILD_SYSTEM)/executable.mk
 BUILD_HOST_EXECUTABLE :=$= $(BUILD_SYSTEM)/host_executable.mk
@@ -191,22 +219,11 @@ BUILD_STATIC_JAVA_LIBRARY :=$= $(BUILD_SYSTEM)/static_java_library.mk
 BUILD_HOST_JAVA_LIBRARY :=$= $(BUILD_SYSTEM)/host_java_library.mk
 BUILD_COPY_HEADERS :=$= $(BUILD_SYSTEM)/copy_headers.mk
 BUILD_NATIVE_TEST :=$= $(BUILD_SYSTEM)/native_test.mk
-BUILD_NATIVE_BENCHMARK :=$= $(BUILD_SYSTEM)/native_benchmark.mk
-BUILD_HOST_NATIVE_TEST :=$= $(BUILD_SYSTEM)/host_native_test.mk
 BUILD_FUZZ_TEST :=$= $(BUILD_SYSTEM)/fuzz_test.mk
-BUILD_HOST_FUZZ_TEST :=$= $(BUILD_SYSTEM)/host_fuzz_test.mk
-
-BUILD_SHARED_TEST_LIBRARY :=$= $(BUILD_SYSTEM)/shared_test_lib.mk
-BUILD_HOST_SHARED_TEST_LIBRARY :=$= $(BUILD_SYSTEM)/host_shared_test_lib.mk
-BUILD_STATIC_TEST_LIBRARY :=$= $(BUILD_SYSTEM)/static_test_lib.mk
-BUILD_HOST_STATIC_TEST_LIBRARY :=$= $(BUILD_SYSTEM)/host_static_test_lib.mk
 
 BUILD_NOTICE_FILE :=$= $(BUILD_SYSTEM)/notice_files.mk
 BUILD_HOST_DALVIK_JAVA_LIBRARY :=$= $(BUILD_SYSTEM)/host_dalvik_java_library.mk
 BUILD_HOST_DALVIK_STATIC_JAVA_LIBRARY :=$= $(BUILD_SYSTEM)/host_dalvik_static_java_library.mk
-
-BUILD_HOST_TEST_CONFIG :=$= $(BUILD_SYSTEM)/host_test_config.mk
-BUILD_TARGET_TEST_CONFIG :=$= $(BUILD_SYSTEM)/target_test_config.mk
 
 include $(BUILD_SYSTEM)/deprecation.mk
 
@@ -372,11 +389,6 @@ ifeq ($(CALLED_FROM_SETUP),true)
 include $(BUILD_SYSTEM)/ccache.mk
 include $(BUILD_SYSTEM)/goma.mk
 include $(BUILD_SYSTEM)/rbe.mk
-endif
-
-ifdef TARGET_PREFER_32_BIT
-TARGET_PREFER_32_BIT_APPS := true
-TARGET_PREFER_32_BIT_EXECUTABLES := true
 endif
 
 # GCC version selection
@@ -584,7 +596,7 @@ LEX := $(prebuilt_build_tools_bin_noasan)/flex
 # prebuilts/build-tools/common/bison.
 # To run bison from elsewhere you need to set up enviromental variable
 # BISON_PKGDATADIR.
-BISON_PKGDATADIR := $(PWD)/prebuilts/build-tools/common/bison
+BISON_PKGDATADIR := $(prebuilt_build_tools)/common/bison
 BISON := $(prebuilt_build_tools_bin_noasan)/bison
 YACC := $(BISON) -d
 BISON_DATA := $(wildcard $(BISON_PKGDATADIR)/* $(BISON_PKGDATADIR)/*/*)
@@ -670,7 +682,7 @@ EXTRACT_KERNEL := build/make/tools/extract_kernel.py
 # Path to tools.jar
 HOST_JDK_TOOLS_JAR := $(ANDROID_JAVA8_HOME)/lib/tools.jar
 
-APICHECK_COMMAND := $(JAVA) -Xmx4g -jar $(APICHECK) --no-banner --compatible-output=yes
+APICHECK_COMMAND := $(JAVA) -Xmx4g -jar $(APICHECK) --no-banner --compatible-output=no
 
 # Boolean variable determining if the allow list for compatible properties is enabled
 PRODUCT_COMPATIBLE_PROPERTY := false
@@ -922,6 +934,20 @@ $(error Should not define BOARD_ODMIMAGE_PARTITION_SIZE and \
 endif
 endif
 
+ifneq ($(BOARD_VENDOR_DLKMIMAGE_PARTITION_SIZE),)
+ifneq ($(BOARD_VENDOR_DLKMIMAGE_PARTITION_RESERVED_SIZE),)
+$(error Should not define BOARD_VENDOR_DLKMIMAGE_PARTITION_SIZE and \
+    BOARD_VENDOR_DLKMIMAGE_PARTITION_RESERVED_SIZE together)
+endif
+endif
+
+ifneq ($(BOARD_ODM_DLKMIMAGE_PARTITION_SIZE),)
+ifneq ($(BOARD_ODM_DLKMIMAGE_PARTITION_RESERVED_SIZE),)
+$(error Should not define BOARD_ODM_DLKMIMAGE_PARTITION_SIZE and \
+    BOARD_ODM_DLKMIMAGE_PARTITION_RESERVED_SIZE together)
+endif
+endif
+
 ifneq ($(BOARD_PRODUCTIMAGE_PARTITION_SIZE),)
 ifneq ($(BOARD_PRODUCTIMAGE_PARTITION_RESERVED_SIZE),)
 $(error Should not define BOARD_PRODUCTIMAGE_PARTITION_SIZE and \
@@ -957,7 +983,7 @@ $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
 )
 
 # BOARD_*_PARTITION_LIST: a list of the following tokens
-valid_super_partition_list := system vendor product system_ext odm
+valid_super_partition_list := system vendor product system_ext odm vendor_dlkm odm_dlkm
 $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
     $(if $(filter-out $(valid_super_partition_list),$(BOARD_$(group)_PARTITION_LIST)), \
         $(error BOARD_$(group)_PARTITION_LIST contains invalid partition name \
@@ -972,8 +998,7 @@ $(error BOARD_SUPER_PARTITION_PARTITION_LIST should not be defined, but computed
     BOARD_SUPER_PARTITION_GROUPS and BOARD_*_PARTITION_LIST)
 endif
 BOARD_SUPER_PARTITION_PARTITION_LIST := \
-    $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)), \
-        $(BOARD_$(group)_PARTITION_LIST))
+    $(foreach group,$(call to-upper,$(BOARD_SUPER_PARTITION_GROUPS)),$(BOARD_$(group)_PARTITION_LIST))
 .KATI_READONLY := BOARD_SUPER_PARTITION_PARTITION_LIST
 
 ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
@@ -1062,16 +1087,6 @@ ifeq ($(HOST_OS),linux)
 RELATIVE_PWD := PWD=/proc/self/cwd
 else
 RELATIVE_PWD :=
-endif
-
-TARGET_PROJECT_INCLUDES :=
-TARGET_PROJECT_SYSTEM_INCLUDES := \
-		$(TARGET_DEVICE_KERNEL_HEADERS) $(TARGET_BOARD_KERNEL_HEADERS) \
-		$(TARGET_PRODUCT_KERNEL_HEADERS)
-
-ifdef TARGET_2ND_ARCH
-$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_PROJECT_INCLUDES := $(TARGET_PROJECT_INCLUDES)
-$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_PROJECT_SYSTEM_INCLUDES := $(TARGET_PROJECT_SYSTEM_INCLUDES)
 endif
 
 # Flags for DEX2OAT
@@ -1213,23 +1228,6 @@ endif
 # These goals don't need to collect and include Android.mks/CleanSpec.mks
 # in the source tree.
 dont_bother_goals := out \
-    snod systemimage-nodeps \
-    userdataimage-nodeps \
-    cacheimage-nodeps \
-    bptimage-nodeps \
-    vnod vendorimage-nodeps \
-    pnod productimage-nodeps \
-    senod systemextimage-nodeps \
-    onod odmimage-nodeps \
-    systemotherimage-nodeps \
-    ramdisk-nodeps \
-    ramdisk_debug-nodeps \
-    ramdisk_test_harness-nodeps \
-    bootimage-nodeps \
-    bootimage_debug-nodeps \
-    bootimage_test_harness-nodeps \
-    recoveryimage-nodeps \
-    vbmetaimage-nodeps \
     product-graph dump-products
 
 ifeq ($(CALLED_FROM_SETUP),true)
@@ -1243,7 +1241,7 @@ endif
 DEFAULT_DATA_OUT_MODULES := ltp $(ltp_packages) $(kselftest_modules)
 .KATI_READONLY := DEFAULT_DATA_OUT_MODULES
 
-# Make RECORD_ALL_DEPS readonly and also set it if deps-license is a goal.
-RECORD_ALL_DEPS :=$= $(filter true,$(RECORD_ALL_DEPS))$(filter deps-license,$(MAKECMDGOALS))
+# Make RECORD_ALL_DEPS readonly.
+RECORD_ALL_DEPS :=$= $(filter true,$(RECORD_ALL_DEPS))
 
 include $(BUILD_SYSTEM)/dumpvar.mk

@@ -377,9 +377,11 @@ ifeq ($(need_compile_res),true)
 # they want to use this module's R.java file.
 $(LOCAL_BUILT_MODULE): $(R_file_stamp)
 
+ifneq ($(full_classes_jar),)
 # The R.java file must exist by the time the java source
 # list is generated
 $(java_source_list_file): $(R_file_stamp)
+endif
 
 endif # need_compile_res
 
@@ -627,7 +629,7 @@ $(my_bundle_module): $(MERGE_ZIPS) $(SOONG_ZIP) $(ZIP2ZIP)
       endif  # full_classes_jar
 	$(MERGE_ZIPS) $@ $@.parts/*.zip
 	rm -rf $@.parts
-ALL_MODULES.$(LOCAL_MODULE).BUNDLE := $(my_bundle_module)
+ALL_MODULES.$(my_register_name).BUNDLE := $(my_bundle_module)
 
 ifdef TARGET_BUILD_APPS
   ifdef LOCAL_DPI_VARIANTS

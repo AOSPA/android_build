@@ -4,7 +4,7 @@ source build/envsetup.sh
 # for the build to be executed with RBE.
 function use_rbe() {
   local RBE_LOG_DIR="/tmp"
-  local RBE_BINARIES_DIR="prebuilts/remoteexecution-client/latest/"
+  local RBE_BINARIES_DIR="prebuilts/remoteexecution-client/latest"
   local DOCKER_IMAGE="gcr.io/androidbuild-re-dockerimage/android-build-remoteexec-image@sha256:582efb38f0c229ea39952fff9e132ccbe183e14869b39888010dacf56b360d62"
 
   # Do not set an invocation-ID and let reproxy auto-generate one.
@@ -23,3 +23,14 @@ function use_rbe() {
   RBE_re_proxy="${RBE_BINARIES_DIR}/reproxy" \
   $@
 }
+
+# This function detects if the uploader is available and sets the path of it to
+# ANDROID_ENABLE_METRICS_UPLOAD.
+function _export_metrics_uploader() {
+  local uploader_path="$(gettop)/vendor/google/misc/metrics_uploader_prebuilt/metrics_uploader.sh"
+  if [ -x "${uploader_path}" ]; then
+    export ANDROID_ENABLE_METRICS_UPLOAD="${uploader_path}"
+  fi
+}
+
+_export_metrics_uploader

@@ -197,12 +197,6 @@ ifneq ($(filter address,$(my_sanitize)),)
   my_sanitize_diag := $(filter-out cfi,$(my_sanitize_diag))
 endif
 
-# CFI needs gold linker, and mips toolchain does not have one.
-ifneq ($(filter mips mips64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)),)
-  my_sanitize := $(filter-out cfi,$(my_sanitize))
-  my_sanitize_diag := $(filter-out cfi,$(my_sanitize_diag))
-endif
-
 # Disable sanitizers which need the UBSan runtime for host targets.
 ifdef LOCAL_IS_HOST_MODULE
   my_sanitize := $(filter-out cfi,$(my_sanitize))
@@ -441,8 +435,8 @@ ifneq ($(filter hwaddress,$(my_sanitize)),)
   my_cflags += $(HWADDRESS_SANITIZER_CONFIG_EXTRA_CFLAGS)
 endif
 
-# Use minimal diagnostics when integer overflow is enabled; never do it for HOST or AUX modules
-ifeq ($(LOCAL_IS_HOST_MODULE)$(LOCAL_IS_AUX_MODULE),)
+# Use minimal diagnostics when integer overflow is enabled; never do it for HOST modules
+ifeq ($(LOCAL_IS_HOST_MODULE),)
   # Pre-emptively add UBSAN minimal runtime incase a static library dependency requires it
   ifeq ($(filter STATIC_LIBRARIES,$(LOCAL_MODULE_CLASS)),)
     ifndef LOCAL_SDK_VERSION

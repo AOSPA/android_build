@@ -39,7 +39,8 @@ $(call add_json_str,  Platform_base_os,                  $(PLATFORM_BASE_OS))
 $(call add_json_str,  Platform_min_supported_target_sdk_version, $(PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION))
 
 $(call add_json_bool, Allow_missing_dependencies,        $(ALLOW_MISSING_DEPENDENCIES))
-$(call add_json_bool, Unbundled_build,                   $(TARGET_BUILD_APPS))
+$(call add_json_bool, Unbundled_build,                   $(TARGET_BUILD_UNBUNDLED))
+$(call add_json_bool, Unbundled_build_apps,              $(TARGET_BUILD_APPS))
 $(call add_json_bool, Unbundled_build_sdks_from_source,  $(UNBUNDLED_BUILD_SDKS_FROM_SOURCE))
 $(call add_json_bool, Pdk,                               $(filter true,$(TARGET_BUILD_PDK)))
 
@@ -119,12 +120,8 @@ $(call add_json_list, JavaCoverageExcludePaths,          $(JAVA_COVERAGE_EXCLUDE
 
 $(call add_json_bool, GcovCoverage,                      $(filter true,$(NATIVE_COVERAGE)))
 $(call add_json_bool, ClangCoverage,                     $(filter true,$(CLANG_COVERAGE)))
-# TODO(b/158212027): Remove `$(COVERAGE_PATHS)` from this list when all users have been moved to
-# `NATIVE_COVERAGE_PATHS`.
-$(call add_json_list, NativeCoveragePaths,               $(COVERAGE_PATHS) $(NATIVE_COVERAGE_PATHS))
-# TODO(b/158212027): Remove `$(COVERAGE_EXCLUDE_PATHS)` from this list when all users have been
-# moved to `NATIVE_COVERAGE_EXCLUDE_PATHS`.
-$(call add_json_list, NativeCoverageExcludePaths,        $(COVERAGE_EXCLUDE_PATHS) $(NATIVE_COVERAGE_EXCLUDE_PATHS))
+$(call add_json_list, NativeCoveragePaths,               $(NATIVE_COVERAGE_PATHS))
+$(call add_json_list, NativeCoverageExcludePaths,        $(NATIVE_COVERAGE_EXCLUDE_PATHS))
 
 $(call add_json_bool, SamplingPGO,                       $(filter true,$(SAMPLING_PGO)))
 
@@ -133,17 +130,16 @@ $(call add_json_bool, Binder32bit,                       $(BINDER32BIT))
 $(call add_json_str,  BtConfigIncludeDir,                $(BOARD_BLUETOOTH_BDROID_BUILDCFG_INCLUDE_DIR))
 $(call add_json_bool, Device_support_hwfde,              $(filter true,$(TARGET_HW_DISK_ENCRYPTION)))
 $(call add_json_bool, Device_support_hwfde_perf,         $(filter true,$(TARGET_HW_DISK_ENCRYPTION_PERF)))
-$(call add_json_list, DeviceKernelHeaders,               $(TARGET_PROJECT_SYSTEM_INCLUDES))
-$(call add_json_bool, DevicePrefer32BitApps,             $(filter true,$(TARGET_PREFER_32_BIT_APPS)))
-$(call add_json_bool, DevicePrefer32BitExecutables,      $(filter true,$(TARGET_PREFER_32_BIT_EXECUTABLES)))
+$(call add_json_list, DeviceKernelHeaders,               $(TARGET_DEVICE_KERNEL_HEADERS) $(TARGET_BOARD_KERNEL_HEADERS) $(TARGET_PRODUCT_KERNEL_HEADERS))
 $(call add_json_str,  DeviceVndkVersion,                 $(BOARD_VNDK_VERSION))
 $(call add_json_str,  Platform_vndk_version,             $(PLATFORM_VNDK_VERSION))
 $(call add_json_str,  ProductVndkVersion,                $(PRODUCT_PRODUCT_VNDK_VERSION))
 $(call add_json_list, ExtraVndkVersions,                 $(PRODUCT_EXTRA_VNDK_VERSIONS))
-$(call add_json_bool, BoardVndkRuntimeDisable,           $(BOARD_VNDK_RUNTIME_DISABLE))
 $(call add_json_list, DeviceSystemSdkVersions,           $(BOARD_SYSTEMSDK_VERSIONS))
 $(call add_json_list, Platform_systemsdk_versions,       $(PLATFORM_SYSTEMSDK_VERSIONS))
 $(call add_json_bool, Malloc_not_svelte,                 $(call invert_bool,$(filter true,$(MALLOC_SVELTE))))
+$(call add_json_bool, Malloc_zero_contents,              $(MALLOC_ZERO_CONTENTS))
+$(call add_json_bool, Malloc_pattern_fill_contents,      $(MALLOC_PATTERN_FILL_CONTENTS))
 $(call add_json_str,  Override_rs_driver,                $(OVERRIDE_RS_DRIVER))
 
 $(call add_json_bool, UncompressPrivAppDex,              $(call invert_bool,$(filter true,$(DONT_UNCOMPRESS_PRIV_APPS_DEXS))))
@@ -164,6 +160,8 @@ $(call add_json_bool, Uml,                               $(filter true,$(TARGET_
 $(call add_json_bool, Use_lmkd_stats_log,                $(filter true,$(TARGET_LMKD_STATS_LOG)))
 $(call add_json_str,  VendorPath,                        $(TARGET_COPY_OUT_VENDOR))
 $(call add_json_str,  OdmPath,                           $(TARGET_COPY_OUT_ODM))
+$(call add_json_str,  VendorDlkmPath,                    $(TARGET_COPY_OUT_VENDOR_DLKM))
+$(call add_json_str,  OdmDlkmPath,                       $(TARGET_COPY_OUT_ODM_DLKM))
 $(call add_json_str,  ProductPath,                       $(TARGET_COPY_OUT_PRODUCT))
 $(call add_json_str,  SystemExtPath,                     $(TARGET_COPY_OUT_SYSTEM_EXT))
 $(call add_json_bool, MinimizeJavaDebugInfo,             $(filter true,$(PRODUCT_MINIMIZE_JAVA_DEBUG_INFO)))
@@ -183,6 +181,8 @@ $(call add_json_list, PgoAdditionalProfileDirs,          $(PGO_ADDITIONAL_PROFIL
 
 $(call add_json_list, BoardVendorSepolicyDirs,           $(BOARD_VENDOR_SEPOLICY_DIRS) $(BOARD_SEPOLICY_DIRS))
 $(call add_json_list, BoardOdmSepolicyDirs,              $(BOARD_ODM_SEPOLICY_DIRS))
+$(call add_json_list, BoardVendorDlkmSepolicyDirs,       $(BOARD_VENDOR_DLKM_SEPOLICY_DIRS))
+$(call add_json_list, BoardOdmDlkmSepolicyDirs,          $(BOARD_ODM_DLKM_SEPOLICY_DIRS))
 $(call add_json_list, BoardPlatPublicSepolicyDirs,       $(BOARD_PLAT_PUBLIC_SEPOLICY_DIR))
 $(call add_json_list, BoardPlatPrivateSepolicyDirs,      $(BOARD_PLAT_PRIVATE_SEPOLICY_DIR))
 $(call add_json_list, BoardSepolicyM4Defs,               $(BOARD_SEPOLICY_M4DEFS))
