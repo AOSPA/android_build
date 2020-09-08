@@ -131,7 +131,9 @@ PRODUCT_SYSTEM_MANUFACTURER := Android
 PRODUCT_SYSTEM_MODEL := mainline
 PRODUCT_SYSTEM_DEVICE := generic
 
-_base_mk_allowed_list :=
+_base_mk_allowed_list := \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib/vendor.qti.hardware.display.composer@3.0.so \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.display.composer@3.0.so
 
 ifeq (true,$(TARGET_USES_QSSI))
 ifeq (true,$(TARGET_HW_DISK_ENCRYPTION))
