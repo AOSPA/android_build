@@ -66,6 +66,7 @@ endif
 # Bluetooth implementation
 #
 PRODUCT_SOONG_NAMESPACES += packages/apps/Bluetooth
+PRODUCT_SOONG_NAMESPACES += vendor/qcom/opensource/commonsys/system/bt/conf
 
 
 PRODUCT_NAME := aosp_arm64
