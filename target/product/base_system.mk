@@ -120,7 +120,6 @@ PRODUCT_PACKAGES += \
     javax.obex \
     service-jobscheduler \
     keystore \
-    credstore \
     ld.mc \
     libaaudio \
     libamidi \
@@ -278,6 +277,7 @@ PRODUCT_PACKAGES += \
 
 ifneq ($(TARGET_HAS_LOW_RAM), true)
 PRODUCT_PACKAGES += \
+    credstore \
     SecureElement
 endif
 
