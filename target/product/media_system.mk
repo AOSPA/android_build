@@ -57,8 +57,8 @@ PRODUCT_SYSTEM_SERVER_JARS := \
 # system server jars which are updated via apex modules.
 # The values should be of the format <apex name>:<jar name>
 PRODUCT_UPDATABLE_SYSTEM_SERVER_JARS := \
+    com.android.appsearch:service-appsearch \
     com.android.permission:service-permission \
-    com.android.wifi:service-wifi \
     com.android.ipsec:android.net.ipsec.ike \
 
 PRODUCT_COPY_FILES += \
@@ -74,11 +74,11 @@ PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
 
 # On userdebug builds, collect more tombstones by default.
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    tombstoned.max_tombstone_count=50
+PRODUCT_VENDOR_PROPERTIES += \
+    tombstoned.max_tombstone_count?=50
 endif
 
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+PRODUCT_VENDOR_PROPERTIES += \
     ro.logd.size.stats=64K \
     log.tag.stats_log=I
 

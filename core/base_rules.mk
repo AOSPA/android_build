@@ -34,7 +34,6 @@ endif
 $(call verify-module-name)
 
 LOCAL_IS_HOST_MODULE := $(strip $(LOCAL_IS_HOST_MODULE))
-LOCAL_IS_AUX_MODULE := $(strip $(LOCAL_IS_AUX_MODULE))
 ifdef LOCAL_IS_HOST_MODULE
   ifneq ($(LOCAL_IS_HOST_MODULE),true)
     $(error $(LOCAL_PATH): LOCAL_IS_HOST_MODULE must be "true" or empty, not "$(LOCAL_IS_HOST_MODULE)")
@@ -47,16 +46,8 @@ ifdef LOCAL_IS_HOST_MODULE
   my_host := host-
   my_kind := HOST
 else
-  ifdef LOCAL_IS_AUX_MODULE
-    ifneq ($(LOCAL_IS_AUX_MODULE),true)
-      $(error $(LOCAL_PATH): LOCAL_IS_AUX_MODULE must be "true" or empty, not "$(LOCAL_IS_AUX_MODULE)")
-    endif
-    my_prefix := AUX_
-    my_kind := AUX
-  else
-    my_prefix := TARGET_
-    my_kind :=
-  endif
+  my_prefix := TARGET_
+  my_kind :=
   my_host :=
 endif
 
@@ -219,6 +210,7 @@ my_module_path := $(strip $(LOCAL_MODULE_PATH))
 endif
 my_module_path := $(patsubst %/,%,$(my_module_path))
 my_module_relative_path := $(strip $(LOCAL_MODULE_RELATIVE_PATH))
+
 ifdef LOCAL_IS_HOST_MODULE
   partition_tag :=
   actual_partition_tag :=
@@ -329,12 +321,9 @@ else
   my_all_targets := device_$(my_register_name)_all_targets
 endif
 
-# variant is enough to make nano class unique; it serves as a key to lookup (OS,ARCH) tuple
-aux_class := $($(my_prefix)OS_VARIANT)
 # Make sure that this IS_HOST/CLASS/MODULE combination is unique.
 module_id := MODULE.$(if \
-    $(LOCAL_IS_HOST_MODULE),$($(my_prefix)OS),$(if \
-    $(LOCAL_IS_AUX_MODULE),$(aux_class),TARGET)).$(LOCAL_MODULE_CLASS).$(my_register_name)
+    $(LOCAL_IS_HOST_MODULE),$($(my_prefix)OS),TARGET).$(LOCAL_MODULE_CLASS).$(my_register_name)
 ifdef $(module_id)
 $(error $(LOCAL_PATH): $(module_id) already defined by $($(module_id)))
 endif
@@ -380,15 +369,15 @@ LOCAL_BUILT_MODULE := $(intermediates)/$(my_built_module_stem)
 ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
   # Apk and its attachments reside in its own subdir.
   ifeq ($(LOCAL_MODULE_CLASS),APPS)
-  # framework-res.apk doesn't like the additional layer.
-  ifeq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
-  # Neither do Runtime Resource Overlay apks, which contain just the overlaid resources.
-  else ifeq ($(LOCAL_IS_RUNTIME_RESOURCE_OVERLAY),true)
-  else
-    ifneq ($(use_testcase_folder),true)
-      my_module_path := $(my_module_path)/$(LOCAL_MODULE)
+    # framework-res.apk doesn't like the additional layer.
+    ifeq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
+      # Neither do Runtime Resource Overlay apks, which contain just the overlaid resources.
+    else ifeq ($(LOCAL_IS_RUNTIME_RESOURCE_OVERLAY),true)
+    else
+      ifneq ($(use_testcase_folder),true)
+        my_module_path := $(my_module_path)/$(LOCAL_MODULE)
+      endif
     endif
-  endif
   endif
   LOCAL_INSTALLED_MODULE := $(my_module_path)/$(my_installed_module_stem)
 endif
@@ -451,7 +440,6 @@ $(cleantarget)::
 ###########################################################
 $(LOCAL_INTERMEDIATE_TARGETS) : PRIVATE_PATH:=$(LOCAL_PATH)
 $(LOCAL_INTERMEDIATE_TARGETS) : PRIVATE_IS_HOST_MODULE := $(LOCAL_IS_HOST_MODULE)
-$(LOCAL_INTERMEDIATE_TARGETS) : PRIVATE_IS_AUX_MODULE := $(LOCAL_IS_AUX_MODULE)
 $(LOCAL_INTERMEDIATE_TARGETS) : PRIVATE_HOST:= $(my_host)
 $(LOCAL_INTERMEDIATE_TARGETS) : PRIVATE_PREFIX := $(my_prefix)
 
@@ -478,12 +466,33 @@ endif
 
 # Set up phony targets that covers all modules under the given paths.
 # This allows us to build everything in given paths by running mmma/mma.
-my_path_components := $(subst /,$(space),$(LOCAL_PATH))
-my_path_prefix := MODULES-IN
-$(foreach c, $(my_path_components),\
-  $(eval my_path_prefix := $(my_path_prefix)-$(c))\
-  $(eval .PHONY : $(my_path_prefix))\
-  $(eval $(my_path_prefix) : $(my_all_targets)))
+define my_path_comp
+parent := $(patsubst %/,%,$(dir $(1)))
+parent_target := MODULES-IN-$$(subst /,-,$$(parent))
+.PHONY: $$(parent_target)
+$$(parent_target): $(2)
+ifndef $$(parent_target)
+  $$(parent_target) := true
+  ifneq (,$$(findstring /,$$(parent)))
+    $$(eval $$(call my_path_comp,$$(parent),$$(parent_target)))
+  endif
+endif
+endef
+
+_local_path := $(patsubst %/,%,$(LOCAL_PATH))
+_local_path_target := MODULES-IN-$(subst /,-,$(_local_path))
+
+.PHONY: $(_local_path_target)
+$(_local_path_target): $(my_register_name)
+
+ifndef $(_local_path_target)
+  $(_local_path_target) := true
+  $(eval $(call my_path_comp,$(_local_path),$(_local_path_target)))
+endif
+
+_local_path :=
+_local_path_target :=
+my_path_comp :=
 
 ###########################################################
 ## Module installation rule
@@ -597,12 +606,22 @@ ifneq ($(strip $(filter NATIVE_TESTS,$(LOCAL_MODULE_CLASS)) $(LOCAL_IS_FUZZ_TARG
 ifneq ($(strip $(LOCAL_TEST_DATA)),)
 ifneq (true,$(LOCAL_UNINSTALLABLE_MODULE))
 
+# Soong LOCAL_TEST_DATA is of the form <from_base>:<file>:<relative_install_path>
+# or <from_base>:<file>, to be installed to
+# <install_root>/<relative_install_path>/<file> or <install_root>/<file>,
+# respectively.
 ifeq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
   define copy_test_data_pairs
     _src_base := $$(call word-colon,1,$$(td))
     _file := $$(call word-colon,2,$$(td))
-    my_test_data_pairs += $$(call append-path,$$(_src_base),$$(_file)):$$(call append-path,$$(my_module_path),$$(_file))
-    my_test_data_file_pairs += $$(call append-path,$$(_src_base),$$(_file)):$$(_file)
+    _relative_install_path := $$(call word-colon,3,$$(td))
+    ifeq (,$$(_relative_install_path))
+        _relative_dest_file := $$(_file)
+    else
+        _relative_dest_file := $$(call append-path,$$(_relative_install_path),$$(_file))
+    endif
+    my_test_data_pairs += $$(call append-path,$$(_src_base),$$(_file)):$$(call append-path,$$(my_module_path),$$(_relative_dest_file))
+    my_test_data_file_pairs += $$(call append-path,$$(_src_base),$$(_file)):$$(_relative_dest_file)
   endef
 else
   define copy_test_data_pairs
@@ -763,13 +782,19 @@ endif
 
 ifeq ($(use_testcase_folder),true)
 ifneq ($(my_test_data_file_pairs),)
+# Filter out existng installed test data paths when collecting test data files to be installed and
+# indexed as they cause build rule conflicts. Instead put them in a separate list which is only
+# used for indexing.
 $(foreach pair, $(my_test_data_file_pairs), \
   $(eval parts := $(subst :,$(space),$(pair))) \
   $(eval src_path := $(word 1,$(parts))) \
   $(eval file := $(word 2,$(parts))) \
   $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
     $(eval my_compat_dist_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite),$(arch_dir)), \
-      $(call filter-copy-pair,$(src_path),$(call append-path,$(dir),$(file)),$(my_installed_test_data))))))
+      $(call filter-copy-pair,$(src_path),$(call append-path,$(dir),$(file)),$(my_installed_test_data)))) \
+    $(eval my_compat_dist_test_data_$(suite) += \
+      $(foreach dir, $(call compatibility_suite_dirs,$(suite),$(arch_dir)), \
+        $(filter $(my_installed_test_data),$(call append-path,$(dir),$(file)))))))
 endif
 else
 ifneq ($(my_test_data_file_pairs),)
@@ -790,7 +815,8 @@ is_native :=
 
 $(call create-suite-dependencies)
 $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
-  $(eval my_compat_dist_config_$(suite) := ))
+  $(eval my_compat_dist_config_$(suite) := ) \
+  $(eval my_compat_dist_test_data_$(suite) := ))
 
 endif  # LOCAL_UNINSTALLABLE_MODULE
 endif  # LOCAL_COMPATIBILITY_SUITE

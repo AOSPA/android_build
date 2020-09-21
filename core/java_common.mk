@@ -6,10 +6,6 @@ ifneq ($(filter ../%,$(LOCAL_SRC_FILES)),)
 my_soong_problems += dotdot_srcs
 endif
 
-ifneq (,$(LOCAL_JNI_SHARED_LIBRARIES))
-my_soong_problems += jni_libs
-endif
-
 ###########################################################
 ## Java version
 ###########################################################
@@ -265,11 +261,11 @@ ifndef LOCAL_IS_HOST_MODULE
       # Most users of LOCAL_NO_STANDARD_LIBRARIES really mean no framework libs,
       # and manually add back the core libs.  The ones that don't are in soong
       # now, so just always assume that they want the default system modules
-      my_system_modules := $(DEFAULT_SYSTEM_MODULES)
+      my_system_modules := $(LEGACY_CORE_PLATFORM_SYSTEM_MODULES)
     else  # LOCAL_NO_STANDARD_LIBRARIES
-      full_java_bootclasspath_libs := $(call java-lib-header-files,$(TARGET_DEFAULT_BOOTCLASSPATH_LIBRARIES) $(TARGET_DEFAULT_JAVA_LIBRARIES))
-      LOCAL_JAVA_LIBRARIES := $(filter-out $(TARGET_DEFAULT_BOOTCLASSPATH_LIBRARIES) $(TARGET_DEFAULT_JAVA_LIBRARIES),$(LOCAL_JAVA_LIBRARIES))
-      my_system_modules := $(DEFAULT_SYSTEM_MODULES)
+      full_java_bootclasspath_libs := $(call java-lib-header-files,$(LEGACY_CORE_PLATFORM_BOOTCLASSPATH_LIBRARIES) $(FRAMEWORK_LIBRARIES))
+      LOCAL_JAVA_LIBRARIES := $(filter-out $(LEGACY_CORE_PLATFORM_BOOTCLASSPATH_LIBRARIES) $(FRAMEWORK_LIBRARIES),$(LOCAL_JAVA_LIBRARIES))
+      my_system_modules := $(LEGACY_CORE_PLATFORM_SYSTEM_MODULES)
     endif  # LOCAL_NO_STANDARD_LIBRARIES
 
     ifneq (,$(TARGET_BUILD_APPS_USE_PREBUILT_SDK))
@@ -352,10 +348,10 @@ else # LOCAL_IS_HOST_MODULE
     ifeq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
       empty_bootclasspath := ""
     else
-      full_java_bootclasspath_libs := $(call java-lib-header-files,$(addsuffix -hostdex,$(TARGET_DEFAULT_BOOTCLASSPATH_LIBRARIES)),true)
+      full_java_bootclasspath_libs := $(call java-lib-header-files,$(addsuffix -hostdex,$(LEGACY_CORE_PLATFORM_BOOTCLASSPATH_LIBRARIES)),true)
     endif
 
-    my_system_modules := $(DEFAULT_SYSTEM_MODULES)
+    my_system_modules := $(LEGACY_CORE_PLATFORM_SYSTEM_MODULES)
     full_shared_java_libs := $(call java-lib-files,$(LOCAL_JAVA_LIBRARIES),true)
     full_shared_java_header_libs := $(call java-lib-header-files,$(LOCAL_JAVA_LIBRARIES),true)
   else # !USE_CORE_LIB_BOOTCLASSPATH
@@ -546,6 +542,10 @@ SOONG_CONV.$(LOCAL_MODULE).DEPS := \
     $(LOCAL_JAVA_LIBRARIES) \
     $(LOCAL_JNI_SHARED_LIBRARIES)
 SOONG_CONV.$(LOCAL_MODULE).TYPE := java
+SOONG_CONV.$(LOCAL_MODULE).MAKEFILES := \
+    $(SOONG_CONV.$(LOCAL_MODULE).MAKEFILES) $(LOCAL_MODULE_MAKEFILE)
+SOONG_CONV.$(LOCAL_MODULE).INSTALLED := \
+    $(SOONG_CONV.$(LOCAL_MODULE).INSTALLED) $(LOCAL_INSTALLED_MODULE)
 SOONG_CONV := $(SOONG_CONV) $(LOCAL_MODULE)
 
 endif

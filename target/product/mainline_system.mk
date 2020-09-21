@@ -99,10 +99,11 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES_DEBUG += \
     avbctl \
     bootctl \
-    tinyplay \
     tinycap \
+    tinyhostless \
     tinymix \
     tinypcminfo \
+    tinyplay \
     update_engine_client \
 
 PRODUCT_HOST_PACKAGES += \
@@ -112,7 +113,6 @@ PRODUCT_HOST_PACKAGES += \
 PRODUCT_COPY_FILES += \
     system/core/rootdir/init.zygote32.rc:system/etc/init/hw/init.zygote32.rc \
     system/core/rootdir/init.zygote64.rc:system/etc/init/hw/init.zygote64.rc \
-    system/core/rootdir/init.zygote32_64.rc:system/etc/init/hw/init.zygote32_64.rc \
     system/core/rootdir/init.zygote64_32.rc:system/etc/init/hw/init.zygote64_32.rc \
 
 # Enable dynamic partition size
@@ -131,7 +131,9 @@ PRODUCT_SYSTEM_MANUFACTURER := Android
 PRODUCT_SYSTEM_MODEL := mainline
 PRODUCT_SYSTEM_DEVICE := generic
 
-_base_mk_allowed_list :=
+_base_mk_allowed_list := \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib/vendor.qti.hardware.display.composer@3.0.so \
+    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.display.composer@3.0.so
 
 ifeq (true,$(TARGET_USES_QSSI))
 ifeq (true,$(TARGET_HW_DISK_ENCRYPTION))

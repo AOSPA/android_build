@@ -113,53 +113,44 @@ SKIP_BOOT_JARS_CHECK := true
 endif
 endif
 
-#
-# -----------------------------------------------------------------
-# Validate ADDITIONAL_DEFAULT_PROPERTIES.
-ifneq ($(ADDITIONAL_DEFAULT_PROPERTIES),)
-$(error ADDITIONAL_DEFAULT_PROPERTIES must not be set before here: $(ADDITIONAL_DEFAULT_PROPERTIES))
-endif
+# ADDITIONAL_<partition>_PROPERTIES are properties that are determined by the
+# build system itself. Don't let it be defined from outside of the core build
+# system like Android.mk or <product>.mk files.
+_additional_prop_var_names := \
+    ADDITIONAL_SYSTEM_PROPERTIES \
+    ADDITIONAL_VENDOR_PROPERTIES \
+    ADDITIONAL_ODM_PROPERTIES \
+    ADDITIONAL_PRODUCT_PROPERTIES
 
-#
-# -----------------------------------------------------------------
-# Validate ADDITIONAL_BUILD_PROPERTIES.
-ifneq ($(ADDITIONAL_BUILD_PROPERTIES),)
-$(error ADDITIONAL_BUILD_PROPERTIES must not be set before here: $(ADDITIONAL_BUILD_PROPERTIES))
-endif
+$(foreach name, $(_additional_prop_var_names),\
+  $(if $($(name)),\
+    $(error $(name) must not set before here. $($(name)))\
+  ,)\
+  $(eval $(name) :=)\
+)
+_additional_prop_var_names :=
 
-ADDITIONAL_BUILD_PROPERTIES :=
-
-#
-# -----------------------------------------------------------------
-# Validate ADDITIONAL_PRODUCT_PROPERTIES.
-ifneq ($(ADDITIONAL_PRODUCT_PROPERTIES),)
-$(error ADDITIONAL_PRODUCT_PROPERTIES must not be set before here: $(ADDITIONAL_PRODUCT_PROPERTIES))
-endif
-
-ADDITIONAL_PRODUCT_PROPERTIES :=
+$(KATI_obsolete_var ADDITIONAL_BUILD_PROPERTIES, Please use ADDITIONAL_SYSTEM_PROPERTIES)
 
 #
 # -----------------------------------------------------------------
 # Add the product-defined properties to the build properties.
 ifdef PRODUCT_SHIPPING_API_LEVEL
-ADDITIONAL_BUILD_PROPERTIES += \
+ADDITIONAL_SYSTEM_PROPERTIES += \
   ro.product.first_api_level=$(PRODUCT_SHIPPING_API_LEVEL)
 endif
 
 ifneq ($(BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED), true)
-  ADDITIONAL_BUILD_PROPERTIES += $(PRODUCT_PROPERTY_OVERRIDES)
+  ADDITIONAL_SYSTEM_PROPERTIES += $(PRODUCT_PROPERTY_OVERRIDES)
 else
   ifndef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
-    ADDITIONAL_BUILD_PROPERTIES += $(PRODUCT_PROPERTY_OVERRIDES)
+    ADDITIONAL_SYSTEM_PROPERTIES += $(PRODUCT_PROPERTY_OVERRIDES)
   endif
 endif
 
 
 # Bring in standard build system definitions.
 include $(BUILD_SYSTEM)/definitions.mk
-
-# Bring in dex_preopt.mk
-include $(BUILD_SYSTEM)/dex_preopt.mk
 
 ifneq ($(filter user userdebug eng,$(MAKECMDGOALS)),)
 $(info ***************************************************************)
@@ -199,7 +190,7 @@ include build/make/core/pdk_config.mk
 
 # -----------------------------------------------------------------
 
-ADDITIONAL_BUILD_PROPERTIES += ro.treble.enabled=${PRODUCT_FULL_TREBLE}
+ADDITIONAL_SYSTEM_PROPERTIES += ro.treble.enabled=${PRODUCT_FULL_TREBLE}
 
 $(KATI_obsolete_var PRODUCT_FULL_TREBLE,\
 	Code should be written to work regardless of a device being Treble or \
@@ -209,9 +200,9 @@ $(KATI_obsolete_var PRODUCT_FULL_TREBLE,\
 # Sets ro.actionable_compatible_property.enabled to know on runtime whether the
 # allowed list of actionable compatible properties is enabled or not.
 ifeq ($(PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE),true)
-ADDITIONAL_DEFAULT_PROPERTIES += ro.actionable_compatible_property.enabled=false
+ADDITIONAL_SYSTEM_PROPERTIES += ro.actionable_compatible_property.enabled=false
 else
-ADDITIONAL_DEFAULT_PROPERTIES += ro.actionable_compatible_property.enabled=${PRODUCT_COMPATIBLE_PROPERTY}
+ADDITIONAL_SYSTEM_PROPERTIES += ro.actionable_compatible_property.enabled=${PRODUCT_COMPATIBLE_PROPERTY}
 endif
 
 # Add the system server compiler filter if they are specified for the product.
@@ -221,7 +212,7 @@ endif
 
 # Enable core platform API violation warnings on userdebug and eng builds.
 ifneq ($(TARGET_BUILD_VARIANT),user)
-ADDITIONAL_BUILD_PROPERTIES += persist.debug.dalvik.vm.core_platform_api_policy=just-warn
+ADDITIONAL_SYSTEM_PROPERTIES += persist.debug.dalvik.vm.core_platform_api_policy=just-warn
 endif
 
 # Sets the default value of ro.postinstall.fstab.prefix to /system.
@@ -231,7 +222,92 @@ endif
 #
 # It then uses ${ro.postinstall.fstab.prefix}/etc/fstab.postinstall to
 # mount system_other partition.
-ADDITIONAL_DEFAULT_PROPERTIES += ro.postinstall.fstab.prefix=/system
+ADDITIONAL_SYSTEM_PROPERTIES += ro.postinstall.fstab.prefix=/system
+
+# -----------------------------------------------------------------
+# ADDITIONAL_VENDOR_PROPERTIES will be installed in vendor/build.prop if
+# property_overrides_split_enabled is true. Otherwise it will be installed in
+# /system/build.prop
+ifdef BOARD_VNDK_VERSION
+  ifeq ($(BOARD_VNDK_VERSION),current)
+    ADDITIONAL_VENDOR_PROPERTIES := ro.vndk.version=$(PLATFORM_VNDK_VERSION)
+  else
+    ADDITIONAL_VENDOR_PROPERTIES := ro.vndk.version=$(BOARD_VNDK_VERSION)
+  endif
+endif
+
+# Add cpu properties for bionic and ART.
+ADDITIONAL_VENDOR_PROPERTIES += ro.bionic.arch=$(TARGET_ARCH)
+ADDITIONAL_VENDOR_PROPERTIES += ro.bionic.cpu_variant=$(TARGET_CPU_VARIANT_RUNTIME)
+ADDITIONAL_VENDOR_PROPERTIES += ro.bionic.2nd_arch=$(TARGET_2ND_ARCH)
+ADDITIONAL_VENDOR_PROPERTIES += ro.bionic.2nd_cpu_variant=$(TARGET_2ND_CPU_VARIANT_RUNTIME)
+
+ADDITIONAL_VENDOR_PROPERTIES += persist.sys.dalvik.vm.lib.2=libart.so
+ADDITIONAL_VENDOR_PROPERTIES += dalvik.vm.isa.$(TARGET_ARCH).variant=$(DEX2OAT_TARGET_CPU_VARIANT_RUNTIME)
+ifneq ($(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES),)
+  ADDITIONAL_VENDOR_PROPERTIES += dalvik.vm.isa.$(TARGET_ARCH).features=$(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
+endif
+
+ifdef TARGET_2ND_ARCH
+  ADDITIONAL_VENDOR_PROPERTIES += dalvik.vm.isa.$(TARGET_2ND_ARCH).variant=$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_CPU_VARIANT_RUNTIME)
+  ifneq ($($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES),)
+    ADDITIONAL_VENDOR_PROPERTIES += dalvik.vm.isa.$(TARGET_2ND_ARCH).features=$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
+  endif
+endif
+
+# Although these variables are prefixed with TARGET_RECOVERY_, they are also needed under charger
+# mode (via libminui).
+ifdef TARGET_RECOVERY_DEFAULT_ROTATION
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.minui.default_rotation=$(TARGET_RECOVERY_DEFAULT_ROTATION)
+endif
+ifdef TARGET_RECOVERY_OVERSCAN_PERCENT
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.minui.overscan_percent=$(TARGET_RECOVERY_OVERSCAN_PERCENT)
+endif
+ifdef TARGET_RECOVERY_PIXEL_FORMAT
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.minui.pixel_format=$(TARGET_RECOVERY_PIXEL_FORMAT)
+endif
+
+ifdef PRODUCT_USE_DYNAMIC_PARTITIONS
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.boot.dynamic_partitions=$(PRODUCT_USE_DYNAMIC_PARTITIONS)
+endif
+
+ifdef PRODUCT_RETROFIT_DYNAMIC_PARTITIONS
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.boot.dynamic_partitions_retrofit=$(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS)
+endif
+
+ifdef PRODUCT_SHIPPING_API_LEVEL
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.product.first_api_level=$(PRODUCT_SHIPPING_API_LEVEL)
+endif
+
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.vendor.build.security_patch=$(VENDOR_SECURITY_PATCH) \
+    ro.vendor.product.cpu.abilist=$(TARGET_CPU_ABI_LIST) \
+    ro.vendor.product.cpu.abilist32=$(TARGET_CPU_ABI_LIST_32_BIT) \
+    ro.vendor.product.cpu.abilist64=$(TARGET_CPU_ABI_LIST_64_BIT) \
+    ro.product.board=$(TARGET_BOOTLOADER_BOARD_NAME) \
+    ro.board.platform=$(TARGET_BOARD_PLATFORM) \
+    ro.hwui.use_vulkan=$(TARGET_USES_VULKAN)
+
+ifdef TARGET_SCREEN_DENSITY
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.sf.lcd_density=$(TARGET_SCREEN_DENSITY)
+endif
+
+ifdef AB_OTA_UPDATER
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.build.ab_update=$(AB_OTA_UPDATER)
+endif
+
+ADDITIONAL_ODM_PROPERTIES += \
+    ro.odm.product.cpu.abilist=$(TARGET_CPU_ABI_LIST) \
+    ro.odm.product.cpu.abilist32=$(TARGET_CPU_ABI_LIST_32_BIT) \
+    ro.odm.product.cpu.abilist64=$(TARGET_CPU_ABI_LIST_64_BIT)
 
 # Set ro.product.vndk.version to know the VNDK version required by product
 # modules. It uses the version in PRODUCT_PRODUCT_VNDK_VERSION. If the value
@@ -243,6 +319,8 @@ else
 ADDITIONAL_PRODUCT_PROPERTIES += ro.product.vndk.version=$(PRODUCT_PRODUCT_VNDK_VERSION)
 endif
 endif
+
+ADDITIONAL_PRODUCT_PROPERTIES += ro.build.characteristics=$(TARGET_AAPT_CHARACTERISTICS)
 
 # -----------------------------------------------------------------
 ###
@@ -263,11 +341,11 @@ enable_target_debugging := true
 tags_to_install :=
 ifneq (,$(user_variant))
   # Target is secure in user builds.
-  ADDITIONAL_DEFAULT_PROPERTIES += ro.secure=1
-  ADDITIONAL_DEFAULT_PROPERTIES += security.perf_harden=1
+  ADDITIONAL_SYSTEM_PROPERTIES += ro.secure=1
+  ADDITIONAL_SYSTEM_PROPERTIES += security.perf_harden=1
 
   ifeq ($(user_variant),user)
-    ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=1
+    ADDITIONAL_SYSTEM_PROPERTIES += ro.adb.secure=1
   endif
 
   ifeq ($(user_variant),userdebug)
@@ -279,40 +357,40 @@ ifneq (,$(user_variant))
   endif
 
   # Disallow mock locations by default for user builds
-  ADDITIONAL_DEFAULT_PROPERTIES += ro.allow.mock.location=0
+  ADDITIONAL_SYSTEM_PROPERTIES += ro.allow.mock.location=0
 
 else # !user_variant
   # Turn on checkjni for non-user builds.
-  ADDITIONAL_BUILD_PROPERTIES += ro.kernel.android.checkjni=1
+  ADDITIONAL_SYSTEM_PROPERTIES += ro.kernel.android.checkjni=1
   # Set device insecure for non-user builds.
-  ADDITIONAL_DEFAULT_PROPERTIES += ro.secure=0
+  ADDITIONAL_SYSTEM_PROPERTIES += ro.secure=0
   # Allow mock locations by default for non user builds
-  ADDITIONAL_DEFAULT_PROPERTIES += ro.allow.mock.location=1
+  ADDITIONAL_SYSTEM_PROPERTIES += ro.allow.mock.location=1
 endif # !user_variant
 
 ifeq (true,$(strip $(enable_target_debugging)))
   # Target is more debuggable and adbd is on by default
-  ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
+  ADDITIONAL_SYSTEM_PROPERTIES += ro.debuggable=1
   # Enable Dalvik lock contention logging.
-  ADDITIONAL_BUILD_PROPERTIES += dalvik.vm.lockprof.threshold=500
+  ADDITIONAL_SYSTEM_PROPERTIES += dalvik.vm.lockprof.threshold=500
 else # !enable_target_debugging
   # Target is less debuggable and adbd is off by default
-  ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=0
+  ADDITIONAL_SYSTEM_PROPERTIES += ro.debuggable=0
 endif # !enable_target_debugging
 
 ## eng ##
 
 ifeq ($(TARGET_BUILD_VARIANT),eng)
 tags_to_install := debug eng
-ifneq ($(filter ro.setupwizard.mode=ENABLED, $(call collapse-pairs, $(ADDITIONAL_BUILD_PROPERTIES))),)
+ifneq ($(filter ro.setupwizard.mode=ENABLED, $(call collapse-pairs, $(ADDITIONAL_SYSTEM_PROPERTIES))),)
   # Don't require the setup wizard on eng builds
-  ADDITIONAL_BUILD_PROPERTIES := $(filter-out ro.setupwizard.mode=%,\
-          $(call collapse-pairs, $(ADDITIONAL_BUILD_PROPERTIES))) \
+  ADDITIONAL_SYSTEM_PROPERTIES := $(filter-out ro.setupwizard.mode=%,\
+          $(call collapse-pairs, $(ADDITIONAL_SYSTEM_PROPERTIES))) \
           ro.setupwizard.mode=OPTIONAL
 endif
 ifndef is_sdk_build
   # To speedup startup of non-preopted builds, don't verify or compile the boot image.
-  ADDITIONAL_BUILD_PROPERTIES += dalvik.vm.image-dex2oat-filter=extract
+  ADDITIONAL_SYSTEM_PROPERTIES += dalvik.vm.image-dex2oat-filter=extract
 endif
 endif
 
@@ -346,28 +424,25 @@ ifneq ($(words $(sort $(filter-out $(INTERNAL_MODIFIER_TARGETS) checkbuild emula
 $(error The 'sdk' target may not be specified with any other targets)
 endif
 
-# AUX dependencies are already added by now; remove triggers from the MAKECMDGOALS
-MAKECMDGOALS := $(strip $(filter-out AUX-%,$(MAKECMDGOALS)))
-
 # TODO: this should be eng I think.  Since the sdk is built from the eng
 # variant.
 tags_to_install := debug eng
-ADDITIONAL_BUILD_PROPERTIES += xmpp.auto-presence=true
-ADDITIONAL_BUILD_PROPERTIES += ro.config.nocheckin=yes
+ADDITIONAL_SYSTEM_PROPERTIES += xmpp.auto-presence=true
+ADDITIONAL_SYSTEM_PROPERTIES += ro.config.nocheckin=yes
 else # !sdk
 endif
 
 BUILD_WITHOUT_PV := true
 
-ADDITIONAL_BUILD_PROPERTIES += net.bt.name=Android
+ADDITIONAL_SYSTEM_PROPERTIES += net.bt.name=Android
 
 # QCV: initialize property - used to detect framework type
 ifeq ($(TARGET_FWK_SUPPORTS_FULL_VALUEADDS), true)
-  ADDITIONAL_BUILD_PROPERTIES += \
+  ADDITIONAL_VENDOR_PROPERTIES += \
         ro.vendor.qti.va_aosp.support=1
   $(warning "Compile using modified AOSP tree supporting full vendor value-adds")
 else
-  ADDITIONAL_BUILD_PROPERTIES += \
+  ADDITIONAL_VENDOR_PROPERTIES += \
         ro.vendor.qti.va_aosp.support=0
   $(warning "Compile using pure AOSP tree")
 endif
@@ -402,12 +477,16 @@ endif
 # Typical build; include any Android.mk files we can find.
 #
 
+# Bring in dex_preopt.mk
+# This creates some modules so it needs to be included after
+# should-install-to-system is defined (in order for base_rules.mk to function
+# properly), but before readonly-final-product-vars is called.
+include $(BUILD_SYSTEM)/dex_preopt.mk
+
 # Strip and readonly a few more variables so they won't be modified.
 $(readonly-final-product-vars)
-ADDITIONAL_DEFAULT_PROPERTIES := $(strip $(ADDITIONAL_DEFAULT_PROPERTIES))
-.KATI_READONLY := ADDITIONAL_DEFAULT_PROPERTIES
-ADDITIONAL_BUILD_PROPERTIES := $(strip $(ADDITIONAL_BUILD_PROPERTIES))
-.KATI_READONLY := ADDITIONAL_BUILD_PROPERTIES
+ADDITIONAL_SYSTEM_PROPERTIES := $(strip $(ADDITIONAL_SYSTEM_PROPERTIES))
+.KATI_READONLY := ADDITIONAL_SYSTEM_PROPERTIES
 ADDITIONAL_PRODUCT_PROPERTIES := $(strip $(ADDITIONAL_PRODUCT_PROPERTIES))
 .KATI_READONLY := ADDITIONAL_PRODUCT_PROPERTIES
 
@@ -483,6 +562,13 @@ $(call generate_all_enforce_rro_packages)
 endif
 
 # -------------------------------------------------------------------
+# Sort ALL_MODULES to remove duplicate entries.
+# -------------------------------------------------------------------
+ALL_MODULES := $(sort $(ALL_MODULES))
+# Cannot set to readonly because Makefile extends ALL_MODULES
+# .KATI_READONLY := ALL_MODULES
+
+# -------------------------------------------------------------------
 # Fix up CUSTOM_MODULES to refer to installed files rather than
 # just bare module names.  Leave unknown modules alone in case
 # they're actually full paths to a particular file.
@@ -503,96 +589,142 @@ CUSTOM_MODULES := \
 # brought in as requirements of other modules.
 #
 # Resolve the required module name to 32-bit or 64-bit variant.
-# Get a list of corresponding 32-bit module names, if one exists.
-define get-32-bit-modules
-$(sort $(foreach m,$(1),\
-  $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX))))
-endef
-# Get a list of corresponding 32-bit module names, if one exists;
-# otherwise return the original module name
-define get-32-bit-modules-if-we-can
-$(sort $(foreach m,$(1),\
-  $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX), \
-    $(m))))
-endef
 
-# TODO: we can probably check to see if these modules are actually host
-# modules
-define get-host-32-bit-modules
-$(sort $(foreach m,$(1),\
-  $(if $(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(m)$(HOST_2ND_ARCH_MODULE_SUFFIX))))
-endef
-# Get a list of corresponding 32-bit module names, if one exists;
-# otherwise return the original module name
-define get-host-32-bit-modules-if-we-can
-$(sort $(foreach m,$(1),\
-  $(if $(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(m)$(HOST_2ND_ARCH_MODULE_SUFFIX),\
-    $(m))))
-endef
-
-# If a module is for a cross host os, the required modules must be for
-# that OS too.
-# If a module is built for 32-bit, the required modules must be 32-bit too;
-# Otherwise if the module is an executable or shared library,
-#   the required modules must be 64-bit;
-#   otherwise we require both 64-bit and 32-bit variant, if one exists.
-define target-select-bitness-of-required-modules
-$(foreach m,$(ALL_MODULES),\
-  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_TARGET))\
-  $(if $(r),\
-    $(if $(ALL_MODULES.$(m).FOR_2ND_ARCH),\
-      $(eval r_r := $(call get-32-bit-modules-if-we-can,$(r))),\
-      $(if $(filter EXECUTABLES SHARED_LIBRARIES NATIVE_TESTS,$(ALL_MODULES.$(m).CLASS)),\
-        $(eval r_r := $(r)),\
-        $(eval r_r := $(r) $(call get-32-bit-modules,$(r)))\
-       )\
-     )\
-     $(eval ALL_MODULES.$(m).REQUIRED_FROM_TARGET := $(strip $(r_r)))\
-  )\
+# Get a list of corresponding module names for the second arch, if they exist.
+# $(1): TARGET, HOST or HOST_CROSS
+# $(2): A list of module names
+define get-modules-for-2nd-arch
+$(strip \
+  $(foreach m,$(2), \
+    $(if $(filter true,$(ALL_MODULES.$(m)$($(1)_2ND_ARCH_MODULE_SUFFIX).FOR_2ND_ARCH)), \
+      $(m)$($(1)_2ND_ARCH_MODULE_SUFFIX) \
+    ) \
+  ) \
 )
 endef
-$(call target-select-bitness-of-required-modules)
 
-define host-select-bitness-of-required-modules
-$(foreach m,$(ALL_MODULES),\
-  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_HOST))\
-  $(if $(r),\
-    $(if $(ALL_MODULES.$(m).FOR_2ND_ARCH),\
-      $(eval r_r := $(call get-host-32-bit-modules-if-we-can,$(r))),\
-      $(if $(filter EXECUTABLES SHARED_LIBRARIES NATIVE_TESTS,$(ALL_MODULES.$(m).CLASS)),\
-        $(eval r_r := $(r)),\
-        $(eval r_r := $(r) $(call get-host-32-bit-modules,$(r)))\
-       )\
-     )\
-     $(eval ALL_MODULES.$(m).REQUIRED_FROM_HOST := $(strip $(r_r)))\
-  )\
+# Resolves module bitness for PRODUCT_PACKAGES and PRODUCT_HOST_PACKAGES.
+# The returned list of module names can be used to access
+# ALL_MODULES.<module>.<*> variables.
+# Name resolution for PRODUCT_PACKAGES / PRODUCT_HOST_PACKAGES:
+#   foo:32 resolves to foo_32;
+#   foo:64 resolves to foo;
+#   foo resolves to both foo and foo_32 (if foo_32 is defined).
+#
+# Name resolution for HOST_CROSS modules:
+#   foo:32 resolves to foo;
+#   foo:64 resolves to foo_64;
+#   foo resolves to both foo and foo_64 (if foo_64 is defined).
+#
+# $(1): TARGET, HOST or HOST_CROSS
+# $(2): A list of simple module names with :32 and :64 suffix
+define resolve-bitness-for-modules
+$(strip \
+  $(eval modules_32 := $(patsubst %:32,%,$(filter %:32,$(2)))) \
+  $(eval modules_64 := $(patsubst %:64,%,$(filter %:64,$(2)))) \
+  $(eval modules_both := $(filter-out %:32 %:64,$(2))) \
+  $(eval ### For host cross modules, the primary arch is windows x86 and secondary is x86_64) \
+  $(if $(filter HOST_CROSS,$(1)), \
+    $(eval modules_1st_arch := $(modules_32)) \
+    $(eval modules_2nd_arch := $(modules_64)), \
+    $(eval modules_1st_arch := $(modules_64)) \
+    $(eval modules_2nd_arch := $(modules_32))) \
+  $(eval ### Note for 32-bit product, 32 and 64 will be added as their original module names.) \
+  $(eval modules := $(modules_1st_arch)) \
+  $(if $($(1)_2ND_ARCH), \
+    $(eval modules += $(call get-modules-for-2nd-arch,$(1),$(modules_2nd_arch))), \
+    $(eval modules += $(modules_2nd_arch))) \
+  $(eval ### For the rest we add both) \
+  $(eval modules += $(modules_both)) \
+  $(if $($(1)_2ND_ARCH), \
+    $(eval modules += $(call get-modules-for-2nd-arch,$(1),$(modules_both)))) \
+  $(modules) \
 )
 endef
-$(call host-select-bitness-of-required-modules)
 
-define host-cross-select-bitness-of-required-modules
-$(foreach m,$(ALL_MODULES),\
-  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_HOST_CROSS))\
-  $(if $(r),\
-    $(if $(ALL_MODULES.$(m).FOR_HOST_CROSS),,$(error Only expected REQUIRED_FROM_HOST_CROSS on FOR_HOST_CROSS modules - $(m)))\
-    $(eval r := $(addprefix host_cross_,$(r)))\
-    $(if $(ALL_MODULES.$(m).FOR_2ND_ARCH),\
-      $(eval r_r := $(call get-host-32-bit-modules-if-we-can,$(r))),\
-      $(if $(filter EXECUTABLES SHARED_LIBRARIES NATIVE_TESTS,$(ALL_MODULES.$(m).CLASS)),\
-        $(eval r_r := $(r)),\
-        $(eval r_r := $(r) $(call get-host-32-bit-modules,$(r)))\
-       )\
-     )\
-     $(eval ALL_MODULES.$(m).REQUIRED_FROM_HOST_CROSS := $(strip $(r_r)))\
-  )\
+# Resolve the required module names to 32-bit or 64-bit variant for:
+#   ALL_MODULES.<*>.REQUIRED_FROM_TARGET
+#   ALL_MODULES.<*>.REQUIRED_FROM_HOST
+#   ALL_MODULES.<*>.REQUIRED_FROM_HOST_CROSS
+#
+# If a module is for cross host OS, the required modules are also for that OS.
+# Required modules explicitly suffixed with :32 or :64 resolve to that bitness.
+# Otherwise if the requiring module is native and the required module is shared
+# library or native test, then the required module resolves to the same bitness.
+# Otherwise the required module resolves to both variants, if they exist.
+# $(1): TARGET, HOST or HOST_CROSS
+define select-bitness-of-required-modules
+$(foreach m,$(ALL_MODULES), \
+  $(eval r := $(ALL_MODULES.$(m).REQUIRED_FROM_$(1))) \
+  $(if $(r), \
+    $(if $(filter HOST_CROSS,$(1)), \
+      $(if $(ALL_MODULES.$(m).FOR_HOST_CROSS),,$(error Only expected REQUIRED_FROM_HOST_CROSS on FOR_HOST_CROSS modules - $(m))) \
+      $(eval r := $(addprefix host_cross_,$(r)))) \
+    $(eval module_is_native := \
+      $(filter EXECUTABLES SHARED_LIBRARIES NATIVE_TESTS,$(ALL_MODULES.$(m).CLASS))) \
+    $(eval r_r := \
+      $(foreach r_i,$(r), \
+        $(if $(filter %:32 %:64,$(r_i)), \
+          $(eval r_m := $(call resolve-bitness-for-modules,$(1),$(r_i))), \
+          $(eval r_m := \
+            $(eval r_i_2nd := $(call get-modules-for-2nd-arch,$(1),$(r_i))) \
+            $(eval required_is_shared_library_or_native_test := \
+              $(filter SHARED_LIBRARIES NATIVE_TESTS, \
+                $(ALL_MODULES.$(r_i).CLASS) $(ALL_MODULES.$(r_i_2nd).CLASS))) \
+            $(if $(and $(module_is_native),$(required_is_shared_library_or_native_test)), \
+              $(if $(ALL_MODULES.$(m).FOR_2ND_ARCH),$(r_i_2nd),$(r_i)), \
+              $(r_i) $(r_i_2nd)))) \
+        $(eval r_m := $(foreach r_j,$(r_m),$(if $(ALL_MODULES.$(r_j).PATH),$(r_j)))) \
+        $(if $(r_m),,$(eval _nonexistent_required += $(1)$(comma)$(m)$(comma)$(1)$(comma)$(r_i))) \
+        $(r_m))) \
+    $(eval ALL_MODULES.$(m).REQUIRED_FROM_$(1) := $(sort $(r_r))) \
+  ) \
 )
 endef
-$(call host-cross-select-bitness-of-required-modules)
-r_r :=
+
+# Resolve the required module names to 32-bit or 64-bit variant for:
+#   ALL_MODULES.<*>.TARGET_REQUIRED_FROM_HOST
+#   ALL_MODULES.<*>.HOST_REQUIRED_FROM_TARGET
+#
+# This is like select-bitness-of-required-modules, but it doesn't have
+# complicated logic for various module types.
+# Calls resolve-bitness-for-modules to resolve module names.
+# $(1): TARGET or HOST
+# $(2): HOST or TARGET
+define select-bitness-of-target-host-required-modules
+$(foreach m,$(ALL_MODULES), \
+  $(eval r := $(ALL_MODULES.$(m).$(1)_REQUIRED_FROM_$(2))) \
+  $(if $(r), \
+    $(eval r_r := \
+      $(foreach r_i,$(r), \
+        $(eval r_m := $(call resolve-bitness-for-modules,$(1),$(r_i))) \
+        $(eval r_m := $(foreach r_j,$(r_m),$(if $(ALL_MODULES.$(r_j).PATH),$(r_j)))) \
+        $(if $(r_m),,$(eval _nonexistent_required += $(2)$(comma)$(m)$(comma)$(1)$(comma)$(r_i))) \
+        $(r_m))) \
+    $(eval ALL_MODULES.$(m).$(1)_REQUIRED_FROM_$(2) := $(sort $(r_r))) \
+  ) \
+)
+endef
+
+_nonexistent_required :=
+$(call select-bitness-of-required-modules,TARGET)
+$(call select-bitness-of-required-modules,HOST)
+$(call select-bitness-of-required-modules,HOST_CROSS)
+$(call select-bitness-of-target-host-required-modules,TARGET,HOST)
+$(call select-bitness-of-target-host-required-modules,HOST,TARGET)
+_nonexistent_required := $(sort $(_nonexistent_required))
+
+ifeq (,$(filter true,$(ALLOW_MISSING_DEPENDENCIES) $(BUILD_BROKEN_MISSING_REQUIRED_MODULES)))
+ifneq (,$(_nonexistent_required))
+  $(warning Missing required dependencies:)
+  $(foreach r_i,$(_nonexistent_required), \
+    $(eval r := $(subst $(comma),$(space),$(r_i))) \
+    $(info $(word 1,$(r)) module $(word 2,$(r)) requires non-existent $(word 3,$(r)) module: $(word 4,$(r))) \
+  )
+  $(warning Set BUILD_BROKEN_MISSING_REQUIRED_MODULES := true to bypass this check if this is intentional)
+  $(error Build failed)
+endif # _nonexistent_required != empty
+endif # ALLOW_MISSING_DEPENDENCIES != true && BUILD_BROKEN_MISSING_REQUIRED_MODULES != true
 
 define add-required-deps
 $(1): | $(2)
@@ -663,10 +795,13 @@ $(foreach m,$(ALL_MODULES), \
     $(eval req_files := )\
     $(foreach req_mod,$(req_mods), \
       $(eval req_file := $(filter $(TARGET_OUT_ROOT)/%, $(call module-installed-files,$(req_mod)))) \
-      $(if $(strip $(req_file)),\
-        ,\
-        $(error $(m).LOCAL_TARGET_REQUIRED_MODULES : illegal value $(req_mod) : not a device module. If you want to specify host modules to be required to be installed along with your host module, add those module names to LOCAL_REQUIRED_MODULES instead)\
-      )\
+      $(if $(filter true,$(ALLOW_MISSING_DEPENDENCIES)), \
+        , \
+        $(if $(strip $(req_file)), \
+          , \
+          $(error $(m).LOCAL_TARGET_REQUIRED_MODULES : illegal value $(req_mod) : not a device module. If you want to specify host modules to be required to be installed along with your host module, add those module names to LOCAL_REQUIRED_MODULES instead) \
+        ) \
+      ) \
       $(eval req_files := $(req_files)$(space)$(req_file))\
     )\
     $(eval req_files := $(strip $(req_files)))\
@@ -689,10 +824,13 @@ $(foreach m,$(ALL_MODULES), \
     $(eval req_files := )\
     $(foreach req_mod,$(req_mods), \
       $(eval req_file := $(filter $(HOST_OUT)/%, $(call module-installed-files,$(req_mod)))) \
-      $(if $(strip $(req_file)),\
-        ,\
-        $(error $(m).LOCAL_HOST_REQUIRED_MODULES : illegal value $(req_mod) : not a host module. If you want to specify target modules to be required to be installed along with your target module, add those module names to LOCAL_REQUIRED_MODULES instead)\
-      )\
+      $(if $(filter true,$(ALLOW_MISSING_DEPENDENCIES)), \
+        , \
+        $(if $(strip $(req_file)), \
+          , \
+          $(error $(m).LOCAL_HOST_REQUIRED_MODULES : illegal value $(req_mod) : not a host module. If you want to specify target modules to be required to be installed along with your target module, add those module names to LOCAL_REQUIRED_MODULES instead) \
+        ) \
+      ) \
       $(eval req_files := $(req_files)$(space)$(req_file))\
     )\
     $(eval req_files := $(strip $(req_files)))\
@@ -811,9 +949,10 @@ $(foreach m,$($(if $(2),$($(1)2ND_ARCH_VAR_PREFIX))$(1)DEPENDENCIES_ON_SHARED_LI
     $($(if $(2),$($(1)2ND_ARCH_VAR_PREFIX))TARGET_OUT_INTERMEDIATES)/SHARED_LIBRARIES/%,\
     $(call module-built-files,$(mod)))))\
   \
-  $(if $(r),\
+  $(if $(and $(r),$(deps)),\
     $(eval stamp := $(dir $(r))check_elf_files.timestamp)\
-    $(eval $(call add-elf-file-check-shared-lib,$(stamp),$(deps)))\
+    $(if $(CHECK_ELF_FILES.$(stamp)),\
+      $(eval $(call add-elf-file-check-shared-lib,$(stamp),$(deps))))\
   ))
 endef
 
@@ -843,7 +982,6 @@ add-required-deps :=
 #     - TARGET
 #     - HOST
 #     - HOST_CROSS
-#     - AUX-<variant-name>
 #   3: Whether to use the common intermediates directory or not
 #     - _
 #     - COMMON
@@ -870,14 +1008,8 @@ add-required-deps :=
 
 link_type_error :=
 
-define link-type-prefix-base
-$(word 2,$(subst :,$(space),$(1)))
-endef
 define link-type-prefix
-$(if $(filter AUX-%,$(link-type-prefix-base)),$(patsubst AUX-%,AUX,$(link-type-prefix-base)),$(link-type-prefix-base))
-endef
-define link-type-aux-variant
-$(if $(filter AUX-%,$(link-type-prefix-base)),$(patsubst AUX-%,%,$(link-type-prefix-base)))
+$(word 2,$(subst :,$(space),$(1)))
 endef
 define link-type-common
 $(patsubst _,,$(word 3,$(subst :,$(space),$(1))))
@@ -895,7 +1027,7 @@ define link-type-os
 $(strip $(eval _p := $(link-type-prefix))\
   $(if $(filter HOST HOST_CROSS,$(_p)),\
     $($(_p)_OS),\
-    $(if $(filter AUX,$(_p)),AUX,android)))
+    android))
 endef
 define link-type-arch
 $($(link-type-prefix)_$(link-type-2ndarchprefix)ARCH)
@@ -1034,7 +1166,9 @@ define resolve-product-relative-paths
     $(subst $(_product_path_placeholder),$(TARGET_COPY_OUT_PRODUCT),\
       $(subst $(_system_ext_path_placeholder),$(TARGET_COPY_OUT_SYSTEM_EXT),\
         $(subst $(_odm_path_placeholder),$(TARGET_COPY_OUT_ODM),\
-          $(foreach p,$(1),$(call append-path,$(PRODUCT_OUT),$(p)$(2)))))))
+          $(subst $(_vendor_dlkm_path_placeholder),$(TARGET_COPY_OUT_VENDOR_DLKM),\
+            $(subst $(_odm_dlkm_path_placeholder),$(TARGET_COPY_OUT_ODM_DLKM),\
+              $(foreach p,$(1),$(call append-path,$(PRODUCT_OUT),$(p)$(2)))))))))
 endef
 
 # Returns modules included automatically as a result of certain BoardConfig
@@ -1060,8 +1194,7 @@ endef
 #   foo resolves to both foo and foo_32 (if foo_32 is defined).
 #
 # Name resolution for LOCAL_REQUIRED_MODULES:
-#   If a module is built for 2nd arch, its required module resolves to
-#   32-bit variant, if it exits. See the select-bitness-of-required-modules definition.
+#   See the select-bitness-of-required-modules definition.
 # $(1): product makefile
 define product-installed-files
   $(eval _pif_modules := \
@@ -1077,15 +1210,7 @@ define product-installed-files
   $(eval _pif_overrides := $(call module-overrides,$(_pif_modules))) \
   $(eval _pif_modules := $(filter-out $(_pif_overrides), $(_pif_modules))) \
   $(eval ### Resolve the :32 :64 module name) \
-  $(eval _pif_modules_32 := $(patsubst %:32,%,$(filter %:32, $(_pif_modules)))) \
-  $(eval _pif_modules_64 := $(patsubst %:64,%,$(filter %:64, $(_pif_modules)))) \
-  $(eval _pif_modules_rest := $(filter-out %:32 %:64,$(_pif_modules))) \
-  $(eval ### Note for 32-bit product, 32 and 64 will be added as their original module names.) \
-  $(eval _pif_modules := $(call get-32-bit-modules-if-we-can, $(_pif_modules_32))) \
-  $(eval _pif_modules += $(_pif_modules_64)) \
-  $(eval ### For the rest we add both) \
-  $(eval _pif_modules += $(call get-32-bit-modules, $(_pif_modules_rest))) \
-  $(eval _pif_modules += $(_pif_modules_rest)) \
+  $(eval _pif_modules := $(sort $(call resolve-bitness-for-modules,TARGET,$(_pif_modules)))) \
   $(call expand-required-modules,_pif_modules,$(_pif_modules),$(_pif_overrides)) \
   $(filter-out $(HOST_OUT_ROOT)/%,$(call module-installed-files, $(_pif_modules))) \
   $(call resolve-product-relative-paths,\
@@ -1096,18 +1221,12 @@ endef
 # This does support the :32 / :64 syntax, but does not support module overrides.
 define host-installed-files
   $(eval _hif_modules := $(call get-product-var,$(1),PRODUCT_HOST_PACKAGES)) \
-  $(eval ### Resolve the :32 :64 module name) \
-  $(eval _hif_modules_32 := $(patsubst %:32,%,$(filter %:32, $(_hif_modules)))) \
-  $(eval _hif_modules_64 := $(patsubst %:64,%,$(filter %:64, $(_hif_modules)))) \
-  $(eval _hif_modules_rest := $(filter-out %:32 %:64,$(_hif_modules))) \
-  $(eval _hif_modules := $(call get-host-32-bit-modules-if-we-can, $(_hif_modules_32))) \
-  $(eval _hif_modules += $(_hif_modules_64)) \
-  $(eval ### For the rest we add both) \
-  $(eval _hif_modules += $(call get-host-32-bit-modules, $(_hif_modules_rest))) \
-  $(eval _hif_modules += $(_hif_modules_rest)) \
   $(eval ### Split host vs host cross modules) \
   $(eval _hcif_modules := $(filter host_cross_%,$(_hif_modules))) \
   $(eval _hif_modules := $(filter-out host_cross_%,$(_hif_modules))) \
+  $(eval ### Resolve the :32 :64 module name) \
+  $(eval _hif_modules := $(sort $(call resolve-bitness-for-modules,HOST,$(_hif_modules)))) \
+  $(eval _hcif_modules := $(sort $(call resolve-bitness-for-modules,HOST_CROSS,$(_hcif_modules)))) \
   $(call expand-required-host-modules,_hif_modules,$(_hif_modules),HOST) \
   $(call expand-required-host-modules,_hcif_modules,$(_hcif_modules),HOST_CROSS) \
   $(filter $(HOST_OUT)/%,$(call module-installed-files, $(_hif_modules))) \
@@ -1148,9 +1267,8 @@ ifdef FULL_BUILD
       _modules := $(patsubst %:64,%,$(_modules))
       # Sanity check all modules in PRODUCT_PACKAGES exist. We check for the
       # existence if either <module> or the <module>_32 variant.
-      _nonexistent_modules := $(filter-out $(ALL_MODULES),$(_modules))
-      _nonexistent_modules := $(foreach m,$(_nonexistent_modules),\
-        $(if $(call get-32-bit-modules,$(m)),,$(m)))
+      _nonexistent_modules := $(foreach m,$(_modules), \
+        $(if $(or $(ALL_MODULES.$(m).PATH),$(call get-modules-for-2nd-arch,TARGET,$(m))),,$(m)))
       $(call maybe-print-list-and-error,$(filter-out $(_allow_list),$(_nonexistent_modules)),\
         $(INTERNAL_PRODUCT) includes non-existent modules in PRODUCT_PACKAGES)
       $(call maybe-print-list-and-error,$(filter-out $(_nonexistent_modules),$(_allow_list)),\
@@ -1173,17 +1291,19 @@ ifdef FULL_BUILD
     endif
   endif
 
-  # Some modules produce only host installed files when building with TARGET_BUILD_APPS
-  ifeq ($(TARGET_BUILD_APPS),)
-    _modules := $(foreach m,$(PRODUCT_PACKAGES) \
-                            $(PRODUCT_PACKAGES_DEBUG) \
-                            $(PRODUCT_PACKAGES_DEBUG_ASAN) \
-                            $(PRODUCT_PACKAGES_ENG) \
-                            $(PRODUCT_PACKAGES_TESTS),\
+  # Modules may produce only host installed files in unbundled builds.
+  ifeq (,$(TARGET_BUILD_UNBUNDLED))
+    _modules := $(call resolve-bitness-for-modules,TARGET, \
+      $(PRODUCT_PACKAGES) \
+      $(PRODUCT_PACKAGES_DEBUG) \
+      $(PRODUCT_PACKAGES_DEBUG_ASAN) \
+      $(PRODUCT_PACKAGES_ENG) \
+      $(PRODUCT_PACKAGES_TESTS))
+    _host_modules := $(foreach m,$(_modules), \
                   $(if $(ALL_MODULES.$(m).INSTALLED),\
                     $(if $(filter-out $(HOST_OUT_ROOT)/%,$(ALL_MODULES.$(m).INSTALLED)),,\
                       $(m))))
-    $(call maybe-print-list-and-error,$(sort $(_modules)),\
+    $(call maybe-print-list-and-error,$(sort $(_host_modules)),\
       Host modules should be in PRODUCT_HOST_PACKAGES$(comma) not PRODUCT_PACKAGES)
   endif
 
@@ -1439,6 +1559,12 @@ systemextimage: $(INSTALLED_SYSTEM_EXTIMAGE_TARGET)
 .PHONY: odmimage
 odmimage: $(INSTALLED_ODMIMAGE_TARGET)
 
+.PHONY: vendor_dlkmimage
+vendor_dlkmimage: $(INSTALLED_VENDOR_DLKMIMAGE_TARGET)
+
+.PHONY: odm_dlkmimage
+odm_dlkmimage: $(INSTALLED_ODM_DLKMIMAGE_TARGET)
+
 .PHONY: systemotherimage
 systemotherimage: $(INSTALLED_SYSTEMOTHERIMAGE_TARGET)
 
@@ -1457,8 +1583,11 @@ bootimage_test_harness: $(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET)
 .PHONY: vbmetaimage
 vbmetaimage: $(INSTALLED_VBMETAIMAGE_TARGET)
 
-.PHONY: auxiliary
-auxiliary: $(INSTALLED_AUX_TARGETS)
+.PHONY: vbmetasystemimage
+vbmetasystemimage: $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET)
+
+.PHONY: vbmetavendorimage
+vbmetavendorimage: $(INSTALLED_VBMETA_VENDORIMAGE_TARGET)
 
 # Build files and then package it into the rom formats
 .PHONY: droidcore
@@ -1471,6 +1600,8 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) \
     $(INSTALLED_RECOVERYIMAGE_TARGET) \
     $(INSTALLED_VBMETAIMAGE_TARGET) \
+    $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET) \
+    $(INSTALLED_VBMETA_VENDORIMAGE_TARGET) \
     $(INSTALLED_USERDATAIMAGE_TARGET) \
     $(INSTALLED_CACHEIMAGE_TARGET) \
     $(INSTALLED_BPTIMAGE_TARGET) \
@@ -1479,6 +1610,8 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
     $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
     $(INSTALLED_ODMIMAGE_TARGET) \
+    $(INSTALLED_VENDOR_DLKMIMAGE_TARGET) \
+    $(INSTALLED_ODM_DLKMIMAGE_TARGET) \
     $(INSTALLED_SUPERIMAGE_EMPTY_TARGET) \
     $(INSTALLED_PRODUCTIMAGE_TARGET) \
     $(INSTALLED_SYSTEMOTHERIMAGE_TARGET) \
@@ -1488,6 +1621,10 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_FILES_JSON_VENDOR) \
     $(INSTALLED_FILES_FILE_ODM) \
     $(INSTALLED_FILES_JSON_ODM) \
+    $(INSTALLED_FILES_FILE_VENDOR_DLKM) \
+    $(INSTALLED_FILES_JSON_VENDOR_DLKM) \
+    $(INSTALLED_FILES_FILE_ODM_DLKM) \
+    $(INSTALLED_FILES_JSON_ODM_DLKM) \
     $(INSTALLED_FILES_FILE_PRODUCT) \
     $(INSTALLED_FILES_JSON_PRODUCT) \
     $(INSTALLED_FILES_FILE_SYSTEM_EXT) \
@@ -1505,7 +1642,6 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_FILES_FILE_RECOVERY) \
     $(INSTALLED_FILES_JSON_RECOVERY) \
     $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
-    auxiliary \
     soong_docs
 
 # dist_files only for putting your library into the dist directory with a full build.
@@ -1575,7 +1711,7 @@ $(eval $(call combine-notice-files, html, \
     $(apps_only_installed_files)))
 
 
-else # TARGET_BUILD_APPS
+else ifeq (,$(TARGET_BUILD_UNBUNDLED))
   $(call dist-for-goals, droidcore, \
     $(INTERNAL_UPDATE_PACKAGE_TARGET) \
     $(INTERNAL_OTA_PACKAGE_TARGET) \
@@ -1592,6 +1728,10 @@ else # TARGET_BUILD_APPS
     $(INSTALLED_FILES_JSON_VENDOR) \
     $(INSTALLED_FILES_FILE_ODM) \
     $(INSTALLED_FILES_JSON_ODM) \
+    $(INSTALLED_FILES_FILE_VENDOR_DLKM) \
+    $(INSTALLED_FILES_JSON_VENDOR_DLKM) \
+    $(INSTALLED_FILES_FILE_ODM_DLKM) \
+    $(INSTALLED_FILES_JSON_ODM_DLKM) \
     $(INSTALLED_FILES_FILE_PRODUCT) \
     $(INSTALLED_FILES_JSON_PRODUCT) \
     $(INSTALLED_FILES_FILE_SYSTEM_EXT) \
@@ -1600,7 +1740,11 @@ else # TARGET_BUILD_APPS
     $(INSTALLED_FILES_JSON_SYSTEMOTHER) \
     $(INSTALLED_FILES_FILE_RECOVERY) \
     $(INSTALLED_FILES_JSON_RECOVERY) \
-    $(INSTALLED_BUILD_PROP_TARGET) \
+    $(INSTALLED_BUILD_PROP_TARGET):build.prop \
+    $(INSTALLED_VENDOR_BUILD_PROP_TARGET):build.prop-vendor \
+    $(INSTALLED_PRODUCT_BUILD_PROP_TARGET):build.prop-product \
+    $(INSTALLED_ODM_BUILD_PROP_TARGET):build.prop-odm \
+    $(INSTALLED_SYSTEM_EXT_BUILD_PROP_TARGET):build.prop-system_ext \
     $(BUILT_TARGET_FILES_PACKAGE) \
     $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
     $(INSTALLED_MISC_INFO_TARGET) \
@@ -1671,10 +1815,15 @@ else # TARGET_BUILD_APPS
   $(call dist-for-goals, dist_files, $(api_xmls))
   api_xmls :=
 
+  ifdef CLANG_COVERAGE
+    $(foreach f,$(SOONG_NDK_API_XML), \
+        $(call dist-for-goals,droidcore,$(f):ndk_apis/$(notdir $(f))))
+  endif
+
 # Building a full system-- the default is to build droidcore
 droid_targets: droidcore dist_files
 
-endif # TARGET_BUILD_APPS
+endif # !TARGET_BUILD_UNBUNDLED
 
 .PHONY: docs
 docs: $(ALL_DOCS)
@@ -1736,9 +1885,9 @@ modules:
 
 .PHONY: dump-files
 dump-files:
-	$(info product_target_FILES for $(TARGET_DEVICE) ($(INTERNAL_PRODUCT)):)
-	$(foreach p,$(sort $(product_target_FILES)),$(info :   $(p)))
-	@echo Successfully dumped product file list
+	@echo "Target files for $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT) ($(INTERNAL_PRODUCT)):"
+	@echo $(sort $(patsubst $(PRODUCT_OUT)/%,%,$(filter $(PRODUCT_OUT)/%,$(modules_to_install)))) | tr -s ' ' '\n'
+	@echo Successfully dumped product target file list.
 
 .PHONY: nothing
 nothing:

@@ -50,7 +50,9 @@ PRODUCT_PACKAGES += \
     charger \
     cmd \
     com.android.adbd \
+    com.android.appsearch \
     com.android.conscrypt \
+    com.android.cronet \
     com.android.extservices \
     com.android.i18n \
     com.android.ipsec \
@@ -68,7 +70,6 @@ PRODUCT_PACKAGES += \
     com.android.wifi \
     ContactsProvider \
     content \
-    crash_dump \
     CtsShimPrebuilt \
     CtsShimPrivPrebuilt \
     debuggerd\
@@ -83,6 +84,7 @@ PRODUCT_PACKAGES += \
     e2fsck \
     ExtShared \
     flags_health_check \
+    framework-graphics \
     framework-minus-apex \
     framework-res \
     framework-sysconfig.xml \
@@ -207,12 +209,13 @@ PRODUCT_PACKAGES += \
     media_profiles_V1_0.dtd \
     MediaProviderLegacy \
     mediaserver \
+    mediatranscoding \
     mke2fs \
     monkey \
     mtpd \
     ndc \
     netd \
-    NetworkStack \
+    NetworkStackNext \
     org.apache.http.legacy \
     otacerts \
     PackageInstaller \
@@ -323,12 +326,15 @@ endif
 PRODUCT_BOOT_JARS := \
     $(ART_APEX_JARS) \
     framework-minus-apex \
+    framework-graphics \
     ext \
+    com.android.i18n:core-icu4j \
     telephony-common \
     voip-common \
     ims-common
 
 PRODUCT_UPDATABLE_BOOT_JARS := \
+    com.android.appsearch:framework-appsearch \
     com.android.conscrypt:conscrypt \
     com.android.media:updatable-media \
     com.android.mediaprovider:framework-mediaprovider \
@@ -354,10 +360,10 @@ PRODUCT_BOOT_JARS += android.test.base
 endif
 
 PRODUCT_COPY_FILES += system/core/rootdir/init.zygote32.rc:system/etc/init/hw/init.zygote32.rc
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.zygote=zygote32
+PRODUCT_SYSTEM_PROPERTIES += ro.zygote?=zygote32
 
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += debug.atrace.tags.enableflags=0
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += persist.traced.enable=1
+PRODUCT_SYSTEM_PROPERTIES += debug.atrace.tags.enableflags=0
+PRODUCT_SYSTEM_PROPERTIES += persist.traced.enable=1
 
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \

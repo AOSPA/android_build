@@ -221,7 +221,9 @@ import zipfile
 import check_target_files_vintf
 import common
 import edify_generator
+import target_files_diff
 import verity_utils
+
 
 if sys.hexversion < 0x02070000:
   print("Python 2.7 or newer is required.", file=sys.stderr)
@@ -275,13 +277,14 @@ AB_PARTITIONS = 'META/ab_partitions.txt'
 UNZIP_PATTERN = ['IMAGES/*', 'META/*', 'OTA/*', 'RADIO/*']
 # Files to be unzipped for target diffing purpose.
 TARGET_DIFFING_UNZIP_PATTERN = ['BOOT', 'RECOVERY', 'SYSTEM/*', 'VENDOR/*',
-                                'PRODUCT/*', 'SYSTEM_EXT/*', 'ODM/*']
+                                'PRODUCT/*', 'SYSTEM_EXT/*', 'ODM/*',
+                                'VENDOR_DLKM/*', 'ODM_DLKM/*']
 RETROFIT_DAP_UNZIP_PATTERN = ['OTA/super_*.img', AB_PARTITIONS]
 
 # Images to be excluded from secondary payload. We essentially only keep
 # 'system_other' and bootloader partitions.
 SECONDARY_PAYLOAD_SKIPPED_IMAGES = [
-    'boot', 'dtbo', 'modem', 'odm', 'product', 'radio', 'recovery',
+    'boot', 'dtbo', 'modem', 'odm', 'odm_dlkm', 'product', 'radio', 'recovery',
     'system_ext', 'vbmeta', 'vbmeta_system', 'vbmeta_vendor', 'vendor',
     'vendor_boot']
 
@@ -545,10 +548,10 @@ def HasRecoveryPatch(target_files_zip, info_dict):
     target_files_dir = "SYSTEM/vendor"
 
   patch = "%s/recovery-from-boot.p" % target_files_dir
-  img = "%s/etc/recovery.img" %target_files_dir
+  img = "%s/etc/recovery.img" % target_files_dir
 
-  namelist = [name for name in target_files_zip.namelist()]
-  return (patch in namelist or img in namelist)
+  namelist = target_files_zip.namelist()
+  return patch in namelist or img in namelist
 
 
 def HasPartition(target_files_zip, partition):
@@ -626,7 +629,8 @@ def GetBlockDifferences(target_zip, source_zip, target_info, source_info,
 
   def GetIncrementalBlockDifferenceForPartition(name):
     if not HasPartition(source_zip, name):
-      raise RuntimeError("can't generate incremental that adds {}".format(name))
+      raise RuntimeError(
+          "can't generate incremental that adds {}".format(name))
 
     partition_src = common.GetUserImage(name, OPTIONS.source_tmp, source_zip,
                                         info_dict=source_info,
@@ -637,8 +641,7 @@ def GetBlockDifferences(target_zip, source_zip, target_info, source_info,
     partition_tgt = common.GetUserImage(name, OPTIONS.target_tmp, target_zip,
                                         info_dict=target_info,
                                         allow_shared_blocks=allow_shared_blocks,
-                                        hashtree_info_generator=
-                                        hashtree_info_generator)
+                                        hashtree_info_generator=hashtree_info_generator)
 
     # Check the first block of the source system partition for remount R/W only
     # if the filesystem is ext4.
@@ -666,7 +669,8 @@ def GetBlockDifferences(target_zip, source_zip, target_info, source_info,
     assert blockimgdiff_version >= 3
 
   block_diff_dict = collections.OrderedDict()
-  partition_names = ["system", "vendor", "product", "odm", "system_ext"]
+  partition_names = ["system", "vendor", "product", "odm", "system_ext",
+                     "vendor_dlkm", "odm_dlkm"]
   for partition in partition_names:
     if not HasPartition(target_zip, partition):
       continue
@@ -1450,7 +1454,7 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_file):
     fs = source_info["fstab"]["/misc"]
     assert fs.fs_type.upper() == "EMMC", \
         "two-step packages only supported on devices with EMMC /misc partitions"
-    bcb_dev = {"bcb_dev" : fs.device}
+    bcb_dev = {"bcb_dev": fs.device}
     common.ZipWriteStr(output_zip, "recovery.img", target_recovery.data)
     script.AppendExtra("""
 if get_stage("%(bcb_dev)s") == "2/3" then
@@ -1668,7 +1672,7 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
         partitions = [partition for partition in partitions if partition
                       not in SECONDARY_PAYLOAD_SKIPPED_IMAGES]
         output_list.append('{}={}'.format(key, ' '.join(partitions)))
-      elif key == 'virtual_ab' or key == "virtual_ab_retrofit":
+      elif key in ['virtual_ab', "virtual_ab_retrofit"]:
         # Remove virtual_ab flag from secondary payload so that OTA client
         # don't use snapshots for secondary update
         pass
@@ -1712,7 +1716,8 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
           partition_list = f.read().splitlines()
         partition_list = [partition for partition in partition_list if partition
                           and partition not in SECONDARY_PAYLOAD_SKIPPED_IMAGES]
-        common.ZipWriteStr(target_zip, info.filename, '\n'.join(partition_list))
+        common.ZipWriteStr(target_zip, info.filename,
+                           '\n'.join(partition_list))
       # Remove the unnecessary partitions from the dynamic partitions list.
       elif (info.filename == 'META/misc_info.txt' or
             info.filename == DYNAMIC_PARTITION_INFO):
@@ -1795,7 +1800,8 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
       "{} is in super_block_devices but not in {}".format(
           super_device_not_updated, AB_PARTITIONS)
   # ab_partitions -= (dynamic_partition_list - super_block_devices)
-  new_ab_partitions = common.MakeTempFile(prefix="ab_partitions", suffix=".txt")
+  new_ab_partitions = common.MakeTempFile(
+      prefix="ab_partitions", suffix=".txt")
   with open(new_ab_partitions, 'w') as f:
     for partition in ab_partitions:
       if (partition in dynamic_partition_list and
@@ -1985,7 +1991,7 @@ def GenerateNonAbOtaPackage(target_file, output_file, source_file=None):
     OPTIONS.source_tmp = common.UnzipTemp(
         OPTIONS.incremental_source, UNZIP_PATTERN)
     with zipfile.ZipFile(target_file) as input_zip, \
-        zipfile.ZipFile(source_file) as source_zip:
+            zipfile.ZipFile(source_file) as source_zip:
       WriteBlockIncrementalOTAPackage(
           input_zip,
           source_zip,
@@ -2245,7 +2251,6 @@ def main(argv):
         OPTIONS.incremental_source, TARGET_DIFFING_UNZIP_PATTERN)
 
     with open(OPTIONS.log_diff, 'w') as out_file:
-      import target_files_diff
       target_files_diff.recursiveDiff(
           '', source_dir, target_dir, out_file)
 

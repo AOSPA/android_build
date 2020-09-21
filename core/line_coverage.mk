@@ -46,7 +46,6 @@ critical_components_shared := \
 	libinputflinger \
 	libopus \
 	libstagefright \
-	libunwind \
 	libvixl:com.android.art.debug
 
 # Use the intermediates directory to avoid installing libraries to the device.

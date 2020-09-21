@@ -24,6 +24,8 @@
 # - etc.
 #
 
+BUILDING_GSI := true
+
 # Exclude all files under system/product and system/system_ext
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
     system/product/% \
@@ -54,5 +56,5 @@ PRODUCT_PACKAGES += \
     gsi_skip_mount.cfg \
     init.gsi.rc
 
-# Support addtional P and Q VNDK packages
-PRODUCT_EXTRA_VNDK_VERSIONS := 28 29
+# Support additional P, Q and R VNDK packages
+PRODUCT_EXTRA_VNDK_VERSIONS := 28 29 30

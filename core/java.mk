@@ -207,7 +207,7 @@ ifdef full_classes_jar
 # allowing it to use the classes.jar as the "stubs" that would be use to link
 # against, for the cases where someone needs the jar to link against.
 $(eval $(call copy-one-file,$(full_classes_jar),$(full_classes_stubs_jar)))
-ALL_MODULES.$(LOCAL_MODULE).STUBS := $(full_classes_stubs_jar)
+ALL_MODULES.$(my_register_name).STUBS := $(full_classes_stubs_jar)
 
 # The layers file allows you to enforce a layering between java packages.
 # Run build/make/tools/java-layers.py for more details.
@@ -274,7 +274,8 @@ $(eval $(call copy-one-file,$(full_classes_header_jarjar),$(full_classes_header_
 
 endif # TURBINE_ENABLED != false
 
-$(full_classes_compiled_jar): .KATI_NINJA_POOL := $(GOMA_POOL)
+# TODO(b/143658984): goma can't handle the --system argument to javac.
+#$(full_classes_compiled_jar): .KATI_NINJA_POOL := $(GOMA_POOL)
 $(full_classes_compiled_jar): PRIVATE_JAVACFLAGS := $(LOCAL_JAVACFLAGS) $(annotation_processor_flags)
 $(full_classes_compiled_jar): PRIVATE_JAR_EXCLUDE_FILES := $(LOCAL_JAR_EXCLUDE_FILES)
 $(full_classes_compiled_jar): PRIVATE_JAR_PACKAGES := $(LOCAL_JAR_PACKAGES)
@@ -295,6 +296,7 @@ $(full_classes_compiled_jar): \
     $(NORMALIZE_PATH) \
     $(JAR_ARGS) \
     $(ZIPSYNC) \
+    $(SOONG_ZIP) \
     | $(SOONG_JAVAC_WRAPPER)
 	@echo "Target Java: $@
 	$(call compile-java,$(TARGET_JAVAC),$(PRIVATE_ALL_JAVA_HEADER_LIBRARIES))
@@ -391,7 +393,7 @@ endif
 else
   # For platform build, we can't just raise to the "current" SDK,
   # that would break apps that use APIs removed from the current SDK.
-  my_proguard_sdk_raise := $(call java-lib-header-files,$(TARGET_DEFAULT_BOOTCLASSPATH_LIBRARIES) $(TARGET_DEFAULT_JAVA_LIBRARIES))
+  my_proguard_sdk_raise := $(call java-lib-header-files,$(LEGACY_CORE_PLATFORM_BOOTCLASSPATH_LIBRARIES) $(FRAMEWORK_LIBRARIES))
 endif
 ifdef BOARD_SYSTEMSDK_VERSIONS
 ifneq (,$(filter true,$(LOCAL_VENDOR_MODULE) $(LOCAL_ODM_MODULE) $(LOCAL_PROPRIETARY_MODULE)))
@@ -499,9 +501,9 @@ else # !LOCAL_PROGUARD_ENABLED
 	$(transform-classes.jar-to-dex)
 endif
 
-ifneq ($(filter $(LOCAL_MODULE),$(PRODUCT_BOOT_JARS)),)
-  $(call pretty-error,Modules in PRODUCT_BOOT_JARS must be defined in Android.bp files)
-endif
+$(foreach pair,$(PRODUCT_BOOT_JARS), \
+  $(if $(filter $(LOCAL_MODULE),$(call word-colon,2,$(pair))), \
+    $(call pretty-error,Modules in PRODUCT_BOOT_JARS must be defined in Android.bp files)))
 
 $(built_dex): $(built_dex_intermediate)
 	@echo Copying: $@
