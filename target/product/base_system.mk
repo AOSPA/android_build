@@ -238,7 +238,6 @@ PRODUCT_PACKAGES += \
     screencap \
     sdcard \
     secdiscard \
-    SecureElement \
     selinux_policy_system \
     sensorservice \
     service \
@@ -276,6 +275,11 @@ PRODUCT_PACKAGES += \
     wificond \
     wifi.rc \
     wm \
+
+ifneq ($(TARGET_HAS_LOW_RAM), true)
+PRODUCT_PACKAGES += \
+    SecureElement
+endif
 
 # VINTF data for system image
 PRODUCT_PACKAGES += \
