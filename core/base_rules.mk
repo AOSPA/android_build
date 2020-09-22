@@ -115,6 +115,7 @@ non_system_module := $(filter true, \
 
 include $(BUILD_SYSTEM)/local_vndk.mk
 include $(BUILD_SYSTEM)/local_systemsdk.mk
+include $(BUILD_SYSTEM)/local_current_sdk.mk
 
 my_module_tags := $(LOCAL_MODULE_TAGS)
 ifeq ($(my_host_cross),true)
@@ -487,7 +488,9 @@ $(_local_path_target): $(my_register_name)
 
 ifndef $(_local_path_target)
   $(_local_path_target) := true
-  $(eval $(call my_path_comp,$(_local_path),$(_local_path_target)))
+  ifneq (,$(findstring /,$(_local_path)))
+    $(eval $(call my_path_comp,$(_local_path),$(_local_path_target)))
+  endif
 endif
 
 _local_path :=
@@ -513,7 +516,11 @@ ifneq ($(LOCAL_INSTALLED_MODULE),$(my_default_test_module))
 $(LOCAL_INSTALLED_MODULE): PRIVATE_POST_INSTALL_CMD := $(LOCAL_POST_INSTALL_CMD)
 $(LOCAL_INSTALLED_MODULE): $(LOCAL_BUILT_MODULE)
 	@echo "Install: $@"
+ifeq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
+	$(copy-file-or-link-to-new-target)
+else
 	$(copy-file-to-new-target)
+endif
 	$(PRIVATE_POST_INSTALL_CMD)
 endif
 
@@ -755,6 +762,13 @@ else
         $(test_config):$(dir)/$(LOCAL_MODULE).config)))
   endif
 
+  ifneq (,$(LOCAL_EXTRA_FULL_TEST_CONFIGS))
+    $(foreach test_config_file, $(LOCAL_EXTRA_FULL_TEST_CONFIGS), \
+      $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
+        $(eval my_compat_dist_config_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
+          $(test_config_file):$(dir)/$(basename $(notdir $(test_config_file))).config))))
+  endif
+
   ifneq (,$(wildcard $(LOCAL_PATH)/DynamicConfig.xml))
     $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
       $(eval my_compat_dist_config_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
@@ -989,6 +1003,8 @@ ALL_MODULES.$(my_register_name).FOR_HOST_CROSS := $(my_host_cross)
 ALL_MODULES.$(my_register_name).MODULE_NAME := $(LOCAL_MODULE)
 ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES := $(LOCAL_COMPATIBILITY_SUITE)
 ALL_MODULES.$(my_register_name).TEST_CONFIG := $(test_config)
+ALL_MODULES.$(my_register_name).EXTRA_TEST_CONFIGS := $(LOCAL_EXTRA_FULL_TEST_CONFIGS)
+ALL_MODULES.$(my_register_name).TEST_MAINLINE_MODULES := $(LOCAL_TEST_MAINLINE_MODULES)
 test_config :=
 
 INSTALLABLE_FILES.$(LOCAL_INSTALLED_MODULE).MODULE := $(my_register_name)

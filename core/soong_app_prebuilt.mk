@@ -7,6 +7,7 @@
 # LOCAL_SOONG_HEADER_JAR
 # LOCAL_SOONG_JACOCO_REPORT_CLASSES_JAR
 # LOCAL_SOONG_PROGUARD_DICT
+# LOCAL_SOONG_PROGUARD_USAGE
 # LOCAL_SOONG_RESOURCE_EXPORT_PACKAGE
 # LOCAL_SOONG_RRO_DIRS
 # LOCAL_SOONG_JNI_LIBS_$(TARGET_ARCH)
@@ -52,7 +53,7 @@ endif
 # We skip it for unbundled app builds where we cannot build veridex.
 module_run_appcompat :=
 ifeq (true,$(non_system_module))
-ifeq (,$(TARGET_BUILD_APPS)$(filter true,$(TARGET_BUILD_PDK)))  # ! unbundled app build
+ifeq (,$(TARGET_BUILD_APPS))  # ! unbundled app build
 ifneq ($(UNSAFE_DISABLE_HIDDENAPI_FLAGS),true)
   module_run_appcompat := true
 endif
@@ -83,6 +84,13 @@ ifdef LOCAL_SOONG_PROGUARD_DICT
     $(intermediates.COMMON)/proguard_dictionary))
   $(call add-dependency,$(LOCAL_BUILT_MODULE),\
     $(intermediates.COMMON)/proguard_dictionary)
+endif
+
+ifdef LOCAL_SOONG_PROGUARD_USAGE_ZIP
+  $(eval $(call copy-one-file,$(LOCAL_SOONG_PROGUARD_USAGE_ZIP),\
+    $(intermediates.COMMON)/proguard_usage.zip))
+  $(call add-dependency,$(LOCAL_BUILT_MODULE),\
+    $(intermediates.COMMON)/proguard_usage.zip)
 endif
 
 ifdef LOCAL_SOONG_RESOURCE_EXPORT_PACKAGE
