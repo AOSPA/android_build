@@ -34,22 +34,29 @@ ifneq ($(filter-out false,$(USE_RBE)),)
     cxx_compare := false
   endif
 
+
   ifdef RBE_JAVAC_EXEC_STRATEGY
     javac_exec_strategy := $(RBE_JAVAC_EXEC_STRATEGY)
   else
-    javac_exec_strategy := remote_local_fallback
+    # TODO(b/165009767): revert back to remote_local_fallback, when environment
+    # variables are set or remote actions are available
+    javac_exec_strategy := local
   endif
 
   ifdef RBE_R8_EXEC_STRATEGY
     r8_exec_strategy := $(RBE_R8_EXEC_STRATEGY)
   else
-    r8_exec_strategy := remote_local_fallback
+    # TODO(b/165009767): revert back to remote_local_fallback, when environment
+    # variables are set or remote actions are available
+    r8_exec_strategy := local
   endif
 
   ifdef RBE_D8_EXEC_STRATEGY
     d8_exec_strategy := $(RBE_D8_EXEC_STRATEGY)
   else
-    d8_exec_strategy := remote_local_fallback
+    # TODO(b/165009767): revert back to remote_local_fallback, when environment
+    # variables are set or remote actions are available
+    d8_exec_strategy := local
   endif
 
   platform := container-image=docker://gcr.io/androidbuild-re-dockerimage/android-build-remoteexec-image@sha256:582efb38f0c229ea39952fff9e132ccbe183e14869b39888010dacf56b360d62
@@ -57,7 +64,9 @@ ifneq ($(filter-out false,$(USE_RBE)),)
   java_r8_d8_platform := $(platform),Pool=java16
 
   RBE_WRAPPER := $(rbe_dir)/rewrapper
-  RBE_CXX := --labels=type=compile,lang=cpp,compiler=clang --env_var_allowlist=PWD --exec_strategy=$(cxx_rbe_exec_strategy) --platform=$(cxx_platform) --compare=$(cxx_compare)
+
+  # TODO(b/169444426): Return to env_var_allowlist when updating binaries
+  RBE_CXX := --labels=type=compile,lang=cpp,compiler=clang --env_var_whitelist=PWD --exec_strategy=$(cxx_rbe_exec_strategy) --platform=$(cxx_platform) --compare=$(cxx_compare)
 
   # Append rewrapper to existing *_WRAPPER variables so it's possible to
   # use both ccache and rewrapper.
