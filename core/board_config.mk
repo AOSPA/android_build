@@ -113,6 +113,7 @@ endif
 # ###############################################################
 $(foreach v,$(_build_broken_var_list),$(eval $(v) :=))
 BUILD_BROKEN_NINJA_USES_ENV_VARS :=
+BUILD_BROKEN_USES_BUILD_COPY_HEADERS := true
 
 # Boards may be defined under $(SRC_TARGET_DIR)/board/$(TARGET_DEVICE)
 # or under vendor/*/$(TARGET_DEVICE).  Search in both places, but
