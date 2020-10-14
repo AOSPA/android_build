@@ -185,7 +185,6 @@ PRODUCT_PACKAGES += \
     libstagefright_foundation \
     libstagefright_omx \
     libstdc++ \
-    libsurfaceflinger \
     libsysutils \
     libui \
     libusbhost \
@@ -194,6 +193,7 @@ PRODUCT_PACKAGES += \
     libwilhelm \
     linker \
     linkerconfig \
+    llkd \
     lmkd \
     LocalTransport \
     locksettings \
@@ -263,6 +263,7 @@ PRODUCT_PACKAGES += \
     tune2fs \
     tzdatacheck \
     uiautomator \
+    uinput \
     uncrypt \
     usbd \
     vdc \
@@ -368,6 +369,9 @@ PRODUCT_SYSTEM_PROPERTIES += ro.zygote?=zygote32
 
 PRODUCT_SYSTEM_PROPERTIES += debug.atrace.tags.enableflags=0
 PRODUCT_SYSTEM_PROPERTIES += persist.traced.enable=1
+
+# ANGLE is not enabled by default
+PRODUCT_PROPERTY_OVERRIDES += ro.gfx.angle.supported=false
 
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
