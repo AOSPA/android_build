@@ -96,6 +96,7 @@ class Options(object):
     self.cache_size = None
     self.stash_threshold = 0.8
     self.logfile = None
+    self.host_tools = {}
 
 
 OPTIONS = Options()
@@ -117,7 +118,7 @@ AVB_PARTITIONS = ('boot', 'dtbo', 'odm', 'product', 'recovery', 'system',
 AVB_VBMETA_PARTITIONS = ('vbmeta_system', 'vbmeta_vendor')
 
 # Partitions that should have their care_map added to META/care_map.pb
-PARTITIONS_WITH_CARE_MAP = (
+PARTITIONS_WITH_CARE_MAP = [
     'system',
     'vendor',
     'product',
@@ -125,7 +126,7 @@ PARTITIONS_WITH_CARE_MAP = (
     'odm',
     'vendor_dlkm',
     'odm_dlkm',
-)
+]
 
 
 class ErrorCode(object):
@@ -213,6 +214,10 @@ def InitLogging():
   logging.config.dictConfig(config)
 
 
+def SetHostToolLocation(tool_name, location):
+  OPTIONS.host_tools[tool_name] = location
+
+
 def Run(args, verbose=None, **kwargs):
   """Creates and returns a subprocess.Popen object.
 
@@ -234,6 +239,14 @@ def Run(args, verbose=None, **kwargs):
     kwargs['stderr'] = subprocess.STDOUT
   if 'universal_newlines' not in kwargs:
     kwargs['universal_newlines'] = True
+
+  # If explicitly set host tool location before, use that location to avoid
+  # PATH violation. Make a copy of args in case client relies on the content
+  # of args later.
+  if args and args[0] in OPTIONS.host_tools:
+    args = args[:]
+    args[0] = OPTIONS.host_tools[args[0]]
+
   # Don't log any if caller explicitly says so.
   if verbose:
     logger.info("  Running: \"%s\"", " ".join(args))
@@ -605,7 +618,7 @@ def ReadFromInputFile(input_file, fn):
 def LoadInfoDict(input_file, repacking=False):
   """Loads the key/value pairs from the given input target_files.
 
-  It reads `META/misc_info.txt` file in the target_files input, does sanity
+  It reads `META/misc_info.txt` file in the target_files input, does validation
   checks and returns the parsed key/value pairs for to the given build. It's
   usually called early when working on input target_files files, e.g. when
   generating OTAs, or signing builds. Note that the function may be called
@@ -720,8 +733,12 @@ def LoadInfoDict(input_file, repacking=False):
       fingerprint = build_info.GetPartitionFingerprint(partition)
       if fingerprint:
         d["avb_{}_salt".format(partition)] = sha256(fingerprint.encode()).hexdigest()
-
+  try:
+    d["ab_partitions"] = read_helper("META/ab_partitions.txt").split("\n")
+  except KeyError:
+    logger.warning("Can't find META/ab_partitions.txt")
   return d
+
 
 
 def LoadListFromFile(file_path):
@@ -1181,7 +1198,7 @@ def BuildVBMeta(image_path, partitions, name, needed_partitions):
   if args and args.strip():
     split_args = shlex.split(args)
     for index, arg in enumerate(split_args[:-1]):
-      # Sanity check that the image file exists. Some images might be defined
+      # Check that the image file exists. Some images might be defined
       # as a path relative to source tree, which may not be available at the
       # same location when running this script (we have the input target_files
       # zip only). For such cases, we additionally scan other locations (e.g.
@@ -1218,7 +1235,7 @@ def _MakeRamdisk(sourcedir, fs_config_file=None, lz4_ramdisks=False):
     cmd = ["mkbootfs", os.path.join(sourcedir, "RAMDISK")]
   p1 = Run(cmd, stdout=subprocess.PIPE)
   if lz4_ramdisks:
-    p2 = Run(["lz4", "-l", "-12" , "--favor-decSpeed"], stdin=p1.stdout,
+    p2 = Run(["lz4", "-l", "-12", "--favor-decSpeed"], stdin=p1.stdout,
              stdout=ramdisk_img.file.fileno())
   else:
     p2 = Run(["minigzip"], stdin=p1.stdout, stdout=ramdisk_img.file.fileno())

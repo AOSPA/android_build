@@ -93,6 +93,7 @@ TARGET_BUILD_VARIANT := eng
 endif
 
 TARGET_BUILD_APPS ?=
+TARGET_BUILD_UNBUNDLED_IMAGE ?=
 
 # Set to true for an unbundled build, i.e. a build without
 # support for platform targets like the system image. This also
@@ -107,11 +108,19 @@ ifneq ($(TARGET_BUILD_APPS),)
   TARGET_BUILD_UNBUNDLED := true
 endif
 
+# TARGET_BUILD_UNBUNDLED_IMAGE also implies unbundled build.
+# (i.e. it targets to only unbundled image, such as the vendor image,
+# ,or the product image). 
+ifneq ($(TARGET_BUILD_UNBUNDLED_IMAGE),)
+  TARGET_BUILD_UNBUNDLED := true
+endif
+
 .KATI_READONLY := \
   TARGET_PRODUCT \
   TARGET_BUILD_VARIANT \
   TARGET_BUILD_APPS \
   TARGET_BUILD_UNBUNDLED \
+  TARGET_BUILD_UNBUNDLED_IMAGE \
 
 # ---------------------------------------------------------------
 # Set up configuration for host machine.  We don't do cross-
@@ -139,15 +148,25 @@ HOST_OS_EXTRA := $(subst $(space),-,$(HOST_OS_EXTRA))
 # BUILD_OS is the real host doing the build.
 BUILD_OS := $(HOST_OS)
 
-HOST_CROSS_OS :=
-# We can cross-build Windows binaries on Linux
+# We can do the cross-build only on Linux
 ifeq ($(HOST_OS),linux)
-ifeq ($(BUILD_HOST_static),)
-HOST_CROSS_OS := windows
-HOST_CROSS_ARCH := x86
-HOST_CROSS_2ND_ARCH := x86_64
-2ND_HOST_CROSS_IS_64_BIT := true
-endif
+  # Windows has been the default host_cross OS
+  ifeq (,$(filter-out windows,$(HOST_CROSS_OS)))
+    # We can only create static host binaries for Linux, so if static host
+    # binaries are requested, turn off Windows cross-builds.
+    ifeq ($(BUILD_HOST_static),)
+      HOST_CROSS_OS := windows
+      HOST_CROSS_ARCH := x86
+      HOST_CROSS_2ND_ARCH := x86_64
+      2ND_HOST_CROSS_IS_64_BIT := true
+    endif
+  else ifeq ($(HOST_CROSS_OS),linux_bionic)
+    ifeq (,$(HOST_CROSS_ARCH))
+      $(error HOST_CROSS_ARCH missing.)
+    endif
+  else
+    $(error Unsupported HOST_CROSS_OS $(HOST_CROSS_OS))
+  endif
 endif
 
 ifeq ($(HOST_OS),)
@@ -319,7 +338,7 @@ HOST_OUT_ROOT := $(OUT_DIR)/host
 HOST_OUT := $(HOST_OUT_ROOT)/$(HOST_OS)-$(HOST_PREBUILT_ARCH)
 SOONG_HOST_OUT := $(SOONG_OUT_DIR)/host/$(HOST_OS)-$(HOST_PREBUILT_ARCH)
 
-HOST_CROSS_OUT := $(HOST_OUT_ROOT)/windows-$(HOST_PREBUILT_ARCH)
+HOST_CROSS_OUT := $(HOST_OUT_ROOT)/$(HOST_CROSS_OS)-$(HOST_CROSS_ARCH)
 
 .KATI_READONLY := HOST_OUT SOONG_HOST_OUT HOST_CROSS_OUT
 
