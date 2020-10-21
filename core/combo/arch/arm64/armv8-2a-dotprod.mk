@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2020 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,11 +14,6 @@
 # limitations under the License.
 #
 
-# Base modules and settings for the product partition.
-PRODUCT_PACKAGES += \
-    group_product \
-    ModuleMetadata \
-    passwd_product \
-    product_compatibility_matrix.xml \
-    product_manifest.xml \
-    selinux_policy_product \
+# .mk file required to support build for the new armv8-2a-dotprod Arm64 arch
+# variant. The file just needs to be present but does not require to contain
+# anything

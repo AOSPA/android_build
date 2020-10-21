@@ -34,10 +34,8 @@ PRODUCT_PACKAGES += \
     PartnerBookmarksProvider \
     PresencePolling \
     RcsService \
-    SafetyRegulatoryInfo \
     Stk \
     Tag \
-    TimeZoneUpdater \
 
 # OTA support
 PRODUCT_PACKAGES += \
