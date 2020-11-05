@@ -564,7 +564,7 @@ def HasTrebleEnabled(target_files, target_info):
     if os.path.isdir(target_files):
       return os.path.isdir(os.path.join(target_files, "VENDOR"))
     if zipfile.is_zipfile(target_files):
-      return HasPartition(zipfile.ZipFile(target_files), "vendor")
+      return HasPartition(zipfile.ZipFile(target_files, allowZip64=True), "vendor")
     raise ValueError("Unknown target_files argument")
 
   return (HasVendorPartition(target_files) and
@@ -728,7 +728,7 @@ def WriteFullOTAPackage(input_zip, output_file):
     staging_file = output_file
 
   output_zip = zipfile.ZipFile(
-      staging_file, "w", compression=zipfile.ZIP_DEFLATED)
+      staging_file, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True)
 
   device_specific = common.DeviceSpecificParams(
       input_zip=input_zip,
@@ -1296,14 +1296,14 @@ def FinalizeMetadata(metadata, input_file, output_file, needed_property_files):
 
   def ComputeAllPropertyFiles(input_file, needed_property_files):
     # Write the current metadata entry with placeholders.
-    with zipfile.ZipFile(input_file) as input_zip:
+    with zipfile.ZipFile(input_file, allowZip64=True) as input_zip:
       for property_files in needed_property_files:
         metadata[property_files.name] = property_files.Compute(input_zip)
       namelist = input_zip.namelist()
 
     if METADATA_NAME in namelist:
       common.ZipDelete(input_file, METADATA_NAME)
-    output_zip = zipfile.ZipFile(input_file, 'a')
+    output_zip = zipfile.ZipFile(input_file, 'a', allowZip64=True)
     WriteMetadata(metadata, output_zip)
     common.ZipClose(output_zip)
 
@@ -1315,7 +1315,7 @@ def FinalizeMetadata(metadata, input_file, output_file, needed_property_files):
     return prelim_signing
 
   def FinalizeAllPropertyFiles(prelim_signing, needed_property_files):
-    with zipfile.ZipFile(prelim_signing) as prelim_signing_zip:
+    with zipfile.ZipFile(prelim_signing, allowZip64=True) as prelim_signing_zip:
       for property_files in needed_property_files:
         metadata[property_files.name] = property_files.Finalize(
             prelim_signing_zip, len(metadata[property_files.name]))
@@ -1340,7 +1340,7 @@ def FinalizeMetadata(metadata, input_file, output_file, needed_property_files):
 
   # Replace the METADATA entry.
   common.ZipDelete(prelim_signing, METADATA_NAME)
-  output_zip = zipfile.ZipFile(prelim_signing, 'a')
+  output_zip = zipfile.ZipFile(prelim_signing, 'a', allowZip64=True)
   WriteMetadata(metadata, output_zip)
   common.ZipClose(output_zip)
 
@@ -1351,7 +1351,7 @@ def FinalizeMetadata(metadata, input_file, output_file, needed_property_files):
     SignOutput(prelim_signing, output_file)
 
   # Reopen the final signed zip to double check the streaming metadata.
-  with zipfile.ZipFile(output_file) as output_zip:
+  with zipfile.ZipFile(output_file, allowZip64=True) as output_zip:
     for property_files in needed_property_files:
       property_files.Verify(output_zip, metadata[property_files.name].strip())
 
@@ -1386,7 +1386,7 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_file):
     staging_file = output_file
 
   output_zip = zipfile.ZipFile(
-      staging_file, "w", compression=zipfile.ZIP_DEFLATED)
+      staging_file, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True)
 
   device_specific = common.DeviceSpecificParams(
       source_zip=source_zip,
@@ -1679,7 +1679,7 @@ def GetTargetFilesZipForSecondaryImages(input_file, skip_postinstall=False):
   target_file = common.MakeTempFile(prefix="targetfiles-", suffix=".zip")
   target_zip = zipfile.ZipFile(target_file, 'w', allowZip64=True)
 
-  with zipfile.ZipFile(input_file, 'r') as input_zip:
+  with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
     infolist = input_zip.infolist()
 
   input_tmp = common.UnzipTemp(input_file, UNZIP_PATTERN)
@@ -1741,7 +1741,7 @@ def GetTargetFilesZipWithoutPostinstallConfig(input_file):
     The filename of target-files.zip that doesn't contain postinstall config.
   """
   # We should only make a copy if postinstall_config entry exists.
-  with zipfile.ZipFile(input_file, 'r') as input_zip:
+  with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
     if POSTINSTALL_CONFIG not in input_zip.namelist():
       return input_file
 
@@ -1776,7 +1776,7 @@ def GetTargetFilesZipForRetrofitDynamicPartitions(input_file,
   target_file = common.MakeTempFile(prefix="targetfiles-", suffix=".zip")
   shutil.copyfile(input_file, target_file)
 
-  with zipfile.ZipFile(input_file) as input_zip:
+  with zipfile.ZipFile(input_file, allowZip64=True) as input_zip:
     namelist = input_zip.namelist()
 
   input_tmp = common.UnzipTemp(input_file, RETROFIT_DAP_UNZIP_PATTERN)
@@ -1843,7 +1843,7 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
   else:
     staging_file = output_file
   output_zip = zipfile.ZipFile(staging_file, "w",
-                               compression=zipfile.ZIP_DEFLATED)
+                               compression=zipfile.ZIP_DEFLATED, allowZip64=True)
 
   if source_file is not None:
     target_info = common.BuildInfo(OPTIONS.target_info_dict, OPTIONS.oem_dicts)
@@ -1896,7 +1896,7 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
 
   # If dm-verity is supported for the device, copy contents of care_map
   # into A/B OTA package.
-  target_zip = zipfile.ZipFile(target_file, "r")
+  target_zip = zipfile.ZipFile(target_file, "r", allowZip64=True)
   if (target_info.get("verity") == "true" or
       target_info.get("avb_enable") == "true"):
     care_map_list = [x for x in ["care_map.pb", "care_map.txt"] if
@@ -1974,7 +1974,7 @@ def GenerateNonAbOtaPackage(target_file, output_file, source_file=None):
 
   # Generate a full OTA.
   if source_file is None:
-    with zipfile.ZipFile(target_file) as input_zip:
+    with zipfile.ZipFile(target_file, allowZip64=True) as input_zip:
       WriteFullOTAPackage(
           input_zip,
           output_file)
@@ -1984,8 +1984,8 @@ def GenerateNonAbOtaPackage(target_file, output_file, source_file=None):
     logger.info("unzipping source target-files...")
     OPTIONS.source_tmp = common.UnzipTemp(
         OPTIONS.incremental_source, UNZIP_PATTERN)
-    with zipfile.ZipFile(target_file) as input_zip, \
-        zipfile.ZipFile(source_file) as source_zip:
+    with zipfile.ZipFile(target_file, allowZip64=True) as input_zip, \
+        zipfile.ZipFile(source_file, allowZip64=True) as source_zip:
       WriteBlockIncrementalOTAPackage(
           input_zip,
           source_zip,
@@ -2014,7 +2014,7 @@ def CalculateRuntimeDevicesAndFingerprints(build_info, boot_variable_values):
       partition_prop_key = "{}.build.prop".format(partition)
       input_file = info_dict[partition_prop_key].input_file
       if isinstance(input_file, zipfile.ZipFile):
-        with zipfile.ZipFile(input_file.filename) as input_zip:
+        with zipfile.ZipFile(input_file.filename, allowZip64=True) as input_zip:
           info_dict[partition_prop_key] = \
               common.PartitionBuildProps.FromInputFile(input_zip, partition,
                                                        placeholder_values)
@@ -2170,7 +2170,7 @@ def main(argv):
   if OPTIONS.extracted_input is not None:
     OPTIONS.info_dict = common.LoadInfoDict(OPTIONS.extracted_input)
   else:
-    with zipfile.ZipFile(args[0], 'r') as input_zip:
+    with zipfile.ZipFile(args[0], 'r', allowZip64=True) as input_zip:
       OPTIONS.info_dict = common.LoadInfoDict(input_zip)
 
   logger.info("--- target info ---")
@@ -2179,7 +2179,7 @@ def main(argv):
   # Load the source build dict if applicable.
   if OPTIONS.incremental_source is not None:
     OPTIONS.target_info_dict = OPTIONS.info_dict
-    with zipfile.ZipFile(OPTIONS.incremental_source, 'r') as source_zip:
+    with zipfile.ZipFile(OPTIONS.incremental_source, 'r', allowZip64=True) as source_zip:
       OPTIONS.source_info_dict = common.LoadInfoDict(source_zip)
 
     logger.info("--- source info ---")
