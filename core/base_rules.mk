@@ -518,7 +518,11 @@ ifndef LOCAL_IS_HOST_MODULE
 # Rule to install the module's companion init.rc.
 my_init_rc := $(LOCAL_INIT_RC_$(my_32_64_bit_suffix)) $(LOCAL_INIT_RC)
 ifneq ($(strip $(my_init_rc)),)
+ifneq (true,$(strip $(LOCAL_VENDOR_OVERLAY_MODULE)))
 my_init_rc_pairs := $(foreach rc,$(my_init_rc),$(LOCAL_PATH)/$(rc):$(TARGET_OUT$(partition_tag)_ETC)/init/$(notdir $(rc)))
+else
+my_init_rc_pairs := $(foreach rc,$(my_init_rc),$(LOCAL_PATH)/$(rc):$(TARGET_OUT_VENDOR_OVERLAY_ETC)/init/$(notdir $(rc)))
+endif
 my_init_rc_installed := $(foreach rc,$(my_init_rc_pairs),$(call word-colon,2,$(rc)))
 
 # Make sure we only set up the copy rules once, even if another arch variant
