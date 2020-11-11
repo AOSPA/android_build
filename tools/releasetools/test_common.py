@@ -362,7 +362,7 @@ class CommonZipTest(test_utils.ReleaseToolsTestCase):
       self.assertEqual(int(expected_stat.st_mtime), int(new_stat.st_mtime))
 
     # Reopen the zip file to verify.
-    zip_file = zipfile.ZipFile(zip_file_name, "r")
+    zip_file = zipfile.ZipFile(zip_file_name, "r", allowZip64=True)
 
     # Verify the timestamp.
     info = zip_file.getinfo(arcname)
@@ -398,7 +398,7 @@ class CommonZipTest(test_utils.ReleaseToolsTestCase):
       arcname = arcname[1:]
 
     zip_file.close()
-    zip_file = zipfile.ZipFile(zip_file_name, "w")
+    zip_file = zipfile.ZipFile(zip_file_name, "w", allowZip64=True)
 
     try:
       sha1_hash = sha1()
@@ -430,7 +430,7 @@ class CommonZipTest(test_utils.ReleaseToolsTestCase):
     zip_file_name = zip_file.name
     zip_file.close()
 
-    zip_file = zipfile.ZipFile(zip_file_name, "w")
+    zip_file = zipfile.ZipFile(zip_file_name, "w", allowZip64=True)
 
     try:
       expected_compress_type = extra_args.get("compress_type",
@@ -474,7 +474,7 @@ class CommonZipTest(test_utils.ReleaseToolsTestCase):
       arcname_large = arcname_large[1:]
 
     zip_file.close()
-    zip_file = zipfile.ZipFile(zip_file_name, "w")
+    zip_file = zipfile.ZipFile(zip_file_name, "w", allowZip64=True)
 
     try:
       sha1_hash = sha1()
@@ -598,7 +598,7 @@ class CommonZipTest(test_utils.ReleaseToolsTestCase):
 
     try:
       random_string = os.urandom(1024)
-      zip_file = zipfile.ZipFile(zip_file_name, "w")
+      zip_file = zipfile.ZipFile(zip_file_name, "w", allowZip64=True)
       # Default perms should be 0o644 when passing the filename.
       common.ZipWriteStr(zip_file, "foo", random_string)
       # Honor the specified perms.
@@ -643,7 +643,7 @@ class CommonZipTest(test_utils.ReleaseToolsTestCase):
 
     try:
       common.ZipDelete(zip_file.name, 'Test2')
-      with zipfile.ZipFile(zip_file.name, 'r') as check_zip:
+      with zipfile.ZipFile(zip_file.name, 'r', allowZip64=True) as check_zip:
         entries = check_zip.namelist()
         self.assertTrue('Test1' in entries)
         self.assertFalse('Test2' in entries)
@@ -651,21 +651,21 @@ class CommonZipTest(test_utils.ReleaseToolsTestCase):
 
       self.assertRaises(
           common.ExternalError, common.ZipDelete, zip_file.name, 'Test2')
-      with zipfile.ZipFile(zip_file.name, 'r') as check_zip:
+      with zipfile.ZipFile(zip_file.name, 'r', allowZip64=True) as check_zip:
         entries = check_zip.namelist()
         self.assertTrue('Test1' in entries)
         self.assertFalse('Test2' in entries)
         self.assertTrue('Test3' in entries)
 
       common.ZipDelete(zip_file.name, ['Test3'])
-      with zipfile.ZipFile(zip_file.name, 'r') as check_zip:
+      with zipfile.ZipFile(zip_file.name, 'r', allowZip64=True) as check_zip:
         entries = check_zip.namelist()
         self.assertTrue('Test1' in entries)
         self.assertFalse('Test2' in entries)
         self.assertFalse('Test3' in entries)
 
       common.ZipDelete(zip_file.name, ['Test1', 'Test2'])
-      with zipfile.ZipFile(zip_file.name, 'r') as check_zip:
+      with zipfile.ZipFile(zip_file.name, 'r', allowZip64=True) as check_zip:
         entries = check_zip.namelist()
         self.assertFalse('Test1' in entries)
         self.assertFalse('Test2' in entries)
@@ -833,7 +833,7 @@ class CommonApkUtilsTest(test_utils.ReleaseToolsTestCase):
     if additional is None:
       additional = []
     target_files = common.MakeTempFile(suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       target_files_zip.writestr('META/apkcerts.txt', apkcerts_txt)
       for entry in additional:
         target_files_zip.writestr(entry, '')
@@ -841,7 +841,7 @@ class CommonApkUtilsTest(test_utils.ReleaseToolsTestCase):
 
   def test_ReadApkCerts_NoncompressedApks(self):
     target_files = self._write_apkcerts_txt(self.APKCERTS_TXT1)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       certmap, ext = common.ReadApkCerts(input_zip)
 
     self.assertDictEqual(self.APKCERTS_CERTMAP1, certmap)
@@ -854,7 +854,7 @@ class CommonApkUtilsTest(test_utils.ReleaseToolsTestCase):
         self.APKCERTS_TXT2,
         ['Compressed1.apk.gz', 'Compressed3.apk'])
 
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       certmap, ext = common.ReadApkCerts(input_zip)
 
     self.assertDictEqual(self.APKCERTS_CERTMAP2, certmap)
@@ -864,7 +864,7 @@ class CommonApkUtilsTest(test_utils.ReleaseToolsTestCase):
     target_files = self._write_apkcerts_txt(
         self.APKCERTS_TXT3, ['Compressed4.apk.xz'])
 
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       certmap, ext = common.ReadApkCerts(input_zip)
 
     self.assertDictEqual(self.APKCERTS_CERTMAP3, certmap)
@@ -875,7 +875,7 @@ class CommonApkUtilsTest(test_utils.ReleaseToolsTestCase):
         self.APKCERTS_TXT1 + self.APKCERTS_TXT2,
         ['Compressed1.apk.gz', 'Compressed3.apk'])
 
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       certmap, ext = common.ReadApkCerts(input_zip)
 
     certmap_merged = self.APKCERTS_CERTMAP1.copy()
@@ -888,7 +888,7 @@ class CommonApkUtilsTest(test_utils.ReleaseToolsTestCase):
         self.APKCERTS_TXT2 + self.APKCERTS_TXT3,
         ['Compressed1.apk.gz', 'Compressed4.apk.xz'])
 
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       self.assertRaises(ValueError, common.ReadApkCerts, input_zip)
 
   def test_ReadApkCerts_MismatchingKeys(self):
@@ -898,12 +898,12 @@ class CommonApkUtilsTest(test_utils.ReleaseToolsTestCase):
     )
     target_files = self._write_apkcerts_txt(malformed_apkcerts_txt)
 
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       self.assertRaises(ValueError, common.ReadApkCerts, input_zip)
 
   def test_ReadApkCerts_WithWithoutOptionalFields(self):
     target_files = self._write_apkcerts_txt(self.APKCERTS_TXT4)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       certmap, ext = common.ReadApkCerts(input_zip)
 
     self.assertDictEqual(self.APKCERTS_CERTMAP4, certmap)
@@ -972,7 +972,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_GetSparseImage_emptyBlockMapFile(self):
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       target_files_zip.write(
           test_utils.construct_sparse_image([
               (0xCAC1, 6),
@@ -984,7 +984,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
       target_files_zip.writestr('SYSTEM/file2', os.urandom(4096 * 3))
 
     tempdir = common.UnzipTemp(target_files)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       sparse_image = common.GetSparseImage('system', tempdir, input_zip, False)
 
     self.assertDictEqual(
@@ -1005,7 +1005,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_GetSparseImage_missingBlockMapFile(self):
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       target_files_zip.write(
           test_utils.construct_sparse_image([
               (0xCAC1, 6),
@@ -1016,7 +1016,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
       target_files_zip.writestr('SYSTEM/file2', os.urandom(4096 * 3))
 
     tempdir = common.UnzipTemp(target_files)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       self.assertRaises(
           AssertionError, common.GetSparseImage, 'system', tempdir, input_zip,
           False)
@@ -1025,7 +1025,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   def test_GetSparseImage_sharedBlocks_notAllowed(self):
     """Tests the case of having overlapping blocks but disallowed."""
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       target_files_zip.write(
           test_utils.construct_sparse_image([(0xCAC2, 16)]),
           arcname='IMAGES/system.img')
@@ -1039,7 +1039,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
       target_files_zip.writestr('SYSTEM/file2', os.urandom(4096 * 3))
 
     tempdir = common.UnzipTemp(target_files)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       self.assertRaises(
           AssertionError, common.GetSparseImage, 'system', tempdir, input_zip,
           False)
@@ -1048,7 +1048,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   def test_GetSparseImage_sharedBlocks_allowed(self):
     """Tests the case for target using BOARD_EXT4_SHARE_DUP_BLOCKS := true."""
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       # Construct an image with a care_map of "0-5 9-12".
       target_files_zip.write(
           test_utils.construct_sparse_image([(0xCAC2, 16)]),
@@ -1063,7 +1063,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
       target_files_zip.writestr('SYSTEM/file2', os.urandom(4096 * 3))
 
     tempdir = common.UnzipTemp(target_files)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       sparse_image = common.GetSparseImage('system', tempdir, input_zip, True)
 
     self.assertDictEqual(
@@ -1093,7 +1093,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   def test_GetSparseImage_incompleteRanges(self):
     """Tests the case of ext4 images with holes."""
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       target_files_zip.write(
           test_utils.construct_sparse_image([(0xCAC2, 16)]),
           arcname='IMAGES/system.img')
@@ -1107,7 +1107,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
       target_files_zip.writestr('SYSTEM/file2', os.urandom(4096 * 3))
 
     tempdir = common.UnzipTemp(target_files)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       sparse_image = common.GetSparseImage('system', tempdir, input_zip, False)
 
     self.assertEqual(
@@ -1118,7 +1118,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_GetSparseImage_systemRootImage_filenameWithExtraLeadingSlash(self):
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       target_files_zip.write(
           test_utils.construct_sparse_image([(0xCAC2, 16)]),
           arcname='IMAGES/system.img')
@@ -1135,7 +1135,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
       target_files_zip.writestr('SYSTEM/app/file3', os.urandom(4096 * 4))
 
     tempdir = common.UnzipTemp(target_files)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       sparse_image = common.GetSparseImage('system', tempdir, input_zip, False)
 
     self.assertEqual(
@@ -1148,7 +1148,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_GetSparseImage_systemRootImage_nonSystemFiles(self):
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       target_files_zip.write(
           test_utils.construct_sparse_image([(0xCAC2, 16)]),
           arcname='IMAGES/system.img')
@@ -1162,7 +1162,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
       target_files_zip.writestr('ROOT/init.rc', os.urandom(4096 * 4))
 
     tempdir = common.UnzipTemp(target_files)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       sparse_image = common.GetSparseImage('system', tempdir, input_zip, False)
 
     self.assertEqual(
@@ -1173,7 +1173,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_GetSparseImage_fileNotFound(self):
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       target_files_zip.write(
           test_utils.construct_sparse_image([(0xCAC2, 16)]),
           arcname='IMAGES/system.img')
@@ -1185,7 +1185,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
       target_files_zip.writestr('SYSTEM/file1', os.urandom(4096 * 7))
 
     tempdir = common.UnzipTemp(target_files)
-    with zipfile.ZipFile(target_files, 'r') as input_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as input_zip:
       self.assertRaises(
           AssertionError, common.GetSparseImage, 'system', tempdir, input_zip,
           False)
@@ -1273,7 +1273,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
   @staticmethod
   def _test_LoadInfoDict_createTargetFiles(info_dict, fstab_path):
     target_files = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(target_files, 'w') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'w', allowZip64=True) as target_files_zip:
       info_values = ''.join(
           ['{}={}\n'.format(k, v) for k, v in sorted(info_dict.items())])
       common.ZipWriteStr(target_files_zip, 'META/misc_info.txt', info_values)
@@ -1293,7 +1293,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     target_files = self._test_LoadInfoDict_createTargetFiles(
         self.INFO_DICT_DEFAULT,
         'BOOT/RAMDISK/system/etc/recovery.fstab')
-    with zipfile.ZipFile(target_files, 'r') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as target_files_zip:
       loaded_dict = common.LoadInfoDict(target_files_zip)
       self.assertEqual(3, loaded_dict['recovery_api_version'])
       self.assertEqual(2, loaded_dict['fstab_version'])
@@ -1304,7 +1304,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     target_files = self._test_LoadInfoDict_createTargetFiles(
         self.INFO_DICT_DEFAULT,
         'BOOT/RAMDISK/etc/recovery.fstab')
-    with zipfile.ZipFile(target_files, 'r') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as target_files_zip:
       loaded_dict = common.LoadInfoDict(target_files_zip)
       self.assertEqual(3, loaded_dict['recovery_api_version'])
       self.assertEqual(2, loaded_dict['fstab_version'])
@@ -1345,7 +1345,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     target_files = self._test_LoadInfoDict_createTargetFiles(
         info_dict,
         'RECOVERY/RAMDISK/system/etc/recovery.fstab')
-    with zipfile.ZipFile(target_files, 'r') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as target_files_zip:
       loaded_dict = common.LoadInfoDict(target_files_zip)
       self.assertEqual(3, loaded_dict['recovery_api_version'])
       self.assertEqual(2, loaded_dict['fstab_version'])
@@ -1361,7 +1361,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     target_files = self._test_LoadInfoDict_createTargetFiles(
         info_dict,
         'RECOVERY/RAMDISK/system/etc/recovery.fstab')
-    with zipfile.ZipFile(target_files, 'r') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as target_files_zip:
       loaded_dict = common.LoadInfoDict(target_files_zip)
       self.assertEqual(3, loaded_dict['recovery_api_version'])
       self.assertEqual(2, loaded_dict['fstab_version'])
@@ -1375,7 +1375,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     target_files = self._test_LoadInfoDict_createTargetFiles(
         info_dict,
         'RECOVERY/RAMDISK/system/etc/recovery.fstab')
-    with zipfile.ZipFile(target_files, 'r') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as target_files_zip:
       loaded_dict = common.LoadInfoDict(target_files_zip)
       self.assertEqual(3, loaded_dict['recovery_api_version'])
       self.assertEqual(2, loaded_dict['fstab_version'])
@@ -1387,7 +1387,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
         self.INFO_DICT_DEFAULT,
         'BOOT/RAMDISK/system/etc/recovery.fstab')
     common.ZipDelete(target_files, 'META/misc_info.txt')
-    with zipfile.ZipFile(target_files, 'r') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as target_files_zip:
       self.assertRaises(ValueError, common.LoadInfoDict, target_files_zip)
 
   @test_utils.SkipIfExternalToolsUnavailable()
@@ -1411,7 +1411,7 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     target_files = self._test_LoadInfoDict_createTargetFiles(
         self.INFO_DICT_DEFAULT,
         'BOOT/RAMDISK/system/etc/recovery.fstab')
-    with zipfile.ZipFile(target_files, 'r') as target_files_zip:
+    with zipfile.ZipFile(target_files, 'r', allowZip64=True) as target_files_zip:
       self.assertRaises(
           AssertionError, common.LoadInfoDict, target_files_zip, True)
 
@@ -1621,7 +1621,7 @@ class DynamicPartitionsDifferenceTest(test_utils.ReleaseToolsTestCase):
 
   @staticmethod
   def get_op_list(output_path):
-    with zipfile.ZipFile(output_path) as output_zip:
+    with zipfile.ZipFile(output_path, allowZip64=True) as output_zip:
       with output_zip.open('dynamic_partitions_op_list') as op_list:
         return [line.decode().strip() for line in op_list.readlines()
                 if not line.startswith(b'#')]
@@ -1641,7 +1641,7 @@ super_group_foo_partition_list=system vendor
                    MockBlockDifference("vendor", FakeSparseImage(1 * GiB))]
 
     dp_diff = common.DynamicPartitionsDifference(target_info, block_diffs)
-    with zipfile.ZipFile(self.output_path, 'w') as output_zip:
+    with zipfile.ZipFile(self.output_path, 'w', allowZip64=True) as output_zip:
       dp_diff.WriteScript(self.script, output_zip, write_verify_script=True)
 
     self.assertEqual(str(self.script).strip(), """
@@ -1689,7 +1689,7 @@ super_group_qux_group_size={group_qux_size}
     dp_diff = common.DynamicPartitionsDifference(target_info,
                                                  block_diffs=[],
                                                  source_info_dict=source_info)
-    with zipfile.ZipFile(self.output_path, 'w') as output_zip:
+    with zipfile.ZipFile(self.output_path, 'w', allowZip64=True) as output_zip:
       dp_diff.WriteScript(self.script, output_zip, write_verify_script=True)
 
     lines = self.get_op_list(self.output_path)
@@ -1733,7 +1733,7 @@ super_group_bar_partition_list=product
 
     dp_diff = common.DynamicPartitionsDifference(target_info, block_diffs,
                                                  source_info_dict=source_info)
-    with zipfile.ZipFile(self.output_path, 'w') as output_zip:
+    with zipfile.ZipFile(self.output_path, 'w', allowZip64=True) as output_zip:
       dp_diff.WriteScript(self.script, output_zip, write_verify_script=True)
 
     metadata_idx = self.script.lines.index(
@@ -1804,7 +1804,7 @@ super_group_foo_group_size={group_foo_size}
 
     dp_diff = common.DynamicPartitionsDifference(target_info, block_diffs,
                                                  source_info_dict=source_info)
-    with zipfile.ZipFile(self.output_path, 'w') as output_zip:
+    with zipfile.ZipFile(self.output_path, 'w', allowZip64=True) as output_zip:
       dp_diff.WriteScript(self.script, output_zip, write_verify_script=True)
 
     self.assertNotIn("block_image_update", str(self.script),
@@ -1827,7 +1827,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
   @staticmethod
   def _BuildZipFile(entries):
     input_file = common.MakeTempFile(prefix='target_files-', suffix='.zip')
-    with zipfile.ZipFile(input_file, 'w') as input_zip:
+    with zipfile.ZipFile(input_file, 'w', allowZip64=True) as input_zip:
       for name, content in entries.items():
         input_zip.writestr(name, content)
 
@@ -1844,7 +1844,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
         'ODM/etc/build.prop': '\n'.join(build_prop),
     })
 
-    with zipfile.ZipFile(input_file, 'r') as input_zip:
+    with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
       placeholder_values = {
           'ro.boot.product.device_name': ['std', 'pro']
       }
@@ -1876,7 +1876,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
         'ODM/etc/build_pro.prop': '\n'.join(build_pro_prop),
     })
 
-    with zipfile.ZipFile(input_file, 'r') as input_zip:
+    with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
       placeholder_values = {
           'ro.boot.product.device_name': 'std'
       }
@@ -1891,7 +1891,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
       'ro.product.odm.name': 'product1',
     }, partition_props.build_props)
 
-    with zipfile.ZipFile(input_file, 'r') as input_zip:
+    with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
       placeholder_values = {
           'ro.boot.product.device_name': 'pro'
       }
@@ -1912,7 +1912,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
         'ODM/etc/build.prop': '\n'.join(build_prop),
     })
 
-    with zipfile.ZipFile(input_file, 'r') as input_zip:
+    with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
       partition_props = common.PartitionBuildProps.FromInputFile(
           input_zip, 'odm')
 
@@ -1955,7 +1955,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
         'ODM/etc/build_product2.prop': '\n'.join(product2_prop),
     })
 
-    with zipfile.ZipFile(input_file, 'r') as input_zip:
+    with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
       placeholder_values = {
           'ro.boot.product.device_name': 'std',
           'ro.boot.product.product_name': 'product1',
@@ -1972,7 +1972,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
         'ro.product.odm.name': 'product1'
     }, partition_props.build_props)
 
-    with zipfile.ZipFile(input_file, 'r') as input_zip:
+    with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
       placeholder_values = {
           'ro.boot.product.device_name': 'pro',
           'ro.boot.product.product_name': 'product2',
@@ -2006,7 +2006,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
         'ODM/etc/build_pro.prop': '\n'.join(build_pro_prop),
     })
 
-    with zipfile.ZipFile(input_file, 'r') as input_zip:
+    with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
       placeholder_values = {
           'ro.boot.product.device_name': 'std',
       }
@@ -2043,7 +2043,7 @@ class PartitionBuildPropsTest(test_utils.ReleaseToolsTestCase):
         'ODM/etc/build_product2.prop': '\n'.join(product2_prop),
     })
 
-    with zipfile.ZipFile(input_file, 'r') as input_zip:
+    with zipfile.ZipFile(input_file, 'r', allowZip64=True) as input_zip:
       placeholder_values = {
           'ro.boot.product.device_name': 'std',
           'ro.boot.product.product_name': 'product1',
