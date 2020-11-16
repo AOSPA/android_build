@@ -37,7 +37,6 @@ PRODUCT_PACKAGES += \
     bcc \
     blank_screen \
     blkid \
-    service-blobstore \
     bmgr \
     bootanimation \
     bootstat \
@@ -118,10 +117,12 @@ PRODUCT_PACKAGES += \
     iptables \
     ip-up-vpn \
     javax.obex \
-    service-jobscheduler \
     keystore \
+    keystore2 \
+		credstore \
     ld.mc \
     libaaudio \
+    libalarm_jni \
     libamidi \
     libandroid \
     libandroidfw \
@@ -392,6 +393,8 @@ PRODUCT_PACKAGES_DEBUG := \
     logpersist.start \
     logtagd.rc \
     procrank \
+    profcollectd \
+    profcollectctl \
     remount \
     showmap \
     sqlite3 \
