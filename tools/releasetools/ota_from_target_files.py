@@ -955,6 +955,19 @@ def GeneratePartitionTimestampFlags(partition_state):
       for part in partition_state]
   return ["--partition_timestamps", ",".join(partition_timestamps)]
 
+def GeneratePartitionTimestampFlagsDowngrade(pre_partition_state, post_partition_state):
+  assert pre_partition_state is not None
+  partition_timestamps = {}
+  for part in pre_partition_state:
+    partition_timestamps[part.partition_name] = part.version
+  for part in post_partition_state:
+    partition_timestamps[part.partition_name] = \
+      max(part.version, partition_timestamps[part.partition_name])
+  return [
+    "--partition_timestamps",
+    ",".join([key + ":" + val for (key, val) in partition_timestamps.items()])
+    ]
+
 def GenerateAbOtaPackage(target_file, output_file, source_file=None):
   """Generates an Android OTA package that has A/B update payload."""
   # Stage the output zip package for package signing.
@@ -1015,6 +1028,10 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
   # Enforce a max timestamp this payload can be applied on top of.
   if OPTIONS.downgrade:
     max_timestamp = source_info.GetBuildProp("ro.build.date.utc")
+    partition_timestamps_flags = GeneratePartitionTimestampFlagsDowngrade(
+      metadata.precondition.partition_state,
+      metadata.postcondition.partition_state
+      )
   else:
     max_timestamp = str(metadata.postcondition.timestamp)
     partition_timestamps_flags = GeneratePartitionTimestampFlags(
@@ -1043,15 +1060,9 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
     secondary_target_file = GetTargetFilesZipForSecondaryImages(
         target_file, OPTIONS.skip_postinstall)
     secondary_payload = Payload(secondary=True)
-    assert not OPTIONS.downgrade
-    partition_timestamps_flags = GeneratePartitionTimestampFlags(
-      [part
-       for part in metadata.postcondition.partition_state
-       if part.partition_name not in SECONDARY_PAYLOAD_SKIPPED_IMAGES]
-    )
     secondary_payload.Generate(secondary_target_file,
                                additional_args=["--max_timestamp",
-                               max_timestamp]+partition_timestamps_flags)
+                               max_timestamp])
     secondary_payload.Sign(payload_signer)
     secondary_payload.WriteToZip(output_zip)
 
@@ -1226,15 +1237,6 @@ def main(argv):
 
   common.InitLogging()
 
-  if OPTIONS.downgrade:
-    # We should only allow downgrading incrementals (as opposed to full).
-    # Otherwise the device may go back from arbitrary build with this full
-    # OTA package.
-    if OPTIONS.incremental_source is None:
-      raise ValueError("Cannot generate downgradable full OTAs")
-    if OPTIONS.partial:
-      raise ValueError("Cannot generate downgradable partial OTAs")
-
   # Load the build info dicts from the zip directly or the extracted input
   # directory. We don't need to unzip the entire target-files zips, because they
   # won't be needed for A/B OTAs (brillo_update_payload does that on its own).
@@ -1247,12 +1249,21 @@ def main(argv):
   else:
     OPTIONS.info_dict = ParseInfoDict(args[0])
 
+  if OPTIONS.downgrade:
+    # We should only allow downgrading incrementals (as opposed to full).
+    # Otherwise the device may go back from arbitrary build with this full
+    # OTA package.
+    if OPTIONS.incremental_source is None:
+      raise ValueError("Cannot generate downgradable full OTAs")
+
+
   # TODO(xunchang) for retrofit and partial updates, maybe we should rebuild the
   # target-file and reload the info_dict. So the info will be consistent with
   # the modified target-file.
 
   logger.info("--- target info ---")
   common.DumpInfoDict(OPTIONS.info_dict)
+
 
   # Load the source build dict if applicable.
   if OPTIONS.incremental_source is not None:
@@ -1261,6 +1272,17 @@ def main(argv):
 
     logger.info("--- source info ---")
     common.DumpInfoDict(OPTIONS.source_info_dict)
+
+  if OPTIONS.partial:
+    OPTIONS.info_dict['ab_partitions'] = \
+      list(
+        set(OPTIONS.info_dict['ab_partitions']) & set(OPTIONS.partial)
+        )
+    if OPTIONS.source_info_dict:
+      OPTIONS.source_info_dict['ab_partitions'] = \
+        list(
+          set(OPTIONS.source_info_dict['ab_partitions']) & set(OPTIONS.partial)
+          )
 
   # Load OEM dicts if provided.
   OPTIONS.oem_dicts = _LoadOemDicts(OPTIONS.oem_source)
