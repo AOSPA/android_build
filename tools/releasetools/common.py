@@ -527,6 +527,27 @@ class BuildInfo(object):
         return BuildInfo._RO_PRODUCT_PROPS_DEFAULT_SOURCE_ORDER_LEGACY
     return BuildInfo._RO_PRODUCT_PROPS_DEFAULT_SOURCE_ORDER_CURRENT
 
+  def _GetPlatformVersion(self):
+    version_sdk = self.GetBuildProp("ro.build.version.sdk")
+    # init code switches to version_release_or_codename (see b/158483506). After
+    # API finalization, release_or_codename will be the same as release. This
+    # is the best effort to support pre-S dev stage builds.
+    if int(version_sdk) >= 30:
+      try:
+        return self.GetBuildProp("ro.build.version.release_or_codename")
+      except ExternalError:
+        logger.warning('Failed to find ro.build.version.release_or_codename')
+
+    return self.GetBuildProp("ro.build.version.release")
+
+  def _GetPartitionPlatformVersion(self, partition):
+    try:
+      return self.GetPartitionBuildProp("ro.build.version.release_or_codename",
+                                        partition)
+    except ExternalError:
+      return self.GetPartitionBuildProp("ro.build.version.release",
+                                        partition)
+
   def GetOemProperty(self, key):
     if self.oem_props is not None and key in self.oem_props:
       return self.oem_dicts[0][key]
@@ -543,7 +564,7 @@ class BuildInfo(object):
           self.GetPartitionBuildProp("ro.product.brand", partition),
           self.GetPartitionBuildProp("ro.product.name", partition),
           self.GetPartitionBuildProp("ro.product.device", partition),
-          self.GetPartitionBuildProp("ro.build.version.release", partition),
+          self._GetPartitionPlatformVersion(partition),
           self.GetPartitionBuildProp("ro.build.id", partition),
           self.GetPartitionBuildProp(
               "ro.build.version.incremental", partition),
@@ -555,13 +576,12 @@ class BuildInfo(object):
       try:
         return self.GetBuildProp("ro.build.fingerprint")
       except ExternalError:
-        # TODO(b/144101993): revert this change when bug fixed.
         try:
           return "{}/{}/{}:{}/{}/{}:{}/{}".format(
               self.GetBuildProp("ro.product.brand"),
               self.GetBuildProp("ro.product.name"),
               self.GetBuildProp("ro.product.device"),
-              self.GetBuildProp("ro.build.version.release"),
+              self._GetPlatformVersion(),
               self.GetBuildProp("ro.build.id"),
               self.GetBuildProp("ro.build.version.incremental"),
               self.GetBuildProp("ro.build.type"),
@@ -818,6 +838,15 @@ class PartitionBuildProps(object):
     props._LoadBuildProp(data)
     return props
 
+  @staticmethod
+  def FromBuildPropFile(name, build_prop_file):
+    """Constructs an instance from a build prop file."""
+
+    props = PartitionBuildProps("unknown", name)
+    with open(build_prop_file) as f:
+      props._LoadBuildProp(f.read())
+    return props
+
   def _LoadBuildProp(self, data):
     for line in data.split('\n'):
       line = line.strip()
@@ -1007,15 +1036,35 @@ def MergeDynamicPartitionInfoDicts(framework_dict, vendor_dict):
   Returns:
     The merged dynamic partition info dictionary.
   """
-  merged_dict = {}
+
+  def uniq_concat(a, b):
+    combined = set(a.split(" "))
+    combined.update(set(b.split(" ")))
+    combined = [item.strip() for item in combined if item.strip()]
+    return " ".join(sorted(combined))
+
+  if (framework_dict.get("use_dynamic_partitions") !=
+      "true") or (vendor_dict.get("use_dynamic_partitions") != "true"):
+    raise ValueError("Both dictionaries must have use_dynamic_partitions=true")
+
+  merged_dict = {"use_dynamic_partitions": "true"}
+
+  merged_dict["dynamic_partition_list"] = uniq_concat(
+      framework_dict.get("dynamic_partition_list", ""),
+      vendor_dict.get("dynamic_partition_list", ""))
+
+  # Super block devices are defined by the vendor dict.
+  if "super_block_devices" in vendor_dict:
+    merged_dict["super_block_devices"] = vendor_dict["super_block_devices"]
+    for block_device in merged_dict["super_block_devices"].split(" "):
+      key = "super_%s_device_size" % block_device
+      if key not in vendor_dict:
+        raise ValueError("Vendor dict does not contain required key %s." % key)
+      merged_dict[key] = vendor_dict[key]
+
   # Partition groups and group sizes are defined by the vendor dict because
   # these values may vary for each board that uses a shared system image.
   merged_dict["super_partition_groups"] = vendor_dict["super_partition_groups"]
-  framework_dynamic_partition_list = framework_dict.get(
-      "dynamic_partition_list", "")
-  vendor_dynamic_partition_list = vendor_dict.get("dynamic_partition_list", "")
-  merged_dict["dynamic_partition_list"] = ("%s %s" % (
-      framework_dynamic_partition_list, vendor_dynamic_partition_list)).strip()
   for partition_group in merged_dict["super_partition_groups"].split(" "):
     # Set the partition group's size using the value from the vendor dict.
     key = "super_%s_group_size" % partition_group
@@ -1026,15 +1075,16 @@ def MergeDynamicPartitionInfoDicts(framework_dict, vendor_dict):
     # Set the partition group's partition list using a concatenation of the
     # framework and vendor partition lists.
     key = "super_%s_partition_list" % partition_group
-    merged_dict[key] = (
-        "%s %s" %
-        (framework_dict.get(key, ""), vendor_dict.get(key, ""))).strip()
+    merged_dict[key] = uniq_concat(
+        framework_dict.get(key, ""), vendor_dict.get(key, ""))
 
-  # Pick virtual ab related flags from vendor dict, if defined.
-  if "virtual_ab" in vendor_dict.keys():
-    merged_dict["virtual_ab"] = vendor_dict["virtual_ab"]
-  if "virtual_ab_retrofit" in vendor_dict.keys():
-    merged_dict["virtual_ab_retrofit"] = vendor_dict["virtual_ab_retrofit"]
+  # Various other flags should be copied from the vendor dict, if defined.
+  for key in ("virtual_ab", "virtual_ab_retrofit", "lpmake",
+              "super_metadata_device", "super_partition_error_limit",
+              "super_partition_size"):
+    if key in vendor_dict.keys():
+      merged_dict[key] = vendor_dict[key]
+
   return merged_dict
 
 
@@ -1261,22 +1311,26 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file, info_dict=None,
   for building the requested image.
   """
 
+  if info_dict is None:
+    info_dict = OPTIONS.info_dict
+
   # "boot" or "recovery", without extension.
   partition_name = os.path.basename(sourcedir).lower()
 
+  kernel = None
   if partition_name == "recovery":
-    kernel = "kernel"
+    if info_dict.get("exclude_kernel_from_recovery_image") == "true":
+      logger.info("Excluded kernel binary from recovery image.")
+    else:
+      kernel = "kernel"
   else:
     kernel = image_name.replace("boot", "kernel")
     kernel = kernel.replace(".img", "")
-  if not os.access(os.path.join(sourcedir, kernel), os.F_OK):
+  if kernel and not os.access(os.path.join(sourcedir, kernel), os.F_OK):
     return None
 
   if has_ramdisk and not os.access(os.path.join(sourcedir, "RAMDISK"), os.F_OK):
     return None
-
-  if info_dict is None:
-    info_dict = OPTIONS.info_dict
 
   img = tempfile.NamedTemporaryFile()
 
@@ -1287,7 +1341,9 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file, info_dict=None,
   # use MKBOOTIMG from environ, or "mkbootimg" if empty or not set
   mkbootimg = os.getenv('MKBOOTIMG') or "mkbootimg"
 
-  cmd = [mkbootimg, "--kernel", os.path.join(sourcedir, kernel)]
+  cmd = [mkbootimg]
+  if kernel:
+    cmd += ["--kernel", os.path.join(sourcedir, kernel)]
 
   fn = os.path.join(sourcedir, "second")
   if os.access(fn, os.F_OK):
