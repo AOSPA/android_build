@@ -715,6 +715,26 @@ endif
 GENERIC_KERNEL_CMDLINE := rw
 .KATI_READONLY := GENERIC_KERNEL_CMDLINE
 
+INTERNAL_PREBUILT_BOOTIMAGE :=
+
+my_installed_prebuilt_gki_apex := $(strip $(foreach package,$(PRODUCT_PACKAGES),$(if $(ALL_MODULES.$(package).EXTRACTED_BOOT_IMAGE),$(package))))
+ifdef my_installed_prebuilt_gki_apex
+  ifneq (1,$(words $(my_installed_prebuilt_gki_apex))) # len(my_installed_prebuilt_gki_apex) > 1
+    $(error More than one prebuilt GKI APEXes are installed: $(my_installed_prebuilt_gki_apex))
+  endif # len(my_installed_prebuilt_gki_apex) > 1
+
+  ifdef BOARD_PREBUILT_BOOTIMAGE
+    $(error Must not define BOARD_PREBUILT_BOOTIMAGE because a prebuilt GKI APEX is installed: $(my_installed_prebuilt_gki_apex))
+  endif # BOARD_PREBUILT_BOOTIMAGE defined
+
+  my_apex_extracted_boot_image := $(ALL_MODULES.$(my_installed_prebuilt_gki_apex).EXTRACTED_BOOT_IMAGE)
+  INSTALLED_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot.img
+  $(eval $(call copy-one-file,$(my_apex_extracted_boot_image),$(INSTALLED_BOOTIMAGE_TARGET)))
+
+  INTERNAL_PREBUILT_BOOTIMAGE := $(my_apex_extracted_boot_image)
+
+else # my_installed_prebuilt_gki_apex not defined
+
 # $1: boot image target
 # returns the kernel used to make the bootimage
 define bootimage-to-kernel
@@ -878,12 +898,17 @@ ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
 # Remove when b/63676296 is resolved.
 $(error Prebuilt bootimage is only supported for AB targets)
 endif
+INTERNAL_PREBUILT_BOOTIMAGE := $(BOARD_PREBUILT_BOOTIMAGE)
 INSTALLED_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot.img
-$(eval $(call copy-one-file,$(BOARD_PREBUILT_BOOTIMAGE),$(INSTALLED_BOOTIMAGE_TARGET)))
+$(eval $(call copy-one-file,$(INTERNAL_PREBUILT_BOOTIMAGE),$(INSTALLED_BOOTIMAGE_TARGET)))
 else # BOARD_PREBUILT_BOOTIMAGE not defined
 INSTALLED_BOOTIMAGE_TARGET :=
 endif # BOARD_PREBUILT_BOOTIMAGE
 endif # TARGET_NO_KERNEL
+endif # my_installed_prebuilt_gki_apex not defined
+
+my_apex_extracted_boot_image :=
+my_installed_prebuilt_gki_apex :=
 
 # -----------------------------------------------------------------
 # declare recovery ramdisk files
@@ -4448,7 +4473,8 @@ endif
 
 ifdef BUILDING_BOOT_IMAGE
   $(BUILT_TARGET_FILES_PACKAGE): $(INTERNAL_RAMDISK_FILES)
-else ifdef BOARD_PREBUILT_BOOTIMAGE
+endif
+ifneq (,$(INTERNAL_PREBUILT_BOOTIMAGE) $(filter true,$(BOARD_COPY_BOOT_IMAGE_TO_TARGET_FILES)))
   $(BUILT_TARGET_FILES_PACKAGE): $(INSTALLED_BOOTIMAGE_TARGET)
 endif
 
@@ -4747,10 +4773,12 @@ ifdef BOARD_PREBUILT_SYSTEM_EXTIMAGE
 	$(hide) mkdir -p $(zip_root)/IMAGES
 	$(hide) cp $(INSTALLED_SYSTEM_EXTIMAGE_TARGET) $(zip_root)/IMAGES/
 endif
-ifdef BOARD_PREBUILT_BOOTIMAGE
+ifneq (,$(INTERNAL_PREBUILT_BOOTIMAGE) $(filter true,$(BOARD_COPY_BOOT_IMAGE_TO_TARGET_FILES)))
+ifdef INSTALLED_BOOTIMAGE_TARGET
 	$(hide) mkdir -p $(zip_root)/IMAGES
 	$(hide) cp $(INSTALLED_BOOTIMAGE_TARGET) $(zip_root)/IMAGES/
-endif
+endif # INSTALLED_BOOTIMAGE_TARGET
+endif # INTERNAL_PREBUILT_BOOTIMAGE != "" || BOARD_COPY_BOOT_IMAGE_TO_TARGET_FILES == true
 ifdef BOARD_PREBUILT_ODMIMAGE
 	$(hide) mkdir -p $(zip_root)/IMAGES
 	$(hide) cp $(INSTALLED_ODMIMAGE_TARGET) $(zip_root)/IMAGES/
