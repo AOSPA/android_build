@@ -213,6 +213,22 @@ BUILD_THUMBPRINT :=
 # BUILD_ID: detail info; has the same info as the build fingerprint
 BUILD_DESC := $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT) $(PLATFORM_VERSION) $(BUILD_ID) $(BUILD_NUMBER_FROM_FILE) $(BUILD_VERSION_TAGS)
 
+# BUILD_DISPLAY_ID is shown under Settings -> About Phone
+ifeq ($(TARGET_BUILD_VARIANT),user)
+  # User builds should show:
+  # release build number or branch.buld_number non-release builds
+
+  # Dev. branches should have DISPLAY_BUILD_NUMBER set
+  ifeq (true,$(DISPLAY_BUILD_NUMBER))
+    BUILD_DISPLAY_ID := $(BUILD_ID).$(BUILD_NUMBER_FROM_FILE) $(BUILD_KEYS)
+  else
+    BUILD_DISPLAY_ID := $(BUILD_ID) $(BUILD_KEYS)
+  endif
+else
+  # Non-user builds should show detailed build information
+  BUILD_DISPLAY_ID := $(BUILD_DESC)
+endif
+
 # TARGET_BUILD_FLAVOR and ro.build.flavor are used only by the test
 # harness to distinguish builds. Only add _asan for a sanitized build
 # if it isn't already a part of the flavor (via a dedicated lunch
@@ -254,9 +270,9 @@ $(gen_from_buildinfo_sh): $(INTERNAL_BUILD_ID_MAKEFILE) $(API_FINGERPRINT) | $(B
 	        AOSPA_DEVICE="$(TARGET_DEVICE)" \
 	        PRODUCT_DEFAULT_LOCALE="$(call get-default-product-locale,$(PRODUCT_LOCALES))" \
 	        PRODUCT_DEFAULT_WIFI_CHANNELS="$(PRODUCT_DEFAULT_WIFI_CHANNELS)" \
+	        PRIVATE_BUILD_DESC="$(BUILD_DESC)" \
 	        BUILD_ID="$(BUILD_ID)" \
-	        BUILD_KEYS="$(BUILD_KEYS)" \
-	        DISPLAY_BUILD_NUMBER="$(DISPLAY_BUILD_NUMBER)" \
+	        BUILD_DISPLAY_ID="$(BUILD_DISPLAY_ID)" \
 	        DATE="$(DATE_FROM_FILE)" \
 	        BUILD_USERNAME="$(BUILD_USERNAME)" \
 	        BUILD_HOSTNAME="$(BUILD_HOSTNAME)" \

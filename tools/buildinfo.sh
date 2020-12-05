@@ -9,10 +9,7 @@ if [ "$BOARD_USE_VBMETA_DIGTEST_IN_FINGERPRINT" = "true" ] ; then
 else
   echo "ro.build.id=$BUILD_ID"
 fi
-echo "ro.build.keys=$BUILD_KEYS"
-if [ -n "$DISPLAY_BUILD_NUMBER" ] ; then
-echo "ro.build.display_build_number=$DISPLAY_BUILD_NUMBER"
-fi
+echo "ro.build.display.id=$BUILD_DISPLAY_ID"
 echo "ro.build.version.incremental=$BUILD_NUMBER"
 echo "ro.build.version.sdk=$PLATFORM_SDK_VERSION"
 echo "ro.build.version.preview_sdk=$PLATFORM_PREVIEW_SDK_VERSION"
@@ -48,6 +45,10 @@ if [ -n "$PRODUCT_DEFAULT_LOCALE" ] ; then
 fi
 echo "ro.wifi.channels=$PRODUCT_DEFAULT_WIFI_CHANNELS"
 
+echo "# ro.build.product is obsolete; use ro.product.device"
+echo "ro.build.product=$TARGET_DEVICE"
+
+echo "ro.build.description=$PRIVATE_BUILD_DESC"
 echo "# Do not try to parse thumbprint"
 if [ -n "$BUILD_THUMBPRINT" ] ; then
   echo "ro.build.thumbprint=$BUILD_THUMBPRINT"
