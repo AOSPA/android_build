@@ -377,6 +377,22 @@ KNOWN_OEM_THUMBPRINT_PROPERTIES := \
 OEM_THUMBPRINT_PROPERTIES := $(filter $(KNOWN_OEM_THUMBPRINT_PROPERTIES),\
     $(PRODUCT_OEM_PROPERTIES))
 
+# Display parameters shown under Settings -> About Phone
+ifeq ($(TARGET_BUILD_VARIANT),user)
+  # User builds should show:
+  # release build number or branch.buld_number non-release builds
+
+  # Dev. branches should have DISPLAY_BUILD_NUMBER set
+  ifeq (true,$(DISPLAY_BUILD_NUMBER))
+    BUILD_DISPLAY_ID := $(BUILD_ID).$(BUILD_NUMBER_FROM_FILE) $(BUILD_KEYS)
+  else
+    BUILD_DISPLAY_ID := $(BUILD_ID) $(BUILD_KEYS)
+  endif
+else
+  # Non-user builds should show detailed build information
+  BUILD_DISPLAY_ID := $(build_desc)
+endif
+
 # Accepts a whitespace separated list of product locales such as
 # (en_US en_AU en_GB...) and returns the first locale in the list with
 # underscores replaced with hyphens. In the example above, this will
@@ -418,9 +434,9 @@ $(intermediate_system_build_prop): $(BUILDINFO_SH) $(BUILDINFO_COMMON_SH) $(INTE
 	        AOSPA_DEVICE="$(TARGET_DEVICE)" \
 	        PRODUCT_DEFAULT_LOCALE="$(call get-default-product-locale,$(PRODUCT_LOCALES))" \
 	        PRODUCT_DEFAULT_WIFI_CHANNELS="$(PRODUCT_DEFAULT_WIFI_CHANNELS)" \
+	        PRIVATE_BUILD_DESC="$(PRIVATE_BUILD_DESC)" \
 	        BUILD_ID="$(BUILD_ID)" \
-	        BUILD_KEYS="$(BUILD_KEYS)" \
-	        DISPLAY_BUILD_NUMBER="$(DISPLAY_BUILD_NUMBER)" \
+	        BUILD_DISPLAY_ID="$(BUILD_DISPLAY_ID)" \
 	        DATE="$(DATE_FROM_FILE)" \
 	        BUILD_USERNAME="$(BUILD_USERNAME)" \
 	        BUILD_HOSTNAME="$(BUILD_HOSTNAME)" \
