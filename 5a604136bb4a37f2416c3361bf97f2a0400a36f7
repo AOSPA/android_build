@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "afc33c4b_03cf6657",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000447
+      },
+      "writtenOn": "2020-12-21T13:41:51Z",
+      "side": 1,
+      "message": "Would rather users know they are downgrading and ask if they are OK with that than just outright disabling the check.",
+      "revId": "5a604136bb4a37f2416c3361bf97f2a0400a36f7",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
