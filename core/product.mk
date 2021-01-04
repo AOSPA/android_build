@@ -332,7 +332,7 @@ _product_list_vars += PRODUCT_EXTRA_VNDK_VERSIONS
 
 # VNDK version of product partition. It can be 'current' if the product
 # partitions uses PLATFORM_VNDK_VERSION.
-_product_single_value_var += PRODUCT_PRODUCT_VNDK_VERSION
+_product_single_value_vars += PRODUCT_PRODUCT_VNDK_VERSION
 
 # Whether the list of allowed of actionable compatible properties should be disabled or not
 _product_single_value_vars += PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE
@@ -389,6 +389,7 @@ _product_single_value_vars += PRODUCT_BUILD_RAMDISK_IMAGE
 _product_single_value_vars += PRODUCT_BUILD_USERDATA_IMAGE
 _product_single_value_vars += PRODUCT_BUILD_RECOVERY_IMAGE
 _product_single_value_vars += PRODUCT_BUILD_BOOT_IMAGE
+_product_single_value_vars += PRODUCT_BUILD_VENDOR_BOOT_IMAGE
 _product_single_value_vars += PRODUCT_BUILD_VBMETA_IMAGE
 
 # List of boot jars delivered via apex

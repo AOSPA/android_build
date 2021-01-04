@@ -741,12 +741,14 @@ def ReplaceUpdatedFiles(zip_filename, files_list):
 
 def HasPartition(partition_name):
   """Determines if the target files archive should build a given partition."""
-  return ((
-      os.path.isdir(os.path.join(OPTIONS.input_tmp, partition_name.upper())) and
-      OPTIONS.info_dict.get("building_%s_image" % partition_name) == "true") or
+
+  return ((os.path.isdir(
+      os.path.join(OPTIONS.input_tmp, partition_name.upper())) and
+           OPTIONS.info_dict.get(
+               "building_{}_image".format(partition_name)) == "true") or
           os.path.exists(
               os.path.join(OPTIONS.input_tmp, "IMAGES",
-                           "%s.img" % partition_name)))
+                           "{}.img".format(partition_name))))
 
 
 def AddImagesToTargetFiles(filename):

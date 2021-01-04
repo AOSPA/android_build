@@ -27,24 +27,18 @@ PARSE_TIME_MAKE_GOALS := \
 	dicttool_aosp \
 	dump-products \
 	eng \
-	fusion \
 	oem_image \
 	online-system-api-sdk-docs \
-	pdk \
-	platform \
-	platform-java \
 	product-graph \
 	samplecode \
 	sdk \
 	sdk_addon \
 	sdk_repo \
 	stnod \
-	target-files-package \
 	test-art% \
 	user \
 	userdataimage \
 	userdebug \
-	vts10 \
 	win_sdk \
 	winsdk-tools
 

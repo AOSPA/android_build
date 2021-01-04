@@ -34,6 +34,7 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
 - gomod:      Go to the directory containing a module.
 - pathmod:    Get the directory containing a module.
 - refreshmod: Refresh list of modules for allmod/gomod/pathmod.
+- syswrite:   Remount partitions (e.g. system.img) as writable, rebooting if necessary.
 
 Environment options:
 - SANITIZE_HOST: Set to 'address' to use ASAN for all host modules.
@@ -306,6 +307,9 @@ function setpaths()
     unset ANDROID_HOST_OUT
     export ANDROID_HOST_OUT=$(get_abs_build_var HOST_OUT)
 
+    unset ANDROID_SOONG_HOST_OUT
+    export ANDROID_SOONG_HOST_OUT=$(get_abs_build_var SOONG_HOST_OUT)
+
     unset ANDROID_HOST_OUT_TESTCASES
     export ANDROID_HOST_OUT_TESTCASES=$(get_abs_build_var HOST_OUT_TESTCASES)
 
@@ -315,6 +319,22 @@ function setpaths()
     # needed for building linux on MacOS
     # TODO: fix the path
     #export HOST_EXTRACFLAGS="-I "$T/system/kernel_headers/host_include
+}
+
+function bazel()
+{
+    local T="$(gettop)"
+    if [ ! "$T" ]; then
+        echo "Couldn't locate the top of the tree.  Try setting TOP."
+        return
+    fi
+
+    if which bazel &>/dev/null; then
+        echo "NOTE: bazel() function sourced from envsetup.sh is being used instead of $(which bazel)"
+        echo
+    fi
+
+    "$T/tools/bazel" "$@"
 }
 
 function printconfig()
@@ -355,7 +375,7 @@ function should_add_completion() {
 
 function addcompletions()
 {
-    local T dir f
+    local f=
 
     # Keep us from trying to run in something that's neither bash nor zsh.
     if [ -z "$BASH_VERSION" -a -z "$ZSH_VERSION" ]; then
@@ -676,6 +696,7 @@ function lunch()
     fi
     export TARGET_PRODUCT=$(get_build_var TARGET_PRODUCT)
     export TARGET_BUILD_VARIANT=$(get_build_var TARGET_BUILD_VARIANT)
+    export PLATFORM_VERSION=$(get_build_var PLATFORM_VERSION)
     if [ -n "$version" ]; then
       export TARGET_PLATFORM_VERSION=$(get_build_var TARGET_PLATFORM_VERSION)
     else
@@ -768,7 +789,7 @@ function gettop
     local TOPFILE=build/make/core/envsetup.mk
     if [ -n "$TOP" -a -f "$TOP/$TOPFILE" ] ; then
         # The following circumlocution ensures we remove symlinks from TOP.
-        (cd $TOP; PWD= /bin/pwd)
+        (cd "$TOP"; PWD= /bin/pwd)
     else
         if [ -f $TOPFILE ] ; then
             # The following circumlocution (repeated below as well) ensures
@@ -778,13 +799,13 @@ function gettop
         else
             local HERE=$PWD
             local T=
-            while [ \( ! \( -f $TOPFILE \) \) -a \( $PWD != "/" \) ]; do
+            while [ \( ! \( -f $TOPFILE \) \) -a \( "$PWD" != "/" \) ]; do
                 \cd ..
                 T=`PWD= /bin/pwd -P`
             done
-            \cd $HERE
+            \cd "$HERE"
             if [ -f "$T/$TOPFILE" ]; then
-                echo $T
+                echo "$T"
             fi
         fi
     fi
@@ -855,6 +876,18 @@ function qpid() {
             | tr -d '\r' \
             | sed -e 1d -e 's/^[^ ]* *\([0-9]*\).* \([^ ]*\)$/\1 \2/'
     fi
+}
+
+# syswrite - disable verity, reboot if needed, and remount image
+#
+# Easy way to make system.img/etc writable
+function syswrite() {
+  adb wait-for-device && adb root || return 1
+  if [[ $(adb disable-verity | grep "reboot") ]]; then
+      echo "rebooting"
+      adb reboot && adb wait-for-device && adb root || return 1
+  fi
+  adb wait-for-device && adb remount || return 1
 }
 
 # coredump_setup - enable core dumps globally for any process
@@ -1342,7 +1375,7 @@ function refreshmod() {
     mkdir -p $ANDROID_PRODUCT_OUT || return 1
 
     # Note, can't use absolute path because of the way make works.
-    m out/target/product/$(get_build_var TARGET_DEVICE)/module-info.json \
+    m $(get_build_var PRODUCT_OUT)/module-info.json \
         > $ANDROID_PRODUCT_OUT/module-info.json.build.log 2>&1
 }
 
@@ -1586,36 +1619,6 @@ function mmma()
 
 function make()
 {
-    call_hook ${FUNCNAME[0]} $@
-    if [ $? -ne 0 ]; then
-        return 1
-    fi
-
-    if [ -f $ANDROID_BUILD_TOP/$QTI_BUILDTOOLS_DIR/build/update-vendor-hal-makefiles.sh ]; then
-        vendor_hal_script=$ANDROID_BUILD_TOP/$QTI_BUILDTOOLS_DIR/build/update-vendor-hal-makefiles.sh
-        source $vendor_hal_script --check
-        regen_needed=$?
-    else
-        vendor_hal_script=$ANDROID_BUILD_TOP/device/qcom/common/vendor_hal_makefile_generator.sh
-        regen_needed=1
-    fi
-
-    if [ $regen_needed -eq 1 ]; then
-        _wrap_build $(get_make_command hidl-gen) hidl-gen ALLOW_MISSING_DEPENDENCIES=true
-        RET=$?
-        if [ $RET -ne 0 ]; then
-            echo -n "${color_failed}#### hidl-gen compilation failed, check above errors"
-            echo " ####${color_reset}"
-            return $RET
-        fi
-        source $vendor_hal_script
-        RET=$?
-        if [ $RET -ne 0 ]; then
-            echo -n "${color_failed}#### HAL file .bp generation failed dure to incpomaptible HAL files , please check above error log"
-            echo " ####${color_reset}"
-            return $RET
-        fi
-    fi
     _wrap_build $(get_make_command "$@") "$@"
 }
 
@@ -1679,30 +1682,66 @@ function validate_current_shell() {
 # This allows loading only approved vendorsetup.sh files
 function source_vendorsetup() {
     unset VENDOR_PYTHONPATH
+    local T="$(gettop)"
     allowed=
-    for f in $(find -L device vendor product -maxdepth 4 -name 'allowed-vendorsetup_sh-files' 2>/dev/null | sort); do
+    for f in $(cd "$T" && find -L device vendor product -maxdepth 4 -name 'allowed-vendorsetup_sh-files' 2>/dev/null | sort); do
         if [ -n "$allowed" ]; then
             echo "More than one 'allowed_vendorsetup_sh-files' file found, not including any vendorsetup.sh files:"
             echo "  $allowed"
             echo "  $f"
             return
         fi
-        allowed="$f"
+        allowed="$T/$f"
     done
 
     allowed_files=
     [ -n "$allowed" ] && allowed_files=$(cat "$allowed")
     for dir in device vendor product; do
-        for f in $(test -d $dir && \
+        for f in $(cd "$T" && test -d $dir && \
             find -L $dir -maxdepth 4 -name 'vendorsetup.sh' 2>/dev/null | sort); do
 
             if [[ -z "$allowed" || "$allowed_files" =~ $f ]]; then
-                echo "including $f"; . "$f"
+                echo "including $f"; . "$T/$f"
             else
                 echo "ignoring $f, not in $allowed"
             fi
         done
     done
+}
+
+function showcommands() {
+    local T=$(gettop)
+    if [[ -z "$TARGET_PRODUCT" ]]; then
+        >&2 echo "TARGET_PRODUCT not set. Run lunch."
+        return
+    fi
+    case $(uname -s) in
+        Darwin)
+            PREBUILT_NAME=darwin-x86
+            ;;
+        Linux)
+            PREBUILT_NAME=linux-x86
+            ;;
+        *)
+            >&2 echo Unknown host $(uname -s)
+            return
+            ;;
+    esac
+    if [[ -z "$OUT_DIR" ]]; then
+      if [[ -z "$OUT_DIR_COMMON_BASE" ]]; then
+        OUT_DIR=out
+      else
+        OUT_DIR=${OUT_DIR_COMMON_BASE}/${PWD##*/}
+      fi
+    fi
+    if [[ "$1" == "--regenerate" ]]; then
+      shift 1
+      NINJA_ARGS="-t commands $@" m
+    else
+      (cd $T && prebuilts/build-tools/$PREBUILT_NAME/bin/ninja \
+          -f $OUT_DIR/combined-${TARGET_PRODUCT}.ninja \
+          -t commands "$@")
+    fi
 }
 
 validate_current_shell

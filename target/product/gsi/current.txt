@@ -18,8 +18,9 @@ LLNDK: libselinux.so
 LLNDK: libsync.so
 LLNDK: libvndksupport.so
 LLNDK: libvulkan.so
-VNDK-SP: android.hardware.common-V1-ndk_platform.so
-VNDK-SP: android.hardware.graphics.common-V1-ndk_platform.so
+VNDK-SP: android.hardware.common-V2-ndk_platform.so
+VNDK-SP: android.hardware.common.fmq-V1-ndk_platform.so
+VNDK-SP: android.hardware.graphics.common-V2-ndk_platform.so
 VNDK-SP: android.hardware.graphics.common@1.0.so
 VNDK-SP: android.hardware.graphics.common@1.1.so
 VNDK-SP: android.hardware.graphics.common@1.2.so
@@ -42,6 +43,7 @@ VNDK-SP: libblas.so
 VNDK-SP: libc++.so
 VNDK-SP: libcompiler_rt.so
 VNDK-SP: libcutils.so
+VNDK-SP: libdmabufheap.so
 VNDK-SP: libgralloctypes.so
 VNDK-SP: libhardware.so
 VNDK-SP: libhidlbase.so
@@ -60,6 +62,7 @@ VNDK-core: android.hardware.configstore-utils.so
 VNDK-core: android.hardware.configstore@1.0.so
 VNDK-core: android.hardware.configstore@1.1.so
 VNDK-core: android.hardware.confirmationui-support-lib.so
+VNDK-core: android.hardware.gnss-V1-ndk_platform.so
 VNDK-core: android.hardware.graphics.allocator@2.0.so
 VNDK-core: android.hardware.graphics.allocator@3.0.so
 VNDK-core: android.hardware.graphics.allocator@4.0.so
@@ -73,12 +76,14 @@ VNDK-core: android.hardware.media.omx@1.0.so
 VNDK-core: android.hardware.media@1.0.so
 VNDK-core: android.hardware.memtrack@1.0.so
 VNDK-core: android.hardware.power-V1-ndk_platform.so
+VNDK-core: android.hardware.power.stats-V1-ndk_platform.so
 VNDK-core: android.hardware.rebootescrow-V1-ndk_platform.so
 VNDK-core: android.hardware.soundtrigger@2.0-core.so
 VNDK-core: android.hardware.soundtrigger@2.0.so
 VNDK-core: android.hardware.vibrator-V1-ndk_platform.so
 VNDK-core: android.hidl.token@1.0-utils.so
 VNDK-core: android.hidl.token@1.0.so
+VNDK-core: android.system.keystore2-V1-ndk_platform.so
 VNDK-core: android.system.suspend@1.0.so
 VNDK-core: libaudioroute.so
 VNDK-core: libaudioutils.so

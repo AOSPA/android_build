@@ -16,10 +16,11 @@
 
 # ###############################################################
 # This file includes BoardConfig.mk for the device being built,
-# and sanity-checks the variable defined therein.
+# and checks the variable defined therein.
 # ###############################################################
 
 _board_strip_readonly_list := \
+  BOARD_BOOTLOADER_IN_UPDATE_PACKAGE \
   BOARD_EGL_CFG \
   BOARD_HAVE_BLUETOOTH \
   BOARD_INSTALLER_CMDLINE \
@@ -52,6 +53,7 @@ _board_strip_readonly_list := \
   TARGET_NO_RADIOIMAGE \
   TARGET_HARDWARE_3D \
   WITH_DEXPREOPT \
+  AB_OTA_PARTITIONS \
 
 # File system variables
 _board_strip_readonly_list += \
@@ -91,10 +93,35 @@ _dynamic_partitions_var_list += \
 
 _board_strip_readonly_list += $(_dynamic_partitions_var_list)
 
+# Kernel related variables
+_board_strip_readonly_list += \
+  BOARD_KERNEL_BINARIES \
+  BOARD_KERNEL_MODULE_INTERFACE_VERSIONS \
+
+# Variables related to generic kernel image (GKI) and generic boot image
+# - BOARD_USES_GENERIC_KERNEL_IMAGE is the global variable that defines if the
+#   board uses GKI and generic boot image.
+#   Update mechanism of the boot image is not enforced by this variable.
+# - BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE controls whether the recovery image
+#   contains a kernel or not.
+# - BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT controls whether ramdisk
+#   recovery resources are built to vendor_boot.
+# - BOARD_MOVE_GSI_AVB_KEYS_TO_VENDOR_BOOT controls whether GSI AVB keys are
+#   built to vendor_boot.
+# - BOARD_COPY_BOOT_IMAGE_TO_TARGET_FILES controls whether boot images in $OUT are added
+#   to target files package directly.
+_board_strip_readonly_list += \
+  BOARD_USES_GENERIC_KERNEL_IMAGE \
+  BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE \
+  BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT \
+  BOARD_MOVE_GSI_AVB_KEYS_TO_VENDOR_BOOT \
+  BOARD_COPY_BOOT_IMAGE_TO_TARGET_FILES \
+
 _build_broken_var_list := \
   BUILD_BROKEN_DUP_RULES \
   BUILD_BROKEN_DUP_SYSPROP \
   BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES \
+  BUILD_BROKEN_ENFORCE_SYSPROP_OWNER \
   BUILD_BROKEN_MISSING_REQUIRED_MODULES \
   BUILD_BROKEN_OUTSIDE_INCLUDE_DIRS \
   BUILD_BROKEN_PREBUILT_ELF_FILES \
@@ -168,7 +195,7 @@ $(foreach var,$(_board_true_false_vars), \
 TARGET_CPU_VARIANT_RUNTIME := $(or $(TARGET_CPU_VARIANT_RUNTIME),$(TARGET_CPU_VARIANT))
 TARGET_2ND_CPU_VARIANT_RUNTIME := $(or $(TARGET_2ND_CPU_VARIANT_RUNTIME),$(TARGET_2ND_CPU_VARIANT))
 
-# The combo makefiles sanity-check and set defaults for various CPU configuration
+# The combo makefiles check and set defaults for various CPU configuration
 combo_target := TARGET_
 combo_2nd_arch_prefix :=
 include $(BUILD_SYSTEM)/combo/select.mk
@@ -192,7 +219,7 @@ ifeq (,$(filter true,$(TARGET_SUPPORTS_32_BIT_APPS) $(TARGET_SUPPORTS_64_BIT_APP
   TARGET_SUPPORTS_32_BIT_APPS := true
 endif
 
-# Sanity check to warn about likely cryptic errors later in the build.
+# Quick check to warn about likely cryptic errors later in the build.
 ifeq ($(TARGET_IS_64_BIT),true)
   ifeq (,$(filter true false,$(TARGET_SUPPORTS_64_BIT_APPS)))
     $(error Building a 32-bit-app-only product on a 64-bit device. \
@@ -284,7 +311,7 @@ endif
 
 ###########################################
 # Now we can substitute with the real value of TARGET_COPY_OUT_DEBUG_RAMDISK
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+ifneq (,$(filter true,$(BOARD_USES_RECOVERY_AS_BOOT) $(BOARD_GKI_NONAB_COMPAT)))
 TARGET_COPY_OUT_DEBUG_RAMDISK := debug_ramdisk/first_stage_ramdisk
 TARGET_COPY_OUT_VENDOR_DEBUG_RAMDISK := vendor_debug_ramdisk/first_stage_ramdisk
 TARGET_COPY_OUT_TEST_HARNESS_RAMDISK := test_harness_ramdisk/first_stage_ramdisk
@@ -336,23 +363,34 @@ endif
 
 # Are we building a boot image
 BUILDING_BOOT_IMAGE :=
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  BUILDING_BOOT_IMAGE :=
-else ifeq ($(PRODUCT_BUILD_BOOT_IMAGE),)
-  ifdef BOARD_BOOTIMAGE_PARTITION_SIZE
+ifeq ($(PRODUCT_BUILD_BOOT_IMAGE),)
+  ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+    BUILDING_BOOT_IMAGE :=
+  else ifdef BOARD_BOOTIMAGE_PARTITION_SIZE
+    BUILDING_BOOT_IMAGE := true
+  else ifneq (,$(foreach kernel,$(BOARD_KERNEL_BINARIES),$(BOARD_$(call to-upper,$(kernel))_BOOTIMAGE_PARTITION_SIZE)))
     BUILDING_BOOT_IMAGE := true
   endif
 else ifeq ($(PRODUCT_BUILD_BOOT_IMAGE),true)
-  BUILDING_BOOT_IMAGE := true
+  ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+    $(warning *** PRODUCT_BUILD_BOOT_IMAGE is true, but so is BOARD_USES_RECOVERY_AS_BOOT.)
+    $(warning *** Skipping building boot image.)
+    BUILDING_BOOT_IMAGE :=
+  else
+    BUILDING_BOOT_IMAGE := true
+  endif
 endif
 .KATI_READONLY := BUILDING_BOOT_IMAGE
 
 # Are we building a recovery image
 BUILDING_RECOVERY_IMAGE :=
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  BUILDING_RECOVERY_IMAGE := true
-else ifeq ($(PRODUCT_BUILD_RECOVERY_IMAGE),)
-  ifdef BOARD_RECOVERYIMAGE_PARTITION_SIZE
+ifeq ($(PRODUCT_BUILD_RECOVERY_IMAGE),)
+  ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+    BUILDING_RECOVERY_IMAGE := true
+  else ifeq ($(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT),true)
+    # Set to true to build recovery resources for vendor_boot
+    BUILDING_RECOVERY_IMAGE := true
+  else ifdef BOARD_RECOVERYIMAGE_PARTITION_SIZE
     ifeq (,$(filter true, $(TARGET_NO_KERNEL) $(TARGET_NO_RECOVERY)))
       BUILDING_RECOVERY_IMAGE := true
     endif
@@ -366,7 +404,9 @@ endif
 BUILDING_VENDOR_BOOT_IMAGE :=
 ifdef BOARD_BOOT_HEADER_VERSION
   ifneq ($(call math_gt_or_eq,$(BOARD_BOOT_HEADER_VERSION),3),)
-    ifneq ($(TARGET_NO_VENDOR_BOOT),true)
+    ifeq ($(PRODUCT_BUILD_VENDOR_BOOT_IMAGE),)
+      BUILDING_VENDOR_BOOT_IMAGE := true
+    else ifeq ($(PRODUCT_BUILD_VENDOR_BOOT_IMAGE),true)
       BUILDING_VENDOR_BOOT_IMAGE := true
     endif
   endif
@@ -650,7 +690,7 @@ ifneq ($(TARGET_OTA_ALLOW_NON_AB),true)
   endif
 endif
 
-# Sanity check for building generic OTA packages. Currently it only supports A/B OTAs.
+# Quick check for building generic OTA packages. Currently it only supports A/B OTAs.
 ifeq ($(PRODUCT_BUILD_GENERIC_OTA_PACKAGE),true)
   ifneq ($(AB_OTA_UPDATER),true)
     $(error PRODUCT_BUILD_GENERIC_OTA_PACKAGE with 'AB_OTA_UPDATER != true' is not supported)
@@ -726,3 +766,28 @@ $(foreach m,$(filter-out BUILD_COPY_HEADERS,$(DEFAULT_ERROR_BUILD_MODULE_TYPES))
   $(if $(filter true,$(BUILD_BROKEN_USES_$(m))),\
     $(KATI_deprecated_var $(m),Please convert to Soong),\
     $(KATI_obsolete_var $(m),Please convert to Soong)))
+
+ifndef BUILDING_RECOVERY_IMAGE
+  ifeq (true,$(BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE))
+    $(error Should not set BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE if not building recovery image)
+  endif
+endif
+
+ifndef BUILDING_VENDOR_BOOT_IMAGE
+  ifeq (true,$(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT))
+    $(error Should not set BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT if not building vendor_boot image)
+  endif
+  ifeq (true,$(BOARD_MOVE_GSI_AVB_KEYS_TO_VENDOR_BOOT))
+    $(error Should not set BOARD_MOVE_GSI_AVB_KEYS_TO_VENDOR_BOOT if not building vendor_boot image)
+  endif
+endif
+
+# If BOARD_USES_GENERIC_KERNEL_IMAGE is set, BOARD_USES_RECOVERY_AS_BOOT must not be set.
+# Devices without a dedicated recovery partition uses BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT to
+# build recovery into vendor_boot.
+ifeq (true,$(BOARD_USES_GENERIC_KERNEL_IMAGE))
+  ifeq (true,$(BOARD_USES_RECOVERY_AS_BOOT))
+    $(error BOARD_USES_RECOVERY_AS_BOOT cannot be true if BOARD_USES_GENERIC_KERNEL_IMAGE is true. \
+      Use BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT instead)
+  endif
+endif

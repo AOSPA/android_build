@@ -33,6 +33,8 @@ endif
 
 include $(SOONG_MAKEVARS_MK)
 
+YACC :=$= $(BISON) -d
+
 include $(BUILD_SYSTEM)/clang/config.mk
 
 # Write the build number to a file so it can be read back in
@@ -177,16 +179,8 @@ $(error stopping)
 endif
 
 # -----------------------------------------------------------------
-# Variable to check java support level inside PDK build.
-# Not necessary if the components is not in PDK.
-# not defined : not supported
-# "sdk" : sdk API only
-# "platform" : platform API supproted
-TARGET_BUILD_JAVA_SUPPORT_LEVEL := platform
-
-# -----------------------------------------------------------------
-# The pdk (Platform Development Kit) build
-include build/make/core/pdk_config.mk
+# PDK builds are no longer supported, this is always platform
+TARGET_BUILD_JAVA_SUPPORT_LEVEL :=$= platform
 
 # -----------------------------------------------------------------
 
@@ -214,6 +208,9 @@ endif
 ifneq ($(TARGET_BUILD_VARIANT),user)
 ADDITIONAL_SYSTEM_PROPERTIES += persist.debug.dalvik.vm.core_platform_api_policy=just-warn
 endif
+
+# Define ro.sanitize.<name> properties for all global sanitizers.
+ADDITIONAL_SYSTEM_PROPERTIES += $(foreach s,$(SANITIZE_TARGET),ro.sanitize.$(s)=true)
 
 # Sets the default value of ro.postinstall.fstab.prefix to /system.
 # Device board config should override the value to /product when needed by:
@@ -322,6 +319,10 @@ endif
 
 ADDITIONAL_PRODUCT_PROPERTIES += ro.build.characteristics=$(TARGET_AAPT_CHARACTERISTICS)
 
+ifeq ($(AB_OTA_UPDATER),true)
+ADDITIONAL_PRODUCT_PROPERTIES += ro.product.ab_ota_partitions=$(subst $(space),$(comma),$(AB_OTA_PARTITIONS))
+endif
+
 # -----------------------------------------------------------------
 ###
 ### In this section we set up the things that are different
@@ -420,7 +421,7 @@ ifdef is_sdk_build
 sdk_repo_goal := $(strip $(filter sdk_repo,$(MAKECMDGOALS)))
 MAKECMDGOALS := $(strip $(filter-out sdk_repo,$(MAKECMDGOALS)))
 
-ifneq ($(words $(sort $(filter-out $(INTERNAL_MODIFIER_TARGETS) checkbuild emulator_tests target-files-package,$(MAKECMDGOALS)))),1)
+ifneq ($(words $(sort $(filter-out $(INTERNAL_MODIFIER_TARGETS) checkbuild emulator_tests,$(MAKECMDGOALS)))),1)
 $(error The 'sdk' target may not be specified with any other targets)
 endif
 
@@ -522,11 +523,6 @@ subdir_makefiles_total := $(words int $(subdir_makefiles) post finish)
 
 $(foreach mk,$(subdir_makefiles),$(info [$(call inc_and_print,subdir_makefiles_inc)/$(subdir_makefiles_total)] including $(mk) ...)$(eval include $(mk)))
 
-ifneq (,$(PDK_FUSION_PLATFORM_ZIP)$(PDK_FUSION_PLATFORM_DIR))
-# Bring in the PDK platform.zip modules.
-include $(BUILD_SYSTEM)/pdk_fusion_modules.mk
-endif # PDK_FUSION_PLATFORM_ZIP || PDK_FUSION_PLATFORM_DIR
-
 droid_targets : blueprint_tools
 
 endif # dont_bother
@@ -623,8 +619,8 @@ $(strip \
   $(eval modules_32 := $(patsubst %:32,%,$(filter %:32,$(2)))) \
   $(eval modules_64 := $(patsubst %:64,%,$(filter %:64,$(2)))) \
   $(eval modules_both := $(filter-out %:32 %:64,$(2))) \
-  $(eval ### For host cross modules, the primary arch is windows x86 and secondary is x86_64) \
-  $(if $(filter HOST_CROSS,$(1)), \
+  $(eval ### if 2ND_HOST_CROSS_IS_64_BIT, then primary/secondary are reversed for HOST_CROSS modules) \
+  $(if $(filter HOST_CROSS_true,$(1)_$(2ND_HOST_CROSS_IS_64_BIT)), \
     $(eval modules_1st_arch := $(modules_32)) \
     $(eval modules_2nd_arch := $(modules_64)), \
     $(eval modules_1st_arch := $(modules_64)) \
@@ -714,7 +710,23 @@ $(call select-bitness-of-target-host-required-modules,TARGET,HOST)
 $(call select-bitness-of-target-host-required-modules,HOST,TARGET)
 _nonexistent_required := $(sort $(_nonexistent_required))
 
-ifeq (,$(filter true,$(ALLOW_MISSING_DEPENDENCIES) $(BUILD_BROKEN_MISSING_REQUIRED_MODULES)))
+check_missing_required_modules := true
+ifneq (,$(filter true,$(ALLOW_MISSING_DEPENDENCIES) $(BUILD_BROKEN_MISSING_REQUIRED_MODULES)))
+  check_missing_required_modules :=
+endif # ALLOW_MISSING_DEPENDENCIES == true || BUILD_BROKEN_MISSING_REQUIRED_MODULES == true
+
+# Some executables are skipped in ASAN SANITIZE_TARGET build, thus breaking their dependencies.
+ifneq (,$(filter address,$(SANITIZE_TARGET)))
+  check_missing_required_modules :=
+endif # SANITIZE_TARGET has ASAN
+
+# HOST OS darwin build is broken, disable this check for darwin for now.
+# TODO(b/162102724): Remove this when darwin host has no broken dependency.
+ifneq (,$(filter $(HOST_OS),darwin))
+  check_missing_required_modules :=
+endif # HOST_OS == darwin
+
+ifeq (true,$(check_missing_required_modules))
 ifneq (,$(_nonexistent_required))
   $(warning Missing required dependencies:)
   $(foreach r_i,$(_nonexistent_required), \
@@ -724,7 +736,7 @@ ifneq (,$(_nonexistent_required))
   $(warning Set BUILD_BROKEN_MISSING_REQUIRED_MODULES := true to bypass this check if this is intentional)
   $(error Build failed)
 endif # _nonexistent_required != empty
-endif # ALLOW_MISSING_DEPENDENCIES != true && BUILD_BROKEN_MISSING_REQUIRED_MODULES != true
+endif # check_missing_required_modules == true
 
 define add-required-deps
 $(1): | $(2)
@@ -747,7 +759,7 @@ $(foreach m,$(ALL_MODULES), \
     $(eval r := $(call module-installed-files,$(r))) \
     $(eval h_m := $(filter $(HOST_OUT)/%, $(ALL_MODULES.$(m).INSTALLED))) \
     $(eval h_r := $(filter $(HOST_OUT)/%, $(r))) \
-    $(eval h_m := $(filter-out $(h_r), $(h_m))) \
+    $(eval h_r := $(filter-out $(h_m), $(h_r))) \
     $(if $(h_m), $(eval $(call add-required-deps, $(h_m),$(h_r)))) \
   ) \
 )
@@ -763,7 +775,7 @@ $(foreach m,$(ALL_MODULES), \
     $(eval r := $(call module-installed-files,$(r))) \
     $(eval hc_m := $(filter $(HOST_CROSS_OUT)/%, $(ALL_MODULES.$(m).INSTALLED))) \
     $(eval hc_r := $(filter $(HOST_CROSS_OUT)/%, $(r))) \
-    $(eval hc_m := $(filter-out $(hc_r), $(hc_m))) \
+    $(eval hc_r := $(filter-out $(hc_m), $(hc_r))) \
     $(if $(hc_m), $(eval $(call add-required-deps, $(hc_m),$(hc_r)))) \
   ) \
 )
@@ -779,7 +791,7 @@ $(foreach m,$(ALL_MODULES), \
     $(eval r := $(call module-installed-files,$(r))) \
     $(eval t_m := $(filter $(TARGET_OUT_ROOT)/%, $(ALL_MODULES.$(m).INSTALLED))) \
     $(eval t_r := $(filter $(TARGET_OUT_ROOT)/%, $(r))) \
-    $(eval t_m := $(filter-out $(t_r), $(t_m))) \
+    $(eval t_r := $(filter-out $(t_m), $(t_r))) \
     $(if $(t_m), $(eval $(call add-required-deps, $(t_m),$(t_r)))) \
   ) \
 )
@@ -806,7 +818,6 @@ $(foreach m,$(ALL_MODULES), \
     )\
     $(eval req_files := $(strip $(req_files)))\
     $(eval mod_files := $(filter $(HOST_OUT)/%, $(call module-installed-files,$(m)))) \
-    $(eval mod_files := $(filter-out $(req_files),$(mod_files)))\
     $(if $(mod_files),\
       $(eval $(call add-required-deps, $(mod_files),$(req_files))) \
     )\
@@ -835,7 +846,6 @@ $(foreach m,$(ALL_MODULES), \
     )\
     $(eval req_files := $(strip $(req_files)))\
     $(eval mod_files := $(filter $(TARGET_OUT_ROOT)/%, $(call module-installed-files,$(m))))\
-    $(eval mod_files := $(filter-out $(req_files),$(mod_files)))\
     $(if $(mod_files),\
       $(eval $(call add-required-deps, $(mod_files),$(req_files))) \
     )\
@@ -894,7 +904,7 @@ endef
 # Scan all modules in general-tests, device-tests and other selected suites and
 # flatten the shared library dependencies.
 define update-host-shared-libs-deps-for-suites
-$(foreach suite,general-tests device-tests vts,\
+$(foreach suite,general-tests device-tests vts art-host-tests host-unit-tests,\
   $(foreach m,$(COMPATIBILITY.$(suite).MODULES),\
     $(eval my_deps := $(call get-all-shared-libs-deps,$(m)))\
     $(foreach dep,$(my_deps),\
@@ -1265,7 +1275,7 @@ ifdef FULL_BUILD
       # Strip :32 and :64 suffixes
       _modules := $(patsubst %:32,%,$(_modules))
       _modules := $(patsubst %:64,%,$(_modules))
-      # Sanity check all modules in PRODUCT_PACKAGES exist. We check for the
+      # Quickly check all modules in PRODUCT_PACKAGES exist. We check for the
       # existence if either <module> or the <module>_32 variant.
       _nonexistent_modules := $(foreach m,$(_modules), \
         $(if $(or $(ALL_MODULES.$(m).PATH),$(call get-modules-for-2nd-arch,TARGET,$(m))),,$(m)))
@@ -1420,6 +1430,10 @@ $(file >$(HOST_OUT)/.installable_test_files,$(sort \
 test_files :=
 endif
 
+# Dedpulicate compatibility suite dist files across modules and packages before
+# copying them to their requested locations. Assign the eval result to an unused
+# var to prevent Make from trying to make a sense of it.
+_unused := $(call copy-many-files, $(sort $(ALL_COMPATIBILITY_DIST_FILES)))
 
 # Don't include any GNU General Public License shared objects or static
 # libraries in SDK images.  GPL executables (not static/dynamic libraries)
@@ -1647,6 +1661,10 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
 # dist_files only for putting your library into the dist directory with a full build.
 .PHONY: dist_files
 
+ifeq ($(SOONG_COLLECT_JAVA_DEPS), true)
+  $(call dist-for-goals, dist_files, $(SOONG_OUT_DIR)/module_bp_java_deps.json)
+endif
+
 .PHONY: apps_only
 ifneq ($(TARGET_BUILD_APPS),)
   # If this build is just for apps, only build apps and not the full system by default.
@@ -1692,6 +1710,9 @@ ifneq ($(TARGET_BUILD_APPS),)
   $(PROGUARD_DICT_ZIP) : $(apps_only_installed_files)
   $(call dist-for-goals,apps_only, $(PROGUARD_DICT_ZIP))
 
+  $(PROGUARD_USAGE_ZIP) : $(apps_only_installed_files)
+  $(call dist-for-goals,apps_only, $(PROGUARD_USAGE_ZIP))
+
   $(SYMBOLS_ZIP) : $(apps_only_installed_files)
   $(call dist-for-goals,apps_only, $(SYMBOLS_ZIP))
 
@@ -1716,10 +1737,12 @@ else ifeq (,$(TARGET_BUILD_UNBUNDLED))
     $(INTERNAL_UPDATE_PACKAGE_TARGET) \
     $(INTERNAL_OTA_PACKAGE_TARGET) \
     $(INTERNAL_OTA_METADATA) \
+    $(INTERNAL_OTA_PARTIAL_PACKAGE_TARGET) \
     $(INTERNAL_OTA_RETROFIT_DYNAMIC_PARTITIONS_PACKAGE_TARGET) \
     $(BUILT_OTATOOLS_PACKAGE) \
     $(SYMBOLS_ZIP) \
     $(PROGUARD_DICT_ZIP) \
+    $(PROGUARD_USAGE_ZIP) \
     $(COVERAGE_ZIP) \
     $(APPCOMPAT_ZIP) \
     $(INSTALLED_FILES_FILE) \
@@ -1745,6 +1768,7 @@ else ifeq (,$(TARGET_BUILD_UNBUNDLED))
     $(INSTALLED_PRODUCT_BUILD_PROP_TARGET):build.prop-product \
     $(INSTALLED_ODM_BUILD_PROP_TARGET):build.prop-odm \
     $(INSTALLED_SYSTEM_EXT_BUILD_PROP_TARGET):build.prop-system_ext \
+    $(INSTALLED_RAMDISK_BUILD_PROP_TARGET):build.prop-ramdisk \
     $(BUILT_TARGET_FILES_PACKAGE) \
     $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
     $(INSTALLED_MISC_INFO_TARGET) \
@@ -1756,12 +1780,10 @@ else ifeq (,$(TARGET_BUILD_UNBUNDLED))
     $(call dist-for-goals, droidcore, $(f)))
 
   ifneq ($(ANDROID_BUILD_EMBEDDED),true)
-  ifneq ($(TARGET_BUILD_PDK),true)
     $(call dist-for-goals, droidcore, \
       $(APPS_ZIP) \
       $(INTERNAL_EMULATOR_PACKAGE_TARGET) \
     )
-  endif
   endif
 
   $(call dist-for-goals, droidcore, \
@@ -1899,6 +1921,11 @@ tidy_only:
 
 ndk: $(SOONG_OUT_DIR)/ndk.timestamp
 .PHONY: ndk
+
+# Checks that build/soong/apex/allowed_deps.txt remains up to date
+ifneq ($(UNSAFE_DISABLE_APEX_ALLOWED_DEPS_CHECK),true)
+  droidcore: ${APEX_ALLOWED_DEPS_CHECK}
+endif
 
 $(call dist-write-file,$(KATI_PACKAGE_MK_DIR)/dist.mk)
 

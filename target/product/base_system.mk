@@ -16,6 +16,7 @@
 
 # Base modules and settings for the system partition.
 PRODUCT_PACKAGES += \
+    abx \
     adbd_system_api \
     am \
     android.hidl.allocator@1.0-service \
@@ -37,7 +38,6 @@ PRODUCT_PACKAGES += \
     bcc \
     blank_screen \
     blkid \
-    service-blobstore \
     bmgr \
     bootanimation \
     bootstat \
@@ -118,11 +118,12 @@ PRODUCT_PACKAGES += \
     iptables \
     ip-up-vpn \
     javax.obex \
-    service-jobscheduler \
     keystore \
-    credstore \
+    keystore2 \
+		credstore \
     ld.mc \
     libaaudio \
+    libalarm_jni \
     libamidi \
     libandroid \
     libandroidfw \
@@ -186,7 +187,6 @@ PRODUCT_PACKAGES += \
     libstagefright_foundation \
     libstagefright_omx \
     libstdc++ \
-    libsurfaceflinger \
     libsysutils \
     libui \
     libusbhost \
@@ -195,6 +195,7 @@ PRODUCT_PACKAGES += \
     libwilhelm \
     linker \
     linkerconfig \
+    llkd \
     lmkd \
     LocalTransport \
     locksettings \
@@ -238,7 +239,6 @@ PRODUCT_PACKAGES += \
     screencap \
     sdcard \
     secdiscard \
-    SecureElement \
     selinux_policy_system \
     sensorservice \
     service \
@@ -251,6 +251,7 @@ PRODUCT_PACKAGES += \
     shell_and_utilities_system \
     sm \
     snapshotctl \
+    snapuserd \
     SoundPicker \
     storaged \
     surfaceflinger \
@@ -265,6 +266,7 @@ PRODUCT_PACKAGES += \
     tune2fs \
     tzdatacheck \
     uiautomator \
+    uinput \
     uncrypt \
     usbd \
     vdc \
@@ -277,10 +279,22 @@ PRODUCT_PACKAGES += \
     wifi.rc \
     wm \
 
+ifneq ($(TARGET_HAS_LOW_RAM), true)
+PRODUCT_PACKAGES += \
+    credstore \
+    SecureElement
+endif
+
 # VINTF data for system image
 PRODUCT_PACKAGES += \
     system_manifest.xml \
     system_compatibility_matrix.xml \
+
+# HWASAN runtime for SANITIZE_TARGET=hwaddress builds
+ifneq (,$(filter hwaddress,$(SANITIZE_TARGET)))
+  PRODUCT_PACKAGES += \
+   libclang_rt.hwasan-aarch64-android.bootstrap
+endif
 
 # Host tools to install
 PRODUCT_HOST_PACKAGES += \
@@ -365,6 +379,9 @@ PRODUCT_SYSTEM_PROPERTIES += ro.zygote?=zygote32
 PRODUCT_SYSTEM_PROPERTIES += debug.atrace.tags.enableflags=0
 PRODUCT_SYSTEM_PROPERTIES += persist.traced.enable=1
 
+# ANGLE is not enabled by default
+PRODUCT_PROPERTY_OVERRIDES += ro.gfx.angle.supported=false
+
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
@@ -378,6 +395,8 @@ PRODUCT_PACKAGES_DEBUG := \
     logpersist.start \
     logtagd.rc \
     procrank \
+    profcollectd \
+    profcollectctl \
     remount \
     showmap \
     sqlite3 \
