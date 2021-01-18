@@ -18,7 +18,11 @@
 # hardware, and install to the product partition.
 
 # /product packages
-PRODUCT_PACKAGES += \
-    CarrierConfig \
-    Dialer \
-    EmergencyInfo \
+
+ifneq ($(TARGET_NO_TELEPHONY), true)
+    PRODUCT_PACKAGES += \
+        CarrierConfig \
+        Dialer \
+        EmergencyInfo \
+
+endif #TARGET_NO_TELEPHONY

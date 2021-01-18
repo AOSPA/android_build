@@ -21,9 +21,14 @@
 TARGET_USES_QCOM_BSP_ATEL := true
 
 PRODUCT_PACKAGES := \
-    ONS \
     CarrierDefaultApp \
-    CallLogBackup \
-    CellBroadcastReceiver \
+
+ifneq ($(TARGET_NO_TELEPHONY), true)
+    PRODUCT_PACKAGES += \
+        ONS \
+        CallLogBackup \
+        CellBroadcastReceiver \
+
+endif #TARGET_NO_TELEPHONY
 
 PRODUCT_COPY_FILES := \

@@ -64,13 +64,19 @@ PRODUCT_PACKAGES += \
     screenrecord \
     SharedStorageBackup \
     SimAppDialog \
-    Telecom \
-    TelephonyProvider \
-    TeleService \
     Traceur \
     UserDictionaryProvider \
     VpnDialogs \
     vr \
+
+ifneq ($(TARGET_NO_TELEPHONY), true)
+    PRODUCT_PACKAGES += \
+        Telecom \
+        TelephonyProvider \
+        TeleService \
+
+endif #TARGET_NO_TELEPHONY
+
 
 ifneq ($(TARGET_HAS_LOW_RAM), true)
 PRODUCT_PACKAGES += \
@@ -81,7 +87,12 @@ PRODUCT_SYSTEM_SERVER_APPS += \
     FusedLocation \
     InputDevices \
     KeyChain \
-    Telecom \
+
+ifneq ($(TARGET_NO_TELEPHONY), true)
+    PRODUCT_SYSTEM_SERVER_APPS += \
+        Telecom \
+
+endif #TARGET_NO_TELEPHONY
 
 PRODUCT_COPY_FILES += \
     frameworks/av/media/libeffects/data/audio_effects.conf:system/etc/audio_effects.conf
