@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e7580f2a_13f75b3c",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000447
+      },
+      "writtenOn": "2021-01-19T17:12:44Z",
+      "side": 1,
+      "message": "Instead of touching AOSP makefiles here, could we have adb_root override su?",
+      "revId": "8257896859b4deb0c6f5d9edda46605c6a4d4623",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
