@@ -224,6 +224,7 @@ $(call add_json_bool, EnforceProductPartitionInterface,  $(PRODUCT_ENFORCE_PRODU
 $(call add_json_bool, InstallExtraFlattenedApexes, $(PRODUCT_INSTALL_EXTRA_FLATTENED_APEXES))
 
 $(call add_json_bool, BoardUsesRecoveryAsBoot, $(BOARD_USES_RECOVERY_AS_BOOT))
+$(call add_json_str,  PrebuiltHiddenApiDir, $(BOARD_PREBUILT_HIDDENAPI_DIR))
 
 $(call json_end)
 
