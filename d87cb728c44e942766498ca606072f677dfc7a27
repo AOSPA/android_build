@@ -16,6 +16,24 @@
       "message": "AFAIK this will only work on A-only devices",
       "revId": "d87cb728c44e942766498ca606072f677dfc7a27",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "f74a4fcd_d0c8c0e7",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000649
+      },
+      "writtenOn": "2021-01-24T13:59:40Z",
+      "side": 1,
+      "message": "And apparently AOSPA Recovery doesn\u0027t support delete_recursive so it is abandoned. thanks for further information xD",
+      "parentUuid": "4a701389_ff47ee8d",
+      "revId": "d87cb728c44e942766498ca606072f677dfc7a27",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
