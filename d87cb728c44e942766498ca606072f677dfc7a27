@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "4a701389_ff47ee8d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000633
+      },
+      "writtenOn": "2021-01-24T13:57:52Z",
+      "side": 1,
+      "message": "AFAIK this will only work on A-only devices",
+      "revId": "d87cb728c44e942766498ca606072f677dfc7a27",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
