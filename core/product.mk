@@ -324,18 +324,15 @@ _product_list_vars += PRODUCT_CFI_EXCLUDE_PATHS
 # Whether the Scudo hardened allocator is disabled platform-wide
 _product_single_value_vars += PRODUCT_DISABLE_SCUDO
 
-# A flag to override PRODUCT_COMPATIBLE_PROPERTY
-_product_single_value_vars += PRODUCT_COMPATIBLE_PROPERTY_OVERRIDE
-
 # List of extra VNDK versions to be included
 _product_list_vars += PRODUCT_EXTRA_VNDK_VERSIONS
+
+# Whether APEX should be compressed or not
+_product_single_value_vars += PRODUCT_COMPRESSED_APEX
 
 # VNDK version of product partition. It can be 'current' if the product
 # partitions uses PLATFORM_VNDK_VERSION.
 _product_single_value_vars += PRODUCT_PRODUCT_VNDK_VERSION
-
-# Whether the list of allowed of actionable compatible properties should be disabled or not
-_product_single_value_vars += PRODUCT_ACTIONABLE_COMPATIBLE_PROPERTY_DISABLE
 
 _product_single_value_vars += PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS
 _product_single_value_vars += PRODUCT_ENFORCE_ARTIFACT_SYSTEM_CERTIFICATE_REQUIREMENT
@@ -414,6 +411,20 @@ _product_single_value_vars += PRODUCT_OTA_FORCE_NON_AB_PACKAGE
 # If set, Java module in product partition cannot use hidden APIs.
 _product_single_value_vars += PRODUCT_ENFORCE_PRODUCT_PARTITION_INTERFACE
 
+# If set, only java_sdk_library can be used at inter-partition dependency.
+# Note: Build error if BOARD_VNDK_VERSION is not set while
+#       PRODUCT_ENFORCE_INTER_PARTITION_JAVA_SDK_LIBRARY is true, because
+#       PRODUCT_ENFORCE_INTER_PARTITION_JAVA_SDK_LIBRARY has no meaning if
+#       BOARD_VNDK_VERSION is not set.
+# Note: When PRODUCT_ENFORCE_PRODUCT_PARTITION_INTERFACE is not set, there are
+#       no restrictions at dependency between system and product partition.
+_product_single_value_vars += PRODUCT_ENFORCE_INTER_PARTITION_JAVA_SDK_LIBRARY
+
+# Allowlist for PRODUCT_ENFORCE_INTER_PARTITION_JAVA_SDK_LIBRARY option.
+# Listed modules are allowed at inter-partition dependency even if it isn't
+# a java_sdk_library module.
+_product_list_vars += PRODUCT_INTER_PARTITION_JAVA_LIBRARY_ALLOWLIST
+
 _product_single_value_vars += PRODUCT_INSTALL_EXTRA_FLATTENED_APEXES
 
 .KATI_READONLY := _product_single_value_vars _product_list_vars
@@ -467,6 +478,13 @@ define require-artifacts-in-path
   $(eval PRODUCTS.$(current_mk).ARTIFACT_PATH_ALLOWED_LIST := $(strip $(2))) \
   $(eval ARTIFACT_PATH_REQUIREMENT_PRODUCTS := \
     $(sort $(ARTIFACT_PATH_REQUIREMENT_PRODUCTS) $(current_mk)))
+endef
+
+# Like require-artifacts-in-path, but does not require all allow-list entries to
+# have an effect.
+define require-artifacts-in-path-relaxed
+  $(require-artifacts-in-path) \
+  $(eval PRODUCTS.$(current_mk).ARTIFACT_PATH_REQUIREMENT_IS_RELAXED := true)
 endef
 
 # Makes including non-existent modules in PRODUCT_PACKAGES an error.

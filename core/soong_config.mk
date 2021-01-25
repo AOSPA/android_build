@@ -54,6 +54,9 @@ $(call add_json_str,  DeviceSecondaryArchVariant,        $(TARGET_2ND_ARCH_VARIA
 $(call add_json_str,  DeviceSecondaryCpuVariant,         $(TARGET_2ND_CPU_VARIANT))
 $(call add_json_list, DeviceSecondaryAbi,                $(TARGET_2ND_CPU_ABI) $(TARGET_2ND_CPU_ABI2))
 
+$(call add_json_bool, Aml_abis,                          $(if $(filter mainline_sdk,$(TARGET_ARCH_SUITE)),true))
+$(call add_json_bool, Ndk_abis,                          $(if $(filter ndk,         $(TARGET_ARCH_SUITE)),true))
+
 $(call add_json_str,  NativeBridgeArch,                  $(TARGET_NATIVE_BRIDGE_ARCH))
 $(call add_json_str,  NativeBridgeArchVariant,           $(TARGET_NATIVE_BRIDGE_ARCH_VARIANT))
 $(call add_json_str,  NativeBridgeCpuVariant,            $(TARGET_NATIVE_BRIDGE_CPU_VARIANT))
@@ -202,7 +205,6 @@ $(call add_json_list, ProductHiddenAPIStubsTest,         $(PRODUCT_HIDDENAPI_STU
 
 $(call add_json_list, ProductPublicSepolicyDirs,         $(PRODUCT_PUBLIC_SEPOLICY_DIRS))
 $(call add_json_list, ProductPrivateSepolicyDirs,        $(PRODUCT_PRIVATE_SEPOLICY_DIRS))
-$(call add_json_bool, ProductCompatibleProperty,         $(PRODUCT_COMPATIBLE_PROPERTY))
 
 $(call add_json_list, TargetFSConfigGen,                 $(TARGET_FS_CONFIG_GEN))
 
@@ -223,6 +225,8 @@ $(call add_json_bool, EnforceInterPartitionJavaSdkLibrary, $(PRODUCT_ENFORCE_INT
 $(call add_json_list, InterPartitionJavaLibraryAllowList, $(PRODUCT_INTER_PARTITION_JAVA_LIBRARY_ALLOWLIST))
 
 $(call add_json_bool, InstallExtraFlattenedApexes, $(PRODUCT_INSTALL_EXTRA_FLATTENED_APEXES))
+
+$(call add_json_bool, CompressedApex, $(PRODUCT_COMPRESSED_APEX))
 
 $(call add_json_bool, BoardUsesRecoveryAsBoot, $(BOARD_USES_RECOVERY_AS_BOOT))
 
