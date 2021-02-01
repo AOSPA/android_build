@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2008 The Android Open Source Project
+# Copyright (C) 2020 The Android Open-Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# BUILD_ID is usually used to specify the branch name
-# (like "MAIN") or a branch name and a release candidate
-# (like "CRB01").  It must be a single word, and is
-# capitalized by convention.
 
-BUILD_ID=SKQ1.210118.001
+# Devices launching with Virtual A/B and has a vendor_boot partition is
+# preferred to inherit from this makefile instead of launch.mk.
+
+PRODUCT_VIRTUAL_AB_OTA := true
+
+PRODUCT_VENDOR_PROPERTIES += ro.virtual_ab.enabled=true
+
+PRODUCT_PACKAGES += \
+    linker.vendor_ramdisk \
+    e2fsck.vendor_ramdisk \

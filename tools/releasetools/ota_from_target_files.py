@@ -217,10 +217,13 @@ from __future__ import print_function
 
 import logging
 import multiprocessing
+import os
 import os.path
+import re
 import shlex
 import shutil
 import struct
+import subprocess
 import sys
 import zipfile
 
@@ -266,6 +269,7 @@ OPTIONS.extracted_input = None
 OPTIONS.skip_postinstall = False
 OPTIONS.skip_compatibility_check = False
 OPTIONS.disable_fec_computation = False
+OPTIONS.disable_verity_computation = False
 OPTIONS.partial = None
 OPTIONS.custom_images = {}
 
@@ -399,6 +403,8 @@ class Payload(object):
       cmd.extend(["--source_image", source_file])
       if OPTIONS.disable_fec_computation:
         cmd.extend(["--disable_fec_computation", "true"])
+      if OPTIONS.disable_verity_computation:
+        cmd.extend(["--disable_verity_computation", "true"])
     cmd.extend(additional_args)
     self._Run(cmd)
 
@@ -968,6 +974,50 @@ def GeneratePartitionTimestampFlagsDowngrade(pre_partition_state, post_partition
     ",".join([key + ":" + val for (key, val) in partition_timestamps.items()])
     ]
 
+def IsSparseImage(filepath):
+  with open(filepath, 'rb') as fp:
+    # Magic for android sparse image format
+    # https://source.android.com/devices/bootloader/images
+    return fp.read(4) == b'\x3A\xFF\x26\xED'
+
+def SupportsMainlineGkiUpdates(target_file):
+  """Return True if the build supports MainlineGKIUpdates.
+
+  This function scans the product.img file in IMAGES/ directory for
+  pattern |*/apex/com.android.gki.*.apex|. If there are files
+  matching this pattern, conclude that build supports mainline
+  GKI and return True
+
+  Args:
+    target_file: Path to a target_file.zip, or an extracted directory
+  Return:
+    True if thisb uild supports Mainline GKI Updates.
+  """
+  if target_file is None:
+    return False
+  if os.path.isfile(target_file):
+    target_file = common.UnzipTemp(target_file, ["IMAGES/product.img"])
+  if not os.path.isdir(target_file):
+    assert os.path.isdir(target_file), \
+        "{} must be a path to zip archive or dir containing extracted"\
+        " target_files".format(target_file)
+  image_file = os.path.join(target_file, "IMAGES", "product.img")
+
+  if not os.path.isfile(image_file):
+    return False
+
+  if IsSparseImage(image_file):
+    # Unsparse the image
+    tmp_img = common.MakeTempFile(suffix=".img")
+    subprocess.check_output(["simg2img", image_file, tmp_img])
+    image_file = tmp_img
+
+  cmd = ["debugfs_static", "-R", "ls -p /apex", image_file]
+  output = subprocess.check_output(cmd).decode()
+
+  pattern = re.compile(r"com\.android\.gki\..*\.apex")
+  return pattern.search(output) is not None
+
 def GenerateAbOtaPackage(target_file, output_file, source_file=None):
   """Generates an Android OTA package that has A/B update payload."""
   # Stage the output zip package for package signing.
@@ -991,6 +1041,7 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
       # TODO(zhangkelvin) Remove this once FEC on VABC is supported
       logger.info("Virtual AB Compression enabled, disabling FEC")
       OPTIONS.disable_fec_computation = True
+      OPTIONS.disable_verity_computation = True
   else:
     assert "ab_partitions" in OPTIONS.info_dict, \
         "META/ab_partitions.txt is required for ab_update."
@@ -1038,6 +1089,10 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
         metadata.postcondition.partition_state)
 
   additional_args += ["--max_timestamp", max_timestamp]
+
+  if SupportsMainlineGkiUpdates(source_file):
+    logger.warn("Detected build with mainline GKI, include full boot image.")
+    additional_args.extend(["--full_boot", "true"])
 
   payload.Generate(
       target_file,
@@ -1177,6 +1232,8 @@ def main(argv):
       OPTIONS.output_metadata_path = a
     elif o == "--disable_fec_computation":
       OPTIONS.disable_fec_computation = True
+    elif o == "--disable_verity_computation":
+      OPTIONS.disable_verity_computation = True
     elif o == "--force_non_ab":
       OPTIONS.force_non_ab = True
     elif o == "--boot_variable_file":
@@ -1225,6 +1282,7 @@ def main(argv):
                                  "skip_compatibility_check",
                                  "output_metadata_path=",
                                  "disable_fec_computation",
+                                 "disable_verity_computation",
                                  "force_non_ab",
                                  "boot_variable_file=",
                                  "partial=",
