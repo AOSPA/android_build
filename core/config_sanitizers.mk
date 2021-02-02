@@ -510,7 +510,9 @@ endif
 ifneq ($(findstring fsanitize,$(my_cflags)),)
   ifneq ($(findstring integer,$(my_cflags)),)
     ifeq ($(findstring sanitize=unsigned-shift-base,$(my_cflags)),)
-      my_cflags += -fno-sanitize=unsigned-shift-base
+      ifneq ($(my_sdclang),true)
+        my_cflags += -fno-sanitize=unsigned-shift-base
+      endif
     endif
   endif
 endif
