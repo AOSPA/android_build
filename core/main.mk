@@ -442,10 +442,18 @@ ADDITIONAL_SYSTEM_PROPERTIES += net.bt.name=Android
 ifeq ($(TARGET_FWK_SUPPORTS_FULL_VALUEADDS), true)
   ADDITIONAL_VENDOR_PROPERTIES += \
         ro.vendor.qti.va_aosp.support=1
+
+  ADDITIONAL_ODM_PROPERTIES += \
+        ro.vendor.qti.va_odm.support=1
+
   $(warning "Compile using modified AOSP tree supporting full vendor value-adds")
 else
   ADDITIONAL_VENDOR_PROPERTIES += \
         ro.vendor.qti.va_aosp.support=0
+
+  ADDITIONAL_ODM_PROPERTIES += \
+        ro.vendor.qti.va_odm.support=0
+
   $(warning "Compile using pure AOSP tree")
 endif
 
