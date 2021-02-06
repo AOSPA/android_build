@@ -1344,11 +1344,6 @@ my_tracked_src_files :=
 
 my_c_includes += $(TOPDIR)$(LOCAL_PATH) $(intermediates) $(generated_sources_dir)
 
-# The platform JNI header is for platform modules only.
-ifeq ($(LOCAL_SDK_VERSION)$(LOCAL_USE_VNDK),)
-  my_c_includes += $(JNI_H_INCLUDE)
-endif
-
 my_c_includes := $(foreach inc,$(my_c_includes),$(call clean-path,$(inc)))
 
 # Find $1 in the exception project list.
