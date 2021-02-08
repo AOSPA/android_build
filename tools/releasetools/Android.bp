@@ -28,6 +28,8 @@ python_defaults {
         "add_img_to_target_files.py",
     ],
     libs: [
+        "ota_metadata_proto",
+        "releasetools_apex_utils",
         "releasetools_build_image",
         "releasetools_build_super_image",
         "releasetools_common",
@@ -122,13 +124,15 @@ python_defaults {
         "releasetools_check_target_files_vintf",
         "releasetools_common",
         "releasetools_verity_utils",
+        "apex_manifest",
     ],
     required: [
         "brillo_update_payload",
         "checkvintf",
         "lz4",
         "toybox",
-        "unpack_bootimg"
+        "unpack_bootimg",
+        "deapexer",
     ],
     target: {
         darwin: {
@@ -169,6 +173,8 @@ python_library_host {
         "apex_utils.py",
     ],
     libs: [
+        "apex_manifest",
+        "ota_metadata_proto",
         "releasetools_common",
     ],
 }
@@ -276,6 +282,7 @@ python_defaults {
         "boot_signer",
         "brotli",
         "bsdiff",
+        "deapexer",
         "imgdiff",
         "minigzip",
         "lz4",
@@ -544,6 +551,8 @@ python_defaults {
     ],
     data: [
         "testdata/**/*",
+        ":com.android.apex.compressed.v1",
+        ":com.android.apex.compressed.v1_original",
     ],
     target: {
         darwin: {
@@ -551,12 +560,16 @@ python_defaults {
             enabled: false,
         },
     },
+    required: [
+        "deapexer",
+    ],
 }
 
 python_test_host {
     name: "releasetools_test",
     defaults: ["releasetools_test_defaults"],
     main: "test_utils.py",
+    test_suites: ["general-tests"],
     version: {
         py2: {
             enabled: true,
@@ -579,6 +592,7 @@ python_test_host {
     name: "releasetools_py3_test",
     defaults: ["releasetools_test_defaults"],
     main: "test_utils.py",
+    test_suites: ["general-tests"],
     version: {
         py2: {
             enabled: false,
