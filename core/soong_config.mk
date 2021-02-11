@@ -142,6 +142,7 @@ $(call add_json_str,  ProductVndkVersion,                $(PRODUCT_PRODUCT_VNDK_
 $(call add_json_list, ExtraVndkVersions,                 $(PRODUCT_EXTRA_VNDK_VERSIONS))
 $(call add_json_bool, BoardVndkRuntimeDisable,           $(BOARD_VNDK_RUNTIME_DISABLE))
 $(call add_json_list, DeviceSystemSdkVersions,           $(BOARD_SYSTEMSDK_VERSIONS))
+$(call add_json_str,  RecoverySnapshotVersion,           $(RECOVERY_SNAPSHOT_VERSION))
 $(call add_json_list, Platform_systemsdk_versions,       $(PLATFORM_SYSTEMSDK_VERSIONS))
 $(call add_json_bool, Malloc_not_svelte,                 $(call invert_bool,$(filter true,$(MALLOC_SVELTE))))
 $(call add_json_str,  Override_rs_driver,                $(OVERRIDE_RS_DRIVER))
