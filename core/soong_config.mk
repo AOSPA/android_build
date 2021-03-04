@@ -143,6 +143,7 @@ $(call add_json_list, ExtraVndkVersions,                 $(PRODUCT_EXTRA_VNDK_VE
 $(call add_json_bool, BoardVndkRuntimeDisable,           $(BOARD_VNDK_RUNTIME_DISABLE))
 $(call add_json_list, DeviceSystemSdkVersions,           $(BOARD_SYSTEMSDK_VERSIONS))
 $(call add_json_str,  RecoverySnapshotVersion,           $(RECOVERY_SNAPSHOT_VERSION))
+$(call add_json_str,  RamdiskSnapshotVersion,            $(RAMDISK_SNAPSHOT_VERSION))
 $(call add_json_list, Platform_systemsdk_versions,       $(PLATFORM_SYSTEMSDK_VERSIONS))
 $(call add_json_bool, Malloc_not_svelte,                 $(call invert_bool,$(filter true,$(MALLOC_SVELTE))))
 $(call add_json_str,  Override_rs_driver,                $(OVERRIDE_RS_DRIVER))
@@ -165,6 +166,12 @@ $(call end_json_map)
 $(call add_json_bool, DirectedRecoverySnapshot,          $(DIRECTED_RECOVERY_SNAPSHOT))
 $(call add_json_map,  RecoverySnapshotModules)
 $(foreach module,$(RECOVERY_SNAPSHOT_MODULES),\
+  $(call add_json_bool,$(module),true))
+$(call end_json_map)
+
+$(call add_json_bool, DirectedRamdiskSnapshot,          $(DIRECTED_RAMDISK_SNAPSHOT))
+$(call add_json_map,  RamdiskSnapshotModules)
+$(foreach module,$(RAMDISK_SNAPSHOT_MODULES),\
   $(call add_json_bool,$(module),true))
 $(call end_json_map)
 
