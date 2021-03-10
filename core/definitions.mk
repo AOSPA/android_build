@@ -598,8 +598,6 @@ $(_dir)/$(1).meta_lic : $(_deps) $(ALL_MODULES.$(1).NOTICES) $(foreach b,$(sort 
 	mkdir -p $$(dir $$@)
 	build/make/tools/build-license-metadata.sh -k $$(PRIVATE_KINDS) -c $$(PRIVATE_CONDITIONS) -n $$(PRIVATE_NOTICES) -d $$(PRIVATE_NOTICE_DEPS) -m $$(PRIVATE_INSTALL_MAP) -t $$(PRIVATE_TARGETS) $$(if $$(filter-out false,$$(PRIVATE_IS_CONTAINER)),-is_container) -p $$(PRIVATE_PACKAGE_NAME) -o $$@
 
-$(1) : $(_dir)/$(1).meta_lic
-
 $(if $(ALL_MODULES.$(1).INSTALLED_NOTICE_FILE),$(ALL_MODULES.$(1).INSTALLED_NOTICE_FILE) : $(_dir)/$(1).meta_lic)
 
 .PHONY: $(1).meta_lic
@@ -2141,6 +2139,17 @@ $(hide) $(ZIPTIME) $@.tmp
 $(hide) $(call commit-change-for-toc,$@)
 endef
 
+# Runs jarjar on an input file.  Jarjar doesn't exit with a nonzero return code
+# when there is a syntax error in a rules file and doesn't write the output
+# file, so removes the output file before running jarjar and check if it exists
+# after running jarjar.
+define transform-jarjar
+echo $($(PRIVATE_PREFIX)DISPLAY) JarJar: $@
+rm -f $@
+$(JAVA) -jar $(JARJAR) process $(PRIVATE_JARJAR_RULES) $< $@
+[ -e $@ ] || (echo "Missing output file"; exit 1)
+endef
+
 # Moves $1.tmp to $1 if necessary. This is designed to be used with
 # .KATI_RESTAT. For kati, this function doesn't update the timestamp
 # of $1 when $1.tmp is identical to $1 so that ninja won't rebuild
@@ -2388,12 +2397,17 @@ endef
 #
 define uncompress-prebuilt-embedded-jni-libs
   if (zipinfo $@ 'lib/*.so' 2>/dev/null | grep -v ' stor ' >/dev/null) ; then \
-    $(ZIP2ZIP) -i $@ -o $@.tmp -0 'lib/**/*.so' \
-      $(if $(PRIVATE_EMBEDDED_JNI_LIBS), \
-        -x 'lib/**/*.so' \
-        $(addprefix -X ,$(PRIVATE_EMBEDDED_JNI_LIBS))) && \
-    mv -f $@.tmp $@ ; \
+    $(ZIP2ZIP) -i $@ -o $@.tmp -0 'lib/**/*.so' && mv -f $@.tmp $@ ; \
   fi
+endef
+
+# Remove unwanted shared JNI libraries embedded in an apk.
+#
+define remove-unwanted-prebuilt-embedded-jni-libs
+  $(if $(PRIVATE_EMBEDDED_JNI_LIBS), \
+    $(ZIP2ZIP) -i $@ -o $@.tmp \
+      -x 'lib/**/*.so' $(addprefix -X ,$(PRIVATE_EMBEDDED_JNI_LIBS)) && \
+    mv -f $@.tmp $@)
 endef
 
 # TODO(joeo): If we can ever upgrade to post 3.81 make and get the
