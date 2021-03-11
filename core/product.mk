@@ -195,9 +195,6 @@ _product_list_vars += PRODUCT_ENFORCE_RRO_EXCLUDED_OVERLAYS
 # Package list to apply enforcing RRO.
 _product_list_vars += PRODUCT_ENFORCE_RRO_TARGETS
 
-# Packages to skip auto-generating RROs for when PRODUCT_ENFORCE_RRO_TARGETS is set to *.
-_product_list_vars += PRODUCT_ENFORCE_RRO_EXEMPTED_TARGETS
-
 _product_list_vars += PRODUCT_SDK_ATREE_FILES
 _product_list_vars += PRODUCT_SDK_ADDON_NAME
 _product_list_vars += PRODUCT_SDK_ADDON_COPY_FILES
@@ -224,10 +221,10 @@ _product_list_vars += PRODUCT_BOOT_JARS
 # instead of PRODUCT_BOOT_JARS, so that device-specific jars go after common jars.
 _product_list_vars += PRODUCT_BOOT_JARS_EXTRA
 
-_product_list_vars += PRODUCT_SUPPORTS_BOOT_SIGNER
-_product_list_vars += PRODUCT_SUPPORTS_VBOOT
-_product_list_vars += PRODUCT_SUPPORTS_VERITY
-_product_list_vars += PRODUCT_SUPPORTS_VERITY_FEC
+_product_single_value_vars += PRODUCT_SUPPORTS_BOOT_SIGNER
+_product_single_value_vars += PRODUCT_SUPPORTS_VBOOT
+_product_single_value_vars += PRODUCT_SUPPORTS_VERITY
+_product_single_value_vars += PRODUCT_SUPPORTS_VERITY_FEC
 _product_list_vars += PRODUCT_SYSTEM_SERVER_APPS
 _product_list_vars += PRODUCT_SYSTEM_SERVER_JARS
 # List of system_server jars delivered via apex. Format = <apex name>:<jar name>.
@@ -469,7 +466,9 @@ define inherit-product
   $(eval current_mk := $(strip $(word 1,$(_include_stack)))) \
   $(eval inherit_var := PRODUCTS.$(current_mk).INHERITS_FROM) \
   $(eval $(inherit_var) := $(sort $($(inherit_var)) $(np))) \
-  $(eval PARENT_PRODUCT_FILES := $(sort $(PARENT_PRODUCT_FILES) $(current_mk)))
+  $(eval PARENT_PRODUCT_FILES := $(sort $(PARENT_PRODUCT_FILES) $(current_mk))) \
+  $(call dump-inherit,$(strip $(word 1,$(_include_stack))),$(1)) \
+  $(call dump-config-vals,$(current_mk),inherit)
 endef
 
 # Specifies a number of path prefixes, relative to PRODUCT_OUT, where the
