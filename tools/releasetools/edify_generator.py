@@ -156,11 +156,15 @@ class EdifyGenerator(object):
            ");")
     self.script.append(self.WordWrap(cmd))
 
-  def RunBackup(self, command, mount_point):
+  def RunBackup(self, command, mount_point, dynamic=False):
     if self.fstab:
       p = self.fstab[mount_point]
-    self.script.append(('run_program("/tmp/install/bin/backuptool.sh", "%s", "%s", "%s");' % (
-        command, p.device, p.fs_type)))
+    if dynamic:
+      self.script.append(('run_program("/tmp/install/bin/backuptool.sh", "%s", map_partition("%s"), "%s");' % (
+          command, p.device, p.fs_type)))
+    else:
+      self.script.append(('run_program("/tmp/install/bin/backuptool.sh", "%s", "%s", "%s");' % (
+          command, p.device, p.fs_type)))
 
   def ShowProgress(self, frac, dur):
     """Update the progress bar, advancing it over 'frac' over the next
