@@ -514,6 +514,7 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
             "BOOT/RAMDISK/system/etc/update_engine/update-payload-key.pub.pem",
             "RECOVERY/RAMDISK/system/etc/security/otacerts.zip",
             "SYSTEM/etc/security/otacerts.zip",
+            "RECOVERY/RAMDISK/system/etc/update_engine/update-payload-key.pub.pem",          
             "SYSTEM/etc/update_engine/update-payload-key.pub.pem")):
       pass
 
@@ -790,7 +791,10 @@ def ReplaceOtaKeys(input_tf_zip, output_tf_zip, misc_info):
         output_tf_zip,
         "BOOT/RAMDISK/system/etc/update_engine/update-payload-key.pub.pem",
         pubkey)
-
+    common.ZipWriteStr(
+        output_tf_zip,
+        "RECOVERY/RAMDISK/system/etc/update_engine/update-payload-key.pub.pem",
+        pubkey)
 
 def ReplaceVerityPublicKey(output_zip, filename, key_path):
   """Replaces the verity public key at the given path in the given zip.
