@@ -83,6 +83,8 @@ $(shell mkdir -p $(EMPTY_DIRECTORY) && rm -rf $(EMPTY_DIRECTORY)/*)
 -include test/vts/tools/vts-core-tradefed/build/config.mk
 # CSUITE-specific config.
 -include test/app_compat/csuite/tools/build/config.mk
+# CATBox-specific config.
+-include test/catbox/tools/build/config.mk
 
 # Clean rules
 .PHONY: clean-dex-files
@@ -432,7 +434,7 @@ ADDITIONAL_SYSTEM_PROPERTIES += net.bt.name=Android
 
 # QCV: initialize property - used to detect framework type
 ifeq ($(TARGET_FWK_SUPPORTS_FULL_VALUEADDS), true)
-  ADDITIONAL_VENDOR_PROPERTIES += \
+  ADDITIONAL_SYSTEM_PROPERTIES += \
         ro.vendor.qti.va_aosp.support=1
 
   ADDITIONAL_ODM_PROPERTIES += \
@@ -440,7 +442,7 @@ ifeq ($(TARGET_FWK_SUPPORTS_FULL_VALUEADDS), true)
 
   $(warning "Compile using modified AOSP tree supporting full vendor value-adds")
 else
-  ADDITIONAL_VENDOR_PROPERTIES += \
+  ADDITIONAL_SYSTEM_PROPERTIES += \
         ro.vendor.qti.va_aosp.support=0
 
   ADDITIONAL_ODM_PROPERTIES += \
@@ -1493,9 +1495,6 @@ ramdisk_debug: $(INSTALLED_DEBUG_RAMDISK_TARGET)
 .PHONY: ramdisk_test_harness
 ramdisk_test_harness: $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
 
-.PHONY: vendor_ramdisk_debug
-vendor_ramdisk_debug: $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET)
-
 .PHONY: userdataimage
 userdataimage: $(INSTALLED_USERDATAIMAGE_TARGET)
 
@@ -1575,7 +1574,6 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_BPTIMAGE_TARGET) \
     $(INSTALLED_VENDORIMAGE_TARGET) \
     $(INSTALLED_VENDOR_BOOTIMAGE_TARGET) \
-    $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
     $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
     $(INSTALLED_ODMIMAGE_TARGET) \
     $(INSTALLED_VENDOR_DLKMIMAGE_TARGET) \
@@ -1760,7 +1758,6 @@ else ifeq (,$(TARGET_BUILD_UNBUNDLED))
       $(INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK) \
       $(INSTALLED_DEBUG_RAMDISK_TARGET) \
       $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) \
-      $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
       $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
     )
     $(call dist-for-goals, bootimage_test_harness, \
