@@ -16,11 +16,26 @@
 
 package com.android.build.config;
 
-import java.util.Map;
-
 /**
- * Wrapper for invoking kati.
+ * Whether a product config variable is a list or single-value variable.
  */
-public interface Kati {
-    public Map<String, MakeConfig> loadProductConfig();
+public enum VarType {
+    /**
+     * A product config variable that is a list of space separated strings.
+     * These are defined by _product_single_value_vars in product.mk.
+     */
+    LIST,
+
+    /**
+     * A product config varaible that is a single string.
+     * These are defined by _product_list_vars in product.mk.
+     */
+    SINGLE,
+
+    /**
+     * A variable that is given the special product config handling but is
+     * nonetheless defined by product config makefiles.
+     */
+    UNKNOWN
 }
+
