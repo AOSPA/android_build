@@ -31,14 +31,20 @@ public class ConvertMakeToGenericConfig {
         mErrors = errors;
     }
 
-    public GenericConfig convert(MakeConfig make) {
+    public GenericConfig convert(Map<String, MakeConfig> make) {
         final GenericConfig result = new GenericConfig();
 
+        final MakeConfig products = make.get("PRODUCTS");
+        if (products == null) {
+            mErrors.ERROR_DUMPCONFIG.add("Could not find PRODUCTS phase in dumpconfig output.");
+            return null;
+        }
+
         // Base class fields
-        result.copyFrom(make);
+        result.copyFrom(products);
 
         // Each file
-        for (MakeConfig.ConfigFile f: make.getConfigFiles()) {
+        for (MakeConfig.ConfigFile f: products.getConfigFiles()) {
             final GenericConfig.ConfigFile genericFile
                     = new GenericConfig.ConfigFile(f.getFilename());
             result.addConfigFile(genericFile);
@@ -77,7 +83,7 @@ public class ConvertMakeToGenericConfig {
                 for (final Map.Entry<String, Str> entry: block.getVars().entrySet()) {
                     final String varName = entry.getKey();
                     final GenericConfig.Assign assign = convertAssignment(block.getBlockType(),
-                            block.getInheritedFile(), make.getVarType(varName), varName,
+                            block.getInheritedFile(), products.getVarType(varName), varName,
                             entry.getValue(), prevBlock.getVar(varName));
                     if (assign != null) {
                         genericFile.addStatement(assign);
@@ -100,6 +106,29 @@ public class ConvertMakeToGenericConfig {
                 prevBlock = block;
             }
         }
+
+        // Overwrite the final variables with the ones that come from the PRODUCTS-EXPAND phase.
+        // Drop the ones that were newly defined between the two phases, but leave values
+        // that were modified between.  We do need to reproduce that logic in this tool.
+        final MakeConfig expand = make.get("PRODUCT-EXPAND");
+        if (expand == null) {
+            mErrors.ERROR_DUMPCONFIG.add("Could not find PRODUCT-EXPAND phase in dumpconfig"
+                    + " output.");
+            return null;
+        }
+        final Map<String, Str> productsFinal = products.getFinalVariables();
+        final Map<String, Str> expandInitial = expand.getInitialVariables();
+        final Map<String, Str> expandFinal = expand.getFinalVariables();
+        final Map<String, Str> finalFinal = result.getFinalVariables();
+        finalFinal.clear();
+        for (Map.Entry<String, Str> var: expandFinal.entrySet()) {
+            final String varName = var.getKey();
+            if (expandInitial.containsKey(varName) && !productsFinal.containsKey(varName)) {
+                continue;
+            }
+            finalFinal.put(varName, var.getValue());
+        }
+
         return result;
     }
 
@@ -107,20 +136,20 @@ public class ConvertMakeToGenericConfig {
      * Converts one variable from a MakeConfig Block into a GenericConfig Assignment.
      */
     GenericConfig.Assign convertAssignment(MakeConfig.BlockType blockType, Str inheritedFile,
-            ConfigBase.VarType varType, String varName, Str varVal, Str prevVal) {
+            VarType varType, String varName, Str varVal, Str prevVal) {
         if (prevVal == null) {
             // New variable.
             return new GenericConfig.Assign(varName, varVal);
         } else if (!varVal.equals(prevVal)) {
             // The value changed from the last block.
-            if (varVal.equals("")) {
+            if (varVal.length() == 0) {
                 // It was set to empty
                 return new GenericConfig.Assign(varName, varVal);
             } else {
                 // Product vars have the @inherit processing. Other vars we
                 // will just ignore and put in one section at the end, based
                 // on the difference between the BEFORE and AFTER blocks.
-                if (varType == ConfigBase.VarType.UNKNOWN) {
+                if (varType == VarType.UNKNOWN) {
                     if (blockType == MakeConfig.BlockType.AFTER) {
                         // For UNKNOWN variables, we don't worry about the
                         // intermediate steps, just take the final value.
