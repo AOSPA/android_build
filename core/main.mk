@@ -292,6 +292,13 @@ ADDITIONAL_VENDOR_PROPERTIES += \
     ro.product.first_api_level=$(PRODUCT_SHIPPING_API_LEVEL)
 endif
 
+# Vendors with GRF must define BOARD_SHIPPING_API_LEVEL for the vendor API level.
+# This must not be defined for the non-GRF devices.
+ifdef BOARD_SHIPPING_API_LEVEL
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.board.first_api_level=$(BOARD_SHIPPING_API_LEVEL)
+endif
+
 ADDITIONAL_VENDOR_PROPERTIES += \
     ro.vendor.build.security_patch=$(VENDOR_SECURITY_PATCH) \
     ro.product.board=$(TARGET_BOOTLOADER_BOARD_NAME) \
@@ -1529,6 +1536,9 @@ vendorbootimage_debug: $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET)
 .PHONY: vendorramdisk
 vendorramdisk: $(INSTALLED_VENDOR_RAMDISK_TARGET)
 
+.PHONY: vendorramdisk_debug
+vendorramdisk_debug: $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET)
+
 .PHONY: productimage
 productimage: $(INSTALLED_PRODUCTIMAGE_TARGET)
 
@@ -1588,6 +1598,7 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_VENDOR_BOOTIMAGE_TARGET) \
     $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
     $(INSTALLED_VENDOR_RAMDISK_TARGET) \
+    $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
     $(INSTALLED_ODMIMAGE_TARGET) \
     $(INSTALLED_VENDOR_DLKMIMAGE_TARGET) \
     $(INSTALLED_ODM_DLKMIMAGE_TARGET) \
@@ -1772,6 +1783,8 @@ else ifeq (,$(TARGET_BUILD_UNBUNDLED))
       $(INSTALLED_DEBUG_RAMDISK_TARGET) \
       $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) \
       $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
+      $(INSTALLED_VENDOR_RAMDISK_TARGET) \
+      $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
     )
     $(call dist-for-goals, bootimage_test_harness, \
       $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET) \
@@ -1890,7 +1903,7 @@ tidy_only:
 ndk: $(SOONG_OUT_DIR)/ndk.timestamp
 .PHONY: ndk
 
-# Checks that build/soong/apex/allowed_deps.txt remains up to date
+# Checks that allowed_deps.txt remains up to date
 ifneq ($(UNSAFE_DISABLE_APEX_ALLOWED_DEPS_CHECK),true)
   droidcore: ${APEX_ALLOWED_DEPS_CHECK}
 endif
