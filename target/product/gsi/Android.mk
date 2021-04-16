@@ -170,7 +170,8 @@ ifeq ($(filter com.android.vndk.current.on_vendor, $(PRODUCT_PACKAGES)),)
 	_vndk_versions += $(PRODUCT_EXTRA_VNDK_VERSIONS)
 endif
 ifneq ($(BOARD_VNDK_VERSION),current)
-	_vndk_versions += $(BOARD_VNDK_VERSION)
+	# TODO(b/185817026)
+	# _vndk_versions += $(BOARD_VNDK_VERSION)
 endif
 LOCAL_MODULE := vndk_apex_snapshot_package
 LOCAL_LICENSE_KINDS := legacy_restricted
