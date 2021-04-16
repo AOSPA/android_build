@@ -53,7 +53,6 @@ PRODUCT_PACKAGES += \
     KeyChain \
     librs_jni \
     ManagedProvisioning \
-    MmsService \
     MtpDocumentsProvider \
     MusicFX \
     OsuLogin \
@@ -71,6 +70,7 @@ PRODUCT_PACKAGES += \
 
 ifneq ($(TARGET_NO_TELEPHONY), true)
     PRODUCT_PACKAGES += \
+        MmsService \
         Telecom \
         TelephonyProvider \
         TeleService \
