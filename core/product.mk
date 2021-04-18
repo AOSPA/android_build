@@ -236,6 +236,9 @@ _product_single_value_vars += PRODUCT_BROKEN_SUBOPTIMAL_ORDER_OF_SYSTEM_SERVER_J
 # This is necessary to avoid jars reordering due to makefile inheritance order.
 _product_list_vars += PRODUCT_SYSTEM_SERVER_JARS_EXTRA
 
+# Set to true to disable <uses-library> checks for a product.
+_product_list_vars += PRODUCT_BROKEN_VERIFY_USES_LIBRARIES
+
 # All of the apps that we force preopt, this overrides WITH_DEXPREOPT.
 _product_list_vars += PRODUCT_ALWAYS_PREOPT_EXTRACTED_APK
 _product_list_vars += PRODUCT_DEXPREOPT_SPEED_APPS
@@ -369,6 +372,11 @@ _product_list_vars += PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES
 _product_list_vars += PRODUCT_PACKAGE_NAME_OVERRIDES
 _product_list_vars += PRODUCT_CERTIFICATE_OVERRIDES
 
+# A list of <overridden-apex>:<override-apex> pairs that specifies APEX module
+# overrides to be applied to the APEX names in the boot jar variables
+# (PRODUCT_BOOT_JARS, PRODUCT_UPDATABLE_BOOT_JARS etc).
+_product_list_vars += PRODUCT_BOOT_JAR_MODULE_OVERRIDES
+
 # Controls for whether different partitions are built for the current product.
 _product_single_value_vars += PRODUCT_BUILD_SYSTEM_IMAGE
 _product_single_value_vars += PRODUCT_BUILD_SYSTEM_OTHER_IMAGE
@@ -385,12 +393,10 @@ _product_single_value_vars += PRODUCT_BUILD_RECOVERY_IMAGE
 _product_single_value_vars += PRODUCT_BUILD_BOOT_IMAGE
 _product_single_value_vars += PRODUCT_BUILD_VENDOR_BOOT_IMAGE
 _product_single_value_vars += PRODUCT_BUILD_VBMETA_IMAGE
+_product_single_value_vars += PRODUCT_BUILD_SUPER_EMPTY_IMAGE
 
 # List of boot jars delivered via apex
 _product_list_vars += PRODUCT_UPDATABLE_BOOT_JARS
-
-# Whether the product would like to check prebuilt ELF files.
-_product_single_value_vars += PRODUCT_CHECK_ELF_FILES
 
 # If set, device uses virtual A/B.
 _product_single_value_vars += PRODUCT_VIRTUAL_AB_OTA
@@ -615,6 +621,8 @@ get-product-var = $(PRODUCTS.$(strip $(1)).$(2))
 # to a shorthand that is more convenient to read from elsewhere.
 #
 define strip-product-vars
+$(call dump-phase-start,PRODUCT-EXPAND,,$(_product_var_list),$(_product_single_value_vars), \
+		build/make/core/product.mk) \
 $(foreach v,\
   $(_product_var_list) \
     PRODUCT_ENFORCE_PACKAGES_EXIST \
@@ -622,7 +630,8 @@ $(foreach v,\
   $(eval $(v) := $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).$(v)))) \
   $(eval get-product-var = $$(if $$(filter $$(1),$$(INTERNAL_PRODUCT)),$$($$(2)),$$(PRODUCTS.$$(strip $$(1)).$$(2)))) \
   $(KATI_obsolete_var PRODUCTS.$(INTERNAL_PRODUCT).$(v),Use $(v) instead) \
-)
+) \
+$(call dump-phase-end,build/make/core/product.mk)
 endef
 
 define add-to-product-copy-files-if-exists

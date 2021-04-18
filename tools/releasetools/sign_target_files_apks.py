@@ -123,6 +123,17 @@ Usage:  sign_target_files_apks [flags] input_target_files output_target_files
       mounted on the partition (e.g. "--signing_helper /path/to/helper"). The
       args will be appended to the existing ones in info dict.
 
+  --gki_signing_algorithm <algorithm>
+  --gki_signing_key <key>
+      Use the specified algorithm (e.g. SHA256_RSA4096) and the key to generate
+      'boot signature' in a v4 boot.img. Otherwise it uses the existing values
+      in info dict.
+
+  --gki_signing_extra_args <args>
+      Specify any additional args that are needed to generate 'boot signature'
+      (e.g. --prop foo:bar). The args will be appended to the existing ones
+      in info dict.
+
   --android_jar_path <path>
       Path to the android.jar to repack the apex file.
 """
@@ -174,21 +185,36 @@ OPTIONS.tag_changes = ("-test-keys", "-dev-keys", "+release-keys")
 OPTIONS.avb_keys = {}
 OPTIONS.avb_algorithms = {}
 OPTIONS.avb_extra_args = {}
+OPTIONS.gki_signing_key = None
+OPTIONS.gki_signing_algorithm = None
+OPTIONS.gki_signing_extra_args = None
 OPTIONS.android_jar_path = None
 
 
 AVB_FOOTER_ARGS_BY_PARTITION = {
-    'boot' : 'avb_boot_add_hash_footer_args',
-    'dtbo' : 'avb_dtbo_add_hash_footer_args',
-    'recovery' : 'avb_recovery_add_hash_footer_args',
-    'system' : 'avb_system_add_hashtree_footer_args',
-    'system_other' : 'avb_system_other_add_hashtree_footer_args',
-    'vendor' : 'avb_vendor_add_hashtree_footer_args',
-    'vendor_boot' : 'avb_vendor_boot_add_hash_footer_args',
-    'vbmeta' : 'avb_vbmeta_args',
-    'vbmeta_system' : 'avb_vbmeta_system_args',
-    'vbmeta_vendor' : 'avb_vbmeta_vendor_args',
+    'boot': 'avb_boot_add_hash_footer_args',
+    'dtbo': 'avb_dtbo_add_hash_footer_args',
+    'product': 'avb_product_add_hashtree_footer_args',
+    'recovery': 'avb_recovery_add_hash_footer_args',
+    'system': 'avb_system_add_hashtree_footer_args',
+    'system_ext': 'avb_system_ext_add_hashtree_footer_args',
+    'system_other': 'avb_system_other_add_hashtree_footer_args',
+    'odm': 'avb_odm_add_hashtree_footer_args',
+    'odm_dlkm': 'avb_odm_dlkm_add_hashtree_footer_args',
+    'pvmfw': 'avb_pvmfw_add_hash_footer_args',
+    'vendor': 'avb_vendor_add_hashtree_footer_args',
+    'vendor_boot': 'avb_vendor_boot_add_hash_footer_args',
+    'vendor_dlkm': "avb_vendor_dlkm_add_hashtree_footer_args",
+    'vbmeta': 'avb_vbmeta_args',
+    'vbmeta_system': 'avb_vbmeta_system_args',
+    'vbmeta_vendor': 'avb_vbmeta_vendor_args',
 }
+
+
+# Check that AVB_FOOTER_ARGS_BY_PARTITION is in sync with AVB_PARTITIONS.
+for partition in common.AVB_PARTITIONS:
+  if partition not in AVB_FOOTER_ARGS_BY_PARTITION:
+    raise RuntimeError("Missing {} in AVB_FOOTER_ARGS".format(partition))
 
 
 def GetApkCerts(certmap):
@@ -665,6 +691,9 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
   if misc_info.get('avb_enable') == 'true':
     RewriteAvbProps(misc_info)
 
+  # Replace the GKI signing key for boot.img, if any.
+  ReplaceGkiSigningKey(misc_info)
+
   # Write back misc_info with the latest values.
   ReplaceMiscInfoTxt(input_tf_zip, output_tf_zip, misc_info)
 
@@ -983,6 +1012,28 @@ def RewriteAvbProps(misc_info):
       misc_info[args_key] = result
 
 
+def ReplaceGkiSigningKey(misc_info):
+  """Replaces the GKI signing key."""
+
+  key = OPTIONS.gki_signing_key
+  if not key:
+    return
+
+  algorithm = OPTIONS.gki_signing_algorithm
+  if not algorithm:
+    raise ValueError("Missing --gki_signing_algorithm")
+
+  print('Replacing GKI signing key with "%s" (%s)' % (key, algorithm))
+  misc_info["gki_signing_algorithm"] = algorithm
+  misc_info["gki_signing_key_path"] = key
+
+  extra_args = OPTIONS.gki_signing_extra_args
+  if extra_args:
+    print('Setting extra GKI signing args: "%s"' % (extra_args))
+    misc_info["gki_signing_signature_args"] = (
+        misc_info.get("gki_signing_signature_args", '') + ' ' + extra_args)
+
+
 def BuildKeyMap(misc_info, key_mapping_options):
   for s, d in key_mapping_options:
     if s is None:   # -d option
@@ -1214,6 +1265,12 @@ def main(argv):
       # 'oem=--signing_helper_with_files=/tmp/avbsigner.sh'.
       partition, extra_args = a.split("=", 1)
       OPTIONS.avb_extra_args[partition] = extra_args
+    elif o == "--gki_signing_key":
+      OPTIONS.gki_signing_key = a
+    elif o == "--gki_signing_algorithm":
+      OPTIONS.gki_signing_algorithm = a
+    elif o == "--gki_signing_extra_args":
+      OPTIONS.gki_signing_extra_args = a
     else:
       return False
     return True
@@ -1261,6 +1318,9 @@ def main(argv):
           "avb_extra_custom_image_key=",
           "avb_extra_custom_image_algorithm=",
           "avb_extra_custom_image_extra_args=",
+          "gki_signing_key=",
+          "gki_signing_algorithm=",
+          "gki_signing_extra_args=",
       ],
       extra_option_handler=option_handler)
 

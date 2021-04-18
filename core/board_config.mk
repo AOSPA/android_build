@@ -25,6 +25,7 @@ _board_strip_readonly_list += BOARD_EGL_CFG
 _board_strip_readonly_list += BOARD_HAVE_BLUETOOTH
 _board_strip_readonly_list += BOARD_INSTALLER_CMDLINE
 _board_strip_readonly_list += BOARD_KERNEL_CMDLINE
+_board_strip_readonly_list += BOARD_BOOTCONFIG
 _board_strip_readonly_list += BOARD_KERNEL_BASE
 _board_strip_readonly_list += BOARD_USES_GENERIC_AUDIO
 _board_strip_readonly_list += BOARD_USES_RECOVERY_AS_BOOT
@@ -222,6 +223,10 @@ endif
 .KATI_READONLY := $(_board_strip_readonly_list)
 
 INTERNAL_KERNEL_CMDLINE := $(BOARD_KERNEL_CMDLINE)
+ifneq (,$(BOARD_BOOTCONFIG))
+  INTERNAL_KERNEL_CMDLINE += bootconfig
+  INTERNAL_BOOTCONFIG := $(BOARD_BOOTCONFIG)
+endif
 
 ifneq ($(filter %64,$(TARGET_ARCH)),)
   TARGET_IS_64_BIT := true
@@ -324,7 +329,8 @@ endif
 ###########################################
 # Now we can substitute with the real value of TARGET_COPY_OUT_DEBUG_RAMDISK
 ifneq (,$(filter true,$(BOARD_USES_RECOVERY_AS_BOOT) \
-  $(BOARD_GKI_NONAB_COMPAT) $(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)))
+  $(BOARD_GKI_NONAB_COMPAT) $(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT) \
+  $(BOARD_USES_GENERIC_KERNEL_IMAGE)))
 TARGET_COPY_OUT_DEBUG_RAMDISK := debug_ramdisk/first_stage_ramdisk
 TARGET_COPY_OUT_VENDOR_DEBUG_RAMDISK := vendor_debug_ramdisk/first_stage_ramdisk
 TARGET_COPY_OUT_TEST_HARNESS_RAMDISK := test_harness_ramdisk/first_stage_ramdisk
@@ -454,6 +460,25 @@ ifeq ($(PRODUCT_BUILD_VBMETA_IMAGE),false)
   BUILDING_VBMETA_IMAGE :=
 endif
 .KATI_READONLY := BUILDING_VBMETA_IMAGE
+
+# Are we building a super_empty image
+BUILDING_SUPER_EMPTY_IMAGE :=
+ifeq ($(PRODUCT_BUILD_SUPER_EMPTY_IMAGE),)
+  ifeq (true,$(PRODUCT_USE_DYNAMIC_PARTITIONS))
+    ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
+      BUILDING_SUPER_EMPTY_IMAGE := true
+    endif
+  endif
+else ifeq ($(PRODUCT_BUILD_SUPER_EMPTY_IMAGE),true)
+  ifneq (true,$(PRODUCT_USE_DYNAMIC_PARTITIONS))
+    $(error PRODUCT_BUILD_SUPER_EMPTY_IMAGE set to true, but PRODUCT_USE_DYNAMIC_PARTITIONS is not true)
+  endif
+  ifeq ($(BOARD_SUPER_PARTITION_SIZE),)
+    $(error PRODUCT_BUILD_SUPER_EMPTY_IMAGE set to true, but BOARD_SUPER_PARTITION_SIZE is not defined)
+  endif
+  BUILDING_SUPER_EMPTY_IMAGE := true
+endif
+.KATI_READONLY := BUILDING_SUPER_EMPTY_IMAGE
 
 ###########################################
 # Now we can substitute with the real value of TARGET_COPY_OUT_VENDOR

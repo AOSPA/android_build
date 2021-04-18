@@ -694,10 +694,10 @@ INSTALLED_FILES_JSON_ROOT := $(INSTALLED_FILES_FILE_ROOT:.txt=.json)
 $(INSTALLED_FILES_FILE_ROOT): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_ROOT)
 $(INSTALLED_FILES_FILE_ROOT) : $(INTERNAL_ROOT_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_ROOT_OUT) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_ROOT_OUT) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 $(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE_ROOT))
 
@@ -723,11 +723,11 @@ INSTALLED_FILES_JSON_RAMDISK := $(INSTALLED_FILES_FILE_RAMDISK:.txt=.json)
 $(INSTALLED_FILES_FILE_RAMDISK): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_RAMDISK)
 $(INSTALLED_FILES_FILE_RAMDISK) : $(INTERNAL_RAMDISK_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(TARGET_RAMDISK_OUT)
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_RAMDISK_OUT) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(TARGET_RAMDISK_OUT)
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_RAMDISK_OUT) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 $(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE_RAMDISK))
 BUILT_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk.img
@@ -746,7 +746,7 @@ endif
 # We just build this directly to the install location.
 INSTALLED_RAMDISK_TARGET := $(BUILT_RAMDISK_TARGET)
 $(INSTALLED_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_RAMDISK_FILES) $(INSTALLED_FILES_FILE_RAMDISK) | $(COMPRESSION_COMMAND_DEPS)
-	$(call pretty,"Target ram disk: $@")
+	$(call pretty,"Target ramdisk: $@")
 	$(hide) $(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_RAMDISK_OUT) | $(COMPRESSION_COMMAND) > $@
 
 .PHONY: ramdisk-nodeps
@@ -800,7 +800,7 @@ ifdef BOARD_BOOTIMAGE_PARTITION_SIZE
 endif
 
 # $1: boot image file name
-# $2: boot image variant (boot, boot-debug)
+# $2: boot image variant (boot, boot-debug, boot-test-harness)
 define get-bootimage-partition-size
   $(BOARD_$(call to-upper,$(subst .img,,$(subst $(2),kernel,$(notdir $(1)))))_BOOTIMAGE_PARTITION_SIZE)
 endef
@@ -856,6 +856,23 @@ INTERNAL_MKBOOTIMG_VERSION_ARGS := \
     --os_version $(PLATFORM_VERSION_LAST_STABLE) \
     --os_patch_level $(PLATFORM_SECURITY_PATCH)
 
+ifdef BOARD_GKI_SIGNING_KEY_PATH
+ifndef BOARD_GKI_SIGNING_ALGORITHM
+$(error BOARD_GKI_SIGNING_ALGORITHM should be defined with BOARD_GKI_SIGNING_KEY_PATH)
+endif
+INTERNAL_MKBOOTIMG_GKI_SINGING_ARGS := \
+    --gki_signing_key $(BOARD_GKI_SIGNING_KEY_PATH) \
+    --gki_signing_algorithm $(BOARD_GKI_SIGNING_ALGORITHM) \
+    --gki_signing_avbtool_path $(AVBTOOL)
+endif
+
+# Using double quote to pass BOARD_GKI_SIGNING_SIGNATURE_ARGS as a single string
+# to MKBOOTIMG, although it may contain multiple args.
+ifdef BOARD_GKI_SIGNING_SIGNATURE_ARGS
+INTERNAL_MKBOOTIMG_GKI_SINGING_ARGS += \
+    --gki_signing_signature_args "$(BOARD_GKI_SIGNING_SIGNATURE_ARGS)"
+endif
+
 # Define these only if we are building boot
 ifdef BUILDING_BOOT_IMAGE
 INSTALLED_BOOTIMAGE_TARGET := $(BUILT_BOOTIMAGE_TARGET)
@@ -870,7 +887,8 @@ ifeq (true,$(BOARD_AVB_ENABLE))
 
 # $1: boot image target
 define build_boot_board_avb_enabled
-  $(MKBOOTIMG) --kernel $(call bootimage-to-kernel,$(1)) $(INTERNAL_BOOTIMAGE_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $(1)
+  $(MKBOOTIMG) --kernel $(call bootimage-to-kernel,$(1)) $(INTERNAL_BOOTIMAGE_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) \
+               $(INTERNAL_MKBOOTIMG_GKI_SINGING_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $(1)
   $(call assert-max-image-size,$(1),$(call get-hash-image-max-size,$(call get-bootimage-partition-size,$(1),boot)))
   $(AVBTOOL) add_hash_footer \
           --image $(1) \
@@ -879,12 +897,12 @@ define build_boot_board_avb_enabled
           $(BOARD_AVB_BOOT_ADD_HASH_FOOTER_ARGS)
 endef
 
-$(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(AVBTOOL) $(INTERNAL_BOOTIMAGE_FILES) $(BOARD_AVB_BOOT_KEY_PATH)
+$(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(AVBTOOL) $(INTERNAL_BOOTIMAGE_FILES) $(BOARD_AVB_BOOT_KEY_PATH) $(BOARD_GKI_SIGNING_KEY_PATH)
 	$(call pretty,"Target boot image: $@")
 	$(call build_boot_board_avb_enabled,$@)
 
 .PHONY: bootimage-nodeps
-bootimage-nodeps: $(MKBOOTIMG) $(AVBTOOL) $(BOARD_AVB_BOOT_KEY_PATH)
+bootimage-nodeps: $(MKBOOTIMG) $(AVBTOOL) $(BOARD_AVB_BOOT_KEY_PATH) $(BOARD_GKI_SIGNING_KEY_PATH)
 	@echo "make $@: ignoring dependencies"
 	$(foreach b,$(INSTALLED_BOOTIMAGE_TARGET),$(call build_boot_board_avb_enabled,$(b)))
 
@@ -980,7 +998,7 @@ INTERNAL_VENDOR_RAMDISK_FILES := $(filter $(TARGET_VENDOR_RAMDISK_OUT)/%, \
     $(ALL_GENERATED_SOURCES) \
     $(ALL_DEFAULT_INSTALLED_MODULES))
 
-INTERNAL_VENDOR_RAMDISK_TARGET := $(call intermediates-dir-for,PACKAGING,vendor-boot)/vendor-ramdisk.cpio$(RAMDISK_EXT)
+INTERNAL_VENDOR_RAMDISK_TARGET := $(call intermediates-dir-for,PACKAGING,vendor_boot)/vendor_ramdisk.cpio$(RAMDISK_EXT)
 
 ifeq (true,$(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT))
 $(INTERNAL_VENDOR_RAMDISK_TARGET): $(INTERNAL_RECOVERY_RAMDISK_FILES_TIMESTAMP)
@@ -990,16 +1008,23 @@ endif
 $(INTERNAL_VENDOR_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_VENDOR_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
 	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_VENDOR_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
 
+ifeq (true,$(BOARD_BUILD_VENDOR_RAMDISK_IMAGE))
+INSTALLED_VENDOR_RAMDISK_TARGET := $(PRODUCT_OUT)/vendor_ramdisk.img
+$(INSTALLED_VENDOR_RAMDISK_TARGET): $(INTERNAL_VENDOR_RAMDISK_TARGET)
+	$(call pretty,"Target vendor ramdisk: $@")
+	$(copy-file-to-target)
+endif
+
 INSTALLED_FILES_FILE_VENDOR_RAMDISK := $(PRODUCT_OUT)/installed-files-vendor-ramdisk.txt
 INSTALLED_FILES_JSON_VENDOR_RAMDISK := $(INSTALLED_FILES_FILE_VENDOR_RAMDISK:.txt=.json)
 $(INSTALLED_FILES_FILE_VENDOR_RAMDISK): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_VENDOR_RAMDISK)
 $(INSTALLED_FILES_FILE_VENDOR_RAMDISK): $(INTERNAL_VENDOR_RAMDISK_TARGET)
 $(INSTALLED_FILES_FILE_VENDOR_RAMDISK): $(INTERNAL_VENDOR_RAMDISK_FILES) $(FILESLIST) $(FILESLIST_UTIL)
-	echo Installed file list: $@
+	@echo Installed file list: $@
 	mkdir -p $(dir $@)
 	rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_VENDOR_RAMDISK_OUT) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	$(FILESLIST) $(TARGET_VENDOR_RAMDISK_OUT) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 ifdef BOARD_INCLUDE_DTB_IN_BOOTIMG
   INTERNAL_VENDOR_BOOTIMAGE_ARGS += --dtb $(INSTALLED_DTBIMAGE_TARGET)
@@ -1012,6 +1037,20 @@ ifdef BOARD_KERNEL_PAGESIZE
 endif
 ifdef INTERNAL_KERNEL_CMDLINE
   INTERNAL_VENDOR_BOOTIMAGE_ARGS += --vendor_cmdline "$(INTERNAL_KERNEL_CMDLINE)"
+endif
+
+ifdef INTERNAL_BOOTCONFIG
+ifneq (,$(findstring androidboot.hardware=, $(INTERNAL_BOOTCONFIG)))
+$(error "androidboot.hardware" BOOTCONFIG parameter is not supported due to \
+  bootconfig limitations. Use "hardware" instead. INTERNAL_BOOTCONFIG: \
+  $(INTERNAL_BOOTCONFIG))
+endif
+INTERNAL_VENDOR_BOOTCONFIG_TARGET := $(PRODUCT_OUT)/vendor-bootconfig.img
+$(INTERNAL_VENDOR_BOOTCONFIG_TARGET):
+	rm -f $@
+	$(foreach param,$(INTERNAL_BOOTCONFIG), \
+	 printf "%s\n" $(param) >> $@;)
+  INTERNAL_VENDOR_BOOTIMAGE_ARGS += --vendor_bootconfig $(INTERNAL_VENDOR_BOOTCONFIG_TARGET)
 endif
 
 # $(1): Build target name
@@ -1061,7 +1100,7 @@ $(foreach vendor_ramdisk_fragment,$(BOARD_VENDOR_RAMDISK_FRAGMENTS), \
 
 INSTALLED_VENDOR_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/vendor_boot.img
 $(INSTALLED_VENDOR_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INTERNAL_VENDOR_RAMDISK_TARGET) $(INSTALLED_DTBIMAGE_TARGET)
-$(INSTALLED_VENDOR_BOOTIMAGE_TARGET): $(INTERNAL_VENDOR_RAMDISK_FRAGMENT_TARGETS)
+$(INSTALLED_VENDOR_BOOTIMAGE_TARGET): $(INTERNAL_VENDOR_RAMDISK_FRAGMENT_TARGETS) $(INTERNAL_VENDOR_BOOTCONFIG_TARGET)
 ifeq ($(BOARD_AVB_ENABLE),true)
 $(INSTALLED_VENDOR_BOOTIMAGE_TARGET): $(AVBTOOL) $(BOARD_AVB_VENDOR_BOOTIMAGE_KEY_PATH)
 	$(call pretty,"Target vendor_boot image: $@")
@@ -1248,7 +1287,7 @@ license_modules_rehomed += $(filter $(PRODUCT_OUT)/root/%,$(license_modules_rest
 license_modules_rehomed += $(filter $(PRODUCT_OUT)/data/%,$(license_modules_rest))
 license_modules_rehomed += $(filter $(PRODUCT_OUT)/ramdisk/%,$(license_modules_rest))
 license_modules_rehomed += $(filter $(PRODUCT_OUT)/debug_ramdisk/%,$(license_modules_rest))
-license_modules_rehomed += $(filter $(PRODUCT_OUT)/vendor-ramdisk/%,$(license_modules_rest))
+license_modules_rehomed += $(filter $(PRODUCT_OUT)/vendor_ramdisk/%,$(license_modules_rest))
 license_modules_rehomed += $(filter $(PRODUCT_OUT)/persist/%,$(license_modules_rest))
 license_modules_rehomed += $(filter $(PRODUCT_OUT)/persist.img,$(license_modules_rest))
 license_modules_rehomed += $(filter $(PRODUCT_OUT)/system_other/%,$(license_modules_rest))
@@ -1783,10 +1822,10 @@ $(INSTALLED_FILES_FILE_RECOVERY): $(INTERNAL_RECOVERY_RAMDISK_FILES_TIMESTAMP)
 $(INSTALLED_FILES_FILE_RECOVERY): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_RECOVERY)
 $(INSTALLED_FILES_FILE_RECOVERY): $(INTERNAL_RECOVERYIMAGE_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_RECOVERY_ROOT_OUT) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_RECOVERY_ROOT_OUT) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 recovery_sepolicy := \
     $(TARGET_RECOVERY_ROOT_OUT)/sepolicy \
@@ -2128,8 +2167,8 @@ define build-recoveryimage-target
                  $(INTERNAL_MKBOOTIMG_VERSION_ARGS) $(BOARD_RECOVERY_MKBOOTIMG_ARGS) \
                  --output $(1).unsigned, \
     $(MKBOOTIMG) $(if $(strip $(2)),--kernel $(strip $(2))) $(INTERNAL_RECOVERYIMAGE_ARGS) \
-                 $(INTERNAL_MKBOOTIMG_VERSION_ARGS) $(BOARD_RECOVERY_MKBOOTIMG_ARGS) \
-                 --output $(1))
+                 $(INTERNAL_MKBOOTIMG_VERSION_ARGS) $(INTERNAL_MKBOOTIMG_GKI_SINGING_ARGS) \
+                 $(BOARD_RECOVERY_MKBOOTIMG_ARGS) --output $(1))
   $(if $(filter true,$(PRODUCT_SUPPORTS_BOOT_SIGNER)),\
     $(if $(filter true,$(BOARD_USES_RECOVERY_AS_BOOT)),\
       $(BOOT_SIGNER) /boot $(1) $(PRODUCT_VERITY_SIGNING_KEY).pk8 $(PRODUCT_VERITY_SIGNING_KEY).x509.pem $(1),\
@@ -2156,6 +2195,9 @@ ifeq (true,$(PRODUCT_SUPPORTS_VBOOT))
 endif
 ifeq (true,$(BOARD_AVB_ENABLE))
   recoveryimage-deps += $(AVBTOOL) $(BOARD_AVB_BOOT_KEY_PATH)
+endif
+ifdef BOARD_GKI_SIGNING_KEY_PATH
+  recoveryimage-deps += $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
 endif
 ifdef BOARD_INCLUDE_RECOVERY_DTBO
   ifdef BOARD_PREBUILT_RECOVERY_DTBOIMAGE
@@ -2240,7 +2282,7 @@ $(INSTALLED_FILES_FILE_DEBUG_RAMDISK): DEBUG_RAMDISK_ROOT_DIR := $(my_debug_ramd
 # Need to depend on the built ramdisk-debug.img, to get a complete list of the installed files.
 $(INSTALLED_FILES_FILE_DEBUG_RAMDISK) : $(INSTALLED_DEBUG_RAMDISK_TARGET)
 $(INSTALLED_FILES_FILE_DEBUG_RAMDISK) : $(INTERNAL_DEBUG_RAMDISK_FILES) $(FILESLIST) $(FILESLIST_UTIL)
-	echo Installed file list: $@
+	@echo Installed file list: $@
 	mkdir -p $(dir $@)
 	rm -f $@
 	$(FILESLIST) $(DEBUG_RAMDISK_ROOT_DIR) > $(@:.txt=.json)
@@ -2265,7 +2307,7 @@ else
 $(INSTALLED_DEBUG_RAMDISK_TARGET): $(INSTALLED_RAMDISK_TARGET)
 endif # BOARD_USES_RECOVERY_AS_BOOT
 $(INSTALLED_DEBUG_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_DEBUG_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
-	$(call pretty,"Target debug ram disk: $@")
+	$(call pretty,"Target debug ramdisk: $@")
 	mkdir -p $(TARGET_DEBUG_RAMDISK_OUT)
 	touch $(TARGET_DEBUG_RAMDISK_OUT)/force_debuggable
 	rsync -a $(DEBUG_RAMDISK_SYNC_DIR)/ $(DEBUG_RAMDISK_ROOT_DIR)
@@ -2318,30 +2360,32 @@ endif
 BOARD_AVB_BOOT_TEST_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
 INTERNAL_AVB_BOOT_TEST_SIGNING_ARGS := --algorithm SHA256_RSA2048 --key $(BOARD_AVB_BOOT_TEST_KEY_PATH)
 # $(1): the bootimage to sign
+# $(2): boot image variant (boot, boot-debug, boot-test-harness)
 define test-key-sign-bootimage
-$(call assert-max-image-size,$(1),$(call get-hash-image-max-size,$(call get-bootimage-partition-size,$(1),boot-debug)))
+$(call assert-max-image-size,$(1),$(call get-hash-image-max-size,$(call get-bootimage-partition-size,$(1),$(2))))
 $(AVBTOOL) add_hash_footer \
   --image $(1) \
-  --partition_size $(call get-bootimage-partition-size,$(1),boot-debug)\
+  --partition_size $(call get-bootimage-partition-size,$(1),$(2))\
   --partition_name boot $(INTERNAL_AVB_BOOT_TEST_SIGNING_ARGS) \
   $(BOARD_AVB_BOOT_ADD_HASH_FOOTER_ARGS)
-$(call assert-max-image-size,$(1),$(call get-bootimage-partition-size,$(1),boot-debug))
+$(call assert-max-image-size,$(1),$(call get-bootimage-partition-size,$(1),$(2)))
 endef
 
 # $(1): output file
 define build-debug-bootimage-target
   $(MKBOOTIMG) --kernel $(PRODUCT_OUT)/$(subst .img,,$(subst boot-debug,kernel,$(notdir $(1)))) \
-    $(INTERNAL_DEBUG_BOOTIMAGE_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $1
-  $(if $(BOARD_AVB_BOOT_KEY_PATH),$(call test-key-sign-bootimage,$1))
+    $(INTERNAL_DEBUG_BOOTIMAGE_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) \
+    $(INTERNAL_MKBOOTIMG_GKI_SINGING_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $1
+  $(if $(BOARD_AVB_BOOT_KEY_PATH),$(call test-key-sign-bootimage,$1,boot-debug))
 endef
 
 # Depends on original boot.img and ramdisk-debug.img, to build the new boot-debug.img
-$(INSTALLED_DEBUG_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INSTALLED_BOOTIMAGE_TARGET) $(INSTALLED_DEBUG_RAMDISK_TARGET)
+$(INSTALLED_DEBUG_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INSTALLED_BOOTIMAGE_TARGET) $(INSTALLED_DEBUG_RAMDISK_TARGET) $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
 	$(call pretty,"Target boot debug image: $@")
 	$(call build-debug-bootimage-target, $@)
 
 .PHONY: bootimage_debug-nodeps
-bootimage_debug-nodeps: $(MKBOOTIMG)
+bootimage_debug-nodeps: $(MKBOOTIMG) $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
 	echo "make $@: ignoring dependencies"
 	$(foreach b,$(INSTALLED_DEBUG_BOOTIMAGE_TARGET),$(call build-debug-bootimage-target,$b))
 
@@ -2353,7 +2397,7 @@ ifeq ($(BUILDING_RAMDISK_IMAGE),true)
 # -----------------------------------------------------------------
 # vendor debug ramdisk
 # Combines vendor ramdisk files and debug ramdisk files to build the vendor debug ramdisk.
-INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET := $(call intermediates-dir-for,PACKAGING,vendor_boot-debug)/vendor-ramdisk-debug.cpio$(RAMDISK_EXT)
+INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET := $(call intermediates-dir-for,PACKAGING,vendor_boot-debug)/vendor_ramdisk-debug.cpio$(RAMDISK_EXT)
 $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): DEBUG_RAMDISK_FILES := $(INTERNAL_DEBUG_RAMDISK_FILES)
 $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): VENDOR_RAMDISK_DIR := $(TARGET_VENDOR_RAMDISK_OUT)
 
@@ -2373,12 +2417,18 @@ $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): DEBUG_RAMDISK_DIR := $(PRODUCT_OUT)/deb
 $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): VENDOR_DEBUG_RAMDISK_DIR := $(PRODUCT_OUT)/vendor_debug_ramdisk
 $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): $(INTERNAL_VENDOR_RAMDISK_TARGET) $(INSTALLED_DEBUG_RAMDISK_TARGET)
 $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_VENDOR_DEBUG_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
-	$(call pretty,"Target vendor debug ram disk: $@")
 	mkdir -p $(TARGET_VENDOR_DEBUG_RAMDISK_OUT)
 	touch $(TARGET_VENDOR_DEBUG_RAMDISK_OUT)/force_debuggable
 	$(foreach debug_file,$(DEBUG_RAMDISK_FILES), \
 	  cp -f $(debug_file) $(patsubst $(DEBUG_RAMDISK_DIR)/%,$(VENDOR_DEBUG_RAMDISK_DIR)/%,$(debug_file)) &&) true
 	$(MKBOOTFS) -d $(TARGET_OUT) $(VENDOR_RAMDISK_DIR) $(VENDOR_DEBUG_RAMDISK_DIR) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
+
+ifeq (true,$(BOARD_BUILD_VENDOR_RAMDISK_IMAGE))
+INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET := $(PRODUCT_OUT)/vendor_ramdisk-debug.img
+$(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET): $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET)
+	$(call pretty,"Target vendor debug ramdisk: $@")
+	$(copy-file-to-target)
+endif
 
 INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK := $(PRODUCT_OUT)/installed-files-vendor-ramdisk-debug.txt
 INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK := $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK:.txt=.json)
@@ -2389,7 +2439,7 @@ $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): VENDOR_DEBUG_RAMDISK_DIR := $(PROD
 # so we have to wait for the vendor debug ramdisk to be built before generating the installed file list.
 $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET)
 $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): $(INTERNAL_VENDOR_DEBUG_RAMDISK_FILES) $(FILESLIST) $(FILESLIST_UTIL)
-	echo Installed file list: $@
+	@echo Installed file list: $@
 	mkdir -p $(dir $@)
 	rm -f $@
 	$(FILESLIST) $(VENDOR_DEBUG_RAMDISK_DIR) > $(@:.txt=.json)
@@ -2458,7 +2508,7 @@ endef
 
 $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(INSTALLED_DEBUG_RAMDISK_TARGET)
 $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_TEST_HARNESS_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
-	$(call pretty,"Target test harness ram disk: $@")
+	$(call pretty,"Target test harness ramdisk: $@")
 	rsync -a $(TEST_HARNESS_RAMDISK_SYNC_DIR)/ $(TEST_HARNESS_RAMDISK_ROOT_DIR)
 	$(call append-test-harness-props,$(ADDITIONAL_TEST_HARNESS_PROPERTIES),$(TEST_HARNESS_PROP_TARGET))
 	$(MKBOOTFS) -d $(TARGET_OUT) $(TEST_HARNESS_RAMDISK_ROOT_DIR) | $(COMPRESSION_COMMAND) > $@
@@ -2500,17 +2550,19 @@ endif
 # $(1): output file
 define build-boot-test-harness-target
   $(MKBOOTIMG) --kernel $(PRODUCT_OUT)/$(subst .img,,$(subst boot-test-harness,kernel,$(notdir $(1)))) \
-    $(INTERNAL_TEST_HARNESS_BOOTIMAGE_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $@
-  $(if $(BOARD_AVB_BOOT_KEY_PATH),$(call test-key-sign-bootimage,$@))
+    $(INTERNAL_TEST_HARNESS_BOOTIMAGE_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) \
+    $(INTERNAL_MKBOOTIMG_GKI_SINGING_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $@
+  $(if $(BOARD_AVB_BOOT_KEY_PATH),$(call test-key-sign-bootimage,$@,boot-test-harness))
 endef
 
 # Build the new boot-test-harness.img, based on boot-debug.img and ramdisk-test-harness.img.
-$(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
+$(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET) \
+$(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
 	$(call pretty,"Target boot test harness image: $@")
 	$(call build-boot-test-harness-target,$@)
 
 .PHONY: bootimage_test_harness-nodeps
-bootimage_test_harness-nodeps: $(MKBOOTIMG)
+bootimage_test_harness-nodeps: $(MKBOOTIMG) $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
 	echo "make $@: ignoring dependencies"
 	$(foreach b,$(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET),$(call build-boot-test-harness-target,$b))
 
@@ -2592,10 +2644,10 @@ INSTALLED_FILES_JSON := $(INSTALLED_FILES_FILE:.txt=.json)
 $(INSTALLED_FILES_FILE): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON)
 $(INSTALLED_FILES_FILE): $(FULL_SYSTEMIMAGE_DEPS) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_OUT) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_OUT) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 .PHONY: installed-file-list
 installed-file-list: $(INSTALLED_FILES_FILE)
@@ -2836,10 +2888,10 @@ INSTALLED_FILES_JSON_SYSTEMOTHER := $(INSTALLED_FILES_FILE_SYSTEMOTHER:.txt=.jso
 $(INSTALLED_FILES_FILE_SYSTEMOTHER): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_SYSTEMOTHER)
 $(INSTALLED_FILES_FILE_SYSTEMOTHER) : $(INTERNAL_SYSTEMOTHERIMAGE_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_OUT_SYSTEM_OTHER) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_OUT_SYSTEM_OTHER) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 # Determines partition size for system_other.img.
 ifeq ($(PRODUCT_RETROFIT_DYNAMIC_PARTITIONS),true)
@@ -2920,10 +2972,10 @@ INSTALLED_FILES_JSON_VENDOR := $(INSTALLED_FILES_FILE_VENDOR:.txt=.json)
 $(INSTALLED_FILES_FILE_VENDOR): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_VENDOR)
 $(INSTALLED_FILES_FILE_VENDOR) : $(INTERNAL_VENDORIMAGE_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_OUT_VENDOR) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_OUT_VENDOR) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 vendorimage_intermediates := \
     $(call intermediates-dir-for,PACKAGING,vendor)
@@ -2972,10 +3024,10 @@ INSTALLED_FILES_JSON_PRODUCT := $(INSTALLED_FILES_FILE_PRODUCT:.txt=.json)
 $(INSTALLED_FILES_FILE_PRODUCT): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_PRODUCT)
 $(INSTALLED_FILES_FILE_PRODUCT) : $(INTERNAL_PRODUCTIMAGE_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_OUT_PRODUCT) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_OUT_PRODUCT) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 productimage_intermediates := \
     $(call intermediates-dir-for,PACKAGING,product)
@@ -3023,10 +3075,10 @@ INSTALLED_FILES_JSON_SYSTEM_EXT := $(INSTALLED_FILES_FILE_SYSTEM_EXT:.txt=.json)
 $(INSTALLED_FILES_FILE_SYSTEM_EXT): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_SYSTEM_EXT)
 $(INSTALLED_FILES_FILE_SYSTEM_EXT) : $(INTERNAL_SYSTEM_EXTIMAGE_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_OUT_SYSTEM_EXT) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_OUT_SYSTEM_EXT) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 system_extimage_intermediates := \
     $(call intermediates-dir-for,PACKAGING,system_ext)
@@ -3094,10 +3146,10 @@ INSTALLED_FILES_JSON_ODM := $(INSTALLED_FILES_FILE_ODM:.txt=.json)
 $(INSTALLED_FILES_FILE_ODM): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_ODM)
 $(INSTALLED_FILES_FILE_ODM) : $(INTERNAL_ODMIMAGE_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_OUT_ODM) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_OUT_ODM) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 odmimage_intermediates := \
     $(call intermediates-dir-for,PACKAGING,odm)
@@ -3145,10 +3197,10 @@ INSTALLED_FILES_JSON_VENDOR_DLKM := $(INSTALLED_FILES_FILE_VENDOR_DLKM:.txt=.jso
 $(INSTALLED_FILES_FILE_VENDOR_DLKM): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_VENDOR_DLKM)
 $(INSTALLED_FILES_FILE_VENDOR_DLKM) : $(INTERNAL_VENDOR_DLKMIMAGE_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_OUT_VENDOR_DLKM) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_OUT_VENDOR_DLKM) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 vendor_dlkmimage_intermediates := \
     $(call intermediates-dir-for,PACKAGING,vendor_dlkm)
@@ -3196,10 +3248,10 @@ INSTALLED_FILES_JSON_ODM_DLKM := $(INSTALLED_FILES_FILE_ODM_DLKM:.txt=.json)
 $(INSTALLED_FILES_FILE_ODM_DLKM): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_ODM_DLKM)
 $(INSTALLED_FILES_FILE_ODM_DLKM) : $(INTERNAL_ODM_DLKMIMAGE_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
-	@mkdir -p $(dir $@)
-	@rm -f $@
-	$(hide) $(FILESLIST) $(TARGET_OUT_ODM_DLKM) > $(@:.txt=.json)
-	$(hide) $(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	$(FILESLIST) $(TARGET_OUT_ODM_DLKM) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 odm_dlkmimage_intermediates := \
     $(call intermediates-dir-for,PACKAGING,odm_dlkm)
@@ -3843,13 +3895,13 @@ check_vintf_system_deps := $(filter $(TARGET_OUT)/etc/vintf/%, $(check_vintf_com
 ifneq ($(check_vintf_system_deps),)
 check_vintf_has_system := true
 
-check_vintf_system_log := $(intermediates)/check_vintf_system_log
+check_vintf_system_log := $(intermediates)/check_vintf_system.log
 check_vintf_all_deps += $(check_vintf_system_log)
 $(check_vintf_system_log): $(HOST_OUT_EXECUTABLES)/checkvintf $(check_vintf_system_deps)
 	@( $< --check-one --dirmap /system:$(TARGET_OUT) > $@ 2>&1 ) || ( cat $@ && exit 1 )
 check_vintf_system_log :=
 
-vintffm_log := $(intermediates)/vintffm_log
+vintffm_log := $(intermediates)/vintffm.log
 check_vintf_all_deps += $(vintffm_log)
 $(vintffm_log): $(HOST_OUT_EXECUTABLES)/vintffm $(check_vintf_system_deps)
 	@( $< --check --dirmap /system:$(TARGET_OUT) \
@@ -3862,7 +3914,7 @@ check_vintf_system_deps :=
 check_vintf_vendor_deps := $(filter $(TARGET_OUT_VENDOR)/etc/vintf/%, $(check_vintf_common_srcs))
 ifneq ($(check_vintf_vendor_deps),)
 check_vintf_has_vendor := true
-check_vintf_vendor_log := $(intermediates)/check_vintf_vendor_log
+check_vintf_vendor_log := $(intermediates)/check_vintf_vendor.log
 check_vintf_all_deps += $(check_vintf_vendor_log)
 # Check vendor SKU=(empty) case when:
 # - DEVICE_MANIFEST_FILE is not empty; OR
@@ -3879,24 +3931,6 @@ $(check_vintf_vendor_log): $(HOST_OUT_EXECUTABLES)/checkvintf $(check_vintf_vend
 check_vintf_vendor_log :=
 endif # check_vintf_vendor_deps
 check_vintf_vendor_deps :=
-
-# -- Check VINTF compatibility of build.
-# Skip partial builds; only check full builds. Only check if:
-# - PRODUCT_ENFORCE_VINTF_MANIFEST is true
-# - system / vendor VINTF metadata exists
-# - Building product / system_ext / odm images if board has product / system_ext / odm images
-ifeq ($(PRODUCT_ENFORCE_VINTF_MANIFEST),true)
-ifeq ($(check_vintf_has_system),true)
-ifeq ($(check_vintf_has_vendor),true)
-ifeq ($(filter true,$(BUILDING_ODM_IMAGE)),$(filter true,$(BOARD_USES_ODMIMAGE)))
-ifeq ($(filter true,$(BUILDING_PRODUCT_IMAGE)),$(filter true,$(BOARD_USES_PRODUCTIMAGE)))
-ifeq ($(filter true,$(BUILDING_SYSTEM_EXT_IMAGE)),$(filter true,$(BOARD_USES_SYSTEM_EXTIMAGE)))
-
-check_vintf_compatible_log := $(intermediates)/check_vintf_compatible_log
-check_vintf_all_deps += $(check_vintf_compatible_log)
-
-check_vintf_compatible_args :=
-check_vintf_compatible_deps := $(check_vintf_common_srcs)
 
 # -- Kernel version and configurations.
 ifeq ($(PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS),true)
@@ -3951,9 +3985,29 @@ my_board_extracted_kernel :=
 
 endif # INSTALLED_KERNEL_TARGET
 
+endif # PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
+
+# -- Check VINTF compatibility of build.
+# Skip partial builds; only check full builds. Only check if:
+# - PRODUCT_ENFORCE_VINTF_MANIFEST is true
+# - system / vendor VINTF metadata exists
+# - Building product / system_ext / odm images if board has product / system_ext / odm images
+ifeq ($(PRODUCT_ENFORCE_VINTF_MANIFEST),true)
+ifeq ($(check_vintf_has_system),true)
+ifeq ($(check_vintf_has_vendor),true)
+ifeq ($(filter true,$(BUILDING_ODM_IMAGE)),$(filter true,$(BOARD_USES_ODMIMAGE)))
+ifeq ($(filter true,$(BUILDING_PRODUCT_IMAGE)),$(filter true,$(BOARD_USES_PRODUCTIMAGE)))
+ifeq ($(filter true,$(BUILDING_SYSTEM_EXT_IMAGE)),$(filter true,$(BOARD_USES_SYSTEM_EXTIMAGE)))
+
+check_vintf_compatible_log := $(intermediates)/check_vintf_compatible.log
+check_vintf_all_deps += $(check_vintf_compatible_log)
+
+check_vintf_compatible_args :=
+check_vintf_compatible_deps := $(check_vintf_common_srcs)
+
+ifeq ($(PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS),true)
 check_vintf_compatible_args += --kernel $(BUILT_KERNEL_VERSION_FILE):$(BUILT_KERNEL_CONFIGS_FILE)
 check_vintf_compatible_deps += $(BUILT_KERNEL_CONFIGS_FILE) $(BUILT_KERNEL_VERSION_FILE)
-
 endif # PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
 
 check_vintf_compatible_args += \
@@ -3984,7 +4038,8 @@ $(check_vintf_compatible_log): PRIVATE_VENDOR_SKUS := \
     $(if $(DEVICE_MANIFEST_SKUS),,EMPTY_VENDOR_SKU_PLACEHOLDER)) \
   $(DEVICE_MANIFEST_SKUS)
 $(check_vintf_compatible_log): $(HOST_OUT_EXECUTABLES)/checkvintf $(check_vintf_compatible_deps)
-	@echo -n -e 'Deps: \n  ' > $@
+	@echo "PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS=$(PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS)" > $@
+	@echo -n -e 'Deps: \n  ' >> $@
 	@sed 's/ /\n  /g' <<< "$(PRIVATE_CHECK_VINTF_DEPS)" >> $@
 	@echo -n -e 'Args: \n  ' >> $@
 	@cat <<< "$(PRIVATE_CHECK_VINTF_ARGS)" >> $@
@@ -4040,7 +4095,7 @@ define check-all-partition-sizes-target
   $(CHECK_PARTITION_SIZES) $(if $(2),--logfile $(2),-v) $(1)
 endef
 
-check_all_partition_sizes_log := $(call intermediates-dir-for,PACKAGING,check-all-partition-sizes)/check_all_partition_sizes_log
+check_all_partition_sizes_log := $(call intermediates-dir-for,PACKAGING,check-all-partition-sizes)/check_all_partition_sizes.log
 droid_targets: $(check_all_partition_sizes_log)
 $(call dist-for-goals, droid_targets, $(check_all_partition_sizes_log))
 
@@ -4161,6 +4216,7 @@ INTERNAL_OTATOOLS_MODULES := \
   mkuserimg_mke2fs \
   ota_from_target_files \
   repack_bootimg \
+  secilc \
   sefcontext_compile \
   sgdisk \
   shflags \
@@ -4319,6 +4375,13 @@ endif
 	$(hide) echo 'mkbootimg_args=$(BOARD_MKBOOTIMG_ARGS)' >> $@
 	$(hide) echo 'recovery_mkbootimg_args=$(BOARD_RECOVERY_MKBOOTIMG_ARGS)' >> $@
 	$(hide) echo 'mkbootimg_version_args=$(INTERNAL_MKBOOTIMG_VERSION_ARGS)' >> $@
+ifdef BOARD_GKI_SIGNING_KEY_PATH
+	$(hide) echo 'gki_signing_key_path=$(BOARD_GKI_SIGNING_KEY_PATH)' >> $@
+	$(hide) echo 'gki_signing_algorithm=$(BOARD_GKI_SIGNING_ALGORITHM)' >> $@
+endif
+ifdef BOARD_GKI_SIGNING_SIGNATURE_ARGS
+	$(hide) echo 'gki_signing_signature_args=$(BOARD_GKI_SIGNING_SIGNATURE_ARGS)' >> $@
+endif
 	$(hide) echo "multistage_support=1" >> $@
 	$(hide) echo "blockimgdiff_versions=3,4" >> $@
 ifeq ($(PRODUCT_BUILD_GENERIC_OTA_PACKAGE),true)
@@ -4550,10 +4613,25 @@ define fs_config
 (cd $(1); find . -type d | sed 's,$$,/,'; find . \! -type d) | cut -c 3- | sort | sed 's,^,$(2),' | $(HOST_OUT_EXECUTABLES)/fs_config -C -D $(TARGET_OUT) -S $(SELINUX_FC) -R "$(2)"
 endef
 
-# Filter out vendor from the list for AOSP targets.
-# $(1): list
 define filter-out-missing-vendor
 $(if $(INSTALLED_VENDORIMAGE_TARGET),$(1),$(filter-out vendor,$(1)))
+endef
+define filter-out-missing-vendor_dlkm
+$(if $(INSTALLED_VENDOR_DLKMIMAGE_TARGET),$(1),$(filter-out vendor_dlkm,$(1)))
+endef
+define filter-out-missing-odm
+$(if $(INSTALLED_ODMIMAGE_TARGET),$(1),$(filter-out odm,$(1)))
+endef
+define filter-out-missing-odm_dlkm
+$(if $(INSTALLED_ODM_DLKMIMAGE_TARGET),$(1),$(filter-out odm_dlkm,$(1)))
+endef
+# Filter out vendor,vendor_dlkm,odm,odm_dlkm from the list for AOSP targets.
+# $(1): list
+define filter-out-missing-partitions
+$(call filter-out-missing-vendor,\
+  $(call filter-out-missing-vendor_dlkm,\
+    $(call filter-out-missing-odm,\
+      $(call filter-out-missing-odm_dlkm,$(1)))))
 endef
 
 # Information related to dynamic partitions and virtual A/B. This information
@@ -4568,6 +4646,8 @@ define dump-dynamic-partitions-info
   echo "lpmake=$(notdir $(LPMAKE))" >> $(1)
   $(if $(filter true,$(PRODUCT_BUILD_SUPER_PARTITION)), $(if $(BOARD_SUPER_PARTITION_SIZE), \
     echo "build_super_partition=true" >> $(1)))
+  $(if $(BUILDING_SUPER_EMPTY_IMAGE), \
+    echo "build_super_empty_partition=true" >> $(1))
   $(if $(filter true,$(BOARD_BUILD_RETROFIT_DYNAMIC_PARTITIONS_OTA_PACKAGE)), \
     echo "build_retrofit_dynamic_partitions_ota_package=true" >> $(1))
   echo "super_metadata_device=$(BOARD_SUPER_PARTITION_METADATA_DEVICE)" >> $(1)
@@ -4576,13 +4656,13 @@ define dump-dynamic-partitions-info
   $(foreach device,$(BOARD_SUPER_PARTITION_BLOCK_DEVICES), \
     echo "super_$(device)_device_size=$(BOARD_SUPER_PARTITION_$(call to-upper,$(device))_DEVICE_SIZE)" >> $(1);)
   $(if $(BOARD_SUPER_PARTITION_PARTITION_LIST), \
-    echo "dynamic_partition_list=$(call filter-out-missing-vendor,$(BOARD_SUPER_PARTITION_PARTITION_LIST))" >> $(1))
+    echo "dynamic_partition_list=$(call filter-out-missing-partitions,$(BOARD_SUPER_PARTITION_PARTITION_LIST))" >> $(1))
   $(if $(BOARD_SUPER_PARTITION_GROUPS),
     echo "super_partition_groups=$(BOARD_SUPER_PARTITION_GROUPS)" >> $(1))
   $(foreach group,$(BOARD_SUPER_PARTITION_GROUPS), \
     echo "super_$(group)_group_size=$(BOARD_$(call to-upper,$(group))_SIZE)" >> $(1); \
     $(if $(BOARD_$(call to-upper,$(group))_PARTITION_LIST), \
-      echo "super_$(group)_partition_list=$(call filter-out-missing-vendor,$(BOARD_$(call to-upper,$(group))_PARTITION_LIST))" >> $(1);))
+      echo "super_$(group)_partition_list=$(call filter-out-missing-partitions,$(BOARD_$(call to-upper,$(group))_PARTITION_LIST))" >> $(1);))
   $(if $(filter true,$(TARGET_USERIMAGES_SPARSE_EXT_DISABLED)), \
     echo "build_non_sparse_super_partition=true" >> $(1))
   $(if $(filter true,$(TARGET_USERIMAGES_SPARSE_F2FS_DISABLED)), \
@@ -4623,11 +4703,15 @@ endif
 ifdef BUILDING_VENDOR_BOOT_IMAGE
   $(BUILT_TARGET_FILES_PACKAGE): $(INTERNAL_VENDOR_RAMDISK_FILES)
   $(BUILT_TARGET_FILES_PACKAGE): $(INTERNAL_VENDOR_RAMDISK_FRAGMENT_TARGETS)
+  # The vendor ramdisk may be built from the recovery ramdisk.
+  ifeq (true,$(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT))
+    $(BUILT_TARGET_FILES_PACKAGE): $(INTERNAL_RECOVERY_RAMDISK_FILES_TIMESTAMP)
+  endif
 endif
 
 ifdef BUILDING_RECOVERY_IMAGE
   # TODO(b/30414428): Can't depend on INTERNAL_RECOVERYIMAGE_FILES alone like other
-  # BUILD_TARGET_FILES_PACKAGE dependencies because currently there're cp/rsync/rm
+  # BUILT_TARGET_FILES_PACKAGE dependencies because currently there're cp/rsync/rm
   # commands in build-recoveryimage-target, which would touch the files under
   # TARGET_RECOVERY_OUT and race with packaging target-files.zip.
   ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
@@ -4675,13 +4759,13 @@ endif
 
 ifdef BUILDING_VENDOR_DLKM_IMAGE
   $(BUILT_TARGET_FILES_PACKAGE): $(INTERNAL_VENDOR_DLKMIMAGE_FILES)
-else ifdef BOARD_PREBUILT_VENDOR_DLKIMMAGE
+else ifdef BOARD_PREBUILT_VENDOR_DLKMIMAGE
   $(BUILT_TARGET_FILES_PACKAGE): $(INSTALLED_VENDOR_DLKMIMAGE_TARGET)
 endif
 
 ifdef BUILDING_ODM_DLKM_IMAGE
   $(BUILT_TARGET_FILES_PACKAGE): $(INTERNAL_ODM_DLKMIMAGE_FILES)
-else ifdef BOARD_ODM_VENDOR_DLKIMMAGE
+else ifdef BOARD_PREBUILT_ODM_DLKMIMAGE
   $(BUILT_TARGET_FILES_PACKAGE): $(INSTALLED_ODM_DLKMIMAGE_TARGET)
 endif
 
@@ -4817,6 +4901,9 @@ ifdef INSTALLED_VENDOR_BOOTIMAGE_TARGET
 	    $(TARGET_VENDOR_RAMDISK_OUT),$(zip_root)/VENDOR_BOOT/RAMDISK)
 ifdef INSTALLED_DTBIMAGE_TARGET
 	cp $(INSTALLED_DTBIMAGE_TARGET) $(zip_root)/VENDOR_BOOT/dtb
+endif
+ifdef INTERNAL_VENDOR_BOOTCONFIG_TARGET
+	cp $(INTERNAL_VENDOR_BOOTCONFIG_TARGET) $(zip_root)/VENDOR_BOOT/vendor_bootconfig
 endif
 ifdef BOARD_KERNEL_BASE
 	echo "$(BOARD_KERNEL_BASE)" > $(zip_root)/VENDOR_BOOT/base
@@ -5430,9 +5517,7 @@ endif # PRODUCT_BUILD_SUPER_PARTITION == "true"
 
 # -----------------------------------------------------------------
 # super empty image
-
-ifeq (true,$(PRODUCT_USE_DYNAMIC_PARTITIONS))
-ifneq ($(BOARD_SUPER_PARTITION_SIZE),)
+ifdef BUILDING_SUPER_EMPTY_IMAGE
 
 INSTALLED_SUPERIMAGE_EMPTY_TARGET := $(PRODUCT_OUT)/super_empty.img
 $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): intermediates := $(call intermediates-dir-for,PACKAGING,super_empty)
@@ -5446,8 +5531,7 @@ $(INSTALLED_SUPERIMAGE_EMPTY_TARGET): $(LPMAKE) $(BUILD_SUPER_IMAGE)
 
 $(call dist-for-goals,dist_files,$(INSTALLED_SUPERIMAGE_EMPTY_TARGET))
 
-endif # BOARD_SUPER_PARTITION_SIZE != ""
-endif # PRODUCT_USE_DYNAMIC_PARTITIONS == "true"
+endif # BUILDING_SUPER_EMPTY_IMAGE
 
 
 # -----------------------------------------------------------------
