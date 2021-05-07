@@ -935,7 +935,7 @@ endef
 # Scan all modules in general-tests, device-tests and other selected suites and
 # flatten the shared library dependencies.
 define update-host-shared-libs-deps-for-suites
-$(foreach suite,general-tests device-tests vts art-host-tests host-unit-tests,\
+$(foreach suite,general-tests device-tests vts tvts art-host-tests host-unit-tests,\
   $(foreach m,$(COMPATIBILITY.$(suite).MODULES),\
     $(eval my_deps := $(call get-all-shared-libs-deps,$(m)))\
     $(foreach dep,$(my_deps),\
@@ -1740,6 +1740,7 @@ else ifeq (,$(TARGET_BUILD_UNBUNDLED))
     $(PROGUARD_USAGE_ZIP) \
     $(COVERAGE_ZIP) \
     $(APPCOMPAT_ZIP) \
+    $(DEXPREOPT_CONFIG_ZIP) \
     $(INSTALLED_FILES_FILE) \
     $(INSTALLED_FILES_JSON) \
     $(INSTALLED_FILES_FILE_VENDOR) \
