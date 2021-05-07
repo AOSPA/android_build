@@ -2768,7 +2768,7 @@ endef
 define _symlink-file
 $(3): $(1)
 	@echo "Symlink: $$@ -> $(2)"
-	@mkdir -p $(dir $$@)
+	@mkdir -p $$(dir $$@)
 	@rm -rf $$@
 	$(hide) ln -sf $(2) $$@
 $(3): .KATI_SYMLINK_OUTPUTS := $(3)
