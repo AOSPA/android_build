@@ -273,7 +273,7 @@ def BuildImageMkfs(in_dir, prop_dict, out_file, target_out, fs_config):
       base_fs_file = ConvertBlockMapToBaseFs(prop_dict["base_fs_file"])
       build_command.extend(["-d", base_fs_file])
     build_command.extend(["-L", prop_dict["mount_point"]])
-    if "extfs_inode_count" in prop_dict:
+    if "extfs_inode_count" in prop_dict and int(prop_dict["extfs_inode_count"]) >= 0:
       build_command.extend(["-i", prop_dict["extfs_inode_count"]])
     if "extfs_rsv_pct" in prop_dict:
       build_command.extend(["-M", prop_dict["extfs_rsv_pct"]])
@@ -459,6 +459,7 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
           size = common.RoundUpTo4K(size)
         else:
           size = ((size + block_size - 1) // block_size) * block_size
+    if int(prop_dict["extfs_inode_count"]) >= 0:
       extfs_inode_count = prop_dict["extfs_inode_count"]
       inodes = int(fs_dict.get("Inode count", extfs_inode_count))
       inodes -= int(fs_dict.get("Free inodes", "0"))
