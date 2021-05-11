@@ -43,6 +43,11 @@ LOCAL_MODULE := $(LOCAL_PACKAGE_NAME)
 ifneq ($(strip $(LOCAL_MODULE_CLASS)),)
 $(error $(LOCAL_PATH): Package modules may not set LOCAL_MODULE_CLASS)
 endif
+
+ifneq ($(strip $(CLEAN_UP_JAVA_IN_VENDOR)),)
+$(call check_vendor_java_compile)
+endif
+
 LOCAL_MODULE_CLASS := APPS
 
 intermediates := $(call local-intermediates-dir)
