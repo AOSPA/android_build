@@ -292,11 +292,25 @@ ADDITIONAL_VENDOR_PROPERTIES += \
     ro.product.first_api_level=$(PRODUCT_SHIPPING_API_LEVEL)
 endif
 
+ifneq ($(TARGET_BUILD_VARIANT),user)
+  ifdef PRODUCT_SET_DEBUGFS_RESTRICTIONS
+    ADDITIONAL_VENDOR_PROPERTIES += \
+      ro.product.debugfs_restrictions.enabled=$(PRODUCT_SET_DEBUGFS_RESTRICTIONS)
+  endif
+endif
+
 # Vendors with GRF must define BOARD_SHIPPING_API_LEVEL for the vendor API level.
 # This must not be defined for the non-GRF devices.
 ifdef BOARD_SHIPPING_API_LEVEL
 ADDITIONAL_VENDOR_PROPERTIES += \
     ro.board.first_api_level=$(BOARD_SHIPPING_API_LEVEL)
+
+# To manually set the vendor API level of the vendor modules, BOARD_API_LEVEL can be used.
+# The values of the GRF properties will be verified by post_process_props.py
+ifdef BOARD_API_LEVEL
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.board.api_level=$(BOARD_API_LEVEL)
+endif
 endif
 
 ADDITIONAL_VENDOR_PROPERTIES += \
@@ -921,7 +935,7 @@ endef
 # Scan all modules in general-tests, device-tests and other selected suites and
 # flatten the shared library dependencies.
 define update-host-shared-libs-deps-for-suites
-$(foreach suite,general-tests device-tests vts art-host-tests host-unit-tests,\
+$(foreach suite,general-tests device-tests vts tvts art-host-tests host-unit-tests,\
   $(foreach m,$(COMPATIBILITY.$(suite).MODULES),\
     $(eval my_deps := $(call get-all-shared-libs-deps,$(m)))\
     $(foreach dep,$(my_deps),\
@@ -1605,6 +1619,8 @@ droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_SUPERIMAGE_EMPTY_TARGET) \
     $(INSTALLED_PRODUCTIMAGE_TARGET) \
     $(INSTALLED_SYSTEMOTHERIMAGE_TARGET) \
+    $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET) \
+    $(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET) \
     $(INSTALLED_FILES_FILE) \
     $(INSTALLED_FILES_JSON) \
     $(INSTALLED_FILES_FILE_VENDOR) \
@@ -1724,6 +1740,7 @@ else ifeq (,$(TARGET_BUILD_UNBUNDLED))
     $(PROGUARD_USAGE_ZIP) \
     $(COVERAGE_ZIP) \
     $(APPCOMPAT_ZIP) \
+    $(DEXPREOPT_CONFIG_ZIP) \
     $(INSTALLED_FILES_FILE) \
     $(INSTALLED_FILES_JSON) \
     $(INSTALLED_FILES_FILE_VENDOR) \
@@ -1782,13 +1799,11 @@ else ifeq (,$(TARGET_BUILD_UNBUNDLED))
       $(INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK) \
       $(INSTALLED_DEBUG_RAMDISK_TARGET) \
       $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) \
+      $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET) \
+      $(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET) \
       $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
       $(INSTALLED_VENDOR_RAMDISK_TARGET) \
       $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
-    )
-    $(call dist-for-goals, bootimage_test_harness, \
-      $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET) \
-      $(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET) \
     )
   endif
 

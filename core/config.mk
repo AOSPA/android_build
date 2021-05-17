@@ -161,6 +161,7 @@ $(KATI_obsolete_var LOCAL_SANITIZE_BLACKLIST,Use LOCAL_SANITIZE_BLOCKLIST instea
 $(KATI_deprecated_var BOARD_PLAT_PUBLIC_SEPOLICY_DIR,Use SYSTEM_EXT_PUBLIC_SEPOLICY_DIRS instead)
 $(KATI_deprecated_var BOARD_PLAT_PRIVATE_SEPOLICY_DIR,Use SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS instead)
 $(KATI_obsolete_var TARGET_NO_VENDOR_BOOT,Use PRODUCT_BUILD_VENDOR_BOOT_IMAGE instead)
+$(KATI_obsolete_var PRODUCT_CHECK_ELF_FILES,Use BUILD_BROKEN_PREBUILT_ELF_FILES instead)
 
 # Used to force goals to build.  Only use for conditionally defined goals.
 .PHONY: FORCE
@@ -1085,12 +1086,13 @@ endef
 # This produces a list like "current/core current/public current/system 4/public"
 TARGET_AVAILABLE_SDK_VERSIONS := $(wildcard $(HISTORICAL_SDK_VERSIONS_ROOT)/*/*/android.jar)
 TARGET_AVAILABLE_SDK_VERSIONS := $(patsubst $(HISTORICAL_SDK_VERSIONS_ROOT)/%/android.jar,%,$(TARGET_AVAILABLE_SDK_VERSIONS))
-# Strips and reorganizes the "public", "core" and "system" subdirs.
+# Strips and reorganizes the "public", "core", "system" and "test" subdirs.
 TARGET_AVAILABLE_SDK_VERSIONS := $(subst /public,,$(TARGET_AVAILABLE_SDK_VERSIONS))
 TARGET_AVAILABLE_SDK_VERSIONS := $(patsubst %/core,core_%,$(TARGET_AVAILABLE_SDK_VERSIONS))
 TARGET_AVAILABLE_SDK_VERSIONS := $(patsubst %/system,system_%,$(TARGET_AVAILABLE_SDK_VERSIONS))
-# No prebuilt for test_current.
-TARGET_AVAILABLE_SDK_VERSIONS += test_current
+TARGET_AVAILABLE_SDK_VERSIONS := $(patsubst %/test,test_%,$(TARGET_AVAILABLE_SDK_VERSIONS))
+# module-lib and system-server are not supported in Make.
+TARGET_AVAILABLE_SDK_VERSIONS := $(filter-out %/module-lib %/system-server,$(TARGET_AVAILABLE_SDK_VERSIONS))
 TARGET_AVAIALBLE_SDK_VERSIONS := $(call numerically_sort,$(TARGET_AVAILABLE_SDK_VERSIONS))
 
 TARGET_SDK_VERSIONS_WITHOUT_JAVA_18_SUPPORT := $(call numbers_less_than,24,$(TARGET_AVAILABLE_SDK_VERSIONS))
