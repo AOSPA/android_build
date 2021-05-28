@@ -194,6 +194,9 @@ endif
 # BOARD_VNDK_VERSION := current is supported.
 ifeq (true,$(BUILDING_WITH_VSDK))
   PLATFORM_VNDK_VERSION := S
+# TODO(b/185817026)
+else ifeq(true,$(GENERATING_VSDK))
+  PLATFORM_VNDK_VERSION := 31
 endif
 
 ifndef PLATFORM_VNDK_VERSION
