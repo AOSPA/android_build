@@ -428,6 +428,9 @@ ifneq ($(filter cfi,$(my_sanitize)),)
     my_cflags += -fvisibility=default
   endif
   my_ldflags += $(CFI_EXTRA_LDFLAGS)
+  my_ldflags += $(LOCAL_LDFLAGS_OVERRIDE)
+  my_cflags += $(LOCAL_CFLAGS_OVERRIDE)
+  my_asflags += $(LOCAL_ASFLAGS_OVERRIDE)
   my_arflags += --plugin $(LLVM_PREBUILTS_PATH)/../lib64/LLVMgold.so
 
   ifeq ($(LOCAL_FORCE_STATIC_EXECUTABLE),true)
