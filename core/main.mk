@@ -1751,7 +1751,6 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
   $(call dist-for-goals, droidcore, \
     $(BUILT_OTATOOLS_PACKAGE) \
     $(APPCOMPAT_ZIP) \
-    $(DEXPREOPT_CONFIG_ZIP) \
     $(DEXPREOPT_TOOLS_ZIP) \
   )
 
@@ -1799,6 +1798,7 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
     $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
     $(INSTALLED_MISC_INFO_TARGET) \
     $(INSTALLED_RAMDISK_TARGET) \
+    $(DEXPREOPT_CONFIG_ZIP) \
   )
 
   # Put a copy of the radio/bootloader files in the dist dir.
