@@ -211,6 +211,8 @@ PRODUCT_PACKAGES += \
     media_profiles_V1_0.dtd \
     MediaProviderLegacy \
     mediaserver \
+    mediaserver64 \
+    mediaserverwrapper \
     mke2fs \
     monkey \
     mtpd \
@@ -361,9 +363,6 @@ PRODUCT_VENDOR_PROPERTIES += ro.zygote?=zygote32
 
 PRODUCT_SYSTEM_PROPERTIES += debug.atrace.tags.enableflags=0
 PRODUCT_SYSTEM_PROPERTIES += persist.traced.enable=1
-
-# ANGLE is not enabled by default
-PRODUCT_PROPERTY_OVERRIDES += ro.gfx.angle.supported=false
 
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
