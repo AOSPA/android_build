@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "ce011e19_b31f512d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2021-06-14T01:55:39Z",
+      "side": 1,
+      "message": "nope, just update the spl number. we follow qualcomm\u0027s build IDs",
+      "revId": "8b63ac15924b460160d10320638ad9b9ee211f9a",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
