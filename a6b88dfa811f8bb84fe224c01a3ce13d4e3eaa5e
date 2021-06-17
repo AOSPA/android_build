@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "190942b7_8e8e7fca",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2021-06-17T12:12:26Z",
+      "side": 1,
+      "message": "I don\u0027t think we need to reserve space on release builds anyways, as gapps are inbuilt and I don\u0027t want to encourage people modifying with system partitions.\nCR -1 is purely because I don\u0027t necessarily see why we would need this and not for the code, it does its job just fine",
+      "revId": "a6b88dfa811f8bb84fe224c01a3ce13d4e3eaa5e",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
