@@ -258,7 +258,10 @@ endif
 
 ## user/userdebug ##
 
-user_variant := $(filter user userdebug,$(TARGET_BUILD_VARIANT))
+user_variant := user
+ifeq ($(TARGET_BUILD_VARIANT),eng)
+user_variant :=
+endif
 enable_target_debugging := true
 tags_to_install :=
 ifneq (,$(user_variant))
