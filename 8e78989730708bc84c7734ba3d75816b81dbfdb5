@@ -51,6 +51,23 @@
       "parentUuid": "6c1f8268_b060e207",
       "revId": "8e78989730708bc84c7734ba3d75816b81dbfdb5",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "cf068f3b_6dff30c8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2021-06-18T05:51:27Z",
+      "side": 1,
+      "message": "yes but you dont even have to hack buildsystem for this, just setting this one prop does the job\na less intrusive way if you aren\u0027t signing",
+      "revId": "8e78989730708bc84c7734ba3d75816b81dbfdb5",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
