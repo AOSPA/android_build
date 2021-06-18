@@ -33,6 +33,24 @@
       "message": "can simply extend 16047: init: Set properties to make SafetyNet pass. | https://gerrit.aospa.co/c/AOSPA/android_system_core/+/16047 like https://github.com/yaap/system_core/commit/8cf3ff800f86dd6e2a7732659165cc4e5f5bae79",
       "revId": "8e78989730708bc84c7734ba3d75816b81dbfdb5",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "12a54a94_1e4f8810",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000463
+      },
+      "writtenOn": "2021-06-18T02:59:27Z",
+      "side": 1,
+      "message": "this patch isn\u0027t for SafetyNet, it\u0027s for release-keys. Some apps (like Jio App) don\u0027t work properly in non signed build (test-keys) so this haxx \"fix\" that.",
+      "parentUuid": "6c1f8268_b060e207",
+      "revId": "8e78989730708bc84c7734ba3d75816b81dbfdb5",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
