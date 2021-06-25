@@ -193,7 +193,7 @@ endif
 # TODO(b/159866756): Remove this workaround when building against
 # BOARD_VNDK_VERSION := current is supported.
 ifeq (true,$(BUILDING_WITH_VSDK))
-  PLATFORM_VNDK_VERSION := 32
+  PLATFORM_VNDK_VERSION := S
 endif
 
 ifndef PLATFORM_VNDK_VERSION
