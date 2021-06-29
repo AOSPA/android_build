@@ -313,13 +313,6 @@ ADDITIONAL_VENDOR_PROPERTIES += \
 endif
 endif
 
-# Set build prop. This prop is read by ota_from_target_files when generating OTA,
-# to decide if VABC should be disabled.
-ifeq ($(BOARD_DONT_USE_VABC_OTA),true)
-ADDITIONAL_VENDOR_PROPERTIES += \
-    ro.vendor.build.dont_use_vabc=true
-endif
-
 ADDITIONAL_VENDOR_PROPERTIES += \
     ro.vendor.build.security_patch=$(VENDOR_SECURITY_PATCH) \
     ro.product.board=$(TARGET_BOOTLOADER_BOARD_NAME) \
@@ -1588,10 +1581,9 @@ vbmetasystemimage: $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET)
 .PHONY: vbmetavendorimage
 vbmetavendorimage: $(INSTALLED_VBMETA_VENDORIMAGE_TARGET)
 
-# The droidcore-unbundled target depends on the subset of targets necessary to
-# perform a full system build (either unbundled or not).
-.PHONY: droidcore-unbundled
-droidcore-unbundled: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
+# Build files and then package it into the rom formats
+.PHONY: droidcore
+droidcore: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_SYSTEMIMAGE_TARGET) \
     $(INSTALLED_RAMDISK_TARGET) \
     $(INSTALLED_BOOTIMAGE_TARGET) \
@@ -1648,11 +1640,6 @@ droidcore-unbundled: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_FILES_JSON_RECOVERY) \
     $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
     soong_docs
-
-# The droidcore target depends on the droidcore-unbundled subset and any other
-# targets for a non-unbundled (full source) full system build.
-.PHONY: droidcore
-droidcore: droidcore-unbundled
 
 # dist_files only for putting your library into the dist directory with a full build.
 .PHONY: dist_files
@@ -1729,43 +1716,20 @@ $(eval $(call combine-notice-files, html, \
     $(apps_only_installed_files)))
 
 
-else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
-
-  # Truth table for entering this block of code:
-  # TARGET_BUILD_UNBUNDLED | TARGET_BUILD_UNBUNDLED_IMAGE | Action
-  # -----------------------|------------------------------|-------------------------
-  # not set                | not set                      | droidcore path
-  # not set                | true                         | invalid
-  # true                   | not set                      | skip
-  # true                   | true                         | droidcore-unbundled path
-
-  # We dist the following targets only for droidcore full build. These items
-  # can include java-related targets that would cause building framework java
-  # sources in a droidcore full build.
-
+else ifeq (,$(TARGET_BUILD_UNBUNDLED))
   $(call dist-for-goals, droidcore, \
-    $(BUILT_OTATOOLS_PACKAGE) \
-    $(APPCOMPAT_ZIP) \
-    $(DEXPREOPT_CONFIG_ZIP) \
-    $(DEXPREOPT_TOOLS_ZIP) \
-  )
-
-  # We dist the following targets for droidcore-unbundled (and droidcore since
-  # droidcore depends on droidcore-unbundled). The droidcore-unbundled target
-  # is a subset of droidcore. It can be used used for an unbundled build to
-  # avoid disting targets that would cause building framework java sources,
-  # which we want to avoid in an unbundled build.
-
-  $(call dist-for-goals, droidcore-unbundled, \
     $(INTERNAL_UPDATE_PACKAGE_TARGET) \
     $(INTERNAL_OTA_PACKAGE_TARGET) \
     $(INTERNAL_OTA_METADATA) \
     $(INTERNAL_OTA_PARTIAL_PACKAGE_TARGET) \
     $(INTERNAL_OTA_RETROFIT_DYNAMIC_PARTITIONS_PACKAGE_TARGET) \
+    $(BUILT_OTATOOLS_PACKAGE) \
     $(SYMBOLS_ZIP) \
     $(PROGUARD_DICT_ZIP) \
     $(PROGUARD_USAGE_ZIP) \
     $(COVERAGE_ZIP) \
+    $(APPCOMPAT_ZIP) \
+    $(DEXPREOPT_CONFIG_ZIP) \
     $(INSTALLED_FILES_FILE) \
     $(INSTALLED_FILES_JSON) \
     $(INSTALLED_FILES_FILE_VENDOR) \
@@ -1794,11 +1758,11 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
     $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
     $(INSTALLED_MISC_INFO_TARGET) \
     $(INSTALLED_RAMDISK_TARGET) \
-  )
+   )
 
   # Put a copy of the radio/bootloader files in the dist dir.
   $(foreach f,$(INSTALLED_RADIOIMAGE_TARGET), \
-    $(call dist-for-goals, droidcore-unbundled, $(f)))
+    $(call dist-for-goals, droidcore, $(f)))
 
   ifneq ($(ANDROID_BUILD_EMBEDDED),true)
     $(call dist-for-goals, droidcore, \
@@ -1807,13 +1771,13 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
     )
   endif
 
-  $(call dist-for-goals, droidcore-unbundled, \
+  $(call dist-for-goals, droidcore, \
     $(INSTALLED_FILES_FILE_ROOT) \
     $(INSTALLED_FILES_JSON_ROOT) \
   )
 
   ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-    $(call dist-for-goals, droidcore-unbundled, \
+    $(call dist-for-goals, droidcore, \
       $(INSTALLED_FILES_FILE_RAMDISK) \
       $(INSTALLED_FILES_JSON_RAMDISK) \
       $(INSTALLED_FILES_FILE_DEBUG_RAMDISK) \
@@ -1833,7 +1797,7 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
   endif
 
   ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-    $(call dist-for-goals, droidcore-unbundled, \
+    $(call dist-for-goals, droidcore, \
       $(recovery_ramdisk) \
     )
   endif
@@ -1863,25 +1827,10 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
         $(call dist-for-goals,droidcore,$(f):ndk_apis/$(notdir $(f))))
   endif
 
-  # For full system build (whether unbundled or not), we configure
-  # droid_targets to depend on droidcore-unbundled, which will set up the full
-  # system dependencies and also dist the subset of targets that correspond to
-  # an unbundled build (exclude building some framework sources).
+# Building a full system-- the default is to build droidcore
+droid_targets: droidcore dist_files
 
-  droid_targets: droidcore-unbundled
-
-  ifeq (,$(TARGET_BUILD_UNBUNDLED_IMAGE))
-
-    # If we're building a full system (including the framework sources excluded
-    # by droidcore-unbundled), we configure droid_targets also to depend on
-    # droidcore, which includes all dist for droidcore, and will build the
-    # necessary framework sources.
-
-    droid_targets: droidcore dist_files
-
-  endif
-
-endif # TARGET_BUILD_UNBUNDLED == TARGET_BUILD_UNBUNDLED_IMAGE
+endif # !TARGET_BUILD_UNBUNDLED
 
 .PHONY: docs
 docs: $(ALL_DOCS)

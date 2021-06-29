@@ -59,8 +59,6 @@ python_defaults {
         "mkuserimg_mke2fs",
         "simg2img",
         "tune2fs",
-        "mkf2fsuserimg.sh",
-        "fsck.f2fs",
     ],
 }
 
@@ -113,20 +111,6 @@ python_library_host {
     ],
     proto: {
         canonical_path_from_root: false,
-    },
-}
-
-cc_library_static {
-    name: "ota_metadata_proto_cc",
-    srcs: [
-       "ota_metadata.proto",
-    ],
-    host_supported: true,
-    recovery_available: true,
-    proto: {
-        canonical_path_from_root: false,
-        type: "lite",
-        export_proto_headers: true,
     },
 }
 

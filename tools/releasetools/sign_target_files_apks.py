@@ -217,18 +217,6 @@ for partition in common.AVB_PARTITIONS:
     raise RuntimeError("Missing {} in AVB_FOOTER_ARGS".format(partition))
 
 
-def IsApexFile(filename):
-  return filename.endswith(".apex") or filename.endswith(".capex")
-
-
-def GetApexFilename(filename):
-  name = os.path.basename(filename)
-  # Replace the suffix for compressed apex
-  if name.endswith(".capex"):
-    return name.replace(".capex", ".apex")
-  return name
-
-
 def GetApkCerts(certmap):
   # apply the key remapping to the contents of the file
   for apk, cert in certmap.items():
@@ -368,8 +356,8 @@ def CheckApkAndApexKeysAvailable(input_tf_zip, known_keys,
   unknown_files = []
   for info in input_tf_zip.infolist():
     # Handle APEXes on all partitions
-    if IsApexFile(info.filename):
-      name = GetApexFilename(info.filename)
+    if info.filename.endswith('.apex'):
+      name = os.path.basename(info.filename)
       if name not in known_keys:
         unknown_files.append(name)
       continue
@@ -400,11 +388,10 @@ def CheckApkAndApexKeysAvailable(input_tf_zip, known_keys,
 
   invalid_apexes = []
   for info in input_tf_zip.infolist():
-    if not IsApexFile(info.filename):
+    if not info.filename.endswith('.apex'):
       continue
 
-    name = GetApexFilename(info.filename)
-
+    name = os.path.basename(info.filename)
     (payload_key, container_key) = apex_keys[name]
     if ((payload_key in common.SPECIAL_CERT_STRINGS and
          container_key not in common.SPECIAL_CERT_STRINGS) or
@@ -554,9 +541,8 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
         common.ZipWriteStr(output_tf_zip, out_info, data)
 
     # Sign bundled APEX files on all partitions
-    elif IsApexFile(filename):
-      name = GetApexFilename(filename)
-
+    elif filename.endswith(".apex"):
+      name = os.path.basename(filename)
       payload_key, container_key = apex_keys[name]
 
       # We've asserted not having a case with only one of them PRESIGNED.
