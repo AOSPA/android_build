@@ -3635,16 +3635,19 @@ endef
 # $(1): Partition name, e.g. boot or system.
 define check-and-set-avb-args
 $(eval _in_chained_vbmeta := $(filter $(1),$(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES)))
-$(if $(BOARD_AVB_$(call to-upper,$(1))_KEY_PATH),\
-    $(if $(_in_chained_vbmeta),\
-        $(error Chaining partition "$(1)" in chained VBMeta image is not supported)) \
-    $(call _check-and-set-avb-chain-args,$(1)),\
-    $(if $(_in_chained_vbmeta),,\
-        $(if $(filter boot,$(1)),\
-            $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-                --include_descriptors_from_image $(firstword $(call images-for-partitions,$(1)))),\
-            $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
-                --include_descriptors_from_image $(call images-for-partitions,$(1))))))
+$(eval _partition_path := $(call images-for-partitions,$(1)))
+$(if $(_partition_path),\
+    $(if $(BOARD_AVB_$(call to-upper,$(1))_KEY_PATH),\
+        $(if $(_in_chained_vbmeta),\
+            $(error Chaining partition "$(1)" in chained VBMeta image is not supported)) \
+        $(call _check-and-set-avb-chain-args,$(1)),\
+        $(if $(_in_chained_vbmeta),,\
+            $(if $(filter boot,$(1)),\
+                $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
+                    --include_descriptors_from_image $(firstword $(_partition_path))),\
+                $(eval INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
+                    --include_descriptors_from_image $(_partition_path))))),\
+    $(info Partition path for "$(1)" not yet defined, not adding it to vbmeta))
 endef
 
 # Checks and sets build variables for a custom chained partition to include it into vbmeta.img.
