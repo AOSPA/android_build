@@ -561,7 +561,12 @@ subdir_makefiles_total := $(words int $(subdir_makefiles) post finish)
 
 $(foreach mk,$(subdir_makefiles),$(info [$(call inc_and_print,subdir_makefiles_inc)/$(subdir_makefiles_total)] including $(mk) ...)$(eval include $(mk)))
 
+# For an unbundled image, we can skip blueprint_tools because unbundled image
+# aims to remove a large number framework projects from the manifest, the
+# sources or dependencies for these tools may be missing from the tree.
+ifeq (,$(TARGET_BUILD_UNBUNDLED_IMAGE))
 droid_targets : blueprint_tools
+endif
 
 endif # dont_bother
 
@@ -1746,7 +1751,6 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
   $(call dist-for-goals, droidcore, \
     $(BUILT_OTATOOLS_PACKAGE) \
     $(APPCOMPAT_ZIP) \
-    $(DEXPREOPT_CONFIG_ZIP) \
     $(DEXPREOPT_TOOLS_ZIP) \
   )
 
@@ -1794,6 +1798,7 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
     $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
     $(INSTALLED_MISC_INFO_TARGET) \
     $(INSTALLED_RAMDISK_TARGET) \
+    $(DEXPREOPT_CONFIG_ZIP) \
   )
 
   # Put a copy of the radio/bootloader files in the dist dir.
