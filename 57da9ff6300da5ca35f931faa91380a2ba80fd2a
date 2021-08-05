@@ -16,6 +16,23 @@
       "message": "It can be merged as it doesn\u0027t interfere anything but allow to use prebuilt recovery ramdisk",
       "revId": "57da9ff6300da5ca35f931faa91380a2ba80fd2a",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "119bd3d3_e20e98dd",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000447
+      },
+      "writtenOn": "2021-08-05T14:27:08Z",
+      "side": 1,
+      "message": "Our recovery is a shipping requirement",
+      "revId": "57da9ff6300da5ca35f931faa91380a2ba80fd2a",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
