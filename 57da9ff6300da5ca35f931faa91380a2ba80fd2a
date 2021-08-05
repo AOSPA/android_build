@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "f23ac676_b79e81f3",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000702
+      },
+      "writtenOn": "2021-08-05T11:30:55Z",
+      "side": 1,
+      "message": "It can be merged as it doesn\u0027t interfere anything but allow to use prebuilt recovery ramdisk",
+      "revId": "57da9ff6300da5ca35f931faa91380a2ba80fd2a",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
