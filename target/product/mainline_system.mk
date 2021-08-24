@@ -35,9 +35,13 @@ PRODUCT_PACKAGES += \
     PresencePolling \
     RcsService \
     SafetyRegulatoryInfo \
-    Stk \
     Tag \
     TimeZoneUpdater \
+
+ifneq ($(TARGET_NO_TELEPHONY), true)
+PRODUCT_PACKAGES += \
+    Stk
+endif #TARGET_NO_TELEPHONY
 
 # Binaries
 PRODUCT_PACKAGES += llkd
