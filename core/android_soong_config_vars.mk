@@ -81,7 +81,6 @@ ifdef APEX_BUILD_FOR_PRE_S_DEVICES
 $(call add_soong_config_var_value,ANDROID,library_linking_strategy,prefer_static)
 endif
 
-# TODO(b/194510087): Add back the check for ifdef MODULE_BUILD_FROM_SOURCE
-# ifdef MODULE_BUILD_FROM_SOURCE
+ifdef MODULE_BUILD_FROM_SOURCE
 $(call add_soong_config_var_value,ANDROID,module_build_from_source,true)
-# endif
+endif
