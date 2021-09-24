@@ -18,5 +18,7 @@
 # hardware, and install to the product partition.
 
 # /product packages
+ifneq ($(TARGET_NO_TELEPHONY), true)
 PRODUCT_PACKAGES += \
-    Dialer \
+    Dialer
+endif #TARGET_NO_TELEPHONY
