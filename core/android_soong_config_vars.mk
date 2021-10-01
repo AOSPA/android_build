@@ -28,6 +28,8 @@ $(call add_soong_config_namespace,ANDROID)
 
 $(call add_soong_config_var,ANDROID,TARGET_ENABLE_MEDIADRM_64)
 $(call add_soong_config_var,ANDROID,BOARD_USES_ODMIMAGE)
+$(call add_soong_config_var,ANDROID,BOARD_USES_RECOVERY_AS_BOOT)
+$(call add_soong_config_var,ANDROID,BOARD_BUILD_SYSTEM_ROOT_IMAGE)
 
 ifeq (,$(filter com.google.android.conscrypt,$(PRODUCT_PACKAGES)))
   # Prebuilt module SDKs require prebuilt modules to work, and currently
@@ -61,10 +63,6 @@ else ifneq (,$(SANITIZE_TARGET)$(SANITIZE_HOST))
   # Prebuilts aren't built with sanitizers either.
   SOONG_CONFIG_art_module_source_build := true
   MODULE_BUILD_FROM_SOURCE := true
-else ifneq (,$(PRODUCT_FUCHSIA))
-  # Fuchsia picks out ART internal packages that aren't available in the
-  # prebuilt.
-  SOONG_CONFIG_art_module_source_build := true
 else ifeq (,$(filter x86 x86_64,$(HOST_CROSS_ARCH)))
   # We currently only provide prebuilts for x86 on host. This skips prebuilts in
   # cuttlefish builds for ARM servers.
@@ -82,7 +80,7 @@ else
   # This sets the default for building ART APEXes from source rather than
   # prebuilts (in packages/modules/ArtPrebuilt and prebuilt/module_sdk/art) in
   # all other platform builds.
-  SOONG_CONFIG_art_module_source_build ?= false
+  SOONG_CONFIG_art_module_source_build ?= true
 endif
 
 # Apex build mode variables

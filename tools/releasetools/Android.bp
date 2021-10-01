@@ -164,6 +164,7 @@ python_defaults {
         "releasetools_common",
         "releasetools_verity_utils",
         "apex_manifest",
+        "care_map_proto_py",
     ],
     required: [
         "brillo_update_payload",
@@ -400,7 +401,7 @@ python_binary_host {
         "releasetools_common",
     ],
     required: [
-        "aapt",
+        "aapt2",
     ],
 }
 
