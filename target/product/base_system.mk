@@ -52,6 +52,7 @@ PRODUCT_PACKAGES += \
     com.android.adbd \
     com.android.appsearch \
     com.android.conscrypt \
+    com.android.cronet \
     com.android.extservices \
     com.android.i18n \
     com.android.ipsec \
@@ -59,6 +60,7 @@ PRODUCT_PACKAGES += \
     com.android.media \
     com.android.media.swcodec \
     com.android.mediaprovider \
+    com.android.nearby \
     com.android.os.statsd \
     com.android.permission \
     com.android.resolv \
@@ -67,6 +69,7 @@ PRODUCT_PACKAGES += \
     com.android.sdkext \
     com.android.tethering \
     com.android.tzdata \
+    com.android.uwb \
     com.android.wifi \
     ContactsProvider \
     content \
@@ -132,6 +135,7 @@ PRODUCT_PACKAGES += \
     libaudioeffect_jni \
     libbinder \
     libbinder_ndk \
+    libbinder_rpc_unstable \
     libc.bootstrap \
     libcamera2ndk \
     libcutils \
@@ -217,7 +221,7 @@ PRODUCT_PACKAGES += \
     mtpd \
     ndc \
     netd \
-    NetworkStack \
+    NetworkStackNext \
     odsign \
     org.apache.http.legacy \
     otacerts \
@@ -380,6 +384,7 @@ PRODUCT_PACKAGES_DEBUG := \
     profcollectd \
     profcollectctl \
     remount \
+    servicedispatcher \
     showmap \
     sqlite3 \
     ss \
