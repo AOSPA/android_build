@@ -80,6 +80,8 @@ PLATFORM_SDK_EXTENSION_VERSION := 1
 # BOARD_VNDK_VERSION := current is supported.
 ifeq (true,$(BUILDING_WITH_VSDK))
   PLATFORM_VNDK_VERSION := S
+else
+  PLATFORM_VNDK_VERSION := 32
 endif
 
 # This is the sdk extension version that PLATFORM_SDK_VERSION ships with.
