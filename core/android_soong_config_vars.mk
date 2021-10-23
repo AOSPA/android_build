@@ -30,6 +30,7 @@ $(call add_soong_config_var,ANDROID,TARGET_ENABLE_MEDIADRM_64)
 $(call add_soong_config_var,ANDROID,BOARD_USES_ODMIMAGE)
 $(call add_soong_config_var,ANDROID,BOARD_USES_RECOVERY_AS_BOOT)
 $(call add_soong_config_var,ANDROID,BOARD_BUILD_SYSTEM_ROOT_IMAGE)
+$(call add_soong_config_var,ANDROID,PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT)
 
 ifeq (,$(filter com.google.android.conscrypt,$(PRODUCT_PACKAGES)))
   # Prebuilt module SDKs require prebuilt modules to work, and currently
@@ -44,7 +45,9 @@ ifeq (,$(filter art_module,$(SOONG_CONFIG_NAMESPACES)))
   $(call add_soong_config_namespace,art_module)
   SOONG_CONFIG_art_module += source_build
 endif
-ifneq (,$(findstring .android.art,$(TARGET_BUILD_APPS)))
+ifneq (,$(SOONG_CONFIG_art_module_source_build))
+  # Keep an explicit setting.
+else ifneq (,$(findstring .android.art,$(TARGET_BUILD_APPS)))
   # Build ART modules from source if they are listed in TARGET_BUILD_APPS.
   SOONG_CONFIG_art_module_source_build := true
 else ifeq (,$(filter-out modules_% mainline_modules_%,$(TARGET_PRODUCT)))

@@ -87,6 +87,29 @@ define copy-files
 $(foreach f,$(1),$(f):$(2)/$(notdir $(f)))
 endef
 
+#
+# Convert the list of file names to the list of PRODUCT_COPY_FILES items
+# $(1): from pattern
+# $(2): to pattern
+# $(3): file names
+# E.g., calling product-copy-files-by-pattern with
+#   (from/%, to/%, a b)
+# returns
+#   from/a:to/a from/b:to/b
+define product-copy-files-by-pattern
+$(join $(patsubst %,$(1),$(3)),$(patsubst %,:$(2),$(3)))
+endef
+
+# Return empty unless the board matches
+define is-board-platform2
+$(filter $(1), $(TARGET_BOARD_PLATFORM))
+endef
+
+# Return empty unless the board is in the list
+define is-board-platform-in-list2
+$(filter $(1),$(TARGET_BOARD_PLATFORM))
+endef
+
 # ---------------------------------------------------------------
 # Check for obsolete PRODUCT- and APP- goals
 ifeq ($(CALLED_FROM_SETUP),true)
@@ -176,8 +199,8 @@ endif
 ifndef RBC_PRODUCT_CONFIG
 $(call import-products, $(current_product_makefile))
 else
-  rbcscript=build/soong/scripts/rbc-run
-  rc := $(shell $(rbcscript) $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT) >$(OUT_DIR)/rbctemp.mk || echo $$?)
+  rc := $(shell build/soong/scripts/rbc-run $(current_product_makefile) \
+      >$(OUT_DIR)/rbctemp.mk || echo $$?)
   ifneq (,$(rc))
     $(error product configuration converter failed: $(rc))
   endif
@@ -285,19 +308,6 @@ PRODUCT_APEX_BOOT_JARS := $(filter-out com.android.i18n:core-icu4j,$(PRODUCT_APE
 # All APEX jars come after /system and /system_ext jars, so adding core-icu4j at the end of the list
 PRODUCT_BOOT_JARS += com.android.i18n:core-icu4j
 
-# Replaces references to overridden boot jar modules in a boot jars variable.
-# $(1): Name of a boot jars variable with <apex>:<jar> pairs.
-define replace-boot-jar-module-overrides
-  $(foreach pair,$(PRODUCT_BOOT_JAR_MODULE_OVERRIDES),\
-    $(eval _rbjmo_from := $(call word-colon,1,$(pair)))\
-    $(eval _rbjmo_to := $(call word-colon,2,$(pair)))\
-    $(eval $(1) := $(patsubst $(_rbjmo_from):%,$(_rbjmo_to):%,$($(1)))))
-endef
-
-$(call replace-boot-jar-module-overrides,PRODUCT_BOOT_JARS)
-$(call replace-boot-jar-module-overrides,PRODUCT_APEX_BOOT_JARS)
-$(call replace-boot-jar-module-overrides,ART_APEX_JARS)
-
 # The extra system server jars must be appended at the end after common system server jars.
 PRODUCT_SYSTEM_SERVER_JARS += $(PRODUCT_SYSTEM_SERVER_JARS_EXTRA)
 
@@ -384,6 +394,12 @@ ifeq (,$(filter eng userdebug,$(TARGET_BUILD_VARIANT)),)
 endif
 ifneq ($(filter-out 0 1,$(words $(PRODUCT_ADB_KEYS))),)
   $(error Only one file may be in PRODUCT_ADB_KEYS: $(PRODUCT_ADB_KEYS))
+endif
+
+ifdef PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT
+  ifeq (,$(filter gsi_arm gsi_arm64 gsi_x86 gsi_x86_64,$(PRODUCT_NAME)))
+    $(error Only GSI products are allowed to set PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT)
+  endif
 endif
 
 ifndef PRODUCT_USE_DYNAMIC_PARTITIONS

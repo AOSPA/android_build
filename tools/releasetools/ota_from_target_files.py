@@ -221,6 +221,12 @@ A/B OTA specific options
       For VABC downgrades, we must finish merging before doing data wipe, and
       since data wipe is required for downgrading OTA, this might cause long
       wait time in recovery.
+
+  --enable_vabc_xor
+      Enable the VABC xor feature. Will reduce space requirements for OTA
+
+  --force_minor_version
+      Override the update_engine minor version for delta generation.
 """
 
 from __future__ import print_function
@@ -286,7 +292,8 @@ OPTIONS.custom_images = {}
 OPTIONS.disable_vabc = False
 OPTIONS.spl_downgrade = False
 OPTIONS.vabc_downgrade = False
-OPTIONS.enable_vabc_xor = False
+OPTIONS.enable_vabc_xor = True
+OPTIONS.force_minor_version = None
 
 POSTINSTALL_CONFIG = 'META/postinstall_config.txt'
 DYNAMIC_PARTITION_INFO = 'META/dynamic_partitions_info.txt'
@@ -1091,6 +1098,9 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
   if target_info.vendor_suppressed_vabc:
     logger.info("Vendor suppressed VABC. Disabling")
     OPTIONS.disable_vabc = True
+  if not target_info.is_vabc_xor or OPTIONS.disable_vabc:
+    logger.info("VABC XOR Not supported, disabling")
+    OPTIONS.enable_vabc_xor = False
   additional_args = []
 
   # Prepare custom images.
@@ -1112,6 +1122,8 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
   with zipfile.ZipFile(target_file, allowZip64=True) as zfp:
     target_info.info_dict['ab_partitions'] = zfp.read(
         AB_PARTITIONS).decode().strip().split("\n")
+
+  CheckVintfIfTrebleEnabled(target_file, target_info)
 
   # Metadata to comply with Android OTA package format.
   metadata = GetPackageMetadata(target_info, source_info)
@@ -1135,6 +1147,8 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
     additional_args += ["--disable_vabc", "true"]
   if OPTIONS.enable_vabc_xor:
     additional_args += ["--enable_vabc_xor", "true"]
+  if OPTIONS.force_minor_version:
+    additional_args += ["--force_minor_version", OPTIONS.force_minor_version]
   additional_args += ["--max_timestamp", max_timestamp]
 
   if SupportsMainlineGkiUpdates(source_file):
@@ -1196,8 +1210,6 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
                        compress_type=zipfile.ZIP_STORED)
 
   common.ZipClose(target_zip)
-
-  CheckVintfIfTrebleEnabled(target_file, target_info)
 
   # We haven't written the metadata entry yet, which will be handled in
   # FinalizeMetadata().
@@ -1309,7 +1321,9 @@ def main(argv):
     elif o == "--vabc_downgrade":
       OPTIONS.vabc_downgrade = True
     elif o == "--enable_vabc_xor":
-      OPTIONS.enable_vabc_xor = True
+      OPTIONS.enable_vabc_xor = a.lower() != "false"
+    elif o == "--force_minor_version":
+      OPTIONS.force_minor_version = a
     else:
       return False
     return True
@@ -1354,7 +1368,8 @@ def main(argv):
                                  "disable_vabc",
                                  "spl_downgrade",
                                  "vabc_downgrade",
-                                 "enable_vabc_xor",
+                                 "enable_vabc_xor=",
+                                 "force_minor_version=",
                              ], extra_option_handler=option_handler)
 
   if len(args) != 2:

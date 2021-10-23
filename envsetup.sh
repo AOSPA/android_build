@@ -240,7 +240,7 @@ function setpaths()
         export ANDROID_TOOLCHAIN_2ND_ARCH=$gccprebuiltdir/$toolchaindir2
     fi
 
-    export ANDROID_DEV_SCRIPTS=$T/development/scripts:$T/prebuilts/devtools/tools:$T/external/selinux/prebuilts/bin
+    export ANDROID_DEV_SCRIPTS=$T/development/scripts:$T/prebuilts/devtools/tools
 
     # add kernel specific binaries
     case $(uname -s) in
@@ -1667,12 +1667,19 @@ function _wrap_build()
     if [ -n "$ncolors" ] && [ $ncolors -ge 8 ]; then
         color_failed=$'\E'"[0;31m"
         color_success=$'\E'"[0;32m"
+        color_warning=$'\E'"[0;33m"
         color_reset=$'\E'"[00m"
     else
         color_failed=""
         color_success=""
         color_reset=""
     fi
+
+    if [[ "x${USE_RBE}" == "x" && $mins -gt 15 && "${ANDROID_BUILD_ENVIRONMENT_CONFIG}" == "googler" ]]; then
+        echo
+        echo "${color_warning}Start using RBE (http://go/build-fast) to get faster builds!${color_reset}"
+    fi
+
     echo
     if [ $ret -eq 0 ] ; then
         echo -n "${color_success}#### build completed successfully "
@@ -1743,7 +1750,7 @@ function _trigger_build()
 function b()
 (
     # Generate BUILD, bzl files into the synthetic Bazel workspace (out/soong/workspace).
-    _trigger_build "all-modules" nothing GENERATE_BAZEL_FILES=true USE_BAZEL_ANALYSIS= || return 1
+    _trigger_build "all-modules" bp2build USE_BAZEL_ANALYSIS= || return 1
     # Then, run Bazel using the synthetic workspace as the --package_path.
     if [[ -z "$@" ]]; then
         # If there are no args, show help.
@@ -1759,15 +1766,6 @@ function m()
     call_hook ${FUNCNAME[0]} $@
     if [ $? -ne 0 ]; then
         return 1
-    fi
-
-    if [[ "${USE_BAZEL_ANALYSIS}" =~ ^(true|1)$ ]]; then
-        # This only short-circuits to Bazel for a single module target now.
-        b cquery "@soong_injection//module_name_to_label:$@" 2>/dev/null
-        if [[ $? == 0 ]]; then
-            bazel build "@soong_injection//module_name_to_label:$@" --config=bp2build
-            return $?
-        fi
     fi
 
     _trigger_build "all-modules" "$@"
