@@ -52,7 +52,9 @@ $(test_suite_jdk): $(SOONG_ZIP)
 	$(SOONG_ZIP) -o $@ -P $(PRIVATE_SUBDIR)/jdk -C $(PRIVATE_JDK_DIR) -D $(PRIVATE_JDK_DIR)
 
 # Include host shared libraries
-host_shared_libs := $(call copy-many-files, $(COMPATIBILITY.$(test_suite_name).HOST_SHARED_LIBRARY.FILES))
+ifneq (true,$(BUILDING_WITH_VSDK))
+  host_shared_libs := $(call copy-many-files, $(COMPATIBILITY.$(test_suite_name).HOST_SHARED_LIBRARY.FILES))
+endif
 
 compatibility_zip_deps := \
   $(test_artifacts) \
