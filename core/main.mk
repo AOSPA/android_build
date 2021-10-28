@@ -115,15 +115,6 @@ ifeq (true,$(EMMA_INSTRUMENT_STATIC))
 EMMA_INSTRUMENT := true
 endif
 
-ifeq (true,$(EMMA_INSTRUMENT))
-# Adding the jacoco library can cause the inclusion of
-# some typically banned classes
-# So if the user didn't specify SKIP_BOOT_JARS_CHECK, enable it here
-ifndef SKIP_BOOT_JARS_CHECK
-SKIP_BOOT_JARS_CHECK := true
-endif
-endif
-
 ifdef TARGET_ARCH_SUITE
   # TODO(b/175577370): Enable this error.
   # $(error TARGET_ARCH_SUITE is not supported in kati/make builds)
@@ -1593,6 +1584,9 @@ vendorramdisk: $(INSTALLED_VENDOR_RAMDISK_TARGET)
 .PHONY: vendorramdisk_debug
 vendorramdisk_debug: $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET)
 
+.PHONY: vendorramdisk_test_harness
+vendorramdisk_test_harness: $(INSTALLED_VENDOR_TEST_HARNESS_RAMDISK_TARGET)
+
 .PHONY: productimage
 productimage: $(INSTALLED_PRODUCTIMAGE_TARGET)
 
@@ -1616,6 +1610,10 @@ superimage_empty: $(INSTALLED_SUPERIMAGE_EMPTY_TARGET)
 
 .PHONY: bootimage
 bootimage: $(INSTALLED_BOOTIMAGE_TARGET)
+
+ifeq (true,$(PRODUCT_EXPORT_BOOT_IMAGE_TO_DIST))
+$(call dist-for-goals, bootimage, $(INSTALLED_BOOTIMAGE_TARGET))
+endif
 
 .PHONY: bootimage_debug
 bootimage_debug: $(INSTALLED_DEBUG_BOOTIMAGE_TARGET)
@@ -1652,6 +1650,7 @@ droidcore-unbundled: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_VENDORIMAGE_TARGET) \
     $(INSTALLED_VENDOR_BOOTIMAGE_TARGET) \
     $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
+    $(INSTALLED_VENDOR_TEST_HARNESS_RAMDISK_TARGET) \
     $(INSTALLED_VENDOR_TEST_HARNESS_BOOTIMAGE_TARGET) \
     $(INSTALLED_VENDOR_RAMDISK_TARGET) \
     $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
@@ -1691,8 +1690,7 @@ droidcore-unbundled: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_FILES_JSON_ROOT) \
     $(INSTALLED_FILES_FILE_RECOVERY) \
     $(INSTALLED_FILES_JSON_RECOVERY) \
-    $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
-    soong_docs
+    $(INSTALLED_ANDROID_INFO_TXT_TARGET)
 
 # The droidcore target depends on the droidcore-unbundled subset and any other
 # targets for a non-unbundled (full source) full system build.
@@ -1872,6 +1870,7 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
       $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET) \
       $(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET) \
       $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
+      $(INSTALLED_VENDOR_TEST_HARNESS_RAMDISK_TARGET) \
       $(INSTALLED_VENDOR_TEST_HARNESS_BOOTIMAGE_TARGET) \
       $(INSTALLED_VENDOR_RAMDISK_TARGET) \
       $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
@@ -1907,6 +1906,8 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
   ifdef CLANG_COVERAGE
     $(foreach f,$(SOONG_NDK_API_XML), \
         $(call dist-for-goals,droidcore,$(f):ndk_apis/$(notdir $(f))))
+    $(foreach f,$(SOONG_CC_API_XML), \
+        $(call dist-for-goals,droidcore,$(f):cc_apis/$(notdir $(f))))
   endif
 
   # For full system build (whether unbundled or not), we configure
@@ -1933,6 +1934,7 @@ endif # TARGET_BUILD_UNBUNDLED == TARGET_BUILD_UNBUNDLED_IMAGE
 docs: $(ALL_DOCS)
 
 .PHONY: sdk win_sdk winsdk-tools sdk_addon
+ifeq ($(HOST_OS),linux)
 ALL_SDK_TARGETS := $(INTERNAL_SDK_TARGET)
 sdk: $(ALL_SDK_TARGETS)
 $(call dist-for-goals,sdk win_sdk, \
@@ -1942,6 +1944,7 @@ $(call dist-for-goals,sdk win_sdk, \
     $(APPCOMPAT_ZIP) \
     $(INSTALLED_BUILD_PROP_TARGET) \
 )
+endif
 
 # umbrella targets to assit engineers in verifying builds
 .PHONY: java native target host java-host java-target native-host native-target \

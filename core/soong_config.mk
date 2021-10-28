@@ -27,6 +27,7 @@ $(call add_json_str,  Platform_version_name,             $(PLATFORM_VERSION))
 $(call add_json_val,  Platform_sdk_version,              $(PLATFORM_SDK_VERSION))
 $(call add_json_str,  Platform_sdk_codename,             $(PLATFORM_VERSION_CODENAME))
 $(call add_json_bool, Platform_sdk_final,                $(filter REL,$(PLATFORM_VERSION_CODENAME)))
+$(call add_json_val,  Platform_sdk_extension_version,    $(PLATFORM_SDK_EXTENSION_VERSION))
 $(call add_json_csv,  Platform_version_active_codenames, $(PLATFORM_VERSION_ALL_CODENAMES))
 $(call add_json_str,  Platform_security_patch,           $(PLATFORM_SECURITY_PATCH))
 $(call add_json_str,  Platform_preview_sdk_version,      $(PLATFORM_PREVIEW_SDK_VERSION))
@@ -39,7 +40,6 @@ $(call add_json_bool, Unbundled_build,                   $(TARGET_BUILD_UNBUNDLE
 $(call add_json_bool, Unbundled_build_apps,              $(TARGET_BUILD_APPS))
 $(call add_json_bool, Unbundled_build_image,             $(TARGET_BUILD_UNBUNDLED_IMAGE))
 $(call add_json_bool, Always_use_prebuilt_sdks,          $(TARGET_BUILD_USE_PREBUILT_SDKS))
-$(call add_json_bool, Skip_boot_jars_check,              $(SKIP_BOOT_JARS_CHECK))
 
 $(call add_json_bool, Debuggable,                        $(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
 $(call add_json_bool, Eng,                               $(filter eng,$(TARGET_BUILD_VARIANT)))
@@ -73,6 +73,7 @@ $(call add_json_str,  NativeBridgeSecondaryRelativePath, $(TARGET_NATIVE_BRIDGE_
 $(call add_json_str,  HostArch,                          $(HOST_ARCH))
 $(call add_json_str,  HostSecondaryArch,                 $(HOST_2ND_ARCH))
 $(call add_json_bool, HostStaticBinaries,                $(BUILD_HOST_static))
+$(call add_json_bool, HostMusl,                          $(USE_HOST_MUSL))
 
 $(call add_json_str,  CrossHost,                         $(HOST_CROSS_OS))
 $(call add_json_str,  CrossHostArch,                     $(HOST_CROSS_ARCH))
@@ -179,6 +180,7 @@ $(call add_json_list, RecoverySnapshotDirsIncluded,      $(RECOVERY_SNAPSHOT_DIR
 $(call add_json_list, RecoverySnapshotDirsExcluded,      $(RECOVERY_SNAPSHOT_DIRS_EXCLUDED))
 $(call add_json_list, RamdiskSnapshotDirsIncluded,       $(RAMDISK_SNAPSHOT_DIRS_INCLUDED))
 $(call add_json_list, RamdiskSnapshotDirsExcluded,       $(RAMDISK_SNAPSHOT_DIRS_EXCLUDED))
+$(call add_json_bool, HostFakeSnapshotEnabled,           $(HOST_FAKE_SNAPSHOT_ENABLE))
 
 $(call add_json_bool, Treble_linker_namespaces,          $(filter true,$(PRODUCT_TREBLE_LINKER_NAMESPACES)))
 $(call add_json_bool, Enforce_vintf_manifest,            $(filter true,$(PRODUCT_ENFORCE_VINTF_MANIFEST)))
@@ -217,6 +219,7 @@ $(call add_json_list, BoardSepolicyM4Defs,               $(BOARD_SEPOLICY_M4DEFS
 $(call add_json_str,  BoardSepolicyVers,                 $(BOARD_SEPOLICY_VERS))
 
 $(call add_json_str,  PlatformSepolicyVersion,           $(PLATFORM_SEPOLICY_VERSION))
+$(call add_json_str,  TotSepolicyVersion,                $(TOT_SEPOLICY_VERSION))
 
 $(call add_json_bool, Flatten_apex,                      $(filter true,$(TARGET_FLATTEN_APEX)))
 $(call add_json_bool, ForceApexSymlinkOptimization,      $(filter true,$(TARGET_FORCE_APEX_SYMLINK_OPTIMIZATION)))
@@ -284,6 +287,9 @@ $(call add_json_bool, RequiresInsecureExecmemForSwiftshader, $(filter true,$(PRO
 $(call add_json_bool, SelinuxIgnoreNeverallows, $(filter true,$(SELINUX_IGNORE_NEVERALLOWS)))
 
 $(call add_json_bool, SepolicySplit, $(filter true,$(PRODUCT_SEPOLICY_SPLIT)))
+
+$(call add_json_list, SepolicyFreezeTestExtraDirs,         $(SEPOLICY_FREEZE_TEST_EXTRA_DIRS))
+$(call add_json_list, SepolicyFreezeTestExtraPrebuiltDirs, $(SEPOLICY_FREEZE_TEST_EXTRA_PREBUILT_DIRS))
 
 $(call json_end)
 

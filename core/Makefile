@@ -163,7 +163,9 @@ ndk-docs: $(ndk_doxygen_out)/index.html
 .PHONY: ndk-docs
 endif
 
+ifeq ($(HOST_OS),linux)
 $(call dist-for-goals,sdk,$(API_FINGERPRINT))
+endif
 
 INSTALLED_RECOVERYIMAGE_TARGET :=
 # Build recovery image if
@@ -487,6 +489,12 @@ ifneq ($(strip $(BOARD_GENERIC_RAMDISK_KERNEL_MODULES)),)
   endif
 endif
 
+ifneq ($(BOARD_DO_NOT_STRIP_RECOVERY_MODULES),true)
+	RECOVERY_STRIPPED_MODULE_STAGING_DIR := $(call intermediates-dir-for,PACKAGING,depmod_recovery_stripped)
+else
+	RECOVERY_STRIPPED_MODULE_STAGING_DIR :=
+endif
+
 ifneq ($(BOARD_DO_NOT_STRIP_VENDOR_MODULES),true)
 	VENDOR_STRIPPED_MODULE_STAGING_DIR := $(call intermediates-dir-for,PACKAGING,depmod_vendor_stripped)
 else
@@ -501,7 +509,7 @@ endif
 
 BOARD_KERNEL_MODULE_DIRS += top
 $(foreach kmd,$(BOARD_KERNEL_MODULE_DIRS), \
-  $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,RECOVERY,$(TARGET_RECOVERY_ROOT_OUT),,modules.load.recovery,,$(kmd))) \
+  $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,RECOVERY,$(TARGET_RECOVERY_ROOT_OUT),,modules.load.recovery,$(RECOVERY_STRIPPED_MODULE_STAGING_DIR),$(kmd))) \
   $(eval vendor_ramdisk_fragment := $(KERNEL_MODULE_DIR_VENDOR_RAMDISK_FRAGMENT_$(kmd))) \
   $(if $(vendor_ramdisk_fragment), \
     $(eval output_dir := $(VENDOR_RAMDISK_FRAGMENT.$(vendor_ramdisk_fragment).STAGING_DIR)) \
@@ -769,7 +777,9 @@ $(INSTALLED_FILES_FILE_ROOT) : $(INTERNAL_ROOT_FILES) $(FILESLIST) $(FILESLIST_U
 	$(FILESLIST) $(TARGET_ROOT_OUT) > $(@:.txt=.json)
 	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
+ifeq ($(HOST_OS),linux)
 $(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE_ROOT))
+endif
 
 #------------------------------------------------------------------
 # dtb
@@ -799,7 +809,9 @@ $(INSTALLED_FILES_FILE_RAMDISK) : $(INTERNAL_RAMDISK_FILES) $(FILESLIST) $(FILES
 	$(FILESLIST) $(TARGET_RAMDISK_OUT) > $(@:.txt=.json)
 	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
+ifeq ($(HOST_OS),linux)
 $(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE_RAMDISK))
+endif
 BUILT_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk.img
 
 ifeq ($(BOARD_RAMDISK_USE_LZ4),true)
@@ -1090,12 +1102,10 @@ endif
 $(INTERNAL_VENDOR_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_VENDOR_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
 	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_VENDOR_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
 
-ifeq (true,$(BOARD_BUILD_VENDOR_RAMDISK_IMAGE))
 INSTALLED_VENDOR_RAMDISK_TARGET := $(PRODUCT_OUT)/vendor_ramdisk.img
 $(INSTALLED_VENDOR_RAMDISK_TARGET): $(INTERNAL_VENDOR_RAMDISK_TARGET)
-	$(call pretty,"Target vendor ramdisk: $@")
+	@echo "Target vendor ramdisk: $@"
 	$(copy-file-to-target)
-endif
 
 INSTALLED_FILES_FILE_VENDOR_RAMDISK := $(PRODUCT_OUT)/installed-files-vendor-ramdisk.txt
 INSTALLED_FILES_JSON_VENDOR_RAMDISK := $(INSTALLED_FILES_FILE_VENDOR_RAMDISK:.txt=.json)
@@ -1595,31 +1605,51 @@ endif
 
 endif # PRODUCT_USE_DYNAMIC_PARTITIONS
 
+# $(1) the partition name (eg system)
+# $(2) the image prop file
+define add-common-flags-to-image-props
+$(eval _var := $(call to-upper,$(1)))
+$(hide) echo "$(1)_selinux_fc=$(SELINUX_FC)" >> $(2)
+$(hide) echo "building_$(1)_image=$(BUILDING_$(_var)_IMAGE)" >> $(2)
+endef
+
+# $(1) the partition name (eg system)
+# $(2) the image prop file
+define add-common-ro-flags-to-image-props
+$(eval _var := $(call to-upper,$(1)))
+$(if $(BOARD_$(_var)IMAGE_EROFS_COMPRESSOR),$(hide) echo "$(1)_erofs_compressor"$(BOARD_$(_var)IMAGE_EROFS_COMPRESSOR)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_EXTFS_INODE_COUNT),$(hide) echo "$(1)_extfs_inode_count=$(BOARD_$(_var)IMAGE_EXTFS_INODE_COUNT)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_EXTFS_RSV_PCT),$(hide) echo "$(1)_extfs_rsv_pct=$(BOARD_$(_var)IMAGE_EXTFS_RSV_PCT)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_F2FS_SLOAD_COMPRESS_FLAGS),$(hide) echo "$(1)_f2fs_sldc_flags=$(BOARD_$(_var)IMAGE_F2FS_SLOAD_COMPRESS_FLAGS)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_FILE_SYSTEM_COMPRESS),$(hide) echo "$(1)_f2fs_compress=$(BOARD_$(_var)IMAGE_FILE_SYSTEM_COMPRESS)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_FILE_SYSTEM_TYPE),$(hide) echo "$(1)_fs_type=$(BOARD_$(_var)IMAGE_FILE_SYSTEM_TYPE)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_JOURNAL_SIZE),$(hide) echo "$(1)_journal_size=$(BOARD_$(_var)IMAGE_JOURNAL_SIZE)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_PARTITION_RESERVED_SIZE),$(hide) echo "$(1)_reserved_size=$(BOARD_$(_var)IMAGE_PARTITION_RESERVED_SIZE)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_PARTITION_SIZE),$(hide) echo "$(1)_size=$(BOARD_$(_var)IMAGE_PARTITION_SIZE)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "$(1)_squashfs_block_size=$(BOARD_$(_var)IMAGE_SQUASHFS_BLOCK_SIZE)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_SQUASHFS_COMPRESSOR),$(hide) echo "$(1)_squashfs_compressor=$(BOARD_$(_var)IMAGE_SQUASHFS_COMPRESSOR)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "$(1)_squashfs_compressor_opt=$(BOARD_$(_var)IMAGE_SQUASHFS_COMPRESSOR_OPT)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "$(1)_squashfs_disable_4k_align=$(BOARD_$(_var)IMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(2))
+$(if $(PRODUCT_$(_var)_BASE_FS_PATH),$(hide) echo "$(1)_base_fs_file=$(PRODUCT_$(_var)_BASE_FS_PATH)" >> $(2))
+$(eval _size := $(BOARD_$(_var)IMAGE_PARTITION_SIZE))
+$(eval _reserved := $(BOARD_$(_var)IMAGE_PARTITION_RESERVED_SIZE))
+$(eval _headroom := $(PRODUCT_$(_var)_HEADROOM))
+$(call add-common-flags-to-image-props,$(1),$(2))
+endef
+
 # $(1): the path of the output dictionary file
 # $(2): a subset of "system vendor cache userdata product system_ext oem odm vendor_dlkm odm_dlkm"
 # $(3): additional "key=value" pairs to append to the dictionary file.
 define generate-image-prop-dictionary
 $(if $(filter $(2),system),\
-    $(if $(BOARD_SYSTEMIMAGE_PARTITION_SIZE),$(hide) echo "system_size=$(BOARD_SYSTEMIMAGE_PARTITION_SIZE)" >> $(1))
     $(if $(INTERNAL_SYSTEM_OTHER_PARTITION_SIZE),$(hide) echo "system_other_size=$(INTERNAL_SYSTEM_OTHER_PARTITION_SIZE)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "system_fs_type=$(BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_FILE_SYSTEM_COMPRESS),$(hide) echo "system_f2fs_compress=$(BOARD_SYSTEMIMAGE_FILE_SYSTEM_COMPRESS)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_F2FS_SLOAD_COMPRESS_FLAGS),$(hide) echo "system_f2fs_sldc_flags=$(BOARD_SYSTEMIMAGE_F2FS_SLOAD_COMPRESS_FLAGS)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_EXTFS_INODE_COUNT),$(hide) echo "system_extfs_inode_count=$(BOARD_SYSTEMIMAGE_EXTFS_INODE_COUNT)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_EXTFS_RSV_PCT),$(hide) echo "system_extfs_rsv_pct=$(BOARD_SYSTEMIMAGE_EXTFS_RSV_PCT)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_JOURNAL_SIZE),$(hide) echo "system_journal_size=$(BOARD_SYSTEMIMAGE_JOURNAL_SIZE)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_SQUASHFS_COMPRESSOR),$(hide) echo "system_squashfs_compressor=$(BOARD_SYSTEMIMAGE_SQUASHFS_COMPRESSOR)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "system_squashfs_compressor_opt=$(BOARD_SYSTEMIMAGE_SQUASHFS_COMPRESSOR_OPT)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "system_squashfs_block_size=$(BOARD_SYSTEMIMAGE_SQUASHFS_BLOCK_SIZE)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "system_squashfs_disable_4k_align=$(BOARD_SYSTEMIMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(1))
-    $(if $(PRODUCT_SYSTEM_BASE_FS_PATH),$(hide) echo "system_base_fs_file=$(PRODUCT_SYSTEM_BASE_FS_PATH)" >> $(1))
     $(if $(PRODUCT_SYSTEM_HEADROOM),$(hide) echo "system_headroom=$(PRODUCT_SYSTEM_HEADROOM)" >> $(1))
-    $(if $(BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE),$(hide) echo "system_reserved_size=$(BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE)" >> $(1))
-    $(hide) echo "system_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_system_image=$(BUILDING_SYSTEM_IMAGE)" >> $(1)
+    $(call add-common-ro-flags-to-image-props,system,$(1))
 )
 $(if $(filter $(2),system_other),\
     $(hide) echo "building_system_other_image=$(BUILDING_SYSTEM_OTHER_IMAGE)" >> $(1)
+    $(if $(INTERNAL_SYSTEM_OTHER_PARTITION_SIZE),,
+        $(hide) echo "system_other_disable_sparse=true" >> $(1))
 )
 $(if $(filter $(2),userdata),\
     $(if $(BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "userdata_fs_type=$(BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
@@ -1627,116 +1657,37 @@ $(if $(filter $(2),userdata),\
     $(if $(PRODUCT_FS_CASEFOLD),$(hide) echo "needs_casefold=$(PRODUCT_FS_CASEFOLD)" >> $(1))
     $(if $(PRODUCT_QUOTA_PROJID),$(hide) echo "needs_projid=$(PRODUCT_QUOTA_PROJID)" >> $(1))
     $(if $(PRODUCT_FS_COMPRESSION),$(hide) echo "needs_compress=$(PRODUCT_FS_COMPRESSION)" >> $(1))
-    $(hide) echo "userdata_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_userdata_image=$(BUILDING_USERDATA_IMAGE)" >> $(1)
+    $(call add-common-flags-to-image-props,userdata,$(1))
 )
 $(if $(filter $(2),cache),\
     $(if $(BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "cache_fs_type=$(BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
     $(if $(BOARD_CACHEIMAGE_PARTITION_SIZE),$(hide) echo "cache_size=$(BOARD_CACHEIMAGE_PARTITION_SIZE)" >> $(1))
-    $(hide) echo "cache_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_cache_image=$(BUILDING_CACHE_IMAGE)" >> $(1)
+    $(call add-common-flags-to-image-props,cache,$(1))
 )
 $(if $(filter $(2),vendor),\
-    $(if $(BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "vendor_fs_type=$(BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_FILE_SYSTEM_COMPRESS),$(hide) echo "vendor_f2fs_compress=$(BOARD_VENDORIMAGE_FILE_SYSTEM_COMPRESS)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_F2FS_SLOAD_COMPRESS_FLAGS),$(hide) echo "vendor_f2fs_sldc_flags=$(BOARD_VENDORIMAGE_F2FS_SLOAD_COMPRESS_FLAGS)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_EXTFS_INODE_COUNT),$(hide) echo "vendor_extfs_inode_count=$(BOARD_VENDORIMAGE_EXTFS_INODE_COUNT)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_EXTFS_RSV_PCT),$(hide) echo "vendor_extfs_rsv_pct=$(BOARD_VENDORIMAGE_EXTFS_RSV_PCT)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_PARTITION_SIZE),$(hide) echo "vendor_size=$(BOARD_VENDORIMAGE_PARTITION_SIZE)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_JOURNAL_SIZE),$(hide) echo "vendor_journal_size=$(BOARD_VENDORIMAGE_JOURNAL_SIZE)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_SQUASHFS_COMPRESSOR),$(hide) echo "vendor_squashfs_compressor=$(BOARD_VENDORIMAGE_SQUASHFS_COMPRESSOR)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "vendor_squashfs_compressor_opt=$(BOARD_VENDORIMAGE_SQUASHFS_COMPRESSOR_OPT)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "vendor_squashfs_block_size=$(BOARD_VENDORIMAGE_SQUASHFS_BLOCK_SIZE)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "vendor_squashfs_disable_4k_align=$(BOARD_VENDORIMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(1))
-    $(if $(PRODUCT_VENDOR_BASE_FS_PATH),$(hide) echo "vendor_base_fs_file=$(PRODUCT_VENDOR_BASE_FS_PATH)" >> $(1))
-    $(if $(BOARD_VENDORIMAGE_PARTITION_RESERVED_SIZE),$(hide) echo "vendor_reserved_size=$(BOARD_VENDORIMAGE_PARTITION_RESERVED_SIZE)" >> $(1))
-    $(hide) echo "vendor_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_vendor_image=$(BUILDING_VENDOR_IMAGE)" >> $(1)
+    $(call add-common-ro-flags-to-image-props,vendor,$(1))
 )
 $(if $(filter $(2),product),\
-    $(if $(BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "product_fs_type=$(BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_FILE_SYSTEM_COMPRESS),$(hide) echo "product_f2fs_compress=$(BOARD_PRODUCTIMAGE_FILE_SYSTEM_COMPRESS)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_F2FS_SLOAD_COMPRESS_FLAGS),$(hide) echo "product_f2fs_sldc_flags=$(BOARD_PRODUCTIMAGE_F2FS_SLOAD_COMPRESS_FLAGS)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_EXTFS_INODE_COUNT),$(hide) echo "product_extfs_inode_count=$(BOARD_PRODUCTIMAGE_EXTFS_INODE_COUNT)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_EXTFS_RSV_PCT),$(hide) echo "product_extfs_rsv_pct=$(BOARD_PRODUCTIMAGE_EXTFS_RSV_PCT)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_PARTITION_SIZE),$(hide) echo "product_size=$(BOARD_PRODUCTIMAGE_PARTITION_SIZE)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_JOURNAL_SIZE),$(hide) echo "product_journal_size=$(BOARD_PRODUCTIMAGE_JOURNAL_SIZE)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_SQUASHFS_COMPRESSOR),$(hide) echo "product_squashfs_compressor=$(BOARD_PRODUCTIMAGE_SQUASHFS_COMPRESSOR)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "product_squashfs_compressor_opt=$(BOARD_PRODUCTIMAGE_SQUASHFS_COMPRESSOR_OPT)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "product_squashfs_block_size=$(BOARD_PRODUCTIMAGE_SQUASHFS_BLOCK_SIZE)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "product_squashfs_disable_4k_align=$(BOARD_PRODUCTIMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(1))
-    $(if $(PRODUCT_PRODUCT_BASE_FS_PATH),$(hide) echo "product_base_fs_file=$(PRODUCT_PRODUCT_BASE_FS_PATH)" >> $(1))
-    $(if $(BOARD_PRODUCTIMAGE_PARTITION_RESERVED_SIZE),$(hide) echo "product_reserved_size=$(BOARD_PRODUCTIMAGE_PARTITION_RESERVED_SIZE)" >> $(1))
-    $(hide) echo "product_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_product_image=$(BUILDING_PRODUCT_IMAGE)" >> $(1)
+    $(call add-common-ro-flags-to-image-props,product,$(1))
 )
 $(if $(filter $(2),system_ext),\
-    $(if $(BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "system_ext_fs_type=$(BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_COMPRESS),$(hide) echo "system_ext_f2fs_compress=$(BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_COMPRESS)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_F2FS_SLOAD_COMPRESS_FLAGS),$(hide) echo "system_ext_f2fs_sldc_flags=$(BOARD_SYSTEM_EXTIMAGE_F2FS_SLOAD_COMPRESS_FLAGS)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_EXTFS_INODE_COUNT),$(hide) echo "system_ext_extfs_inode_count=$(BOARD_SYSTEM_EXTIMAGE_EXTFS_INODE_COUNT)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_EXTFS_RSV_PCT),$(hide) echo "system_ext_extfs_rsv_pct=$(BOARD_SYSTEM_EXTIMAGE_EXTFS_RSV_PCT)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_PARTITION_SIZE),$(hide) echo "system_ext_size=$(BOARD_SYSTEM_EXTIMAGE_PARTITION_SIZE)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_JOURNAL_SIZE),$(hide) echo "system_ext_journal_size=$(BOARD_SYSTEM_EXTIMAGE_JOURNAL_SIZE)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_SQUASHFS_COMPRESSOR),$(hide) echo "system_ext_squashfs_compressor=$(BOARD_SYSTEM_EXTIMAGE_SQUASHFS_COMPRESSOR)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "system_ext_squashfs_compressor_opt=$(BOARD_SYSTEM_EXTIMAGE_SQUASHFS_COMPRESSOR_OPT)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "system_ext_squashfs_block_size=$(BOARD_SYSTEM_EXTIMAGE_SQUASHFS_BLOCK_SIZE)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "system_ext_squashfs_disable_4k_align=$(BOARD_SYSTEM_EXTIMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(1))
-    $(if $(BOARD_SYSTEM_EXTIMAGE_PARTITION_RESERVED_SIZE),$(hide) echo "system_ext_reserved_size=$(BOARD_SYSTEM_EXTIMAGE_PARTITION_RESERVED_SIZE)" >> $(1))
-    $(hide) echo "system_ext_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_system_ext_image=$(BUILDING_SYSTEM_EXT_IMAGE)" >> $(1)
+    $(call add-common-ro-flags-to-image-props,system_ext,$(1))
 )
 $(if $(filter $(2),odm),\
-    $(if $(BOARD_ODMIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "odm_fs_type=$(BOARD_ODMIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_EXTFS_INODE_COUNT),$(hide) echo "odm_extfs_inode_count=$(BOARD_ODMIMAGE_EXTFS_INODE_COUNT)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_EXTFS_RSV_PCT),$(hide) echo "odm_extfs_rsv_pct=$(BOARD_ODMIMAGE_EXTFS_RSV_PCT)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_PARTITION_SIZE),$(hide) echo "odm_size=$(BOARD_ODMIMAGE_PARTITION_SIZE)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_JOURNAL_SIZE),$(hide) echo "odm_journal_size=$(BOARD_ODMIMAGE_JOURNAL_SIZE)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_SQUASHFS_COMPRESSOR),$(hide) echo "odm_squashfs_compressor=$(BOARD_ODMIMAGE_SQUASHFS_COMPRESSOR)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "odm_squashfs_compressor_opt=$(BOARD_ODMIMAGE_SQUASHFS_COMPRESSOR_OPT)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "odm_squashfs_block_size=$(BOARD_ODMIMAGE_SQUASHFS_BLOCK_SIZE)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "odm_squashfs_disable_4k_align=$(BOARD_ODMIMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(1))
-    $(if $(PRODUCT_ODM_BASE_FS_PATH),$(hide) echo "odm_base_fs_file=$(PRODUCT_ODM_BASE_FS_PATH)" >> $(1))
-    $(if $(BOARD_ODMIMAGE_PARTITION_RESERVED_SIZE),$(hide) echo "odm_reserved_size=$(BOARD_ODMIMAGE_PARTITION_RESERVED_SIZE)" >> $(1))
-    $(hide) echo "odm_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_odm_image=$(BUILDING_ODM_IMAGE)" >> $(1)
+    $(call add-common-ro-flags-to-image-props,odm,$(1))
 )
 $(if $(filter $(2),vendor_dlkm),\
-    $(if $(BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "vendor_dlkm_fs_type=$(BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_COMPRESS),$(hide) echo "vendor_dlkm_f2fs_compress=$(BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_COMPRESS)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_F2FS_SLOAD_COMPRESS_FLAGS),$(hide) echo "vendor_dlkm_f2fs_sldc_flags=$(BOARD_VENDOR_DLKMIMAGE_F2FS_SLOAD_COMPRESS_FLAGS)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_EXTFS_INODE_COUNT),$(hide) echo "vendor_dlkm_extfs_inode_count=$(BOARD_VENDOR_DLKMIMAGE_EXTFS_INODE_COUNT)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_EXTFS_RSV_PCT),$(hide) echo "vendor_dlkm_extfs_rsv_pct=$(BOARD_VENDOR_DLKMIMAGE_EXTFS_RSV_PCT)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_PARTITION_SIZE),$(hide) echo "vendor_dlkm_size=$(BOARD_VENDOR_DLKMIMAGE_PARTITION_SIZE)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_JOURNAL_SIZE),$(hide) echo "vendor_dlkm_journal_size=$(BOARD_VENDOR_DLKMIMAGE_JOURNAL_SIZE)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_SQUASHFS_COMPRESSOR),$(hide) echo "vendor_dlkm_squashfs_compressor=$(BOARD_VENDOR_DLKMIMAGE_SQUASHFS_COMPRESSOR)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "vendor_dlkm_squashfs_compressor_opt=$(BOARD_VENDOR_DLKMIMAGE_SQUASHFS_COMPRESSOR_OPT)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "vendor_dlkm_squashfs_block_size=$(BOARD_VENDOR_DLKMIMAGE_SQUASHFS_BLOCK_SIZE)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "vendor_dlkm_squashfs_disable_4k_align=$(BOARD_VENDOR_DLKMIMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(1))
-    $(if $(BOARD_VENDOR_DLKMIMAGE_PARTITION_RESERVED_SIZE),$(hide) echo "vendor_dlkm_reserved_size=$(BOARD_VENDOR_DLKMIMAGE_PARTITION_RESERVED_SIZE)" >> $(1))
-    $(hide) echo "vendor_dlkm_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_vendor_dlkm_image=$(BUILDING_VENDOR_DLKM_IMAGE)" >> $(1)
+    $(call add-common-ro-flags-to-image-props,vendor_dlkm,$(1))
 )
 $(if $(filter $(2),odm_dlkm),\
-    $(if $(BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "odm_dlkm_fs_type=$(BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_EXTFS_INODE_COUNT),$(hide) echo "odm_dlkm_extfs_inode_count=$(BOARD_ODM_DLKMIMAGE_EXTFS_INODE_COUNT)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_EXTFS_RSV_PCT),$(hide) echo "odm_dlkm_extfs_rsv_pct=$(BOARD_ODM_DLKMIMAGE_EXTFS_RSV_PCT)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_PARTITION_SIZE),$(hide) echo "odm_dlkm_size=$(BOARD_ODM_DLKMIMAGE_PARTITION_SIZE)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_JOURNAL_SIZE),$(hide) echo "odm_dlkm_journal_size=$(BOARD_ODM_DLKMIMAGE_JOURNAL_SIZE)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_SQUASHFS_COMPRESSOR),$(hide) echo "odm_dlkm_squashfs_compressor=$(BOARD_ODM_DLKMIMAGE_SQUASHFS_COMPRESSOR)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "odm_dlkm_squashfs_compressor_opt=$(BOARD_ODM_DLKMIMAGE_SQUASHFS_COMPRESSOR_OPT)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "odm_dlkm_squashfs_block_size=$(BOARD_ODM_DLKMIMAGE_SQUASHFS_BLOCK_SIZE)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "odm_dlkm_squashfs_disable_4k_align=$(BOARD_ODM_DLKMIMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(1))
-    $(if $(BOARD_ODM_DLKMIMAGE_PARTITION_RESERVED_SIZE),$(hide) echo "odm_dlkm_reserved_size=$(BOARD_ODM_DLKMIMAGE_PARTITION_RESERVED_SIZE)" >> $(1))
-    $(hide) echo "odm_dlkm_selinux_fc=$(SELINUX_FC)" >> $(1)
-    $(hide) echo "building_odm_dlkm_image=$(BUILDING_ODM_DLKM_IMAGE)" >> $(1)
+    $(call add-common-ro-flags-to-image-props,odm_dlkm,$(1))
 )
 $(if $(filter $(2),oem),\
     $(if $(BOARD_OEMIMAGE_PARTITION_SIZE),$(hide) echo "oem_size=$(BOARD_OEMIMAGE_PARTITION_SIZE)" >> $(1))
     $(if $(BOARD_OEMIMAGE_JOURNAL_SIZE),$(hide) echo "oem_journal_size=$(BOARD_OEMIMAGE_JOURNAL_SIZE)" >> $(1))
     $(if $(BOARD_OEMIMAGE_EXTFS_INODE_COUNT),$(hide) echo "oem_extfs_inode_count=$(BOARD_OEMIMAGE_EXTFS_INODE_COUNT)" >> $(1))
     $(if $(BOARD_OEMIMAGE_EXTFS_RSV_PCT),$(hide) echo "oem_extfs_rsv_pct=$(BOARD_OEMIMAGE_EXTFS_RSV_PCT)" >> $(1))
-    $(hide) echo "oem_selinux_fc=$(SELINUX_FC)" >> $(1)
+    $(call add-common-flags-to-image-props,oem,$(1))
 )
 $(hide) echo "ext_mkuserimg=$(notdir $(MKEXTUSERIMG))" >> $(1)
 
@@ -1745,6 +1696,7 @@ $(if $(INTERNAL_USERIMAGES_SPARSE_EXT_FLAG),$(hide) echo "extfs_sparse_flag=$(IN
 $(if $(INTERNAL_USERIMAGES_SPARSE_EROFS_FLAG),$(hide) echo "erofs_sparse_flag=$(INTERNAL_USERIMAGES_SPARSE_EROFS_FLAG)" >> $(1))
 $(if $(INTERNAL_USERIMAGES_SPARSE_SQUASHFS_FLAG),$(hide) echo "squashfs_sparse_flag=$(INTERNAL_USERIMAGES_SPARSE_SQUASHFS_FLAG)" >> $(1))
 $(if $(INTERNAL_USERIMAGES_SPARSE_F2FS_FLAG),$(hide) echo "f2fs_sparse_flag=$(INTERNAL_USERIMAGES_SPARSE_F2FS_FLAG)" >> $(1))
+$(if $(BOARD_EROFS_COMPRESSOR),$(hide) echo "erofs_default_compressor=$(BOARD_EROFS_COMPRESSOR)" >> $(1))
 $(if $(BOARD_EXT4_SHARE_DUP_BLOCKS),$(hide) echo "ext4_share_dup_blocks=$(BOARD_EXT4_SHARE_DUP_BLOCKS)" >> $(1))
 $(if $(BOARD_FLASH_LOGICAL_BLOCK_SIZE), $(hide) echo "flash_logical_block_size=$(BOARD_FLASH_LOGICAL_BLOCK_SIZE)" >> $(1))
 $(if $(BOARD_FLASH_ERASE_BLOCK_SIZE), $(hide) echo "flash_erase_block_size=$(BOARD_FLASH_ERASE_BLOCK_SIZE)" >> $(1))
@@ -2332,91 +2284,81 @@ ifneq ($(BOARD_NAND_SPARE_SIZE),)
 $(error MTD device is no longer supported and thus BOARD_NAND_SPARE_SIZE is deprecated.)
 endif
 
-ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+
+# -----------------------------------------------------------------
+# Build debug ramdisk and debug boot image.
+ifneq ($(BUILDING_DEBUG_BOOT_IMAGE)$(BUILDING_DEBUG_VENDOR_BOOT_IMAGE),)
+
+# ramdisk-debug.img will merge the content from either ramdisk.img or
+# ramdisk-recovery.img, depending on whether BOARD_USES_RECOVERY_AS_BOOT
+# is set or not.
+# INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP would ensure INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR is created.
+ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
+  INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
+  INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP := $(recovery_ramdisk)
+else  # BOARD_USES_RECOVERY_AS_BOOT == true
+  INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR := $(TARGET_RAMDISK_OUT)
+  INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP := $(INSTALLED_RAMDISK_TARGET)
+endif # BOARD_USES_RECOVERY_AS_BOOT != true
+
 # -----------------------------------------------------------------
 # the debug ramdisk, which is the original ramdisk plus additional
 # files: force_debuggable, adb_debug.prop and userdebug sepolicy.
 # When /force_debuggable is present, /init will load userdebug sepolicy
 # and property files to allow adb root, if the device is unlocked.
-
-ifdef BUILDING_RAMDISK_IMAGE
-BUILT_DEBUG_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk-debug.img
-INSTALLED_DEBUG_RAMDISK_TARGET := $(BUILT_DEBUG_RAMDISK_TARGET)
+INSTALLED_DEBUG_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk-debug.img
 
 INTERNAL_DEBUG_RAMDISK_FILES := $(filter $(TARGET_DEBUG_RAMDISK_OUT)/%, \
     $(ALL_GENERATED_SOURCES) \
     $(ALL_DEFAULT_INSTALLED_MODULES))
 
+# INSTALLED_FILES_FILE_DEBUG_RAMDISK would ensure TARGET_DEBUG_RAMDISK_OUT is created.
 INSTALLED_FILES_FILE_DEBUG_RAMDISK := $(PRODUCT_OUT)/installed-files-ramdisk-debug.txt
 INSTALLED_FILES_JSON_DEBUG_RAMDISK := $(INSTALLED_FILES_FILE_DEBUG_RAMDISK:.txt=.json)
 $(INSTALLED_FILES_FILE_DEBUG_RAMDISK): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_DEBUG_RAMDISK)
-
-# ramdisk-debug.img will merge the content from either ramdisk.img or
-# ramdisk-recovery.img, depending on whether BOARD_USES_RECOVERY_AS_BOOT
-# is set or not.
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  $(INSTALLED_FILES_FILE_DEBUG_RAMDISK): PRIVATE_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
-  $(INSTALLED_FILES_FILE_DEBUG_RAMDISK): $(recovery_ramdisk)
-else
-  $(INSTALLED_FILES_FILE_DEBUG_RAMDISK): PRIVATE_ADDITIONAL_DIR := $(TARGET_RAMDISK_OUT)
-  $(INSTALLED_FILES_FILE_DEBUG_RAMDISK): $(INSTALLED_RAMDISK_TARGET)
-endif # BOARD_USES_RECOVERY_AS_BOOT
-
+$(INSTALLED_FILES_FILE_DEBUG_RAMDISK): $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP)
 $(INSTALLED_FILES_FILE_DEBUG_RAMDISK) : $(INTERNAL_DEBUG_RAMDISK_FILES) $(FILESLIST) $(FILESLIST_UTIL)
 	@echo Installed file list: $@
 	mkdir -p $(dir $@)
 	rm -f $@
-	$(FILESLIST) $(TARGET_DEBUG_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) > $(@:.txt=.json)
+	$(FILESLIST) $(TARGET_DEBUG_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) > $(@:.txt=.json)
 	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  $(INSTALLED_DEBUG_RAMDISK_TARGET): PRIVATE_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
-  $(INSTALLED_DEBUG_RAMDISK_TARGET): $(recovery_ramdisk)
-else
-  $(INSTALLED_DEBUG_RAMDISK_TARGET): PRIVATE_ADDITIONAL_DIR := $(TARGET_RAMDISK_OUT)
-  $(INSTALLED_DEBUG_RAMDISK_TARGET): $(INSTALLED_RAMDISK_TARGET)
-endif # BOARD_USES_RECOVERY_AS_BOOT
-
 $(INSTALLED_DEBUG_RAMDISK_TARGET): $(INSTALLED_FILES_FILE_DEBUG_RAMDISK)
+$(INSTALLED_DEBUG_RAMDISK_TARGET): $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP)
 $(INSTALLED_DEBUG_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_DEBUG_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
 	$(call pretty,"Target debug ramdisk: $@")
 	mkdir -p $(TARGET_DEBUG_RAMDISK_OUT)
 	touch $(TARGET_DEBUG_RAMDISK_OUT)/force_debuggable
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
+	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
 
 .PHONY: ramdisk_debug-nodeps
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  ramdisk_debug-nodeps: PRIVATE_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
-else
-  ramdisk_debug-nodeps: PRIVATE_ADDITIONAL_DIR := $(TARGET_RAMDISK_OUT)
-endif # BOARD_USES_RECOVERY_AS_BOOT
 ramdisk_debug-nodeps: $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
 	echo "make $@: ignoring dependencies"
-	mkdir -p $(TARGET_DEBUG_RAMDISK_OUT)
+	mkdir -p $(TARGET_DEBUG_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR)
 	touch $(TARGET_DEBUG_RAMDISK_OUT)/force_debuggable
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $(INSTALLED_DEBUG_RAMDISK_TARGET)
-
-endif # BUILDING_RAMDISK_IMAGE
+	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $(INSTALLED_DEBUG_RAMDISK_TARGET)
 
 # -----------------------------------------------------------------
 # the boot-debug.img, which is the kernel plus ramdisk-debug.img
 #
 # Note: it's intentional to skip signing for boot-debug.img, because it
 # can only be used if the device is unlocked with verification error.
-ifneq ($(INSTALLED_BOOTIMAGE_TARGET),)
-ifneq ($(strip $(TARGET_NO_KERNEL)),true)
+ifdef BUILDING_DEBUG_BOOT_IMAGE
+
 ifneq ($(strip $(BOARD_KERNEL_BINARIES)),)
-  INSTALLED_DEBUG_BOOTIMAGE_TARGET := $(foreach k,$(subst kernel,boot-debug,$(BOARD_KERNEL_BINARIES)), \
+  INSTALLED_DEBUG_BOOTIMAGE_TARGET := $(foreach k,$(subst kernel,$(DEBUG_RAMDISK_BOOT_IMAGE_NAME),$(BOARD_KERNEL_BINARIES)), \
          $(PRODUCT_OUT)/$(k).img)
 else
-  INSTALLED_DEBUG_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot-debug.img
+  INSTALLED_DEBUG_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/$(DEBUG_RAMDISK_BOOT_IMAGE_NAME).img
 endif
 
 # Replace ramdisk.img in $(MKBOOTIMG) ARGS with ramdisk-debug.img to build boot-debug.img
+$(INSTALLED_DEBUG_BOOTIMAGE_TARGET): $(INSTALLED_DEBUG_RAMDISK_TARGET)
 ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  INTERNAL_DEBUG_BOOTIMAGE_ARGS := $(subst $(recovery_ramdisk),$(INSTALLED_DEBUG_RAMDISK_TARGET), $(INTERNAL_RECOVERYIMAGE_ARGS))
+  INTERNAL_DEBUG_BOOTIMAGE_ARGS := $(subst $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP),$(INSTALLED_DEBUG_RAMDISK_TARGET),$(INTERNAL_RECOVERYIMAGE_ARGS))
 else
-  INTERNAL_DEBUG_BOOTIMAGE_ARGS := $(subst $(INSTALLED_RAMDISK_TARGET),$(INSTALLED_DEBUG_RAMDISK_TARGET), $(INTERNAL_BOOTIMAGE_ARGS))
+  INTERNAL_DEBUG_BOOTIMAGE_ARGS := $(subst $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP),$(INSTALLED_DEBUG_RAMDISK_TARGET),$(INTERNAL_BOOTIMAGE_ARGS))
 endif
 
 # If boot.img is chained but boot-debug.img is not signed, libavb in bootloader
@@ -2443,14 +2385,14 @@ endef
 
 # $(1): output file
 define build-debug-bootimage-target
-  $(MKBOOTIMG) --kernel $(PRODUCT_OUT)/$(subst .img,,$(subst boot-debug,kernel,$(notdir $(1)))) \
+  $(MKBOOTIMG) --kernel $(PRODUCT_OUT)/$(subst .img,,$(subst $(DEBUG_RAMDISK_BOOT_IMAGE_NAME),kernel,$(notdir $(1)))) \
     $(INTERNAL_DEBUG_BOOTIMAGE_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) \
     $(INTERNAL_MKBOOTIMG_GKI_SINGING_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $1
-  $(if $(BOARD_AVB_BOOT_KEY_PATH),$(call test-key-sign-bootimage,$1,boot-debug))
+  $(if $(BOARD_AVB_BOOT_KEY_PATH),$(call test-key-sign-bootimage,$1,$(DEBUG_RAMDISK_BOOT_IMAGE_NAME)))
 endef
 
 # Depends on original boot.img and ramdisk-debug.img, to build the new boot-debug.img
-$(INSTALLED_DEBUG_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INSTALLED_BOOTIMAGE_TARGET) $(INSTALLED_DEBUG_RAMDISK_TARGET) $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
+$(INSTALLED_DEBUG_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INSTALLED_BOOTIMAGE_TARGET) $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
 	$(call pretty,"Target boot debug image: $@")
 	$(call build-debug-bootimage-target, $@)
 
@@ -2459,15 +2401,13 @@ bootimage_debug-nodeps: $(MKBOOTIMG) $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
 	echo "make $@: ignoring dependencies"
 	$(foreach b,$(INSTALLED_DEBUG_BOOTIMAGE_TARGET),$(call build-debug-bootimage-target,$b))
 
-endif # TARGET_NO_KERNEL
-endif # INSTALLED_BOOTIMAGE_TARGET
+endif # BUILDING_DEBUG_BOOT_IMAGE
 
-ifeq ($(BUILDING_VENDOR_BOOT_IMAGE),true)
-ifeq ($(BUILDING_RAMDISK_IMAGE),true)
 # -----------------------------------------------------------------
 # vendor debug ramdisk
 # Combines vendor ramdisk files and debug ramdisk files to build the vendor debug ramdisk.
-#
+ifdef BUILDING_DEBUG_VENDOR_BOOT_IMAGE
+
 INTERNAL_VENDOR_DEBUG_RAMDISK_FILES := $(filter $(TARGET_VENDOR_DEBUG_RAMDISK_OUT)/%, \
     $(ALL_GENERATED_SOURCES) \
     $(ALL_DEFAULT_INSTALLED_MODULES))
@@ -2502,12 +2442,10 @@ $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_VENDOR_DEBUG_RAM
 	mkdir -p $(TARGET_VENDOR_DEBUG_RAMDISK_OUT)
 	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_VENDOR_RAMDISK_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(TARGET_VENDOR_DEBUG_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
 
-ifeq (true,$(BOARD_BUILD_VENDOR_RAMDISK_IMAGE))
 INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET := $(PRODUCT_OUT)/vendor_ramdisk-debug.img
 $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET): $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET)
-	$(call pretty,"Target vendor debug ramdisk: $@")
+	@echo "Target debug vendor ramdisk: $@"
 	$(copy-file-to-target)
-endif
 
 # -----------------------------------------------------------------
 # vendor_boot-debug.img.
@@ -2539,16 +2477,12 @@ $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET): $(INTERNAL_VENDOR_RAMDISK_FRAGMENT_T
 	$(call assert-max-image-size,$@,$(BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE))
 	$(if $(BOARD_AVB_VENDOR_BOOT_KEY_PATH),$(call test-key-sign-vendor-bootimage,$@))
 
-endif # BUILDING_RAMDISK_IMAGE
-endif # BUILDING_VENDOR_BOOT_IMAGE
+endif # BUILDING_DEBUG_VENDOR_BOOT_IMAGE
 
 # -----------------------------------------------------------------
 # The test harness ramdisk, which is based off debug_ramdisk, plus a
 # few additional test-harness-specific properties in adb_debug.prop.
-
-ifdef BUILDING_RAMDISK_IMAGE
-BUILT_TEST_HARNESS_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk-test-harness.img
-INSTALLED_TEST_HARNESS_RAMDISK_TARGET := $(BUILT_TEST_HARNESS_RAMDISK_TARGET)
+INSTALLED_TEST_HARNESS_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk-test-harness.img
 
 # Appends a few test harness specific properties into the adb_debug.prop.
 TEST_HARNESS_PROP_TARGET := $(TARGET_TEST_HARNESS_RAMDISK_OUT)/adb_debug.prop
@@ -2568,46 +2502,29 @@ INTERNAL_TEST_HARNESS_RAMDISK_FILES := $(filter $(TARGET_TEST_HARNESS_RAMDISK_OU
     $(ALL_GENERATED_SOURCES) \
     $(ALL_DEFAULT_INSTALLED_MODULES))
 
-# ramdisk-test-harness.img will merge the content from either ramdisk.img or
-# ramdisk-recovery.img, depending on whether BOARD_USES_RECOVERY_AS_BOOT is set
-# or not.
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): PRIVATE_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
-  $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(recovery_ramdisk)
-else
-  $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): PRIVATE_ADDITIONAL_DIR := $(TARGET_RAMDISK_OUT)
-  $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(INSTALLED_RAMDISK_TARGET)
-endif # BOARD_USES_RECOVERY_AS_BOOT
-
 # The test harness ramdisk will rsync the files from the debug ramdisk, then appends some props.
 $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(INSTALLED_DEBUG_RAMDISK_TARGET)
+$(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP)
 $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_TEST_HARNESS_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
 	$(call pretty,"Target test harness ramdisk: $@")
 	rsync --chmod=u+w -a $(TARGET_DEBUG_RAMDISK_OUT)/ $(TARGET_TEST_HARNESS_RAMDISK_OUT)
 	$(call append-test-harness-props,$(ADDITIONAL_TEST_HARNESS_PROPERTIES),$(TEST_HARNESS_PROP_TARGET))
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_TEST_HARNESS_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
+	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_TEST_HARNESS_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
 
 .PHONY: ramdisk_test_harness-nodeps
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  ramdisk_test_harness-nodeps: PRIVATE_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
-else
-  ramdisk_test_harness-nodeps: PRIVATE_ADDITIONAL_DIR := $(TARGET_RAMDISK_OUT)
-endif # BOARD_USES_RECOVERY_AS_BOOT
 ramdisk_test_harness-nodeps: $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
 	echo "make $@: ignoring dependencies"
 	rsync --chmod=u+w -a $(TARGET_DEBUG_RAMDISK_OUT)/ $(TARGET_TEST_HARNESS_RAMDISK_OUT)
 	$(call append-test-harness-props,$(ADDITIONAL_TEST_HARNESS_PROPERTIES),$(TEST_HARNESS_PROP_TARGET))
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_TEST_HARNESS_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
-
-endif # BUILDING_RAMDISK_IMAGE
+	mkdir -p $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR)
+	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_TEST_HARNESS_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
 
 # -----------------------------------------------------------------
 # the boot-test-harness.img, which is the kernel plus ramdisk-test-harness.img
 #
 # Note: it's intentional to skip signing for boot-test-harness.img, because it
 # can only be used if the device is unlocked with verification error.
-ifneq ($(INSTALLED_BOOTIMAGE_TARGET),)
-ifneq ($(strip $(TARGET_NO_KERNEL)),true)
+ifdef BUILDING_DEBUG_BOOT_IMAGE
 
 ifneq ($(strip $(BOARD_KERNEL_BINARIES)),)
   INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET := $(foreach k,$(subst kernel,boot-test-harness,$(BOARD_KERNEL_BINARIES)), \
@@ -2646,15 +2563,12 @@ bootimage_test_harness-nodeps: $(MKBOOTIMG) $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBT
 	echo "make $@: ignoring dependencies"
 	$(foreach b,$(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET),$(call build-boot-test-harness-target,$b))
 
-endif # TARGET_NO_KERNEL
-endif # INSTALLED_BOOTIMAGE_TARGET
-endif # BOARD_BUILD_SYSTEM_ROOT_IMAGE is not true
+endif # BUILDING_DEBUG_BOOT_IMAGE
 
-ifeq ($(BUILDING_VENDOR_BOOT_IMAGE),true)
-ifeq ($(BUILDING_RAMDISK_IMAGE),true)
 # -----------------------------------------------------------------
 # vendor test harness ramdisk, which is a vendor ramdisk combined with
 # a test harness ramdisk.
+ifdef BUILDING_DEBUG_VENDOR_BOOT_IMAGE
 
 INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET := $(call intermediates-dir-for,PACKAGING,vendor_boot-test-harness)/vendor_ramdisk-test-harness.cpio$(RAMDISK_EXT)
 
@@ -2671,6 +2585,11 @@ endif
 $(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_VENDOR_RAMDISK_TARGET) $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
 $(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET): $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
 	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_VENDOR_RAMDISK_OUT) $(TARGET_TEST_HARNESS_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
+
+INSTALLED_VENDOR_TEST_HARNESS_RAMDISK_TARGET := $(PRODUCT_OUT)/vendor_ramdisk-test-harness.img
+$(INSTALLED_VENDOR_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET)
+	@echo "Target test harness vendor ramdisk: $@"
+	$(copy-file-to-target)
 
 # -----------------------------------------------------------------
 # vendor_boot-test-harness.img.
@@ -2689,8 +2608,10 @@ $(INSTALLED_VENDOR_TEST_HARNESS_BOOTIMAGE_TARGET): $(INTERNAL_VENDOR_RAMDISK_FRA
 	$(call assert-max-image-size,$@,$(BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE))
 	$(if $(BOARD_AVB_VENDOR_BOOT_KEY_PATH),$(call test-key-sign-vendor-bootimage,$@))
 
-endif # BUILDING_RAMDISK_IMAGE
-endif # BUILDING_VENDOR_BOOT_IMAGE
+endif # BUILDING_DEBUG_VENDOR_BOOT_IMAGE
+
+endif # BUILDING_DEBUG_BOOT_IMAGE || BUILDING_DEBUG_VENDOR_BOOT_IMAGE
+
 
 # Creates a compatibility symlink between two partitions, e.g. /system/vendor to /vendor
 # $1: from location (e.g $(TARGET_OUT)/vendor)
@@ -2775,7 +2696,9 @@ $(INSTALLED_FILES_FILE): $(FULL_SYSTEMIMAGE_DEPS) $(FILESLIST) $(FILESLIST_UTIL)
 .PHONY: installed-file-list
 installed-file-list: $(INSTALLED_FILES_FILE)
 
+ifeq ($(HOST_OS),linux)
 $(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE))
+endif
 
 systemimage_intermediates := \
     $(call intermediates-dir-for,PACKAGING,systemimage)
@@ -3281,7 +3204,8 @@ define build-odmimage-target
   $(call pretty,"Target odm fs image: $(INSTALLED_ODMIMAGE_TARGET)")
   @mkdir -p $(TARGET_OUT_ODM)
   @mkdir -p $(odmimage_intermediates) && rm -rf $(odmimage_intermediates)/odm_image_info.txt
-  $(call generate-userimage-prop-dictionary, $(odmimage_intermediates)/odm_image_info.txt, skip_fsck=true)
+  $(call generate-image-prop-dictionary, $(odmimage_intermediates)/odm_image_info.txt, odm, \
+	  skip_fsck=true)
   PATH=$(INTERNAL_USERIMAGES_BINARY_PATHS):$$PATH \
       $(BUILD_IMAGE) \
           $(TARGET_OUT_ODM) $(odmimage_intermediates)/odm_image_info.txt \
@@ -3332,7 +3256,8 @@ define build-vendor_dlkmimage-target
   $(call pretty,"Target vendor_dlkm fs image: $(INSTALLED_VENDOR_DLKMIMAGE_TARGET)")
   @mkdir -p $(TARGET_OUT_VENDOR_DLKM)
   @mkdir -p $(vendor_dlkmimage_intermediates) && rm -rf $(vendor_dlkmimage_intermediates)/vendor_dlkm_image_info.txt
-  $(call generate-userimage-prop-dictionary, $(vendor_dlkmimage_intermediates)/vendor_dlkm_image_info.txt, skip_fsck=true)
+  $(call generate-image-prop-dictionary, $(vendor_dlkmimage_intermediates)/vendor_dlkm_image_info.txt, \
+	  vendor_dlkm, skip_fsck=true)
   PATH=$(INTERNAL_USERIMAGES_BINARY_PATHS):$$PATH \
       $(BUILD_IMAGE) \
           $(TARGET_OUT_VENDOR_DLKM) $(vendor_dlkmimage_intermediates)/vendor_dlkm_image_info.txt \
@@ -3383,7 +3308,8 @@ define build-odm_dlkmimage-target
   $(call pretty,"Target odm_dlkm fs image: $(INSTALLED_ODM_DLKMIMAGE_TARGET)")
   @mkdir -p $(TARGET_OUT_ODM_DLKM)
   @mkdir -p $(odm_dlkmimage_intermediates) && rm -rf $(odm_dlkmimage_intermediates)/odm_dlkm_image_info.txt
-  $(call generate-userimage-prop-dictionary, $(odm_dlkmimage_intermediates)/odm_dlkm_image_info.txt, skip_fsck=true)
+  $(call generate-image-prop-dictionary, $(odm_dlkmimage_intermediates)/odm_dlkm_image_info.txt, \
+	  odm_dlkm, skip_fsck=true)
   PATH=$(INTERNAL_USERIMAGES_BINARY_PATHS):$$PATH \
       $(BUILD_IMAGE) \
           $(TARGET_OUT_ODM_DLKM) $(odm_dlkmimage_intermediates)/odm_dlkm_image_info.txt \
@@ -4402,6 +4328,7 @@ INTERNAL_OTATOOLS_MODULES := \
   verity_signer \
   verity_verifier \
   zipalign \
+  zucchini \
 
 # Additional tools to unpack and repack the apex file.
 INTERNAL_OTATOOLS_MODULES += \
@@ -5365,7 +5292,9 @@ $(NDK_SYSROOT_TARGET): $(SOONG_OUT_DIR)/ndk.timestamp
 	@echo Package NDK sysroot...
 	$(hide) tar cjf $@ -C $(SOONG_OUT_DIR) ndk
 
+ifeq ($(HOST_OS),linux)
 $(call dist-for-goals,sdk,$(NDK_SYSROOT_TARGET))
+endif
 
 ifeq ($(build_ota_package),true)
 # -----------------------------------------------------------------
