@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7793d6e4_7216e4b2",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000143
+      },
+      "writtenOn": "2021-11-09T17:56:24Z",
+      "side": 1,
+      "message": "Command: \nadb shell getprop ro.build.fingerprint\n\nResult:\ngoogle/redfin/redfin:12/SP1A.211105.003/7757856:user/release-keys",
+      "revId": "1f12e934497c63a0e69eb93418c24d01d4ac11fb",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
