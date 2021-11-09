@@ -16,6 +16,23 @@
       "message": "Doesnt add to ro.build.fingerprint",
       "revId": "922c0205897e26453104b8becc7271241a53782f",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "6ace559c_ed9f563d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000143
+      },
+      "writtenOn": "2021-11-09T16:14:40Z",
+      "side": 1,
+      "message": "https://gerrit.aospa.co/c/AOSPA/android_build/+/19843",
+      "revId": "922c0205897e26453104b8becc7271241a53782f",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
