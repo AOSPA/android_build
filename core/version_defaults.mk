@@ -81,7 +81,7 @@ PLATFORM_SDK_EXTENSION_VERSION := 1
 ifeq (true,$(BUILDING_WITH_VSDK))
   PLATFORM_VNDK_VERSION := S
 else
-  PLATFORM_VNDK_VERSION := 32
+  PLATFORM_VNDK_VERSION := 33
 endif
 
 # This is the sdk extension version that PLATFORM_SDK_VERSION ships with.
@@ -94,7 +94,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-    PLATFORM_SECURITY_PATCH := 2021-11-05
+    PLATFORM_SECURITY_PATCH := 2021-12-05
 endif
 
 include $(BUILD_SYSTEM)/version_util.mk
