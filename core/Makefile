@@ -1545,6 +1545,7 @@ ifneq ($(filter \
     $(BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE) \
   ,erofs),)
 INTERNAL_USERIMAGES_DEPS += $(MKEROFS)
+BOARD_EROFS_COMPRESSOR ?= "lz4hc,9"
 endif
 
 ifneq ($(filter \
