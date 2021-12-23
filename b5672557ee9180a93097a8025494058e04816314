@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a2a4aef7_6b25e6cb",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2021-12-23T14:49:08Z",
+      "side": 1,
+      "message": "helps testing vintf failures, doesn\u0027t necessarily need to be merged post bringup era",
+      "revId": "b5672557ee9180a93097a8025494058e04816314",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
