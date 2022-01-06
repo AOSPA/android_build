@@ -52,7 +52,6 @@ PRODUCT_PACKAGES += \
     KeyChain \
     librs_jni \
     ManagedProvisioning \
-    MmsService \
     MtpService \
     MusicFX \
     PacProcessor \
@@ -62,13 +61,17 @@ PRODUCT_PACKAGES += \
     SharedStorageBackup \
     SimAppDialog \
     Telecom \
-    TelephonyProvider \
-    TeleService \
     Traceur \
     UserDictionaryProvider \
     VpnDialogs \
     vr \
 
+ifneq ($(TARGET_NO_TELEPHONY), true)
+PRODUCT_PACKAGES += \
+  MmsService \
+  TelephonyProvider \
+  TeleService
+endif #TARGET_NO_TELEPHONY
 
 ifneq ($(TARGET_USES_QSPA), true)
 PRODUCT_PACKAGES += \
