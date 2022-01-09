@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "110e93e7_114bc72b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000541
+      },
+      "writtenOn": "2022-01-09T13:42:41Z",
+      "side": 1,
+      "message": "Set in device products but the commit for it is actually missing, see:\n\nhttps://github.com/AOSPA/android_vendor_aospa/blob/sapphire/products/oneplus9/aospa_oneplus9.mk#L35-L37",
+      "revId": "2acdb3e5a236df20f86d5e2c90a5ac41242b8511",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
