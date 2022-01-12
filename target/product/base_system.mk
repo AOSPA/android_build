@@ -194,7 +194,6 @@ PRODUCT_PACKAGES += \
     libwilhelm \
     linker \
     linkerconfig \
-    llkd \
     lmkd \
     LocalTransport \
     locksettings \
@@ -283,6 +282,7 @@ PRODUCT_PACKAGES += \
 ifneq ($(TARGET_HAS_LOW_RAM), true)
 PRODUCT_PACKAGES += \
     credstore \
+    llkd \
     SecureElement
 endif
 
