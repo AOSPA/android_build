@@ -1951,16 +1951,6 @@ function showcommands() {
     fi
 }
 
-# Source necessary setup scripts needed to run the build with Remote Execution.
-function source_rbe() {
-    local T=$(gettop)
-
-    if [[ "x$USE_RBE" != "x" && "$USE_RBE" != "false" ]]; then
-        . $T/build/make/rbesetup.sh --skip-envsetup
-    fi
-}
-
 validate_current_shell
 source_vendorsetup
-source_rbe
 addcompletions

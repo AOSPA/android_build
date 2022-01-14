@@ -19,6 +19,8 @@ $(MODULE_INFO_JSON):
 			'"module_name": "$(ALL_MODULES.$(m).MODULE_NAME)", ' \
 			'"test_config": [$(foreach w,$(strip $(ALL_MODULES.$(m).TEST_CONFIG) $(ALL_MODULES.$(m).EXTRA_TEST_CONFIGS)),"$(w)", )], ' \
 			'"dependencies": [$(foreach w,$(sort $(ALL_DEPS.$(m).ALL_DEPS)),"$(w)", )], ' \
+			'"shared_libs": [$(foreach w,$(sort $(ALL_MODULES.$(m).SHARED_LIBS)),"$(w)", )], ' \
+			'"system_shared_libs": [$(foreach w,$(sort $(ALL_MODULES.$(m).SYSTEM_SHARED_LIBS)),"$(w)", )], ' \
 			'"srcs": [$(foreach w,$(sort $(ALL_MODULES.$(m).SRCS)),"$(w)", )], ' \
 			'"incs": [$(foreach w,$(sort $(ALL_MODULES.$(m).INCS)),"$(w)", )], ' \
                         '"static": [$(foreach w,$(sort $(ALL_MODULES.$(m).STATIC)),"$(w)", )], ' \
