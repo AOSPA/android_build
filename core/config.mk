@@ -307,12 +307,20 @@ $(eval SOONG_CONFIG_$(strip $1)_$(strip $2):=$3)
 endef
 
 # soong_config_append appends to the value of the variable in the given Soong
-# config namespace. If the varabile does not exist, it will be defined. If the
+# config namespace. If the variable does not exist, it will be defined. If the
 # namespace does not  exist, it will be defined.
 # $1 is the namespace, $2 is the variable name, $3 is the value
 define soong_config_append
 $(call soong_config_define_internal,$1,$2) \
 $(eval SOONG_CONFIG_$(strip $1)_$(strip $2):=$(SOONG_CONFIG_$(strip $1)_$(strip $2)) $3)
+endef
+
+# soong_config_append gets to the value of the variable in the given Soong
+# config namespace. If the namespace or variables does not exist, an
+# empty string will be returned.
+# $1 is the namespace, $2 is the variable name
+define soong_config_get
+$(SOONG_CONFIG_$(strip $1)_$(strip $2))
 endef
 
 # Set the extensions used for various packages
@@ -542,14 +550,14 @@ prebuilt_sdk_tools_bin :=
 ACP := $(prebuilt_build_tools_bin)/acp
 CKATI := $(prebuilt_build_tools_bin)/ckati
 DEPMOD := $(HOST_OUT_EXECUTABLES)/depmod
-FILESLIST := $(SOONG_HOST_OUT_EXECUTABLES)/fileslist
+FILESLIST := $(HOST_OUT_EXECUTABLES)/fileslist
 FILESLIST_UTIL :=$= build/make/tools/fileslist_util.py
 HOST_INIT_VERIFIER := $(HOST_OUT_EXECUTABLES)/host_init_verifier
-XMLLINT := $(SOONG_HOST_OUT_EXECUTABLES)/xmllint
+XMLLINT := $(HOST_OUT_EXECUTABLES)/xmllint
 
 # SOONG_ZIP is exported by Soong, but needs to be defined early for
 # $OUT/dexpreopt.global.  It will be verified against the Soong version.
-SOONG_ZIP := $(SOONG_HOST_OUT_EXECUTABLES)/soong_zip
+SOONG_ZIP := $(HOST_OUT_EXECUTABLES)/soong_zip
 
 # ---------------------------------------------------------------
 # Generic tools.
@@ -810,7 +818,7 @@ BUILD_DATETIME_FROM_FILE := $$(cat $(BUILD_DATETIME_FILE))
 # is made which breaks compatibility with the previous platform sepolicy version,
 # not just on every increase in PLATFORM_SDK_VERSION.  The minor version should
 # be reset to 0 on every bump of the PLATFORM_SDK_VERSION.
-sepolicy_major_vers := 31
+sepolicy_major_vers := 32
 sepolicy_minor_vers := 0
 
 ifneq ($(sepolicy_major_vers), $(PLATFORM_SDK_VERSION))
@@ -1217,8 +1225,5 @@ endif
 -include external/ltp/android/ltp_package_list.mk
 DEFAULT_DATA_OUT_MODULES := ltp $(ltp_packages) $(kselftest_modules)
 .KATI_READONLY := DEFAULT_DATA_OUT_MODULES
-
-# Make RECORD_ALL_DEPS readonly.
-RECORD_ALL_DEPS :=$= $(filter true,$(RECORD_ALL_DEPS))
 
 include $(BUILD_SYSTEM)/dumpvar.mk
