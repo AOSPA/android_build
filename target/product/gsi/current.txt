@@ -61,10 +61,12 @@ VNDK-core: android.hardware.audio.common-V1-ndk.so
 VNDK-core: android.hardware.audio.common@2.0.so
 VNDK-core: android.hardware.authsecret-V1-ndk.so
 VNDK-core: android.hardware.automotive.occupant_awareness-V1-ndk.so
+VNDK-core: android.hardware.bluetooth.audio-V1-ndk.so
 VNDK-core: android.hardware.configstore-utils.so
 VNDK-core: android.hardware.configstore@1.0.so
 VNDK-core: android.hardware.configstore@1.1.so
 VNDK-core: android.hardware.confirmationui-support-lib.so
+VNDK-core: android.hardware.dumpstate-V1-ndk.so
 VNDK-core: android.hardware.gnss-V1-ndk.so
 VNDK-core: android.hardware.graphics.allocator@2.0.so
 VNDK-core: android.hardware.graphics.allocator@3.0.so
