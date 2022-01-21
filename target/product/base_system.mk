@@ -123,7 +123,6 @@ PRODUCT_PACKAGES += \
     ip-up-vpn \
     javax.obex \
     keystore2 \
-		credstore \
     ld.mc \
     libaaudio \
     libalarm_jni \
