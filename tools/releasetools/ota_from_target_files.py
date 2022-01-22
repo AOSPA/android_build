@@ -1191,8 +1191,6 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
     care_map_list = [x for x in ["care_map.pb", "care_map.txt"] if
                      "META/" + x in target_zip.namelist()]
 
-    # TODO(b/205541521) remove the workaround after root cause is fixed.
-    care_map_list = []
     # Adds care_map if either the protobuf format or the plain text one exists.
     if care_map_list:
       care_map_name = care_map_list[0]
@@ -1479,7 +1477,7 @@ def main(argv):
     # Only check for existence of key file if using the default signer.
     # Because the custom signer might not need the key file AT all.
     # b/191704641
-    if not OPTIONS.signapk_path:
+    if not OPTIONS.payload_signer:
       private_key_path = OPTIONS.package_key + OPTIONS.private_key_suffix
       if not os.path.exists(private_key_path):
         raise common.ExternalError(
@@ -1487,6 +1485,11 @@ def main(argv):
             " correct key path through -k option".format(
                 private_key_path)
         )
+      signapk_abs_path = os.path.join(
+          OPTIONS.search_path, OPTIONS.signapk_path)
+      if not os.path.exists(signapk_abs_path):
+        raise common.ExternalError(
+            "Failed to find sign apk binary {} in search path {}. Make sure the correct search path is passed via -p".format(OPTIONS.signapk_path, OPTIONS.search_path))
 
   if OPTIONS.source_info_dict:
     source_build_prop = OPTIONS.source_info_dict["build.prop"]

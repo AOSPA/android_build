@@ -82,6 +82,7 @@ PRODUCT_PACKAGES += \
     dnsmasq \
     DownloadProvider \
     dpm \
+    dump.erofs \
     dumpstate \
     dumpsys \
     DynamicSystemInstallationService \
@@ -92,6 +93,7 @@ PRODUCT_PACKAGES += \
     framework-minus-apex \
     framework-res \
     framework-sysconfig.xml \
+    fsck.erofs \
     fsck_msdos \
     fsverity-release-cert-der \
     fs_config_files_system \
@@ -117,6 +119,7 @@ PRODUCT_PACKAGES += \
     init_system \
     input \
     installd \
+    IntentResolver \
     iorapd \
     ip \
     iptables \
@@ -216,6 +219,7 @@ PRODUCT_PACKAGES += \
     mediaserver64 \
     mediaserverwrapper \
     mke2fs \
+    mkfs.erofs \
     monkey \
     mtpd \
     ndc \
@@ -327,9 +331,11 @@ PRODUCT_HOST_PACKAGES += \
     atest \
     bcc \
     bit \
+    dump.erofs \
     e2fsck \
     fastboot \
     flags_health_check \
+    fsck.erofs \
     icu-data_host_i18n_apex \
     icu_tzdata.dat_host_tzdata_apex \
     idmap2 \
@@ -338,6 +344,7 @@ PRODUCT_HOST_PACKAGES += \
     lpdump \
     minigzip \
     mke2fs \
+    mkfs.erofs \
     resize2fs \
     sgdisk \
     sqlite3 \
@@ -371,7 +378,6 @@ PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     arping \
     dmuserd \
-    gdbserver \
     idlcli \
     init-debug.rc \
     iotop \
