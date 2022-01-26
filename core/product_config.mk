@@ -110,6 +110,13 @@ define is-board-platform-in-list2
 $(filter $(1),$(TARGET_BOARD_PLATFORM))
 endef
 
+# Return empty unless the board is QCOM
+define is-vendor-board-qcom
+$(if $(strip $(TARGET_BOARD_PLATFORM) $(QCOM_BOARD_PLATFORMS)),\
+  $(filter $(TARGET_BOARD_PLATFORM),$(QCOM_BOARD_PLATFORMS)),\
+  $(error both TARGET_BOARD_PLATFORM=$(TARGET_BOARD_PLATFORM) and QCOM_BOARD_PLATFORMS=$(QCOM_BOARD_PLATFORMS)))
+endef
+
 # ---------------------------------------------------------------
 # Check for obsolete PRODUCT- and APP- goals
 ifeq ($(CALLED_FROM_SETUP),true)
@@ -199,10 +206,10 @@ endif
 ifndef RBC_PRODUCT_CONFIG
 $(call import-products, $(current_product_makefile))
 else
-  rc := $(shell build/soong/scripts/rbc-run $(current_product_makefile) \
-      >$(OUT_DIR)/rbctemp.mk || echo $$?)
-  ifneq (,$(rc))
-    $(error product configuration converter failed: $(rc))
+  $(shell build/soong/scripts/rbc-run $(current_product_makefile) \
+      >$(OUT_DIR)/rbctemp.mk)
+  ifneq ($(.SHELLSTATUS),0)
+    $(error product configuration converter failed: $(.SHELLSTATUS))
   endif
   include $(OUT_DIR)/rbctemp.mk
   PRODUCTS += $(current_product_makefile)
@@ -527,6 +534,7 @@ endef
 
 # Copy and check the value of each PRODUCT_BUILD_*_IMAGE variable
 $(foreach image, \
+    PVMFW \
     SYSTEM \
     SYSTEM_OTHER \
     VENDOR \

@@ -359,7 +359,7 @@ endif
 
 is_sdk_build :=
 
-ifneq ($(filter sdk win_sdk sdk_addon,$(MAKECMDGOALS)),)
+ifneq ($(filter sdk sdk_addon,$(MAKECMDGOALS)),)
 is_sdk_build := true
 endif
 
@@ -553,7 +553,12 @@ FULL_BUILD := true
 # Include all of the makefiles in the system
 #
 
-subdir_makefiles := $(SOONG_ANDROID_MK) $(file <$(OUT_DIR)/.module_paths/Android.mk.list) $(SOONG_OUT_DIR)/late-$(TARGET_PRODUCT).mk
+subdir_makefiles := $(SOONG_OUT_DIR)/installs-$(TARGET_PRODUCT).mk $(SOONG_ANDROID_MK)
+# Android.mk files are only used on Linux builds, Mac only supports Android.bp
+ifeq ($(HOST_OS),linux)
+  subdir_makefiles += $(file <$(OUT_DIR)/.module_paths/Android.mk.list)
+endif
+subdir_makefiles += $(SOONG_OUT_DIR)/late-$(TARGET_PRODUCT).mk
 subdir_makefiles_total := $(words int $(subdir_makefiles) post finish)
 .KATI_READONLY := subdir_makefiles_total
 
@@ -1329,7 +1334,11 @@ $(if $(strip $(1)), \
 )
 endef
 
-ifdef FULL_BUILD
+ifeq ($(HOST_OS),darwin)
+  # Target builds are not supported on Mac
+  product_target_FILES :=
+  product_host_FILES := $(call host-installed-files,$(INTERNAL_PRODUCT))
+else ifdef FULL_BUILD
   ifneq (true,$(ALLOW_MISSING_DEPENDENCIES))
     # Check to ensure that all modules in PRODUCT_PACKAGES exist (opt in per product)
     ifeq (true,$(PRODUCT_ENFORCE_PACKAGES_EXIST))
@@ -1378,8 +1387,10 @@ ifdef FULL_BUILD
                   $(if $(ALL_MODULES.$(m).INSTALLED),\
                     $(if $(filter-out $(HOST_OUT_ROOT)/%,$(ALL_MODULES.$(m).INSTALLED)),,\
                       $(m))))
-    $(call maybe-print-list-and-error,$(sort $(_host_modules)),\
-      Host modules should be in PRODUCT_HOST_PACKAGES$(comma) not PRODUCT_PACKAGES)
+    ifneq (true,$(BUILDING_WITH_VSDK))
+      $(call maybe-print-list-and-error,$(sort $(_host_modules)),\
+        Host modules should be in PRODUCT_HOST_PACKAGES$(comma) not PRODUCT_PACKAGES)
+    endif
   endif
 
   product_host_FILES := $(call host-installed-files,$(INTERNAL_PRODUCT))
@@ -1389,7 +1400,7 @@ ifdef FULL_BUILD
 
   # Verify the artifact path requirements made by included products.
   is_asan := $(if $(filter address,$(SANITIZE_TARGET)),true)
-  ifeq (,$(or $(is_asan),$(DISABLE_ARTIFACT_PATH_REQUIREMENTS),$(RBC_PRODUCT_CONFIG)))
+  ifeq (,$(or $(is_asan),$(DISABLE_ARTIFACT_PATH_REQUIREMENTS),$(RBC_PRODUCT_CONFIG),$(RBC_BOARD_CONFIG)))
     include $(BUILD_SYSTEM)/artifact_path_requirements.mk
   endif
 else
@@ -1485,7 +1496,9 @@ endif
 # contains everything that's built during the current make, but it also further
 # extends ALL_DEFAULT_INSTALLED_MODULES.
 ALL_DEFAULT_INSTALLED_MODULES := $(modules_to_install)
-include $(BUILD_SYSTEM)/Makefile
+ifeq ($(HOST_OS),linux)
+  include $(BUILD_SYSTEM)/Makefile
+endif
 modules_to_install := $(sort $(ALL_DEFAULT_INSTALLED_MODULES))
 ALL_DEFAULT_INSTALLED_MODULES :=
 
@@ -1706,7 +1719,11 @@ ifeq ($(SOONG_COLLECT_JAVA_DEPS), true)
 endif
 
 .PHONY: apps_only
-ifneq ($(TARGET_BUILD_APPS),)
+ifeq ($(HOST_OS),darwin)
+  # Mac only supports building host modules
+  droid_targets: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) dist_files
+
+else ifneq ($(TARGET_BUILD_APPS),)
   # If this build is just for apps, only build apps and not the full system by default.
 
   unbundled_build_modules :=
@@ -1933,11 +1950,11 @@ endif # TARGET_BUILD_UNBUNDLED == TARGET_BUILD_UNBUNDLED_IMAGE
 .PHONY: docs
 docs: $(ALL_DOCS)
 
-.PHONY: sdk win_sdk winsdk-tools sdk_addon
+.PHONY: sdk sdk_addon
 ifeq ($(HOST_OS),linux)
 ALL_SDK_TARGETS := $(INTERNAL_SDK_TARGET)
 sdk: $(ALL_SDK_TARGETS)
-$(call dist-for-goals,sdk win_sdk, \
+$(call dist-for-goals,sdk, \
     $(ALL_SDK_TARGETS) \
     $(SYMBOLS_ZIP) \
     $(COVERAGE_ZIP) \

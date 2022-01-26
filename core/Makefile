@@ -527,6 +527,16 @@ $(foreach kmd,$(BOARD_KERNEL_MODULE_DIRS), \
     $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,GENERIC_RAMDISK,$(TARGET_RAMDISK_OUT),,modules.load,,$(kmd)))))
 
 # -----------------------------------------------------------------
+# FSVerity metadata generation
+ifeq ($(PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA),true)
+
+FSVERITY_APK_KEY_PATH := $(DEFAULT_SYSTEM_DEV_CERTIFICATE)
+FSVERITY_APK_OUT := system/etc/security/fsverity/BuildManifest.apk
+FSVERITY_APK_MANIFEST_PATH := system/security/fsverity/AndroidManifest.xml
+
+endif # PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA
+
+# -----------------------------------------------------------------
 # Cert-to-package mapping.  Used by the post-build signing tools.
 # Use a macro to add newline to each echo command
 # $1 stem name of the package
@@ -575,6 +585,8 @@ $(APKCERTS_FILE):
 	    $(if $(PACKAGES.$(p).EXTERNAL_KEY),\
 	      $(call _apkcerts_write_line,$(PACKAGES.$(p).STEM),EXTERNAL,,$(PACKAGES.$(p).COMPRESSED),$(PACKAGES.$(p).PARTITION),$@),\
 	      $(call _apkcerts_write_line,$(PACKAGES.$(p).STEM),$(PACKAGES.$(p).CERTIFICATE),$(PACKAGES.$(p).PRIVATE_KEY),$(PACKAGES.$(p).COMPRESSED),$(PACKAGES.$(p).PARTITION),$@))))
+	$(if $(filter true,$(PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA)),\
+	  $(call _apkcerts_write_line,$(notdir $(basename $(FSVERITY_APK_OUT))),$(FSVERITY_APK_KEY_PATH).x509.pem,$(FSVERITY_APK_KEY_PATH).pk8,,system,$@))
 	# In case value of PACKAGES is empty.
 	$(hide) touch $@
 
@@ -778,7 +790,7 @@ $(INSTALLED_FILES_FILE_ROOT) : $(INTERNAL_ROOT_FILES) $(FILESLIST) $(FILESLIST_U
 	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
 
 ifeq ($(HOST_OS),linux)
-$(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE_ROOT))
+$(call dist-for-goals, sdk sdk_addon, $(INSTALLED_FILES_FILE_ROOT))
 endif
 
 #------------------------------------------------------------------
@@ -1291,6 +1303,9 @@ $(target_notice_file_html_gz): $(target_notice_file_html) | $(MINIGZIP)
 	$(hide) $(MINIGZIP) -9 < $< > $@
 $(installed_notice_html_or_xml_gz): $(target_notice_file_html_gz)
 	$(copy-file-to-target)
+
+$(call declare-0p-target,$(target_notice_file_html_gz))
+$(call declare-0p-target,$(installed_notice_html_or_xml_gz))
 else
 target_notice_file_xml := $(TARGET_OUT_INTERMEDIATES)/NOTICE.xml
 target_notice_file_xml_gz := $(TARGET_OUT_INTERMEDIATES)/NOTICE.xml.gz
@@ -1474,6 +1489,28 @@ $(installed_vendor_dlkm_notice_xml_gz): $(target_vendor_dlkm_notice_file_xml_gz)
 $(installed_odm_dlkm_notice_xml_gz): $(target_odm_dlkm_notice_file_xml_gz)
 	$(copy-file-to-target)
 
+$(call declare-0p-target,$(target_notice_file_xml))
+$(call declare-0p-target,$(target_notice_file_xml_gz))
+$(call declare-0p-target,$(target_vendor_notice_file_xml))
+$(call declare-0p-target,$(target_vendor_notice_file_xml_gz))
+$(call declare-0p-target,$(target_product_notice_file_xml))
+$(call declare-0p-target,$(target_product_notice_file_xml_gz))
+$(call declare-0p-target,$(target_system_ext_notice_file_xml))
+$(call declare-0p-target,$(target_system_ext_notice_file_xml_gz))
+$(call declare-0p-target,$(target_odm_notice_file_xml))
+$(call declare-0p-target,$(target_odm_notice_file_xml_gz))
+$(call declare-0p-target,$(target_vendor_dlkm_notice_file_xml))
+$(call declare-0p-target,$(target_vendor_dlkm_notice_file_xml_gz))
+$(call declare-0p-target,$(target_odm_dlkm_notice_file_xml))
+$(call declare-0p-target,$(target_odm_dlkm_notice_file_xml_gz))
+$(call declare-0p-target,$(installed_notice_html_or_xml_gz))
+$(call declare-0p-target,$(installed_vendor_notice_xml_gz))
+$(call declare-0p-target,$(installed_product_notice_xml_gz))
+$(call declare-0p-target,$(installed_system_ext_notice_xml_gz))
+$(call declare-0p-target,$(installed_odm_notice_xml_gz))
+$(call declare-0p-target,$(installed_vendor_dlkm_notice_xml_gz))
+$(call declare-0p-target,$(installed_odm_dlkm_notice_xml_gz))
+
 ALL_DEFAULT_INSTALLED_MODULES += $(installed_notice_html_or_xml_gz)
 ALL_DEFAULT_INSTALLED_MODULES += $(installed_vendor_notice_xml_gz)
 ALL_DEFAULT_INSTALLED_MODULES += $(installed_product_notice_xml_gz)
@@ -1617,7 +1654,8 @@ endef
 # $(2) the image prop file
 define add-common-ro-flags-to-image-props
 $(eval _var := $(call to-upper,$(1)))
-$(if $(BOARD_$(_var)IMAGE_EROFS_COMPRESSOR),$(hide) echo "$(1)_erofs_compressor"$(BOARD_$(_var)IMAGE_EROFS_COMPRESSOR)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_EROFS_COMPRESSOR),$(hide) echo "$(1)_erofs_compressor=$(BOARD_$(_var)IMAGE_EROFS_COMPRESSOR)" >> $(2))
+$(if $(BOARD_$(_var)IMAGE_EROFS_PCLUSTER_SIZE),$(hide) echo "$(1)_erofs_pcluster_size=$(BOARD_$(_var)IMAGE_EROFS_PCLUSTER_SIZE)" >> $(2))
 $(if $(BOARD_$(_var)IMAGE_EXTFS_INODE_COUNT),$(hide) echo "$(1)_extfs_inode_count=$(BOARD_$(_var)IMAGE_EXTFS_INODE_COUNT)" >> $(2))
 $(if $(BOARD_$(_var)IMAGE_EXTFS_RSV_PCT),$(hide) echo "$(1)_extfs_rsv_pct=$(BOARD_$(_var)IMAGE_EXTFS_RSV_PCT)" >> $(2))
 $(if $(BOARD_$(_var)IMAGE_F2FS_SLOAD_COMPRESS_FLAGS),$(hide) echo "$(1)_f2fs_sldc_flags=$(BOARD_$(_var)IMAGE_F2FS_SLOAD_COMPRESS_FLAGS)" >> $(2))
@@ -1634,6 +1672,8 @@ $(if $(PRODUCT_$(_var)_BASE_FS_PATH),$(hide) echo "$(1)_base_fs_file=$(PRODUCT_$
 $(eval _size := $(BOARD_$(_var)IMAGE_PARTITION_SIZE))
 $(eval _reserved := $(BOARD_$(_var)IMAGE_PARTITION_RESERVED_SIZE))
 $(eval _headroom := $(PRODUCT_$(_var)_HEADROOM))
+$(if $(or $(_size), $(_reserved), $(_headroom)),,
+    $(hide) echo "$(1)_disable_sparse=true" >> $(2))
 $(call add-common-flags-to-image-props,$(1),$(2))
 endef
 
@@ -1644,6 +1684,11 @@ define generate-image-prop-dictionary
 $(if $(filter $(2),system),\
     $(if $(INTERNAL_SYSTEM_OTHER_PARTITION_SIZE),$(hide) echo "system_other_size=$(INTERNAL_SYSTEM_OTHER_PARTITION_SIZE)" >> $(1))
     $(if $(PRODUCT_SYSTEM_HEADROOM),$(hide) echo "system_headroom=$(PRODUCT_SYSTEM_HEADROOM)" >> $(1))
+    $(if $(filter true,$(PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA)),$(hide) echo "fsverity=$(HOST_OUT_EXECUTABLES)/fsverity" >> $(1))
+    $(if $(filter true,$(PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA)),$(hide) echo "fsverity_generate_metadata=true" >> $(1))
+    $(if $(filter true,$(PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA)),$(hide) echo "fsverity_apk_key=$(FSVERITY_APK_KEY_PATH)" >> $(1))
+    $(if $(filter true,$(PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA)),$(hide) echo "fsverity_apk_manifest=$(FSVERITY_APK_MANIFEST_PATH)" >> $(1))
+    $(if $(filter true,$(PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA)),$(hide) echo "fsverity_apk_out=$(FSVERITY_APK_OUT)" >> $(1))
     $(call add-common-ro-flags-to-image-props,system,$(1))
 )
 $(if $(filter $(2),system_other),\
@@ -1697,6 +1742,8 @@ $(if $(INTERNAL_USERIMAGES_SPARSE_EROFS_FLAG),$(hide) echo "erofs_sparse_flag=$(
 $(if $(INTERNAL_USERIMAGES_SPARSE_SQUASHFS_FLAG),$(hide) echo "squashfs_sparse_flag=$(INTERNAL_USERIMAGES_SPARSE_SQUASHFS_FLAG)" >> $(1))
 $(if $(INTERNAL_USERIMAGES_SPARSE_F2FS_FLAG),$(hide) echo "f2fs_sparse_flag=$(INTERNAL_USERIMAGES_SPARSE_F2FS_FLAG)" >> $(1))
 $(if $(BOARD_EROFS_COMPRESSOR),$(hide) echo "erofs_default_compressor=$(BOARD_EROFS_COMPRESSOR)" >> $(1))
+$(if $(BOARD_EROFS_PCLUSTER_SIZE),$(hide) echo "erofs_pcluster_size=$(BOARD_EROFS_PCLUSTER_SIZE)" >> $(1))
+$(if $(BOARD_EROFS_SHARE_DUP_BLOCKS),$(hide) echo "erofs_share_dup_blocks=$(BOARD_EROFS_SHARE_DUP_BLOCKS)" >> $(1))
 $(if $(BOARD_EXT4_SHARE_DUP_BLOCKS),$(hide) echo "ext4_share_dup_blocks=$(BOARD_EXT4_SHARE_DUP_BLOCKS)" >> $(1))
 $(if $(BOARD_FLASH_LOGICAL_BLOCK_SIZE), $(hide) echo "flash_logical_block_size=$(BOARD_FLASH_LOGICAL_BLOCK_SIZE)" >> $(1))
 $(if $(BOARD_FLASH_ERASE_BLOCK_SIZE), $(hide) echo "flash_erase_block_size=$(BOARD_FLASH_ERASE_BLOCK_SIZE)" >> $(1))
@@ -2289,17 +2336,43 @@ endif
 # Build debug ramdisk and debug boot image.
 ifneq ($(BUILDING_DEBUG_BOOT_IMAGE)$(BUILDING_DEBUG_VENDOR_BOOT_IMAGE),)
 
+INTERNAL_DEBUG_RAMDISK_FILES := $(filter $(TARGET_DEBUG_RAMDISK_OUT)/%, \
+    $(ALL_GENERATED_SOURCES) \
+    $(ALL_DEFAULT_INSTALLED_MODULES))
+
+# Directories to be picked into the debug ramdisk.
+# As these directories are all merged into one single cpio archive, the order
+# matters. If there are multiple files with the same pathname, then the last one
+# wins.
+#
 # ramdisk-debug.img will merge the content from either ramdisk.img or
 # ramdisk-recovery.img, depending on whether BOARD_USES_RECOVERY_AS_BOOT
 # is set or not.
-# INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP would ensure INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR is created.
 ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
-  INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP := $(recovery_ramdisk)
+  INTERNAL_DEBUG_RAMDISK_SRC_DIRS := $(TARGET_RECOVERY_ROOT_OUT)
+  INTERNAL_DEBUG_RAMDISK_SRC_RAMDISK_TARGET := $(recovery_ramdisk)
 else  # BOARD_USES_RECOVERY_AS_BOOT == true
-  INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR := $(TARGET_RAMDISK_OUT)
-  INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP := $(INSTALLED_RAMDISK_TARGET)
+  INTERNAL_DEBUG_RAMDISK_SRC_DIRS := $(TARGET_RAMDISK_OUT)
+  INTERNAL_DEBUG_RAMDISK_SRC_RAMDISK_TARGET := $(INSTALLED_RAMDISK_TARGET)
 endif # BOARD_USES_RECOVERY_AS_BOOT != true
+
+INTERNAL_DEBUG_RAMDISK_SRC_DIRS += $(TARGET_DEBUG_RAMDISK_OUT)
+INTERNAL_DEBUG_RAMDISK_SRC_DEPS := $(INTERNAL_DEBUG_RAMDISK_SRC_RAMDISK_TARGET) $(INTERNAL_DEBUG_RAMDISK_FILES)
+
+# INSTALLED_FILES_FILE_DEBUG_RAMDISK would ensure TARGET_DEBUG_RAMDISK_OUT is created.
+INSTALLED_FILES_FILE_DEBUG_RAMDISK := $(PRODUCT_OUT)/installed-files-ramdisk-debug.txt
+INSTALLED_FILES_JSON_DEBUG_RAMDISK := $(INSTALLED_FILES_FILE_DEBUG_RAMDISK:.txt=.json)
+$(INSTALLED_FILES_FILE_DEBUG_RAMDISK): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_DEBUG_RAMDISK)
+$(INSTALLED_FILES_FILE_DEBUG_RAMDISK): $(INTERNAL_DEBUG_RAMDISK_SRC_DEPS)
+$(INSTALLED_FILES_FILE_DEBUG_RAMDISK): $(FILESLIST) $(FILESLIST_UTIL)
+	@echo "Installed file list: $@"
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@) $(TARGET_DEBUG_RAMDISK_OUT)
+	touch $(TARGET_DEBUG_RAMDISK_OUT)/force_debuggable
+	$(FILESLIST) $(INTERNAL_DEBUG_RAMDISK_SRC_DIRS) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+
+ifdef BUILDING_DEBUG_BOOT_IMAGE
 
 # -----------------------------------------------------------------
 # the debug ramdisk, which is the original ramdisk plus additional
@@ -2308,57 +2381,38 @@ endif # BOARD_USES_RECOVERY_AS_BOOT != true
 # and property files to allow adb root, if the device is unlocked.
 INSTALLED_DEBUG_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk-debug.img
 
-INTERNAL_DEBUG_RAMDISK_FILES := $(filter $(TARGET_DEBUG_RAMDISK_OUT)/%, \
-    $(ALL_GENERATED_SOURCES) \
-    $(ALL_DEFAULT_INSTALLED_MODULES))
-
-# INSTALLED_FILES_FILE_DEBUG_RAMDISK would ensure TARGET_DEBUG_RAMDISK_OUT is created.
-INSTALLED_FILES_FILE_DEBUG_RAMDISK := $(PRODUCT_OUT)/installed-files-ramdisk-debug.txt
-INSTALLED_FILES_JSON_DEBUG_RAMDISK := $(INSTALLED_FILES_FILE_DEBUG_RAMDISK:.txt=.json)
-$(INSTALLED_FILES_FILE_DEBUG_RAMDISK): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_DEBUG_RAMDISK)
-$(INSTALLED_FILES_FILE_DEBUG_RAMDISK): $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP)
-$(INSTALLED_FILES_FILE_DEBUG_RAMDISK) : $(INTERNAL_DEBUG_RAMDISK_FILES) $(FILESLIST) $(FILESLIST_UTIL)
-	@echo Installed file list: $@
-	mkdir -p $(dir $@)
-	rm -f $@
-	$(FILESLIST) $(TARGET_DEBUG_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) > $(@:.txt=.json)
-	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
-
 $(INSTALLED_DEBUG_RAMDISK_TARGET): $(INSTALLED_FILES_FILE_DEBUG_RAMDISK)
-$(INSTALLED_DEBUG_RAMDISK_TARGET): $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP)
-$(INSTALLED_DEBUG_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_DEBUG_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
-	$(call pretty,"Target debug ramdisk: $@")
-	mkdir -p $(TARGET_DEBUG_RAMDISK_OUT)
-	touch $(TARGET_DEBUG_RAMDISK_OUT)/force_debuggable
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
+$(INSTALLED_DEBUG_RAMDISK_TARGET): $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
+	@echo "Target debug ramdisk: $@"
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@)
+	$(MKBOOTFS) -d $(TARGET_OUT) $(INTERNAL_DEBUG_RAMDISK_SRC_DIRS) | $(COMPRESSION_COMMAND) > $@
 
 .PHONY: ramdisk_debug-nodeps
 ramdisk_debug-nodeps: $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
-	echo "make $@: ignoring dependencies"
-	mkdir -p $(TARGET_DEBUG_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR)
-	touch $(TARGET_DEBUG_RAMDISK_OUT)/force_debuggable
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $(INSTALLED_DEBUG_RAMDISK_TARGET)
+	@echo "make $@: ignoring dependencies"
+	$(hide) rm -f $(INSTALLED_DEBUG_RAMDISK_TARGET)
+	$(hide) mkdir -p $(dir $(INSTALLED_DEBUG_RAMDISK_TARGET)) $(INTERNAL_DEBUG_RAMDISK_SRC_DIRS)
+	$(MKBOOTFS) -d $(TARGET_OUT) $(INTERNAL_DEBUG_RAMDISK_SRC_DIRS) | $(COMPRESSION_COMMAND) > $(INSTALLED_DEBUG_RAMDISK_TARGET)
 
 # -----------------------------------------------------------------
 # the boot-debug.img, which is the kernel plus ramdisk-debug.img
 #
 # Note: it's intentional to skip signing for boot-debug.img, because it
 # can only be used if the device is unlocked with verification error.
-ifdef BUILDING_DEBUG_BOOT_IMAGE
-
 ifneq ($(strip $(BOARD_KERNEL_BINARIES)),)
-  INSTALLED_DEBUG_BOOTIMAGE_TARGET := $(foreach k,$(subst kernel,$(DEBUG_RAMDISK_BOOT_IMAGE_NAME),$(BOARD_KERNEL_BINARIES)), \
+  INSTALLED_DEBUG_BOOTIMAGE_TARGET := $(foreach k,$(subst kernel,boot-debug,$(BOARD_KERNEL_BINARIES)), \
          $(PRODUCT_OUT)/$(k).img)
 else
-  INSTALLED_DEBUG_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/$(DEBUG_RAMDISK_BOOT_IMAGE_NAME).img
+  INSTALLED_DEBUG_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot-debug.img
 endif
 
 # Replace ramdisk.img in $(MKBOOTIMG) ARGS with ramdisk-debug.img to build boot-debug.img
 $(INSTALLED_DEBUG_BOOTIMAGE_TARGET): $(INSTALLED_DEBUG_RAMDISK_TARGET)
 ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-  INTERNAL_DEBUG_BOOTIMAGE_ARGS := $(subst $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP),$(INSTALLED_DEBUG_RAMDISK_TARGET),$(INTERNAL_RECOVERYIMAGE_ARGS))
+  INTERNAL_DEBUG_BOOTIMAGE_ARGS := $(subst $(INTERNAL_DEBUG_RAMDISK_SRC_RAMDISK_TARGET),$(INSTALLED_DEBUG_RAMDISK_TARGET),$(INTERNAL_RECOVERYIMAGE_ARGS))
 else
-  INTERNAL_DEBUG_BOOTIMAGE_ARGS := $(subst $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP),$(INSTALLED_DEBUG_RAMDISK_TARGET),$(INTERNAL_BOOTIMAGE_ARGS))
+  INTERNAL_DEBUG_BOOTIMAGE_ARGS := $(subst $(INTERNAL_DEBUG_RAMDISK_SRC_RAMDISK_TARGET),$(INSTALLED_DEBUG_RAMDISK_TARGET),$(INTERNAL_BOOTIMAGE_ARGS))
 endif
 
 # If boot.img is chained but boot-debug.img is not signed, libavb in bootloader
@@ -2385,10 +2439,10 @@ endef
 
 # $(1): output file
 define build-debug-bootimage-target
-  $(MKBOOTIMG) --kernel $(PRODUCT_OUT)/$(subst .img,,$(subst $(DEBUG_RAMDISK_BOOT_IMAGE_NAME),kernel,$(notdir $(1)))) \
+  $(MKBOOTIMG) --kernel $(PRODUCT_OUT)/$(subst .img,,$(subst boot-debug,kernel,$(notdir $(1)))) \
     $(INTERNAL_DEBUG_BOOTIMAGE_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) \
     $(INTERNAL_MKBOOTIMG_GKI_SINGING_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $1
-  $(if $(BOARD_AVB_BOOT_KEY_PATH),$(call test-key-sign-bootimage,$1,$(DEBUG_RAMDISK_BOOT_IMAGE_NAME)))
+  $(if $(BOARD_AVB_BOOT_KEY_PATH),$(call test-key-sign-bootimage,$1,boot-debug))
 endef
 
 # Depends on original boot.img and ramdisk-debug.img, to build the new boot-debug.img
@@ -2412,35 +2466,41 @@ INTERNAL_VENDOR_DEBUG_RAMDISK_FILES := $(filter $(TARGET_VENDOR_DEBUG_RAMDISK_OU
     $(ALL_GENERATED_SOURCES) \
     $(ALL_DEFAULT_INSTALLED_MODULES))
 
-INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK := $(PRODUCT_OUT)/installed-files-vendor-ramdisk-debug.txt
-INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK := $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK:.txt=.json)
-$(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK)
-$(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): $(INTERNAL_VENDOR_RAMDISK_TARGET) $(INSTALLED_DEBUG_RAMDISK_TARGET)
-$(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): $(INTERNAL_VENDOR_DEBUG_RAMDISK_FILES) $(FILESLIST) $(FILESLIST_UTIL)
-	@echo Installed file list: $@
-	mkdir -p $(dir $@)
-	rm -f $@
-	mkdir -p $(TARGET_VENDOR_DEBUG_RAMDISK_OUT) # The dir might not be created if no modules are installed here.
-	$(FILESLIST) $(TARGET_VENDOR_RAMDISK_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(TARGET_VENDOR_DEBUG_RAMDISK_OUT) > $(@:.txt=.json)
-	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
-
-INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET := $(call intermediates-dir-for,PACKAGING,vendor_boot-debug)/vendor_ramdisk-debug.cpio$(RAMDISK_EXT)
+# The debug vendor ramdisk combines vendor ramdisk and debug ramdisk.
+INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DIRS := $(TARGET_VENDOR_RAMDISK_OUT)
+INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DEPS := $(INTERNAL_VENDOR_RAMDISK_TARGET)
 
 # Exclude recovery files in the default vendor ramdisk if including a standalone
 # recovery ramdisk in vendor_boot.
 ifeq (true,$(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT))
-ifneq (true,$(BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT))
-$(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): $(INTERNAL_RECOVERY_RAMDISK_FILES_TIMESTAMP)
-$(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): PRIVATE_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
-endif
-endif
+  ifneq (true,$(BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT))
+    INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DIRS += $(TARGET_RECOVERY_ROOT_OUT)
+    INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DEPS += $(INTERNAL_RECOVERY_RAMDISK_FILES_TIMESTAMP)
+  endif # BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT != true
+endif # BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT == true
 
-# The vendor debug ramdisk combines vendor ramdisk and debug ramdisk.
-$(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): $(INTERNAL_VENDOR_RAMDISK_TARGET) $(INSTALLED_DEBUG_RAMDISK_TARGET)
+INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DIRS += $(TARGET_VENDOR_DEBUG_RAMDISK_OUT) $(TARGET_DEBUG_RAMDISK_OUT)
+INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DEPS += $(INTERNAL_VENDOR_DEBUG_RAMDISK_FILES) $(INSTALLED_FILES_FILE_DEBUG_RAMDISK)
+
+# INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK would ensure TARGET_VENDOR_DEBUG_RAMDISK_OUT is created.
+INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK := $(PRODUCT_OUT)/installed-files-vendor-ramdisk-debug.txt
+INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK := $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK:.txt=.json)
+$(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK)
+$(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): $(INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DEPS)
+$(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK): $(FILESLIST) $(FILESLIST_UTIL)
+	@echo "Installed file list: $@"
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@) $(TARGET_VENDOR_DEBUG_RAMDISK_OUT)
+	$(FILESLIST) $(INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DIRS) > $(@:.txt=.json)
+	$(FILESLIST_UTIL) -c $(@:.txt=.json) > $@
+
+INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET := $(call intermediates-dir-for,PACKAGING,vendor_boot-debug)/vendor_ramdisk-debug.cpio$(RAMDISK_EXT)
+
 $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK)
-$(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_VENDOR_DEBUG_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
-	mkdir -p $(TARGET_VENDOR_DEBUG_RAMDISK_OUT)
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_VENDOR_RAMDISK_OUT) $(TARGET_DEBUG_RAMDISK_OUT) $(TARGET_VENDOR_DEBUG_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
+$(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET): $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@)
+	$(MKBOOTFS) -d $(TARGET_OUT) $(INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DIRS) | $(COMPRESSION_COMMAND) > $@
 
 INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET := $(PRODUCT_OUT)/vendor_ramdisk-debug.img
 $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET): $(INTERNAL_VENDOR_DEBUG_RAMDISK_TARGET)
@@ -2479,53 +2539,62 @@ $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET): $(INTERNAL_VENDOR_RAMDISK_FRAGMENT_T
 
 endif # BUILDING_DEBUG_VENDOR_BOOT_IMAGE
 
+# Appends a few test harness specific properties into the adb_debug.prop.
+ADDITIONAL_TEST_HARNESS_PROPERTIES := ro.audio.silent=1
+ADDITIONAL_TEST_HARNESS_PROPERTIES += ro.test_harness=1
+
+INTERNAL_DEBUG_RAMDISK_ADB_DEBUG_PROP_TARGET := $(strip $(filter $(TARGET_DEBUG_RAMDISK_OUT)/adb_debug.prop,$(INTERNAL_DEBUG_RAMDISK_FILES)))
+INTERNAL_TEST_HARNESS_RAMDISK_ADB_DEBUG_PROP_TARGET := $(TARGET_TEST_HARNESS_RAMDISK_OUT)/adb_debug.prop
+$(INTERNAL_TEST_HARNESS_RAMDISK_ADB_DEBUG_PROP_TARGET): $(INTERNAL_DEBUG_RAMDISK_ADB_DEBUG_PROP_TARGET)
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@)
+ifdef INTERNAL_DEBUG_RAMDISK_ADB_DEBUG_PROP_TARGET
+	$(hide) cp $(INTERNAL_DEBUG_RAMDISK_ADB_DEBUG_PROP_TARGET) $@
+endif
+	$(hide) echo "" >> $@
+	$(hide) echo "#" >> $@
+	$(hide) echo "# ADDITIONAL TEST HARNESS PROPERTIES" >> $@
+	$(hide) echo "#" >> $@
+	$(hide) $(foreach line,$(ADDITIONAL_TEST_HARNESS_PROPERTIES), \
+	          echo "$(line)" >> $@;)
+
+INTERNAL_TEST_HARNESS_RAMDISK_FILES := $(filter $(TARGET_TEST_HARNESS_RAMDISK_OUT)/%, \
+    $(INTERNAL_TEST_HARNESS_RAMDISK_ADB_DEBUG_PROP_TARGET) \
+    $(ALL_GENERATED_SOURCES) \
+    $(ALL_DEFAULT_INSTALLED_MODULES))
+
+# The order is important here. The test harness ramdisk staging directory has to
+# come last so that it can override the adb_debug.prop in the debug ramdisk
+# staging directory.
+INTERNAL_TEST_HARNESS_RAMDISK_SRC_DIRS := $(INTERNAL_DEBUG_RAMDISK_SRC_DIRS) $(TARGET_TEST_HARNESS_RAMDISK_OUT)
+INTERNAL_TEST_HARNESS_RAMDISK_SRC_DEPS := $(INSTALLED_FILES_FILE_DEBUG_RAMDISK) $(INTERNAL_TEST_HARNESS_RAMDISK_FILES)
+
+ifdef BUILDING_DEBUG_BOOT_IMAGE
+
 # -----------------------------------------------------------------
 # The test harness ramdisk, which is based off debug_ramdisk, plus a
 # few additional test-harness-specific properties in adb_debug.prop.
 INSTALLED_TEST_HARNESS_RAMDISK_TARGET := $(PRODUCT_OUT)/ramdisk-test-harness.img
 
-# Appends a few test harness specific properties into the adb_debug.prop.
-TEST_HARNESS_PROP_TARGET := $(TARGET_TEST_HARNESS_RAMDISK_OUT)/adb_debug.prop
-ADDITIONAL_TEST_HARNESS_PROPERTIES := ro.audio.silent=1
-ADDITIONAL_TEST_HARNESS_PROPERTIES += ro.test_harness=1
-
-# $(1): a list of key=value pairs for additional property assignments
-# $(2): the target .prop file to append the properties from $(1)
-define append-test-harness-props
-  echo "#" >> $(2); \
-  echo "# ADDITIONAL TEST HARNESS_PROPERTIES" >> $(2); \
-  echo "#" >> $(2);
-  $(foreach line,$(1), echo "$(line)" >> $(2);)
-endef
-
-INTERNAL_TEST_HARNESS_RAMDISK_FILES := $(filter $(TARGET_TEST_HARNESS_RAMDISK_OUT)/%, \
-    $(ALL_GENERATED_SOURCES) \
-    $(ALL_DEFAULT_INSTALLED_MODULES))
-
-# The test harness ramdisk will rsync the files from the debug ramdisk, then appends some props.
-$(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(INSTALLED_DEBUG_RAMDISK_TARGET)
-$(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DEP)
-$(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_TEST_HARNESS_RAMDISK_FILES) | $(COMPRESSION_COMMAND_DEPS)
-	$(call pretty,"Target test harness ramdisk: $@")
-	rsync --chmod=u+w -a $(TARGET_DEBUG_RAMDISK_OUT)/ $(TARGET_TEST_HARNESS_RAMDISK_OUT)
-	$(call append-test-harness-props,$(ADDITIONAL_TEST_HARNESS_PROPERTIES),$(TEST_HARNESS_PROP_TARGET))
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_TEST_HARNESS_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
+$(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_TEST_HARNESS_RAMDISK_SRC_DEPS)
+$(INSTALLED_TEST_HARNESS_RAMDISK_TARGET): $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
+	@echo "Target test harness ramdisk: $@"
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@)
+	$(MKBOOTFS) -d $(TARGET_OUT) $(INTERNAL_TEST_HARNESS_RAMDISK_SRC_DIRS) | $(COMPRESSION_COMMAND) > $@
 
 .PHONY: ramdisk_test_harness-nodeps
 ramdisk_test_harness-nodeps: $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
-	echo "make $@: ignoring dependencies"
-	rsync --chmod=u+w -a $(TARGET_DEBUG_RAMDISK_OUT)/ $(TARGET_TEST_HARNESS_RAMDISK_OUT)
-	$(call append-test-harness-props,$(ADDITIONAL_TEST_HARNESS_PROPERTIES),$(TEST_HARNESS_PROP_TARGET))
-	mkdir -p $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR)
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_TEST_HARNESS_RAMDISK_OUT) $(INTERNAL_DEBUG_RAMDISK_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
+	@echo "make $@: ignoring dependencies"
+	$(hide) rm -f $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
+	$(hide) mkdir -p $(dir $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)) $(INTERNAL_TEST_HARNESS_RAMDISK_SRC_DIRS)
+	$(MKBOOTFS) -d $(TARGET_OUT) $(INTERNAL_TEST_HARNESS_RAMDISK_SRC_DIRS) | $(COMPRESSION_COMMAND) > $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
 
 # -----------------------------------------------------------------
 # the boot-test-harness.img, which is the kernel plus ramdisk-test-harness.img
 #
 # Note: it's intentional to skip signing for boot-test-harness.img, because it
 # can only be used if the device is unlocked with verification error.
-ifdef BUILDING_DEBUG_BOOT_IMAGE
-
 ifneq ($(strip $(BOARD_KERNEL_BINARIES)),)
   INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET := $(foreach k,$(subst kernel,boot-test-harness,$(BOARD_KERNEL_BINARIES)), \
     $(PRODUCT_OUT)/$(k).img)
@@ -2534,6 +2603,7 @@ else
 endif
 
 # Replace ramdisk-debug.img in $(MKBOOTIMG) ARGS with ramdisk-test-harness.img to build boot-test-harness.img
+$(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET): $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
 INTERNAL_TEST_HARNESS_BOOTIMAGE_ARGS := $(subst $(INSTALLED_DEBUG_RAMDISK_TARGET),$(INSTALLED_TEST_HARNESS_RAMDISK_TARGET),$(INTERNAL_DEBUG_BOOTIMAGE_ARGS))
 
 # If boot.img is chained but boot-test-harness.img is not signed, libavb in bootloader
@@ -2553,8 +2623,7 @@ define build-boot-test-harness-target
 endef
 
 # Build the new boot-test-harness.img, based on boot-debug.img and ramdisk-test-harness.img.
-$(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET) \
-$(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
+$(INSTALLED_TEST_HARNESS_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INSTALLED_DEBUG_BOOTIMAGE_TARGET) $(BOARD_GKI_SIGNING_KEY_PATH) $(AVBTOOL)
 	$(call pretty,"Target boot test harness image: $@")
 	$(call build-boot-test-harness-target,$@)
 
@@ -2572,19 +2641,17 @@ ifdef BUILDING_DEBUG_VENDOR_BOOT_IMAGE
 
 INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET := $(call intermediates-dir-for,PACKAGING,vendor_boot-test-harness)/vendor_ramdisk-test-harness.cpio$(RAMDISK_EXT)
 
-# Exclude recovery files in the default vendor ramdisk if including a standalone
-# recovery ramdisk in vendor_boot.
-ifeq (true,$(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT))
-ifneq (true,$(BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT))
-$(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_RECOVERY_RAMDISK_FILES_TIMESTAMP)
-$(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET): PRIVATE_ADDITIONAL_DIR := $(TARGET_RECOVERY_ROOT_OUT)
-endif
-endif
+# The order is important here. The test harness ramdisk staging directory has to
+# come last so that it can override the adb_debug.prop in the debug ramdisk
+# staging directory.
+INTERNAL_TEST_HARNESS_VENDOR_RAMDISK_SRC_DIRS := $(INTERNAL_DEBUG_VENDOR_RAMDISK_SRC_DIRS) $(TARGET_TEST_HARNESS_RAMDISK_OUT)
+INTERNAL_TEST_HARNESS_VENDOR_RAMDISK_SRC_DEPS := $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK) $(INTERNAL_TEST_HARNESS_RAMDISK_FILES)
 
-# The vendor test harness ramdisk combines vendor ramdisk and test harness ramdisk.
-$(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_VENDOR_RAMDISK_TARGET) $(INSTALLED_TEST_HARNESS_RAMDISK_TARGET)
+$(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_TEST_HARNESS_VENDOR_RAMDISK_SRC_DEPS)
 $(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET): $(MKBOOTFS) | $(COMPRESSION_COMMAND_DEPS)
-	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_VENDOR_RAMDISK_OUT) $(TARGET_TEST_HARNESS_RAMDISK_OUT) $(PRIVATE_ADDITIONAL_DIR) | $(COMPRESSION_COMMAND) > $@
+	$(hide) rm -f $@
+	$(hide) mkdir -p $(dir $@)
+	$(MKBOOTFS) -d $(TARGET_OUT) $(INTERNAL_TEST_HARNESS_VENDOR_RAMDISK_SRC_DIRS) | $(COMPRESSION_COMMAND) > $@
 
 INSTALLED_VENDOR_TEST_HARNESS_RAMDISK_TARGET := $(PRODUCT_OUT)/vendor_ramdisk-test-harness.img
 $(INSTALLED_VENDOR_TEST_HARNESS_RAMDISK_TARGET): $(INTERNAL_VENDOR_TEST_HARNESS_RAMDISK_TARGET)
@@ -2697,7 +2764,7 @@ $(INSTALLED_FILES_FILE): $(FULL_SYSTEMIMAGE_DEPS) $(FILESLIST) $(FILESLIST_UTIL)
 installed-file-list: $(INSTALLED_FILES_FILE)
 
 ifeq ($(HOST_OS),linux)
-$(call dist-for-goals, sdk win_sdk sdk_addon, $(INSTALLED_FILES_FILE))
+$(call dist-for-goals, sdk sdk_addon, $(INSTALLED_FILES_FILE))
 endif
 
 systemimage_intermediates := \
@@ -2721,8 +2788,15 @@ endef
 ifeq ($(BOARD_AVB_ENABLE),true)
 $(BUILT_SYSTEMIMAGE): $(BOARD_AVB_SYSTEM_KEY_PATH)
 endif
+ifeq ($(PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA),true)
+$(BUILT_SYSTEMIMAGE): $(HOST_OUT_EXECUTABLES)/fsverity $(HOST_OUT_EXECUTABLES)/aapt2 \
+    $(FSVERITY_APK_MANIFEST_PATH) $(FSVERITY_APK_KEY_PATH).x509.pem $(FSVERITY_APK_KEY_PATH).pk8
+endif
 $(BUILT_SYSTEMIMAGE): $(FULL_SYSTEMIMAGE_DEPS) $(INSTALLED_FILES_FILE)
 	$(call build-systemimage-target,$@)
+
+$(call declare-1p-container,$(BUILT_SYSTEMIMAGE),system/extras)
+$(call declare-container-license-deps,$(BUILT_SYSTEMIMAGE),$(FULL_SYSTEMIMAGE_DEPS),$(PRODUCT_OUT)/:)
 
 INSTALLED_SYSTEMIMAGE_TARGET := $(PRODUCT_OUT)/system.img
 SYSTEMIMAGE_SOURCE_DIR := $(TARGET_OUT)
@@ -2765,7 +2839,13 @@ $(INSTALLED_SYSTEMIMAGE_TARGET): $(BUILT_SYSTEMIMAGE)
 	$(copy-file-to-target)
 	$(hide) $(call assert-max-image-size,$@,$(BOARD_SYSTEMIMAGE_PARTITION_SIZE))
 
+$(call declare-1p-container,$(INSTALLED_SYSTEMIMAGE_TARGET),)
+$(call declare-container-license-deps,$(INSTALLED_SYSTEMIMAGE_TARGET),$(BUILT_SYSTEMIMAGE),$(BUILT_SYSTEMIMAGE):/)
+
 systemimage: $(INSTALLED_SYSTEMIMAGE_TARGET)
+
+.PHONY: systemlicense
+systemlicense: $(call license-metadata-dir)/$(INSTALLED_SYSTEMIMAGE_TARGET).meta_lic reportmissinglicenses
 
 .PHONY: systemimage-nodeps snod
 systemimage-nodeps snod: $(filter-out systemimage-nodeps snod,$(MAKECMDGOALS)) \
@@ -3359,23 +3439,29 @@ endif # BOARD_PREBUILT_DTBOIMAGE
 
 # -----------------------------------------------------------------
 # Protected VM firmware image
-ifdef BOARD_PREBUILT_PVMFWIMAGE
+ifeq ($(BOARD_USES_PVMFWIMAGE),true)
 INSTALLED_PVMFWIMAGE_TARGET := $(PRODUCT_OUT)/pvmfw.img
+INTERNAL_PREBUILT_PVMFWIMAGE := packages/modules/Virtualization/pvmfw/pvmfw.img
+
+ifdef BOARD_PREBUILT_PVMFWIMAGE
+BUILT_PVMFWIMAGE_TARGET := $(BOARD_PREBUILT_PVMFWIMAGE)
+else ifeq ($(BUILDING_PVMFW_IMAGE),true)
+BUILT_PVMFWIMAGE_TARGET := $(INTERNAL_PREBUILT_PVMFWIMAGE)
+endif
 
 ifeq ($(BOARD_AVB_ENABLE),true)
-$(INSTALLED_PVMFWIMAGE_TARGET): $(BOARD_PREBUILT_PVMFWIMAGE) $(AVBTOOL) $(BOARD_AVB_PVMFW_KEY_PATH)
-	cp $(BOARD_PREBUILT_PVMFWIMAGE) $@
+$(INSTALLED_PVMFWIMAGE_TARGET): $(BUILT_PVMFWIMAGE_TARGET) $(AVBTOOL) $(BOARD_AVB_PVMFW_KEY_PATH)
+	cp $(BUILT_PVMFWIMAGE_TARGET) $@
 	$(AVBTOOL) add_hash_footer \
 	    --image $@ \
-	    --partition_size $(BOARD_PVMFWIMG_PARTITION_SIZE) \
+	    --partition_size $(BOARD_PVMFWIMAGE_PARTITION_SIZE) \
 	    --partition_name pvmfw $(INTERNAL_AVB_PVMFW_SIGNING_ARGS) \
 	    $(BOARD_AVB_PVMFW_ADD_HASH_FOOTER_ARGS)
 else
-$(INSTALLED_PVMFWIMAGE_TARGET): $(BOARD_PREBUILT_PVMFWIMAGE)
-	cp $(BOARD_PREBUILT_PVMFWIMAGE) $@
+$(eval $(call copy-one-file,$(BUILT_PVMFWIMAGE_TARGET),$(INSTALLED_PVMFWIMAGE_TARGET)))
 endif
 
-endif # BOARD_PREBUILT_PVMFWIMAGE
+endif # BOARD_USES_PVMFWIMAGE
 
 # Returns a list of image targets corresponding to the given list of partitions. For example, it
 # returns "$(INSTALLED_PRODUCTIMAGE_TARGET)" for "product", or "$(INSTALLED_SYSTEMIMAGE_TARGET)
@@ -4317,6 +4403,7 @@ INTERNAL_OTATOOLS_MODULES := \
   shflags \
   sign_apex \
   sign_target_files_apks \
+  sign_virt_apex \
   signapk \
   simg2img \
   sload_f2fs \
@@ -4577,10 +4664,10 @@ ifdef BOARD_AVB_DTBO_KEY_PATH
 endif # BOARD_AVB_DTBO_KEY_PATH
 endif # BOARD_AVB_ENABLE
 endif # BOARD_PREBUILT_DTBOIMAGE
-ifdef BOARD_PREBUILT_PVMFWIMAGE
+ifeq ($(BOARD_USES_PVMFWIMAGE),true)
 	$(hide) echo "has_pvmfw=true" >> $@
 ifeq ($(BOARD_AVB_ENABLE),true)
-	$(hide) echo "pvmfw_size=$(BOARD_PVMFWIMG_PARTITION_SIZE)" >> $@
+	$(hide) echo "pvmfw_size=$(BOARD_PVMFWIMAGE_PARTITION_SIZE)" >> $@
 	$(hide) echo "avb_pvmfw_add_hash_footer_args=$(BOARD_AVB_PVMFW_ADD_HASH_FOOTER_ARGS)" >> $@
 ifdef BOARD_AVB_PVMFW_KEY_PATH
 	$(hide) echo "avb_pvmfw_key_path=$(BOARD_AVB_PVMFW_KEY_PATH)" >> $@
@@ -4588,7 +4675,7 @@ ifdef BOARD_AVB_PVMFW_KEY_PATH
 	$(hide) echo "avb_pvmfw_rollback_index_location=$(BOARD_AVB_PVMFW_ROLLBACK_INDEX_LOCATION)" >> $@
 endif # BOARD_AVB_PVMFW_KEY_PATH
 endif # BOARD_AVB_ENABLE
-endif # BOARD_PREBUILT_PVMFWIMAGE
+endif # BOARD_USES_PVMFWIMAGE
 	$(call dump-dynamic-partitions-info,$@)
 	@# VINTF checks
 ifeq ($(PRODUCT_ENFORCE_VINTF_MANIFEST),true)
@@ -5200,7 +5287,10 @@ endif # BOARD_PREBUILT_DTBOIMAGE
 ifdef BOARD_PREBUILT_PVMFWIMAGE
 	$(hide) mkdir -p $(zip_root)/PREBUILT_IMAGES
 	$(hide) cp $(INSTALLED_PVMFWIMAGE_TARGET) $(zip_root)/PREBUILT_IMAGES/
-endif # BOARD_PREBUILT_PVMFWIMAGE
+else ifeq ($(BUILDING_PVMFW_IMAGE),true)
+	$(hide) mkdir -p $(zip_root)/IMAGES
+	$(hide) cp $(INSTALLED_PVMFWIMAGE_TARGET) $(zip_root)/IMAGES/
+endif
 ifdef BOARD_PREBUILT_BOOTLOADER
 	$(hide) mkdir -p $(zip_root)/IMAGES
 	$(hide) cp $(INSTALLED_BOOTLOADER_MODULE) $(zip_root)/IMAGES/
@@ -5389,6 +5479,8 @@ $(APPCOMPAT_ZIP): $(SOONG_ZIP)
 ifeq ($(BUILD_OS),linux)
 ifneq ($(DEX2OAT),)
 dexpreopt_tools_deps := $(DEXPREOPT_GEN_DEPS) $(DEXPREOPT_GEN) $(AAPT2)
+dexpreopt_tools_deps += $(HOST_OUT_EXECUTABLES)/dexdump
+dexpreopt_tools_deps += $(HOST_OUT_EXECUTABLES)/oatdump
 DEXPREOPT_TOOLS_ZIP := $(PRODUCT_OUT)/dexpreopt_tools.zip
 $(DEXPREOPT_TOOLS_ZIP): $(dexpreopt_tools_deps)
 $(DEXPREOPT_TOOLS_ZIP): PRIVATE_DEXPREOPT_TOOLS_DEPS := $(dexpreopt_tools_deps)
@@ -5851,6 +5943,8 @@ endif
 # -----------------------------------------------------------------
 # The SDK
 
+ifneq ($(filter sdk,$(MAKECMDGOALS)),)
+
 # The SDK includes host-specific components, so it belongs under HOST_OUT.
 sdk_dir := $(HOST_OUT)/sdk/$(TARGET_PRODUCT)
 
@@ -5860,15 +5954,11 @@ sdk_dir := $(HOST_OUT)/sdk/$(TARGET_PRODUCT)
 #     darwin-x86  --> android-sdk_12345_mac-x86
 #     windows-x86 --> android-sdk_12345_windows
 #
+ifneq ($(HOST_OS),linux)
+  $(error Building the monolithic SDK is only supported on Linux)
+endif
 sdk_name := android-sdk_$(FILE_NAME_TAG)
-ifeq ($(HOST_OS),darwin)
-  INTERNAL_SDK_HOST_OS_NAME := mac
-else
-  INTERNAL_SDK_HOST_OS_NAME := $(HOST_OS)
-endif
-ifneq ($(HOST_OS),windows)
-  INTERNAL_SDK_HOST_OS_NAME := $(INTERNAL_SDK_HOST_OS_NAME)-$(SDK_HOST_ARCH)
-endif
+INTERNAL_SDK_HOST_OS_NAME := linux-$(SDK_HOST_ARCH)
 sdk_name := $(sdk_name)_$(INTERNAL_SDK_HOST_OS_NAME)
 
 sdk_dep_file := $(sdk_dir)/sdk_deps.mk
@@ -5888,9 +5978,7 @@ endif
 atree_dir := development/build
 
 
-sdk_atree_files := \
-	$(atree_dir)/sdk.exclude.atree \
-	$(atree_dir)/sdk-$(HOST_OS)-$(SDK_HOST_ARCH).atree
+sdk_atree_files := $(atree_dir)/sdk.exclude.atree
 
 # development/build/sdk-android-<abi>.atree is used to differentiate
 # between architecture models (e.g. ARMv5TE versus ARMv7) when copying
@@ -5972,22 +6060,16 @@ $(INTERNAL_SDK_TARGET): $(deps)
 	        -o $(PRIVATE_DIR) && \
 	    cp -f $(target_notice_file_txt) \
 	            $(PRIVATE_DIR)/system-images/android-$(PLATFORM_VERSION)/$(TARGET_CPU_ABI)/NOTICE.txt && \
-	    cp -f $(tools_notice_file_txt) $(PRIVATE_DIR)/platform-tools/NOTICE.txt && \
 	    HOST_OUT_EXECUTABLES=$(HOST_OUT_EXECUTABLES) HOST_OS=$(HOST_OS) \
 	        development/build/tools/sdk_clean.sh $(PRIVATE_DIR) && \
 	    chmod -R ug+rwX $(PRIVATE_DIR) && \
 	    cd $(dir $@) && zip -rqX $(notdir $@) $(PRIVATE_NAME) \
 	) || ( rm -rf $(PRIVATE_DIR) $@ && exit 44 )
 
-
-# Is a Windows SDK requested? If so, we need some definitions from here
-# in order to find the Linux SDK used to create the Windows one.
-MAIN_SDK_NAME := $(sdk_name)
 MAIN_SDK_DIR  := $(sdk_dir)
 MAIN_SDK_ZIP  := $(INTERNAL_SDK_TARGET)
-ifneq ($(filter win_sdk winsdk-tools,$(MAKECMDGOALS)),)
-include $(TOPDIR)development/build/tools/windows_sdk.mk
-endif
+
+endif # sdk in MAKECMDGOALS
 
 # -----------------------------------------------------------------
 # Findbugs

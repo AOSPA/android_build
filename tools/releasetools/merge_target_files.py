@@ -215,6 +215,20 @@ DEFAULT_FRAMEWORK_MISC_INFO_KEYS = (
     'building_system_image',
     'building_system_ext_image',
     'building_product_image',
+    'system_disable_sparse',
+    'product_disable_sparse',
+    'system_ext_disable_sparse',
+    'system_other_disable_sparse',
+)
+
+# REQUIRED_FRAMEWORK_MISC_INFO_KEYS are always added to the framework misc_info
+# keys list, regardless of the provided input list. This is needed for frozen
+# vendor input builds that do not have these keys in their configs.
+REQUIRED_FRAMEWORK_MISC_INFO_KEYS = (
+    'system_disable_sparse',
+    'product_disable_sparse',
+    'system_ext_disable_sparse',
+    'system_other_disable_sparse',
 )
 
 # DEFAULT_VENDOR_ITEM_LIST is a list of items to extract from the partial
@@ -477,7 +491,8 @@ def process_misc_info_txt(framework_target_files_temp_dir,
   # framework_dict.
 
   for key in framework_misc_info_keys:
-    merged_dict[key] = framework_dict[key]
+    if key in framework_dict:
+      merged_dict[key] = framework_dict[key]
 
   # Merge misc info keys used for Dynamic Partitions.
   if (merged_dict.get('use_dynamic_partitions')
@@ -1779,8 +1794,9 @@ def main():
     framework_item_list = DEFAULT_FRAMEWORK_ITEM_LIST
 
   if OPTIONS.framework_misc_info_keys:
-    framework_misc_info_keys = common.LoadListFromFile(
-        OPTIONS.framework_misc_info_keys)
+    framework_misc_info_keys = set(
+        common.LoadListFromFile(OPTIONS.framework_misc_info_keys)).union(
+            REQUIRED_FRAMEWORK_MISC_INFO_KEYS)
   else:
     framework_misc_info_keys = DEFAULT_FRAMEWORK_MISC_INFO_KEYS
 

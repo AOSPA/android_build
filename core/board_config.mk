@@ -84,6 +84,7 @@ _board_strip_readonly_list += BOARD_VENDOR_DLKMIMAGE_PARTITION_SIZE
 _board_strip_readonly_list += BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE
 _board_strip_readonly_list += BOARD_ODM_DLKMIMAGE_PARTITION_SIZE
 _board_strip_readonly_list += BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE
+_board_strip_readonly_list += BOARD_PVMFWIMAGE_PARTITION_SIZE
 
 # Logical partitions related variables.
 _board_strip_readonly_list += BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE
@@ -184,19 +185,44 @@ else
   .KATI_READONLY := TARGET_DEVICE_DIR
 endif
 
+# Dumps all variables that match [A-Z][A-Z0-9_]* to the file at $(1)
+# It is used to print only the variables that are likely to be relevant to the
+# board configuration.
+define dump-public-variables
+$(file >$(OUT_DIR)/dump-public-variables-temp.txt,$(subst $(space),$(newline),$(.VARIABLES)))\
+$(file >$(1),\
+$(foreach v, $(shell grep -he "^[A-Z][A-Z0-9_]*$$" $(OUT_DIR)/dump-public-variables-temp.txt | grep -vhe "^SOONG_"),\
+$(v) := $(strip $($(v)))$(newline)))
+endef
+
 # TODO(colefaust) change this if to RBC_PRODUCT_CONFIG when
 # the board configuration is known to work on everything
 # the product config works on.
 ifndef RBC_BOARD_CONFIG
 include $(board_config_mk)
 else
-  rc := $(shell build/soong/scripts/rbc-run $(board_config_mk) \
-      BUILDING_GSI=$(BUILDING_GSI) >$(OUT_DIR)/rbcboardtemp.mk || echo $$?)
-  ifneq (,$(rc))
-    $(error board configuration converter failed: $(rc))
+  $(shell mkdir -p $(OUT_DIR)/rbc)
+
+  $(call dump-public-variables, $(OUT_DIR)/rbc/make_vars_pre_board_config.mk)
+
+  $(shell $(OUT_DIR)/soong/mk2rbc \
+    --mode=write -r --outdir $(OUT_DIR)/rbc \
+    --boardlauncher=$(OUT_DIR)/rbc/boardlauncher.rbc \
+    --input_variables=$(OUT_DIR)/rbc/make_vars_pre_board_config.mk \
+    $(board_config_mk))
+  ifneq ($(.SHELLSTATUS),0)
+    $(error board configuration converter failed: $(.SHELLSTATUS))
   endif
 
-  include $(OUT_DIR)/rbcboardtemp.mk
+  $(shell $(OUT_DIR)/soong/rbcrun \
+    RBC_OUT="make,global" \
+    $(OUT_DIR)/rbc/boardlauncher.rbc \
+    >$(OUT_DIR)/rbc/rbc_board_config_results.mk)
+  ifneq ($(.SHELLSTATUS),0)
+    $(error board configuration runner failed: $(.SHELLSTATUS))
+  endif
+
+  include $(OUT_DIR)/rbc/rbc_board_config_results.mk
 endif
 
 ifneq (,$(and $(TARGET_ARCH),$(TARGET_ARCH_SUITE)))
@@ -409,12 +435,6 @@ else ifeq ($(PRODUCT_BUILD_BOOT_IMAGE),true)
   endif
 endif
 .KATI_READONLY := BUILDING_BOOT_IMAGE
-
-DEBUG_RAMDISK_BOOT_IMAGE_NAME := boot-debug
-ifneq ($(PRODUCT_DEBUG_RAMDISK_BOOT_IMAGE_NAME),)
-  DEBUG_RAMDISK_BOOT_IMAGE_NAME := $(PRODUCT_DEBUG_RAMDISK_BOOT_IMAGE_NAME)
-endif
-.KATI_READONLY := DEBUG_RAMDISK_BOOT_IMAGE_NAME
 
 # Are we building a recovery image
 BUILDING_RECOVERY_IMAGE :=
@@ -793,6 +813,24 @@ ifdef BOARD_PREBUILT_ODM_DLKMIMAGE
   BUILDING_ODM_DLKM_IMAGE :=
 endif
 .KATI_READONLY := BUILDING_ODM_DLKM_IMAGE
+
+BOARD_USES_PVMFWIMAGE :=
+ifdef BOARD_PREBUILT_PVMFWIMAGE
+  BOARD_USES_PVMFWIMAGE := true
+endif
+ifeq ($(PRODUCT_BUILD_PVMFW_IMAGE),true)
+  BOARD_USES_PVMFWIMAGE := true
+endif
+.KATI_READONLY := BOARD_USES_PVMFWIMAGE
+
+BUILDING_PVMFW_IMAGE :=
+ifeq ($(PRODUCT_BUILD_PVMFW_IMAGE),true)
+  BUILDING_PVMFW_IMAGE := true
+endif
+ifdef BOARD_PREBUILT_PVMFWIMAGE
+  BUILDING_PVMFW_IMAGE :=
+endif
+.KATI_READONLY := BUILDING_PVMFW_IMAGE
 
 ###########################################
 # Ensure consistency among TARGET_RECOVERY_UPDATER_LIBS, AB_OTA_UPDATER, and PRODUCT_OTA_FORCE_NON_AB_PACKAGE.
