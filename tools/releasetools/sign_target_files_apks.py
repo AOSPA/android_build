@@ -837,6 +837,11 @@ def RewriteProps(data):
         assert pieces[-1].endswith("-keys")
         pieces[-1] = EditTags(pieces[-1])
         value = " ".join(pieces)
+      elif key == "ro.build.keys":
+        pieces = value.split(" ")
+        assert pieces[-1].endswith("-keys")
+        pieces[-1] = EditTags(pieces[-1])
+        value = " ".join(pieces)
       elif key.startswith("ro.") and key.endswith(".build.tags"):
         value = EditTags(value)
       elif key == "ro.build.display.id":
