@@ -121,6 +121,8 @@ name="apex.apexd_test_different_app.apex" public_key="system/apex/apexd/apexd_te
          'sailfish-user 8.0.0 OPR6.170623.012 4283428 dev-keys',
          'ro.build.description='
          'sailfish-user 8.0.0 OPR6.170623.012 4283428 release-keys'),
+        ('ro.build.keys=dev-keys', 'ro.build.keys=release-keys'),
+        ('ro.build.keys=test-keys', 'ro.build.keys=release-keys'),
         ('ro.build.tags=dev-keys', 'ro.build.tags=release-keys'),
         ('ro.build.tags=test-keys', 'ro.build.tags=release-keys'),
         ('ro.system.build.tags=dev-keys',
