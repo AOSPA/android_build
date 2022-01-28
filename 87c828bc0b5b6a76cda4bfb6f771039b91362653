@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "69b22e2e_b63e2a48",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2022-01-28T02:58:58Z",
+      "side": 1,
+      "message": "still unknown why ro.build.display.id function doesn\u0027t work\n(it should remove all mention of keys not say release-keys)",
+      "revId": "87c828bc0b5b6a76cda4bfb6f771039b91362653",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
