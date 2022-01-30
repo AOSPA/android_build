@@ -381,6 +381,7 @@ ENFORCE_SYSTEM_CERTIFICATE := $(PRODUCT_ENFORCE_ARTIFACT_SYSTEM_CERTIFICATE_REQU
 ENFORCE_SYSTEM_CERTIFICATE_ALLOW_LIST := $(PRODUCT_ARTIFACT_SYSTEM_CERTIFICATE_REQUIREMENT_ALLOW_LIST)
 
 PRODUCT_OTA_PUBLIC_KEYS := $(sort $(PRODUCT_OTA_PUBLIC_KEYS))
+PRODUCT_EXTRA_OTA_KEYS := $(sort $(PRODUCT_EXTRA_OTA_KEYS))
 PRODUCT_EXTRA_RECOVERY_KEYS := $(sort $(PRODUCT_EXTRA_RECOVERY_KEYS))
 
 # Resolve and setup per-module dex-preopt configs.
@@ -412,7 +413,7 @@ $(foreach c,$(PRODUCT_SANITIZER_MODULE_CONFIGS),\
 _psmc_modules :=
 
 # Reset ADB keys for non-debuggable builds
-ifeq (,$(filter eng userdebug,$(TARGET_BUILD_VARIANT)),)
+ifeq (,$(filter eng userdebug,$(TARGET_BUILD_VARIANT)))
   PRODUCT_ADB_KEYS :=
 endif
 ifneq ($(filter-out 0 1,$(words $(PRODUCT_ADB_KEYS))),)
