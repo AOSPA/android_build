@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "98c2499f_ba7129a1",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 8
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2022-01-31T05:01:53Z",
+      "side": 1,
+      "message": "I will push the los change as-is and stay inline with aosp var names\nJust need to update device overrides in tree accordingly\n\n* refer to 322786: hotdogb: Make device name/product prop overrides work | https://review.lineageos.org/c/LineageOS/android_device_oneplus_hotdogb/+/322786",
+      "revId": "ed12e5df5adc1a17d349baddbad86d45e426cd6a",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
