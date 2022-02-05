@@ -51,6 +51,7 @@ PRODUCT_PACKAGES += \
     cmd \
     com.android.adbd \
     com.android.appsearch \
+    com.android.auxiliary \
     com.android.conscrypt \
     com.android.cronet \
     com.android.extservices \
@@ -67,6 +68,7 @@ PRODUCT_PACKAGES += \
     com.android.neuralnetworks \
     com.android.scheduling \
     com.android.sdkext \
+    com.android.sepolicy \
     com.android.supplementalprocess \
     com.android.tethering \
     com.android.tzdata \
@@ -377,6 +379,7 @@ PRODUCT_SYSTEM_PROPERTIES += persist.traced.enable=1
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     arping \
+    com.android.sepolicy.cert-debug.der \
     dmuserd \
     idlcli \
     init-debug.rc \

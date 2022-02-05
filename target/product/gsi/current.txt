@@ -66,9 +66,9 @@ VNDK-core: android.hardware.configstore-utils.so
 VNDK-core: android.hardware.configstore@1.0.so
 VNDK-core: android.hardware.configstore@1.1.so
 VNDK-core: android.hardware.confirmationui-support-lib.so
+VNDK-core: android.hardware.drm-V1-ndk.so
 VNDK-core: android.hardware.dumpstate-V1-ndk.so
 VNDK-core: android.hardware.gnss-V1-ndk.so
-VNDK-core: android.hardware.gnss.visibility_control-V1-ndk.so
 VNDK-core: android.hardware.graphics.allocator@2.0.so
 VNDK-core: android.hardware.graphics.allocator@3.0.so
 VNDK-core: android.hardware.graphics.allocator@4.0.so
@@ -77,6 +77,7 @@ VNDK-core: android.hardware.graphics.bufferqueue@2.0.so
 VNDK-core: android.hardware.health-V1-ndk.so
 VNDK-core: android.hardware.health.storage-V1-ndk.so
 VNDK-core: android.hardware.identity-V3-ndk.so
+VNDK-core: android.hardware.ir-V1-ndk.so
 VNDK-core: android.hardware.keymaster-V3-ndk.so
 VNDK-core: android.hardware.light-V1-ndk.so
 VNDK-core: android.hardware.media.bufferpool@2.0.so
