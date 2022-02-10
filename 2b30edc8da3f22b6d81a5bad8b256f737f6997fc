@@ -16,6 +16,24 @@
       "message": "remind me why this is necessary",
       "revId": "2b30edc8da3f22b6d81a5bad8b256f737f6997fc",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "5ffce473_68d483f0",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2022-02-10T09:13:38Z",
+      "side": 1,
+      "message": "google play doesnt like aospa_codename in props and fails certification\nso its nice being able to override it for props, the alternative method to this is to do in libinit a",
+      "parentUuid": "1b3560c2_70d72239",
+      "revId": "2b30edc8da3f22b6d81a5bad8b256f737f6997fc",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
