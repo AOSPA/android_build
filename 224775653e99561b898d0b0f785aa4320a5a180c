@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "30f50f1f_477f9157",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2022-02-14T13:57:34Z",
+      "side": 1,
+      "message": "objecting on Evan\u0027s behalf. he has rejected commits like this before.",
+      "revId": "224775653e99561b898d0b0f785aa4320a5a180c",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
