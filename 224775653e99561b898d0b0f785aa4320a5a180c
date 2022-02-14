@@ -51,6 +51,24 @@
       "parentUuid": "76d88871_a0768178",
       "revId": "224775653e99561b898d0b0f785aa4320a5a180c",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "66d5e103_0caea33c",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2022-02-14T17:07:10Z",
+      "side": 1,
+      "message": "I am aware, I haven\u0027t seen any services who use other props for tamper detection so far",
+      "parentUuid": "717a76d5_d792f037",
+      "revId": "224775653e99561b898d0b0f785aa4320a5a180c",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
