@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "958b9732_86b26a62",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2022-02-17T14:51:35Z",
+      "side": 1,
+      "message": "is this the right place for this?  should we do it in vendor/aospa instead?",
+      "revId": "f46c966eab8a2fc42f1da0dfafc8cf5c78c1f982",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
