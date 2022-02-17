@@ -33,6 +33,23 @@
       "message": "Why should we allow modding to begin with? Seems like a recipe for bogus user reports",
       "revId": "f46c966eab8a2fc42f1da0dfafc8cf5c78c1f982",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "adf68717_02aed73f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2022-02-17T20:15:24Z",
+      "side": 1,
+      "message": "This is just for my personal builds. I don\u0027t expect/want this to be merged.\n\nUsers are using Magisk modules to mod anyways.",
+      "revId": "f46c966eab8a2fc42f1da0dfafc8cf5c78c1f982",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
