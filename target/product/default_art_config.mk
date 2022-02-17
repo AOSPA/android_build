@@ -14,6 +14,9 @@
 # limitations under the License.
 #
 
+# This file contains product config for the ART module that is common for
+# platform and unbundled builds.
+
 ifeq ($(ART_APEX_JARS),)
   $(error ART_APEX_JARS is empty; cannot initialize PRODUCT_BOOT_JARS variable)
 endif
@@ -46,6 +49,7 @@ PRODUCT_BOOT_JARS += \
 
 # APEX boot jars. Keep the list sorted by module names and then library names.
 # Note: core-icu4j is moved back to PRODUCT_BOOT_JARS in product_config.mk at a later stage.
+# Note: For modules available in Q, DO NOT add new entries here.
 PRODUCT_APEX_BOOT_JARS := \
     com.android.appsearch:framework-appsearch \
     com.android.conscrypt:conscrypt \
@@ -59,17 +63,38 @@ PRODUCT_APEX_BOOT_JARS := \
     com.android.permission:framework-permission-s \
     com.android.scheduling:framework-scheduling \
     com.android.sdkext:framework-sdkextensions \
+    com.android.supplementalprocess:framework-supplementalprocess \
     com.android.tethering:framework-connectivity \
+    com.android.tethering:framework-connectivity-tiramisu \
     com.android.tethering:framework-tethering \
     com.android.uwb:framework-uwb \
     com.android.wifi:framework-wifi
 
-# APEX system server jars. Keep the list sorted by module names and then library names.
+# List of system_server classpath jars delivered via apex.
+# Keep the list sorted by module names and then library names.
+# Note: For modules available in Q, DO NOT add new entries here.
 PRODUCT_APEX_SYSTEM_SERVER_JARS := \
     com.android.appsearch:service-appsearch \
     com.android.art:service-art \
     com.android.media:service-media-s \
     com.android.permission:service-permission \
+
+PRODUCT_DEX_PREOPT_BOOT_IMAGE_PROFILE_LOCATION += art/build/boot/boot-image-profile.txt
+
+# List of jars on the platform that system_server loads dynamically using separate classloaders.
+# Keep the list sorted library names.
+PRODUCT_STANDALONE_SYSTEM_SERVER_JARS := \
+
+# List of jars delivered via apex that system_server loads dynamically using separate classloaders.
+# Keep the list sorted by module names and then library names.
+# Note: For modules available in Q, DO NOT add new entries here.
+PRODUCT_APEX_STANDALONE_SYSTEM_SERVER_JARS := \
+    com.android.os.statsd:service-statsd \
+    com.android.scheduling:service-scheduling \
+    com.android.supplementalprocess:service-supplementalprocess \
+    com.android.tethering:service-connectivity \
+    com.android.uwb:service-uwb \
+    com.android.wifi:service-wifi \
 
 # Minimal configuration for running dex2oat (default argument values).
 # PRODUCT_USES_DEFAULT_ART_CONFIG must be true to enable boot image compilation.

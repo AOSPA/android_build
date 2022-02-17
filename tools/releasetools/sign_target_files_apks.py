@@ -99,15 +99,15 @@ Usage:  sign_target_files_apks [flags] input_target_files output_target_files
       The second dir will be used for lookup if BOARD_USES_RECOVERY_AS_BOOT is
       set to true.
 
-  --avb_{boot,system,system_other,vendor,dtbo,vbmeta,vbmeta_system,
+  --avb_{boot,recovery,system,system_other,vendor,dtbo,vbmeta,vbmeta_system,
          vbmeta_vendor}_algorithm <algorithm>
-  --avb_{boot,system,system_other,vendor,dtbo,vbmeta,vbmeta_system,
+  --avb_{boot,recovery,system,system_other,vendor,dtbo,vbmeta,vbmeta_system,
          vbmeta_vendor}_key <key>
       Use the specified algorithm (e.g. SHA256_RSA4096) and the key to AVB-sign
       the specified image. Otherwise it uses the existing values in info dict.
 
-  --avb_{apex,boot,system,system_other,vendor,dtbo,vbmeta,vbmeta_system,
-         vbmeta_vendor}_extra_args <args>
+  --avb_{apex,boot,recovery,system,system_other,vendor,dtbo,vbmeta,
+         vbmeta_system,vbmeta_vendor}_extra_args <args>
       Specify any additional args that are needed to AVB-sign the image
       (e.g. "--signing_helper /path/to/helper"). The args will be appended to
       the existing ones in info dict.
@@ -201,6 +201,7 @@ OPTIONS.allow_gsi_debug_sepolicy = False
 
 AVB_FOOTER_ARGS_BY_PARTITION = {
     'boot': 'avb_boot_add_hash_footer_args',
+    'init_boot': 'avb_init_boot_add_hash_footer_args',
     'dtbo': 'avb_dtbo_add_hash_footer_args',
     'product': 'avb_product_add_hashtree_footer_args',
     'recovery': 'avb_recovery_add_hash_footer_args',
@@ -519,9 +520,14 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
                        compressed_extension):
   # maxsize measures the maximum filename length, including the ones to be
   # skipped.
-  maxsize = max(
-      [len(os.path.basename(i.filename)) for i in input_tf_zip.infolist()
-       if GetApkFileInfo(i.filename, compressed_extension, [])[0]])
+  try:
+    maxsize = max(
+        [len(os.path.basename(i.filename)) for i in input_tf_zip.infolist()
+         if GetApkFileInfo(i.filename, compressed_extension, [])[0]])
+  except ValueError:
+    # Sets this to zero for targets without APK files, e.g., gki_arm64.
+    maxsize = 0
+
   system_root_image = misc_info.get("system_root_image") == "true"
 
   for info in input_tf_zip.infolist():
@@ -608,7 +614,7 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
       common.ZipWriteStr(output_tf_zip, out_info, new_data)
 
     # Replace the certs in *mac_permissions.xml (there could be multiple, such
-    # as {system,vendor}/etc/selinux/{plat,nonplat}_mac_permissions.xml).
+    # as {system,vendor}/etc/selinux/{plat,vendor}_mac_permissions.xml).
     elif filename.endswith("mac_permissions.xml"):
       print("Rewriting %s with new keys." % (filename,))
       new_data = ReplaceCerts(data.decode())
@@ -882,14 +888,27 @@ def ReplaceOtaKeys(input_tf_zip, output_tf_zip, misc_info):
   except KeyError:
     raise common.ExternalError("can't read META/otakeys.txt from input")
 
-  extra_recovery_keys = misc_info.get("extra_recovery_keys")
-  if extra_recovery_keys:
+  extra_ota_keys_info = misc_info.get("extra_ota_keys")
+  if extra_ota_keys_info:
+    extra_ota_keys = [OPTIONS.key_map.get(k, k) + ".x509.pem"
+                      for k in extra_ota_keys_info.split()]
+    print("extra ota key(s): " + ", ".join(extra_ota_keys))
+  else:
+    extra_ota_keys = []
+  for k in extra_ota_keys:
+    if not os.path.isfile(k):
+      raise common.ExternalError(k + " does not exist or is not a file")
+
+  extra_recovery_keys_info = misc_info.get("extra_recovery_keys")
+  if extra_recovery_keys_info:
     extra_recovery_keys = [OPTIONS.key_map.get(k, k) + ".x509.pem"
-                           for k in extra_recovery_keys.split()]
-    if extra_recovery_keys:
-      print("extra recovery-only key(s): " + ", ".join(extra_recovery_keys))
+                           for k in extra_recovery_keys_info.split()]
+    print("extra recovery-only key(s): " + ", ".join(extra_recovery_keys))
   else:
     extra_recovery_keys = []
+  for k in extra_recovery_keys:
+    if not os.path.isfile(k):
+      raise common.ExternalError(k + " does not exist or is not a file")
 
   mapped_keys = []
   for k in keylist:
@@ -912,13 +931,20 @@ def ReplaceOtaKeys(input_tf_zip, output_tf_zip, misc_info):
     mapped_keys.append(mapped_devkey + ".x509.pem")
     print("META/otakeys.txt has no keys; using %s for OTA package"
           " verification." % (mapped_keys[0],))
+  for k in mapped_keys:
+    if not os.path.isfile(k):
+      raise common.ExternalError(k + " does not exist or is not a file")
 
   otacerts = [info
               for info in input_tf_zip.infolist()
               if info.filename.endswith("/otacerts.zip")]
   for info in otacerts:
-    print("Rewriting OTA key:", info.filename, mapped_keys)
-    WriteOtacerts(output_tf_zip, info.filename, mapped_keys)
+    if info.filename.startswith(("BOOT/", "RECOVERY/", "VENDOR_BOOT/")):
+      extra_keys = extra_recovery_keys
+    else:
+      extra_keys = extra_ota_keys
+    print("Rewriting OTA key:", info.filename, mapped_keys + extra_keys)
+    WriteOtacerts(output_tf_zip, info.filename, mapped_keys + extra_keys)
 
 
 def ReplaceVerityPublicKey(output_zip, filename, key_path):
@@ -1322,6 +1348,12 @@ def main(argv):
       OPTIONS.avb_algorithms['dtbo'] = a
     elif o == "--avb_dtbo_extra_args":
       OPTIONS.avb_extra_args['dtbo'] = a
+    elif o == "--avb_recovery_key":
+      OPTIONS.avb_keys['recovery'] = a
+    elif o == "--avb_recovery_algorithm":
+      OPTIONS.avb_algorithms['recovery'] = a
+    elif o == "--avb_recovery_extra_args":
+      OPTIONS.avb_extra_args['recovery'] = a
     elif o == "--avb_system_key":
       OPTIONS.avb_keys['system'] = a
     elif o == "--avb_system_algorithm":
@@ -1407,6 +1439,9 @@ def main(argv):
           "avb_dtbo_algorithm=",
           "avb_dtbo_key=",
           "avb_dtbo_extra_args=",
+          "avb_recovery_algorithm=",
+          "avb_recovery_key=",
+          "avb_recovery_extra_args=",
           "avb_system_algorithm=",
           "avb_system_key=",
           "avb_system_extra_args=",

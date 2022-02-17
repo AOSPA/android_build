@@ -47,7 +47,7 @@ MAX_PLATFORM_VERSION := TP1A
 # The last stable version name of the platform that was released.  During
 # development, this stays at that previous version, while the codename indicates
 # further work based on the previous version.
-PLATFORM_VERSION_LAST_STABLE := 12L
+PLATFORM_VERSION_LAST_STABLE := 12
 .KATI_READONLY := PLATFORM_VERSION_LAST_STABLE
 
 # These are the current development codenames, if the build is not a final
@@ -93,7 +93,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-    PLATFORM_SECURITY_PATCH := 2021-12-05
+    PLATFORM_SECURITY_PATCH := 2022-03-05
 endif
 
 include $(BUILD_SYSTEM)/version_util.mk

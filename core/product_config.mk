@@ -206,12 +206,18 @@ endif
 ifndef RBC_PRODUCT_CONFIG
 $(call import-products, $(current_product_makefile))
 else
-  $(shell build/soong/scripts/rbc-run $(current_product_makefile) \
-      >$(OUT_DIR)/rbctemp.mk)
+  $(shell mkdir -p $(OUT_DIR)/rbc)
+  $(call dump-variables-rbc, $(OUT_DIR)/rbc/make_vars_pre_product_config.mk)
+
+  $(shell build/soong/scripts/update_out \
+    $(OUT_DIR)/rbc/rbc_product_config_results.mk \
+    build/soong/scripts/rbc-run \
+    $(current_product_makefile) \
+    $(OUT_DIR)/rbc/make_vars_pre_product_config.mk)
   ifneq ($(.SHELLSTATUS),0)
     $(error product configuration converter failed: $(.SHELLSTATUS))
   endif
-  include $(OUT_DIR)/rbctemp.mk
+  include $(OUT_DIR)/rbc/rbc_product_config_results.mk
   PRODUCTS += $(current_product_makefile)
 endif
 endif  # Import all or just the current product makefile
@@ -320,6 +326,16 @@ PRODUCT_SYSTEM_SERVER_JARS += $(PRODUCT_SYSTEM_SERVER_JARS_EXTRA)
 
 PRODUCT_SYSTEM_SERVER_JARS := $(call qualify-platform-jars,$(PRODUCT_SYSTEM_SERVER_JARS))
 
+# Sort APEX boot and system server jars. We use deterministic alphabetical order
+# when constructing BOOTCLASSPATH and SYSTEMSERVERCLASSPATH definition on device
+# after an update. Enforce it in the build system as well to avoid recompiling
+# everything after an update due a change in the order.
+PRODUCT_APEX_BOOT_JARS := $(sort $(PRODUCT_APEX_BOOT_JARS))
+PRODUCT_APEX_SYSTEM_SERVER_JARS := $(sort $(PRODUCT_APEX_SYSTEM_SERVER_JARS))
+
+PRODUCT_STANDALONE_SYSTEM_SERVER_JARS := \
+  $(call qualify-platform-jars,$(PRODUCT_STANDALONE_SYSTEM_SERVER_JARS))
+
 ifndef PRODUCT_SYSTEM_NAME
   PRODUCT_SYSTEM_NAME := $(PRODUCT_NAME)
 endif
@@ -365,6 +381,7 @@ ENFORCE_SYSTEM_CERTIFICATE := $(PRODUCT_ENFORCE_ARTIFACT_SYSTEM_CERTIFICATE_REQU
 ENFORCE_SYSTEM_CERTIFICATE_ALLOW_LIST := $(PRODUCT_ARTIFACT_SYSTEM_CERTIFICATE_REQUIREMENT_ALLOW_LIST)
 
 PRODUCT_OTA_PUBLIC_KEYS := $(sort $(PRODUCT_OTA_PUBLIC_KEYS))
+PRODUCT_EXTRA_OTA_KEYS := $(sort $(PRODUCT_EXTRA_OTA_KEYS))
 PRODUCT_EXTRA_RECOVERY_KEYS := $(sort $(PRODUCT_EXTRA_RECOVERY_KEYS))
 
 # Resolve and setup per-module dex-preopt configs.
@@ -396,16 +413,22 @@ $(foreach c,$(PRODUCT_SANITIZER_MODULE_CONFIGS),\
 _psmc_modules :=
 
 # Reset ADB keys for non-debuggable builds
-ifeq (,$(filter eng userdebug,$(TARGET_BUILD_VARIANT)),)
+ifeq (,$(filter eng userdebug,$(TARGET_BUILD_VARIANT)))
   PRODUCT_ADB_KEYS :=
 endif
 ifneq ($(filter-out 0 1,$(words $(PRODUCT_ADB_KEYS))),)
   $(error Only one file may be in PRODUCT_ADB_KEYS: $(PRODUCT_ADB_KEYS))
 endif
 
+# Show a warning wall of text if non-compliance-GSI products set this option.
 ifdef PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT
-  ifeq (,$(filter gsi_arm gsi_arm64 gsi_x86 gsi_x86_64,$(PRODUCT_NAME)))
-    $(error Only GSI products are allowed to set PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT)
+  ifeq (,$(filter gsi_arm gsi_arm64 gsi_x86 gsi_x86_64 gsi_car_arm64 gsi_car_x86_64,$(PRODUCT_NAME)))
+    $(warning PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT is set but \
+      PRODUCT_NAME ($(PRODUCT_NAME)) doesn't look like a GSI for compliance \
+      testing. This is a special configuration for compliance GSI, so do make \
+      sure you understand the security implications before setting this \
+      option. If you don't know what this option does, then you probably \
+      shouldn't set this.)
   endif
 endif
 

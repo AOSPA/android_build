@@ -580,6 +580,7 @@ VTSC := $(HOST_OUT_EXECUTABLES)/vtsc$(HOST_EXECUTABLE_SUFFIX)
 MKBOOTFS := $(HOST_OUT_EXECUTABLES)/mkbootfs$(HOST_EXECUTABLE_SUFFIX)
 MINIGZIP := $(HOST_OUT_EXECUTABLES)/minigzip$(HOST_EXECUTABLE_SUFFIX)
 LZ4 := $(HOST_OUT_EXECUTABLES)/lz4$(HOST_EXECUTABLE_SUFFIX)
+GENERATE_GKI_CERTIFICATE := $(HOST_OUT_EXECUTABLES)/generate_gki_certificate$(HOST_EXECUTABLE_SUFFIX)
 ifeq (,$(strip $(BOARD_CUSTOM_MKBOOTIMG)))
 MKBOOTIMG := $(HOST_OUT_EXECUTABLES)/mkbootimg$(HOST_EXECUTABLE_SUFFIX)
 else
@@ -834,14 +835,30 @@ endif
 sepolicy_major_vers :=
 sepolicy_minor_vers :=
 
+# BOARD_SEPOLICY_VERS must take the format "NN.m" and contain the sepolicy
+# version identifier corresponding to the sepolicy on which the non-platform
+# policy is to be based. If unspecified, this will build against the current
+# public platform policy in tree
+ifndef BOARD_SEPOLICY_VERS
+# The default platform policy version.
+BOARD_SEPOLICY_VERS := $(PLATFORM_SEPOLICY_VERSION)
+endif
+
+ifeq ($(BOARD_SEPOLICY_VERS),$(PLATFORM_SEPOLICY_VERSION))
+IS_TARGET_MIXED_SEPOLICY :=
+else
+IS_TARGET_MIXED_SEPOLICY := true
+endif
+
+.KATI_READONLY := IS_TARGET_MIXED_SEPOLICY
+
 # A list of SEPolicy versions, besides PLATFORM_SEPOLICY_VERSION, that the framework supports.
 PLATFORM_SEPOLICY_COMPAT_VERSIONS := \
-    26.0 \
-    27.0 \
     28.0 \
     29.0 \
     30.0 \
     31.0 \
+    32.0 \
 
 .KATI_READONLY := \
     PLATFORM_SEPOLICY_COMPAT_VERSIONS \

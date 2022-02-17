@@ -51,6 +51,7 @@ PRODUCT_PACKAGES += \
     cmd \
     com.android.adbd \
     com.android.appsearch \
+    com.android.auxiliary \
     com.android.conscrypt \
     com.android.cronet \
     com.android.extservices \
@@ -67,6 +68,7 @@ PRODUCT_PACKAGES += \
     com.android.neuralnetworks \
     com.android.scheduling \
     com.android.sdkext \
+    com.android.sepolicy \
     com.android.supplementalprocess \
     com.android.tethering \
     com.android.tzdata \
@@ -82,6 +84,7 @@ PRODUCT_PACKAGES += \
     dnsmasq \
     DownloadProvider \
     dpm \
+    dump.erofs \
     dumpstate \
     dumpsys \
     DynamicSystemInstallationService \
@@ -92,6 +95,7 @@ PRODUCT_PACKAGES += \
     framework-minus-apex \
     framework-res \
     framework-sysconfig.xml \
+    fsck.erofs \
     fsck_msdos \
     fsverity-release-cert-der \
     fs_config_files_system \
@@ -117,13 +121,13 @@ PRODUCT_PACKAGES += \
     init_system \
     input \
     installd \
+    IntentResolver \
     iorapd \
     ip \
     iptables \
     ip-up-vpn \
     javax.obex \
     keystore2 \
-		credstore \
     ld.mc \
     libaaudio \
     libalarm_jni \
@@ -200,7 +204,6 @@ PRODUCT_PACKAGES += \
     libwilhelm \
     linker \
     linkerconfig \
-    llkd \
     lmkd \
     LocalTransport \
     locksettings \
@@ -218,6 +221,7 @@ PRODUCT_PACKAGES += \
     mediaserver64 \
     mediaserverwrapper \
     mke2fs \
+    mkfs.erofs \
     monkey \
     mtpd \
     ndc \
@@ -289,6 +293,7 @@ PRODUCT_PACKAGES += \
 ifneq ($(TARGET_HAS_LOW_RAM), true)
 PRODUCT_PACKAGES += \
     credstore \
+    llkd \
     SecureElement
 endif
 
@@ -328,9 +333,11 @@ PRODUCT_HOST_PACKAGES += \
     atest \
     bcc \
     bit \
+    dump.erofs \
     e2fsck \
     fastboot \
     flags_health_check \
+    fsck.erofs \
     icu-data_host_i18n_apex \
     icu_tzdata.dat_host_tzdata_apex \
     idmap2 \
@@ -339,6 +346,7 @@ PRODUCT_HOST_PACKAGES += \
     lpdump \
     minigzip \
     mke2fs \
+    mkfs.erofs \
     resize2fs \
     sgdisk \
     sqlite3 \
@@ -371,8 +379,8 @@ PRODUCT_SYSTEM_PROPERTIES += persist.traced.enable=1
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     arping \
+    com.android.sepolicy.cert-debug.der \
     dmuserd \
-    gdbserver \
     idlcli \
     init-debug.rc \
     iotop \

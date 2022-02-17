@@ -950,9 +950,13 @@ ifneq (,$(LOCAL_SOONG_INSTALLED_MODULE))
   # of files provided by this module.  Used by custom packaging rules like
   # package-modules.mk that need to copy the built files to a custom install
   # location during packaging.
+  #
+  # Translate copies from $(LOCAL_PREBUILT_MODULE_FILE) to $(LOCAL_BUILT_MODULE)
+  # so that package-modules.mk gets any transtive dependencies added to
+  # $(LOCAL_BUILT_MODULE), for example unstripped symbols files.
   ALL_MODULES.$(my_register_name).BUILT_INSTALLED := \
     $(strip $(ALL_MODULES.$(my_register_name).BUILT_INSTALLED) \
-      $(LOCAL_SOONG_INSTALL_PAIRS) \
+      $(patsubst $(LOCAL_PREBUILT_MODULE_FILE):%,$(LOCAL_BUILT_MODULE):%,$(LOCAL_SOONG_INSTALL_PAIRS)) \
       $(my_init_rc_pairs) \
       $(my_test_data_pairs) \
       $(my_vintf_pairs))
@@ -994,6 +998,18 @@ ALL_MODULES.$(my_register_name).SHARED_LIBS := \
 
 ALL_MODULES.$(my_register_name).SYSTEM_SHARED_LIBS := \
     $(ALL_MODULES.$(my_register_name).SYSTEM_SHARED_LIBS) $(LOCAL_SYSTEM_SHARED_LIBRARIES)
+
+ifdef LOCAL_TEST_DATA
+  # Export the list of targets that are handled as data inputs and required
+  # by tests at runtime. The LOCAL_TEST_DATA format is generated from below
+  # https://cs.android.com/android/platform/superproject/+/master:build/soong/android/androidmk.go;l=925-944;drc=master
+  # which format is like $(path):$(relative_file) but for module-info, only
+  # the string after ":" is needed.
+  ALL_MODULES.$(my_register_name).TEST_DATA := \
+    $(strip $(ALL_MODULES.$(my_register_name).TEST_DATA) \
+      $(foreach f, $(LOCAL_TEST_DATA),\
+        $(call word-colon,2,$(f))))
+endif
 
 ##########################################################################
 ## When compiling against the VNDK, add the .vendor or .product suffix to
@@ -1069,7 +1085,9 @@ ALL_MODULES.$(my_register_name).FOR_2ND_ARCH := true
 endif
 ALL_MODULES.$(my_register_name).FOR_HOST_CROSS := $(my_host_cross)
 ALL_MODULES.$(my_register_name).MODULE_NAME := $(LOCAL_MODULE)
-ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES := $(LOCAL_COMPATIBILITY_SUITE)
+ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES := \
+  $(ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES) \
+  $(filter-out $(ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES),$(LOCAL_COMPATIBILITY_SUITE))
 ALL_MODULES.$(my_register_name).TEST_CONFIG := $(test_config)
 ALL_MODULES.$(my_register_name).EXTRA_TEST_CONFIGS := $(LOCAL_EXTRA_FULL_TEST_CONFIGS)
 ALL_MODULES.$(my_register_name).TEST_MAINLINE_MODULES := $(LOCAL_TEST_MAINLINE_MODULES)

@@ -68,8 +68,12 @@ class Options(object):
     self.search_path = os.path.dirname(os.path.dirname(exec_path))
 
     self.signapk_path = "framework/signapk.jar"  # Relative to search_path
+    if not os.path.exists(os.path.join(self.search_path, self.signapk_path)):
+      if "ANDROID_HOST_OUT" in os.environ:
+        self.search_path = os.environ["ANDROID_HOST_OUT"]
     self.signapk_shared_library_path = "lib64"   # Relative to search_path
     self.extra_signapk_args = []
+    self.aapt2_path = "aapt2"
     self.java_path = "java"  # Use the one on the path by default.
     self.java_args = ["-Xmx2048m"]  # The default JVM args.
     self.android_jar_path = None
@@ -108,7 +112,7 @@ SPECIAL_CERT_STRINGS = ("PRESIGNED", "EXTERNAL")
 # descriptor into vbmeta.img. When adding a new entry here, the
 # AVB_FOOTER_ARGS_BY_PARTITION in sign_target_files_apks need to be updated
 # accordingly.
-AVB_PARTITIONS = ('boot', 'dtbo', 'odm', 'product', 'pvmfw', 'recovery',
+AVB_PARTITIONS = ('boot', 'init_boot', 'dtbo', 'odm', 'product', 'pvmfw', 'recovery',
                   'system', 'system_ext', 'vendor', 'vendor_boot',
                   'vendor_dlkm', 'odm_dlkm')
 
@@ -127,7 +131,7 @@ PARTITIONS_WITH_CARE_MAP = [
 ]
 
 # Partitions with a build.prop file
-PARTITIONS_WITH_BUILD_PROP = PARTITIONS_WITH_CARE_MAP + ['boot']
+PARTITIONS_WITH_BUILD_PROP = PARTITIONS_WITH_CARE_MAP + ['boot', 'init_boot']
 
 # See sysprop.mk. If file is moved, add new search paths here; don't remove
 # existing search paths.
@@ -935,9 +939,9 @@ class PartitionBuildProps(object):
   def FromInputFile(input_file, name, placeholder_values=None, ramdisk_format=RamdiskFormat.LZ4):
     """Loads the build.prop file and builds the attributes."""
 
-    if name == "boot":
+    if name in ("boot", "init_boot"):
       data = PartitionBuildProps._ReadBootPropFile(
-          input_file, ramdisk_format=ramdisk_format)
+          input_file, name, ramdisk_format=ramdisk_format)
     else:
       data = PartitionBuildProps._ReadPartitionPropFile(input_file, name)
 
@@ -946,15 +950,16 @@ class PartitionBuildProps(object):
     return props
 
   @staticmethod
-  def _ReadBootPropFile(input_file, ramdisk_format):
+  def _ReadBootPropFile(input_file, partition_name, ramdisk_format):
     """
     Read build.prop for boot image from input_file.
     Return empty string if not found.
     """
+    image_path = 'IMAGES/' + partition_name + '.img'
     try:
-      boot_img = ExtractFromInputFile(input_file, 'IMAGES/boot.img')
+      boot_img = ExtractFromInputFile(input_file, image_path)
     except KeyError:
-      logger.warning('Failed to read IMAGES/boot.img')
+      logger.warning('Failed to read %s', image_path)
       return ''
     prop_file = GetBootImageBuildProp(boot_img, ramdisk_format=ramdisk_format)
     if prop_file is None:
@@ -976,6 +981,8 @@ class PartitionBuildProps(object):
         break
       except KeyError:
         logger.warning('Failed to read %s', prop_file)
+    if data == '':
+      logger.warning("Failed to read build.prop for partition {}".format(name))
     return data
 
   @staticmethod
@@ -1392,34 +1399,52 @@ def GetAvbChainedPartitionArg(partition, info_dict, key=None):
   return "{}:{}:{}".format(partition, rollback_index_location, pubkey_path)
 
 
-def AppendGkiSigningArgs(cmd):
-  """Append GKI signing arguments for mkbootimg."""
-  # e.g., --gki_signing_key path/to/signing_key
-  #       --gki_signing_algorithm SHA256_RSA4096"
+def _HasGkiCertificationArgs():
+  return ("gki_signing_key_path" in OPTIONS.info_dict and
+          "gki_signing_algorithm" in OPTIONS.info_dict)
 
+
+def _GenerateGkiCertificate(image, image_name, partition_name):
   key_path = OPTIONS.info_dict.get("gki_signing_key_path")
-  # It's fine that a non-GKI boot.img has no gki_signing_key_path.
-  if not key_path:
-    return
+  algorithm = OPTIONS.info_dict.get("gki_signing_algorithm")
 
   if not os.path.exists(key_path) and OPTIONS.search_path:
     new_key_path = os.path.join(OPTIONS.search_path, key_path)
     if os.path.exists(new_key_path):
       key_path = new_key_path
 
-  # Checks key_path exists, before appending --gki_signing_* args.
+  # Checks key_path exists, before processing --gki_signing_* args.
   if not os.path.exists(key_path):
     raise ExternalError(
         'gki_signing_key_path: "{}" not found'.format(key_path))
 
-  algorithm = OPTIONS.info_dict.get("gki_signing_algorithm")
-  if key_path and algorithm:
-    cmd.extend(["--gki_signing_key", key_path,
-                "--gki_signing_algorithm", algorithm])
+  output_certificate = tempfile.NamedTemporaryFile()
+  cmd = [
+      "generate_gki_certificate",
+      "--name", image_name,
+      "--algorithm", algorithm,
+      "--key", key_path,
+      "--output", output_certificate.name,
+      image,
+  ]
 
-    signature_args = OPTIONS.info_dict.get("gki_signing_signature_args")
-    if signature_args:
-      cmd.extend(["--gki_signing_signature_args", signature_args])
+  signature_args = OPTIONS.info_dict.get("gki_signing_signature_args", "")
+  signature_args = signature_args.strip()
+  if signature_args:
+    cmd.extend(["--additional_avb_args", signature_args])
+
+  args = OPTIONS.info_dict.get(
+      "avb_" + partition_name + "_add_hash_footer_args", "")
+  args = args.strip()
+  if args:
+    cmd.extend(["--additional_avb_args", args])
+
+  RunAndCheckOutput(cmd)
+
+  output_certificate.seek(os.SEEK_SET, 0)
+  data = output_certificate.read()
+  output_certificate.close()
+  return data
 
 
 def BuildVBMeta(image_path, partitions, name, needed_partitions):
@@ -1537,11 +1562,15 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file, info_dict=None,
       logger.info("Excluded kernel binary from recovery image.")
     else:
       kernel = "kernel"
+  elif partition_name == "init_boot":
+    pass
   else:
     kernel = image_name.replace("boot", "kernel")
     kernel = kernel.replace(".img", "")
   if kernel and not os.access(os.path.join(sourcedir, kernel), os.F_OK):
     return None
+
+  kernel_path = os.path.join(sourcedir, kernel) if kernel else None
 
   if has_ramdisk and not os.access(os.path.join(sourcedir, "RAMDISK"), os.F_OK):
     return None
@@ -1557,8 +1586,8 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file, info_dict=None,
   mkbootimg = os.getenv('MKBOOTIMG') or "mkbootimg"
 
   cmd = [mkbootimg]
-  if kernel:
-    cmd += ["--kernel", os.path.join(sourcedir, kernel)]
+  if kernel_path is not None:
+    cmd.extend(["--kernel", kernel_path])
 
   fn = os.path.join(sourcedir, "second")
   if os.access(fn, os.F_OK):
@@ -1591,19 +1620,37 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file, info_dict=None,
       # Fall back to "mkbootimg_args" for recovery image
       # in case "recovery_mkbootimg_args" is not set.
       args = info_dict.get("mkbootimg_args")
+  elif partition_name == "init_boot":
+    args = info_dict.get("mkbootimg_init_args")
   else:
     args = info_dict.get("mkbootimg_args")
   if args and args.strip():
     cmd.extend(shlex.split(args))
 
-  args = info_dict.get("mkbootimg_version_args")
-  if args and args.strip():
-    cmd.extend(shlex.split(args))
+  boot_signature = None
+  if _HasGkiCertificationArgs():
+    # Certify GKI images.
+    boot_signature_bytes = b''
+    if kernel_path is not None:
+      boot_signature_bytes += _GenerateGkiCertificate(
+          kernel_path, "generic_kernel", "boot")
+    if has_ramdisk:
+      boot_signature_bytes += _GenerateGkiCertificate(
+          ramdisk_img.name, "generic_ramdisk", "init_boot")
+
+    if len(boot_signature_bytes) > 0:
+      boot_signature = tempfile.NamedTemporaryFile()
+      boot_signature.write(boot_signature_bytes)
+      boot_signature.flush()
+      cmd.extend(["--boot_signature", boot_signature.name])
+  else:
+    # Certified GKI boot/init_boot image mustn't set 'mkbootimg_version_args'.
+    args = info_dict.get("mkbootimg_version_args")
+    if args and args.strip():
+      cmd.extend(shlex.split(args))
 
   if has_ramdisk:
     cmd.extend(["--ramdisk", ramdisk_img.name])
-
-  AppendGkiSigningArgs(cmd)
 
   img_unsigned = None
   if info_dict.get("vboot"):
@@ -1682,6 +1729,9 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file, info_dict=None,
     ramdisk_img.close()
   img.close()
 
+  if boot_signature is not None:
+    boot_signature.close()
+
   return data
 
 
@@ -1692,8 +1742,8 @@ def _SignBootableImage(image_path, prebuilt_name, partition_name,
   Args:
     image_path: The full path of the image, e.g., /path/to/boot.img.
     prebuilt_name: The prebuilt image name, e.g., boot.img, boot-5.4-gz.img,
-        boot-5.10.img, recovery.img.
-    partition_name: The partition name, e.g., 'boot' or 'recovery'.
+        boot-5.10.img, recovery.img or init_boot.img.
+    partition_name: The partition name, e.g., 'boot', 'init_boot' or 'recovery'.
     info_dict: The information dict read from misc_info.txt.
   """
   if info_dict is None:
@@ -1717,6 +1767,35 @@ def _SignBootableImage(image_path, prebuilt_name, partition_name,
     RunAndCheckOutput(cmd)
 
 
+def HasRamdisk(partition_name, info_dict=None):
+  """Returns true/false to see if a bootable image should have a ramdisk.
+
+  Args:
+    partition_name: The partition name, e.g., 'boot', 'init_boot' or 'recovery'.
+    info_dict: The information dict read from misc_info.txt.
+  """
+  if info_dict is None:
+    info_dict = OPTIONS.info_dict
+
+  if partition_name != "boot":
+    return True  # init_boot.img or recovery.img has a ramdisk.
+
+  if info_dict.get("recovery_as_boot") == "true":
+    return True  # the recovery-as-boot boot.img has a RECOVERY ramdisk.
+
+  if info_dict.get("system_root_image") == "true":
+    # The ramdisk content is merged into the system.img, so there is NO
+    # ramdisk in the boot.img or boot-<kernel version>.img.
+    return False
+
+  if info_dict.get("init_boot") == "true":
+    # The ramdisk is moved to the init_boot.img, so there is NO
+    # ramdisk in the boot.img or boot-<kernel version>.img.
+    return False
+
+  return True
+
+
 def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
                      info_dict=None, two_step_image=False):
   """Return a File object with the desired bootable image.
@@ -1738,23 +1817,18 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
     logger.info("using prebuilt %s from IMAGES...", prebuilt_name)
     return File.FromLocalFile(name, prebuilt_path)
 
+  partition_name = tree_subdir.lower()
   prebuilt_path = os.path.join(unpack_dir, "PREBUILT_IMAGES", prebuilt_name)
   if os.path.exists(prebuilt_path):
     logger.info("Re-signing prebuilt %s from PREBUILT_IMAGES...", prebuilt_name)
     signed_img = MakeTempFile()
     shutil.copy(prebuilt_path, signed_img)
-    partition_name = tree_subdir.lower()
     _SignBootableImage(signed_img, prebuilt_name, partition_name, info_dict)
     return File.FromLocalFile(name, signed_img)
 
   logger.info("building image from target_files %s...", tree_subdir)
 
-  # With system_root_image == "true", we don't pack ramdisk into the boot image.
-  # Unless "recovery_as_boot" is specified, in which case we carry the ramdisk
-  # for recovery.
-  has_ramdisk = (info_dict.get("system_root_image") != "true" or
-                 prebuilt_name != "boot.img" or
-                 info_dict.get("recovery_as_boot") == "true")
+  has_ramdisk = HasRamdisk(partition_name, info_dict)
 
   fs_config = "META/" + tree_subdir.lower() + "_filesystem_config.txt"
   data = _BuildBootableImage(prebuilt_name, os.path.join(unpack_dir, tree_subdir),
@@ -2153,8 +2227,8 @@ def GetKeyPasswords(keylist):
 def GetMinSdkVersion(apk_name):
   """Gets the minSdkVersion declared in the APK.
 
-  It calls 'aapt2' to query the embedded minSdkVersion from the given APK file.
-  This can be both a decimal number (API Level) or a codename.
+  It calls OPTIONS.aapt2_path to query the embedded minSdkVersion from the given
+  APK file. This can be both a decimal number (API Level) or a codename.
 
   Args:
     apk_name: The APK filename.
@@ -2166,7 +2240,7 @@ def GetMinSdkVersion(apk_name):
     ExternalError: On failing to obtain the min SDK version.
   """
   proc = Run(
-      ["aapt2", "dump", "badging", apk_name], stdout=subprocess.PIPE,
+      [OPTIONS.aapt2_path, "dump", "badging", apk_name], stdout=subprocess.PIPE,
       stderr=subprocess.PIPE)
   stdoutdata, stderrdata = proc.communicate()
   if proc.returncode != 0:
@@ -2442,7 +2516,7 @@ def ParseOptions(argv,
     opts, args = getopt.getopt(
         argv, "hvp:s:x:" + extra_opts,
         ["help", "verbose", "path=", "signapk_path=",
-         "signapk_shared_library_path=", "extra_signapk_args=",
+         "signapk_shared_library_path=", "extra_signapk_args=", "aapt2_path=",
          "java_path=", "java_args=", "android_jar_path=", "public_key_suffix=",
          "private_key_suffix=", "boot_signer_path=", "boot_signer_args=",
          "verity_signer_path=", "verity_signer_args=", "device_specific=",
@@ -2466,6 +2540,8 @@ def ParseOptions(argv,
       OPTIONS.signapk_shared_library_path = a
     elif o in ("--extra_signapk_args",):
       OPTIONS.extra_signapk_args = shlex.split(a)
+    elif o in ("--aapt2_path",):
+      OPTIONS.aapt2_path = a
     elif o in ("--java_path",):
       OPTIONS.java_path = a
     elif o in ("--java_args",):
@@ -3861,7 +3937,10 @@ def GetCareMap(which, imgname):
   disable_sparse = OPTIONS.info_dict.get(which + "_disable_sparse")
 
   image_blocks = int(image_size) // 4096 - 1
-  assert image_blocks > 0, "blocks for {} must be positive".format(which)
+  # It's OK for image_blocks to be 0, because care map ranges are inclusive.
+  # So 0-0 means "just block 0", which is valid.
+  assert image_blocks >= 0, "blocks for {} must be non-negative, image size: {}".format(
+      which, image_size)
 
   # For sparse images, we will only check the blocks that are listed in the care
   # map, i.e. the ones with meaningful data.

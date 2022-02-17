@@ -37,7 +37,7 @@ $(call add_json_str,  Platform_min_supported_target_sdk_version, $(PLATFORM_MIN_
 
 $(call add_json_bool, Allow_missing_dependencies,        $(filter true,$(ALLOW_MISSING_DEPENDENCIES)))
 $(call add_json_bool, Unbundled_build,                   $(TARGET_BUILD_UNBUNDLED))
-$(call add_json_bool, Unbundled_build_apps,              $(TARGET_BUILD_APPS))
+$(call add_json_list, Unbundled_build_apps,              $(TARGET_BUILD_APPS))
 $(call add_json_bool, Unbundled_build_image,             $(TARGET_BUILD_UNBUNDLED_IMAGE))
 $(call add_json_bool, Always_use_prebuilt_sdks,          $(TARGET_BUILD_USE_PREBUILT_SDKS))
 
@@ -207,7 +207,12 @@ $(call add_json_list, NamespacesToExport,                $(PRODUCT_SOONG_NAMESPA
 
 $(call add_json_list, PgoAdditionalProfileDirs,          $(PGO_ADDITIONAL_PROFILE_DIRS))
 
+$(call add_json_list, BoardPlatVendorPolicy,             $(BOARD_PLAT_VENDOR_POLICY))
 $(call add_json_list, BoardReqdMaskPolicy,               $(BOARD_REQD_MASK_POLICY))
+$(call add_json_list, BoardSystemExtPublicPrebuiltDirs,  $(BOARD_SYSTEM_EXT_PUBLIC_PREBUILT_DIRS))
+$(call add_json_list, BoardSystemExtPrivatePrebuiltDirs, $(BOARD_SYSTEM_EXT_PRIVATE_PREBUILT_DIRS))
+$(call add_json_list, BoardProductPublicPrebuiltDirs,    $(BOARD_PRODUCT_PUBLIC_PREBUILT_DIRS))
+$(call add_json_list, BoardProductPrivatePrebuiltDirs,   $(BOARD_PRODUCT_PRIVATE_PREBUILT_DIRS))
 $(call add_json_list, BoardVendorSepolicyDirs,           $(BOARD_VENDOR_SEPOLICY_DIRS) $(BOARD_SEPOLICY_DIRS))
 $(call add_json_list, BoardOdmSepolicyDirs,              $(BOARD_ODM_SEPOLICY_DIRS))
 $(call add_json_list, BoardVendorDlkmSepolicyDirs,       $(BOARD_VENDOR_DLKM_SEPOLICY_DIRS))
@@ -220,6 +225,7 @@ $(call add_json_str,  BoardSepolicyVers,                 $(BOARD_SEPOLICY_VERS))
 
 $(call add_json_str,  PlatformSepolicyVersion,           $(PLATFORM_SEPOLICY_VERSION))
 $(call add_json_str,  TotSepolicyVersion,                $(TOT_SEPOLICY_VERSION))
+$(call add_json_list, PlatformSepolicyCompatVersions,    $(PLATFORM_SEPOLICY_COMPAT_VERSIONS))
 
 $(call add_json_bool, Flatten_apex,                      $(filter true,$(TARGET_FLATTEN_APEX)))
 $(call add_json_bool, ForceApexSymlinkOptimization,      $(filter true,$(TARGET_FORCE_APEX_SYMLINK_OPTIMIZATION)))
