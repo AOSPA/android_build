@@ -16,6 +16,23 @@
       "message": "is this the right place for this?  should we do it in vendor/aospa instead?",
       "revId": "f46c966eab8a2fc42f1da0dfafc8cf5c78c1f982",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "cc876f92_2ba09afc",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000541
+      },
+      "writtenOn": "2022-02-17T17:38:23Z",
+      "side": 1,
+      "message": "Why should we allow modding to begin with? Seems like a recipe for bogus user reports",
+      "revId": "f46c966eab8a2fc42f1da0dfafc8cf5c78c1f982",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
