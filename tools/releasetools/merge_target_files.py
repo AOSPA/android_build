@@ -1066,6 +1066,14 @@ def process_dexopt(temp_dir, framework_meta, vendor_meta,
     # directory structure.
     os.symlink(os.path.join(apex_root), os.path.join(temp_dir, 'apex'))
 
+  # TODO(b/220167405): remove BootImageProfiles field until these files are included.
+  dexpreopt_framework_config = os.path.join(dexpreopt_framework_config_files_temp_dir, 'dexpreopt.config')
+  with open(dexpreopt_framework_config, 'r') as f:
+    framework_config_data = json.load(f)
+  framework_config_data["BootImageProfiles"] = []
+  with open(dexpreopt_framework_config, 'w') as f:
+    json.dump(framework_config_data, f)
+
   # Modify system config to point to the tools that have been extracted.
   # Absolute or .. paths are not allowed  by the dexpreopt_gen tool in
   # dexpreopt_soong.config.
