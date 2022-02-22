@@ -16,6 +16,24 @@
       "message": "I almost got mad at the original commit message but turns out it was CAF",
       "revId": "73e987a0c1b70f762386756fbc6eac50dff797e5",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "b0f27d30_f5dd2c88",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2022-02-22T09:46:17Z",
+      "side": 1,
+      "message": "the CRs are probably more informative I guess",
+      "parentUuid": "f4ac8609_30051ce8",
+      "revId": "73e987a0c1b70f762386756fbc6eac50dff797e5",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
