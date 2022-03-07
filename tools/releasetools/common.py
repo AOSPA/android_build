@@ -114,7 +114,7 @@ SPECIAL_CERT_STRINGS = ("PRESIGNED", "EXTERNAL")
 # accordingly.
 AVB_PARTITIONS = ('boot', 'init_boot', 'dtbo', 'odm', 'product', 'pvmfw', 'recovery',
                   'system', 'system_ext', 'vendor', 'vendor_boot',
-                  'vendor_dlkm', 'odm_dlkm')
+                  'vendor_dlkm', 'odm_dlkm', 'system_dlkm')
 
 # Chained VBMeta partitions.
 AVB_VBMETA_PARTITIONS = ('vbmeta_system', 'vbmeta_vendor')
@@ -128,6 +128,7 @@ PARTITIONS_WITH_CARE_MAP = [
     'odm',
     'vendor_dlkm',
     'odm_dlkm',
+    'system_dlkm',
 ]
 
 # Partitions with a build.prop file
@@ -804,7 +805,7 @@ def LoadInfoDict(input_file, repacking=False):
 
     # Redirect {partition}_base_fs_file for each of the named partitions.
     for part_name in ["system", "vendor", "system_ext", "product", "odm",
-                      "vendor_dlkm", "odm_dlkm"]:
+                      "vendor_dlkm", "odm_dlkm", "system_dlkm"]:
       key_name = part_name + "_base_fs_file"
       if key_name not in d:
         continue
@@ -1248,6 +1249,7 @@ def PartitionMapFromTargetFiles(target_files_dir):
           "VENDOR_DLKM", "VENDOR/vendor_dlkm", "SYSTEM/vendor/vendor_dlkm"
       ],
       "odm_dlkm": ["ODM_DLKM", "VENDOR/odm_dlkm", "SYSTEM/vendor/odm_dlkm"],
+      "system_dlkm": ["SYSTEM_DLKM", "SYSTEM/system_dlkm"],
   }
   partition_map = {}
   for partition, subdirs in possible_subdirs.items():

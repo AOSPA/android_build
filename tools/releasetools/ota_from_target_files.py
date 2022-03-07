@@ -316,15 +316,15 @@ AB_PARTITIONS = 'META/ab_partitions.txt'
 # Files to be unzipped for target diffing purpose.
 TARGET_DIFFING_UNZIP_PATTERN = ['BOOT', 'RECOVERY', 'SYSTEM/*', 'VENDOR/*',
                                 'PRODUCT/*', 'SYSTEM_EXT/*', 'ODM/*',
-                                'VENDOR_DLKM/*', 'ODM_DLKM/*']
+                                'VENDOR_DLKM/*', 'ODM_DLKM/*', 'SYSTEM_DLKM/*']
 RETROFIT_DAP_UNZIP_PATTERN = ['OTA/super_*.img', AB_PARTITIONS]
 
 # Images to be excluded from secondary payload. We essentially only keep
 # 'system_other' and bootloader partitions.
 SECONDARY_PAYLOAD_SKIPPED_IMAGES = [
     'boot', 'dtbo', 'modem', 'odm', 'odm_dlkm', 'product', 'radio', 'recovery',
-    'system_ext', 'vbmeta', 'vbmeta_system', 'vbmeta_vendor', 'vendor',
-    'vendor_boot']
+    'system_dlkm', 'system_ext', 'vbmeta', 'vbmeta_system', 'vbmeta_vendor',
+    'vendor', 'vendor_boot']
 
 
 class PayloadSigner(object):
@@ -1105,7 +1105,12 @@ def GenerateAbOtaPackage(target_file, output_file, source_file=None):
   if target_info.vendor_suppressed_vabc:
     logger.info("Vendor suppressed VABC. Disabling")
     OPTIONS.disable_vabc = True
-  if not target_info.is_vabc_xor or OPTIONS.disable_vabc:
+
+  # Both source and target build need to support VABC XOR for us to use it.
+  # Source build's update_engine must be able to write XOR ops, and target
+  # build's snapuserd must be able to interpret XOR ops.
+  if not target_info.is_vabc_xor or OPTIONS.disable_vabc or \
+      (source_info is not None and not source_info.is_vabc_xor):
     logger.info("VABC XOR Not supported, disabling")
     OPTIONS.enable_vabc_xor = False
   additional_args = []
