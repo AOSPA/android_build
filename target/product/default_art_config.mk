@@ -52,12 +52,12 @@ PRODUCT_BOOT_JARS += \
 # Note: For modules available in Q, DO NOT add new entries here.
 PRODUCT_APEX_BOOT_JARS := \
     com.android.appsearch:framework-appsearch \
+    com.android.auxiliary:framework-auxiliary \
     com.android.conscrypt:conscrypt \
     com.android.i18n:core-icu4j \
     com.android.ipsec:android.net.ipsec.ike \
     com.android.media:updatable-media \
     com.android.mediaprovider:framework-mediaprovider \
-    com.android.nearby:framework-nearby \
     com.android.os.statsd:framework-statsd \
     com.android.permission:framework-permission \
     com.android.permission:framework-permission-s \
