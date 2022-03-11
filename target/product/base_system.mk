@@ -50,6 +50,7 @@ PRODUCT_PACKAGES += \
     charger \
     cmd \
     com.android.adbd \
+    com.android.adservices \
     com.android.appsearch \
     com.android.auxiliary \
     com.android.conscrypt \
@@ -61,6 +62,7 @@ PRODUCT_PACKAGES += \
     com.android.media \
     com.android.media.swcodec \
     com.android.mediaprovider \
+    com.android.ondevicepersonalization \
     com.android.os.statsd \
     com.android.permission \
     com.android.resolv \
@@ -81,6 +83,7 @@ PRODUCT_PACKAGES += \
     device_config \
     dmctl \
     dnsmasq \
+    dmesgd \
     DownloadProvider \
     dpm \
     dump.erofs \
