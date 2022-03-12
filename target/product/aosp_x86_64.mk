@@ -69,7 +69,7 @@ endif
 # The Bluetooth namespace needs to be selected to include the default
 # Bluetooth implementation
 #
-PRODUCT_SOONG_NAMESPACES += packages/modules/Bluetooth/android/app
+PRODUCT_SOONG_NAMESPACES += vendor/qcom/opensource/commonsys/packages/apps/Bluetooth
 PRODUCT_SOONG_NAMESPACES += vendor/qcom/opensource/commonsys/system/bt/conf
 
 
