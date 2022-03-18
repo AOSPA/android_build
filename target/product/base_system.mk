@@ -52,7 +52,6 @@ PRODUCT_PACKAGES += \
     com.android.adbd \
     com.android.adservices \
     com.android.appsearch \
-    com.android.auxiliary \
     com.android.conscrypt \
     com.android.cronet \
     com.android.extservices \
@@ -70,7 +69,6 @@ PRODUCT_PACKAGES += \
     com.android.scheduling \
     com.android.sdkext \
     com.android.sepolicy \
-    com.android.supplementalprocess \
     com.android.tethering \
     com.android.tzdata \
     com.android.uwb \
@@ -124,7 +122,6 @@ PRODUCT_PACKAGES += \
     input \
     installd \
     IntentResolver \
-    iorapd \
     ip \
     iptables \
     ip-up-vpn \
@@ -307,7 +304,7 @@ PRODUCT_PACKAGES += \
 # HWASAN runtime for SANITIZE_TARGET=hwaddress builds
 ifneq (,$(filter hwaddress,$(SANITIZE_TARGET)))
   PRODUCT_PACKAGES += \
-   libclang_rt.hwasan-aarch64-android.bootstrap
+   libclang_rt.hwasan.bootstrap
 endif
 
 # Jacoco agent JARS to be built and installed, if any.
