@@ -580,9 +580,12 @@ endef
 # License metadata targets corresponding to targets in $(1)
 ###########################################################
 define corresponding-license-metadata
-$(strip $(eval _dir := $(call license-metadata-dir)) \
-$(foreach target, $(sort $(1)), $(_dir)/$(target).meta_lic) \
-)
+$(strip $(foreach target, $(sort $(1)), \
+  $(if $(strip $(ALL_MODULES.$(target).META_LIC)), \
+    $(ALL_MODULES.$(target).META_LIC), \
+    $(if $(strip $(ALL_TARGETS.$(target).META_LIC)), \
+      $(ALL_TARGETS.$(target).META_LIC), \
+      $(call license-metadata-dir)/$(target).meta_lic))))
 endef
 
 ###########################################################
@@ -868,9 +871,11 @@ endef
 define report-missing-licenses-rule
 .PHONY: reportmissinglicenses
 reportmissinglicenses: PRIVATE_NON_MODULES:=$(sort $(NON_MODULES_WITHOUT_LICENSE_METADATA))
+reportmissinglicenses: PRIVATE_COPIED_FILES:=$(sort $(filter $(NON_MODULES_WITHOUT_LICENSE_METADATA),$(foreach _pair,$(PRODUCT_COPY_FILES), $(PRODUCT_OUT)/$(call word-colon,2,$(_pair)))))
 reportmissinglicenses:
 	@echo Reporting $$(words $$(PRIVATE_NON_MODULES)) targets without license metadata
 	$$(foreach t,$$(PRIVATE_NON_MODULES),if ! [ -h $$(t) ]; then echo No license metadata for $$(t) >&2; fi;)
+	$$(foreach t,$$(PRIVATE_COPIED_FILES),if ! [ -h $$(t) ]; then echo No license metadata for copied file $$(t) >&2; fi;)
 
 endef
 
@@ -903,6 +908,18 @@ reportallnoticelibrarynames: $(_all)
 endef
 
 ###########################################################
+# Declares the rule to build all license metadata.
+###########################################################
+define build-all-license-metadata-rule
+$(strip $(eval _all := $(call all-license-metadata)))
+
+.PHONY: alllicensemetadata
+alllicensemetadata: $(_all)
+	@echo Building all $(words $(_all)) license metadata files
+endef
+
+
+###########################################################
 ## Declares a license metadata build rule for ALL_MODULES
 ###########################################################
 define build-license-metadata
@@ -917,7 +934,8 @@ $(strip \
   $(foreach t,$(sort $(ALL_NON_MODULES)),$(eval $(call non-module-license-metadata-rule,$(t)))) \
   $(foreach m,$(sort $(ALL_MODULES)),$(eval $(call license-metadata-rule,$(m)))) \
   $(eval $(call report-missing-licenses-rule)) \
-  $(eval $(call report-all-notice-library-names-rule)))
+  $(eval $(call report-all-notice-library-names-rule)) \
+  $(eval $(call build-all-license-metadata-rule)))
 endef
 
 ###########################################################
@@ -3065,6 +3083,8 @@ endef
 # $(3): full path to destination
 define symlink-file
 $(eval $(_symlink-file))
+$(eval $(call declare-license-metadata,$(3),,,,,,))
+$(eval $(call declare-license-deps,$(3),$(1)))
 endef
 
 define _symlink-file
