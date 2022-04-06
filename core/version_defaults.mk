@@ -19,6 +19,7 @@
 #
 # Guarantees that the following are defined:
 #     PLATFORM_VERSION
+#     PLATFORM_DISPLAY_VERSION
 #     PLATFORM_SDK_VERSION
 #     PLATFORM_VERSION_CODENAME
 #     DEFAULT_APP_TARGET_SDK
@@ -54,6 +55,11 @@ PLATFORM_VERSION_LAST_STABLE := 12
 # release build.  If this is a final release build, it is simply "REL".
 PLATFORM_VERSION_CODENAME.TP1A := Tiramisu
 
+# This is the user-visible version.  In a final release build it should
+# be empty to use PLATFORM_VERSION as the user-visible version.  For
+# a preview release it can be set to a user-friendly value like `12 Preview 1`
+PLATFORM_DISPLAY_VERSION :=
+
 ifndef PLATFORM_SDK_VERSION
   # This is the canonical definition of the SDK version, which defines
   # the set of APIs and functionality available in the platform.  It
@@ -87,13 +93,20 @@ endif
 PLATFORM_BASE_SDK_EXTENSION_VERSION := 1
 .KATI_READONLY := PLATFORM_BASE_SDK_EXTENSION_VERSION
 
+# This is are all known codenames starting from Q.
+PLATFORM_VERSION_KNOWN_CODENAMES := Q R S Sv2 Tiramisu
+# Convert from space separated list to comma separated
+PLATFORM_VERSION_KNOWN_CODENAMES := \
+  $(call normalize-comma-list,$(PLATFORM_VERSION_KNOWN_CODENAMES))
+.KATI_READONLY := PLATFORM_VERSION_KNOWN_CODENAMES
+
 ifndef PLATFORM_SECURITY_PATCH
     #  Used to indicate the security patch that has been applied to the device.
     #  It must signify that the build includes all security patches issued up through the designated Android Public Security Bulletin.
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-    PLATFORM_SECURITY_PATCH := 2022-03-05
+    PLATFORM_SECURITY_PATCH := 2022-04-05
 endif
 
 include $(BUILD_SYSTEM)/version_util.mk

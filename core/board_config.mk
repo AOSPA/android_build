@@ -174,6 +174,7 @@ _build_broken_var_list := \
   BUILD_BROKEN_DUP_SYSPROP \
   BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES \
   BUILD_BROKEN_ENFORCE_SYSPROP_OWNER \
+  BUILD_BROKEN_INPUT_DIR_MODULES \
   BUILD_BROKEN_MISSING_REQUIRED_MODULES \
   BUILD_BROKEN_OUTSIDE_INCLUDE_DIRS \
   BUILD_BROKEN_PREBUILT_ELF_FILES \
@@ -242,6 +243,7 @@ else
     --mode=write -r --outdir $(OUT_DIR)/rbc \
     --boardlauncher=$(OUT_DIR)/rbc/boardlauncher.rbc \
     --input_variables=$(OUT_DIR)/rbc/make_vars_pre_board_config.mk \
+    --makefile_list=$(OUT_DIR)/.module_paths/configuration.list \
     $(board_config_mk))
   ifneq ($(.SHELLSTATUS),0)
     $(error board configuration converter failed: $(.SHELLSTATUS))
