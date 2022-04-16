@@ -1581,6 +1581,9 @@ vendorimage: $(INSTALLED_VENDORIMAGE_TARGET)
 .PHONY: vendorbootimage
 vendorbootimage: $(INSTALLED_VENDOR_BOOTIMAGE_TARGET)
 
+.PHONY: vendorkernelbootimage
+vendorkernelbootimage: $(INSTALLED_VENDOR_KERNEL_BOOTIMAGE_TARGET)
+
 .PHONY: vendorbootimage_debug
 vendorbootimage_debug: $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET)
 
@@ -1589,6 +1592,9 @@ vendorbootimage_test_harness: $(INSTALLED_VENDOR_TEST_HARNESS_BOOTIMAGE_TARGET)
 
 .PHONY: vendorramdisk
 vendorramdisk: $(INSTALLED_VENDOR_RAMDISK_TARGET)
+
+.PHONY: vendorkernelramdisk
+vendorkernelramdisk: $(INSTALLED_VENDOR_KERNEL_RAMDISK_TARGET)
 
 .PHONY: vendorramdisk_debug
 vendorramdisk_debug: $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET)
@@ -1649,6 +1655,7 @@ vbmetavendorimage: $(INSTALLED_VBMETA_VENDORIMAGE_TARGET)
 # perform a full system build (either unbundled or not).
 .PHONY: droidcore-unbundled
 droidcore-unbundled: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
+    $(INSTALLED_FILES_OUTSIDE_IMAGES) \
     $(INSTALLED_SYSTEMIMAGE_TARGET) \
     $(INSTALLED_RAMDISK_TARGET) \
     $(INSTALLED_BOOTIMAGE_TARGET) \
@@ -1665,10 +1672,12 @@ droidcore-unbundled: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_BPTIMAGE_TARGET) \
     $(INSTALLED_VENDORIMAGE_TARGET) \
     $(INSTALLED_VENDOR_BOOTIMAGE_TARGET) \
+    $(INSTALLED_VENDOR_KERNEL_BOOTIMAGE_TARGET) \
     $(INSTALLED_VENDOR_DEBUG_BOOTIMAGE_TARGET) \
     $(INSTALLED_VENDOR_TEST_HARNESS_RAMDISK_TARGET) \
     $(INSTALLED_VENDOR_TEST_HARNESS_BOOTIMAGE_TARGET) \
     $(INSTALLED_VENDOR_RAMDISK_TARGET) \
+    $(INSTALLED_VENDOR_KERNEL_RAMDISK_TARGET) \
     $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
     $(INSTALLED_ODMIMAGE_TARGET) \
     $(INSTALLED_VENDOR_DLKMIMAGE_TARGET) \
@@ -1705,6 +1714,8 @@ droidcore-unbundled: $(filter $(HOST_OUT_ROOT)/%,$(modules_to_install)) \
     $(INSTALLED_FILES_JSON_VENDOR_RAMDISK) \
     $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK) \
     $(INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK) \
+    $(INSTALLED_FILES_FILE_VENDOR_KERNEL_RAMDISK) \
+    $(INSTALLED_FILES_JSON_VENDOR_KERNEL_RAMDISK) \
     $(INSTALLED_FILES_FILE_ROOT) \
     $(INSTALLED_FILES_JSON_ROOT) \
     $(INSTALLED_FILES_FILE_RECOVERY) \
@@ -1786,13 +1797,13 @@ apps_only: $(unbundled_build_modules)
 
 droid_targets: apps_only
 
-# Combine the NOTICE files for a apps_only build
-$(eval $(call combine-notice-files, html, \
-    $(target_notice_file_txt), \
-    $(target_notice_file_html_or_xml), \
-    "Notices for files for apps:", \
-    $(TARGET_OUT_NOTICE_FILES), \
-    $(apps_only_installed_files)))
+# NOTICE files for a apps_only build
+$(eval $(call html-notice-rule,$(target_notice_file_html_or_xml),"Apps","Notices for files for apps:",$(unbundled_build_modules),$(PRODUCT_OUT)/ $(HOST_OUT)/))
+
+$(eval $(call text-notice-rule,$(target_notice_file_txt),"Apps","Notices for files for apps:",$(unbundled_build_modules),$(PRODUCT_OUT)/ $(HOST_OUT)/))
+
+$(call declare-0p-target,$(target_notice_file_txt))
+$(call declare-0p-target,$(target_notice_html_or_xml))
 
 
 else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
@@ -1888,6 +1899,8 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
       $(INSTALLED_FILES_JSON_DEBUG_RAMDISK) \
       $(INSTALLED_FILES_FILE_VENDOR_RAMDISK) \
       $(INSTALLED_FILES_JSON_VENDOR_RAMDISK) \
+      $(INSTALLED_FILES_FILE_VENDOR_KERNEL_RAMDISK) \
+      $(INSTALLED_FILES_JSON_VENDOR_KERNEL_RAMDISK) \
       $(INSTALLED_FILES_FILE_VENDOR_DEBUG_RAMDISK) \
       $(INSTALLED_FILES_JSON_VENDOR_DEBUG_RAMDISK) \
       $(INSTALLED_DEBUG_RAMDISK_TARGET) \
@@ -1899,6 +1912,7 @@ else ifeq ($(TARGET_BUILD_UNBUNDLED),$(TARGET_BUILD_UNBUNDLED_IMAGE))
       $(INSTALLED_VENDOR_TEST_HARNESS_BOOTIMAGE_TARGET) \
       $(INSTALLED_VENDOR_RAMDISK_TARGET) \
       $(INSTALLED_VENDOR_DEBUG_RAMDISK_TARGET) \
+      $(INSTALLED_VENDOR_KERNEL_RAMDISK_TARGET) \
     )
   endif
 
