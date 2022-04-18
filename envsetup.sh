@@ -1704,6 +1704,8 @@ function _wrap_build()
     fi
     echo
     if [ $ret -eq 0 ] ; then
+        vendor/aospa/logo/print_logo.sh
+        echo
         echo -n "${color_success}#### build completed successfully "
     else
         echo -n "${color_failed}#### failed to build some targets "
