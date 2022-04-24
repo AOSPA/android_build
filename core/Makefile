@@ -641,26 +641,34 @@ $(SOONG_TO_CONVERT): $(SOONG_CONV_DATA) $(SOONG_TO_CONVERT_SCRIPT)
 	$(hide) $(SOONG_TO_CONVERT_SCRIPT) $< >$@
 $(call dist-for-goals,droidcore-unbundled,$(SOONG_TO_CONVERT))
 
+$(PRODUCT_OUT)/product_packages.txt:
+	@rm -f $@
+	echo "" > $@
+	$(foreach x,$(PRODUCT_PACKAGES),echo $(x) >> $@$(newline))
+
 MK2BP_CATALOG_SCRIPT := build/make/tools/mk2bp_catalog.py
+PRODUCT_PACKAGES_TXT := $(PRODUCT_OUT)/product_packages.txt
 MK2BP_REMAINING_HTML := $(PRODUCT_OUT)/mk2bp_remaining.html
 $(MK2BP_REMAINING_HTML): PRIVATE_CODE_SEARCH_BASE_URL := "https://cs.android.com/android/platform/superproject/+/master:"
-$(MK2BP_REMAINING_HTML): $(SOONG_CONV_DATA) $(MK2BP_CATALOG_SCRIPT)
+$(MK2BP_REMAINING_HTML): $(SOONG_CONV_DATA) $(MK2BP_CATALOG_SCRIPT) $(PRODUCT_PACKAGES_TXT)
 	@rm -f $@
 	$(hide) $(MK2BP_CATALOG_SCRIPT) \
 		--device=$(TARGET_DEVICE) \
+		--product-packages=$(PRODUCT_PACKAGES_TXT) \
 		--title="Remaining Android.mk files for $(TARGET_DEVICE)-$(TARGET_BUILD_VARIANT)" \
 		--codesearch=$(PRIVATE_CODE_SEARCH_BASE_URL) \
-		--out_dir="$(OUT_DIR)" \
+		--out-dir="$(OUT_DIR)" \
 		--mode=html \
 		> $@
 $(call dist-for-goals,droidcore-unbundled,$(MK2BP_REMAINING_HTML))
 
 MK2BP_REMAINING_CSV := $(PRODUCT_OUT)/mk2bp_remaining.csv
-$(MK2BP_REMAINING_CSV): $(SOONG_CONV_DATA) $(MK2BP_CATALOG_SCRIPT)
+$(MK2BP_REMAINING_CSV): $(SOONG_CONV_DATA) $(MK2BP_CATALOG_SCRIPT) $(PRODUCT_PACKAGES_TXT)
 	@rm -f $@
 	$(hide) $(MK2BP_CATALOG_SCRIPT) \
 		--device=$(TARGET_DEVICE) \
-		--out_dir="$(OUT_DIR)" \
+		--product-packages=$(PRODUCT_PACKAGES_TXT) \
+		--out-dir="$(OUT_DIR)" \
 		--mode=csv \
 		> $@
 $(call dist-for-goals,droidcore-unbundled,$(MK2BP_REMAINING_CSV))
@@ -1514,48 +1522,7 @@ $(1): $(call corresponding-license-metadata,$(4)) $(HTMLNOTICE) $(BUILD_SYSTEM)/
 notice_files: $(1)
 endef
 
-# Create the rule to combine the files into text and html/xml forms
-# $(1) - xml_excluded_system_product_odm_vendor_dlkm_odm_dlkm|
-#        xml_excluded_vendor_product_odm_vendor_dlkm_odm_dlkm|
-#        xml_product|xml_odm|xml_system_ext|xml_system|xml_vendor_dlkm|
-#        xml_odm_dlkm|html
-# $(2) - Plain text output file
-# $(3) - HTML/XML output file
-# $(4) - File title
-# $(5) - Directory to use.  Notice files are all $(5)/src.  Other
-#		 directories in there will be used for scratch
-# $(6) - Dependencies for the output files
-# $(7) - Directories to exclude
-#
-# The algorithm here is that we go collect a hash for each of the notice
-# files and write the names of the files that match that hash.  Then
-# to generate the real files, we go print out all of the files and their
-# hashes.
-#
-# These rules are fairly complex, so they depend on this makefile so if
-# it changes, they'll run again.
-#
-# TODO: We could clean this up so that we just record the locations of the
-# original notice files instead of making rules to copy them somwehere.
-# Then we could traverse that without quite as much bash drama.
-define combine-notice-files
-$(2): PRIVATE_MESSAGE := $(4)
-$(2): PRIVATE_DIR := $(5)
-$(2): .KATI_IMPLICIT_OUTPUTS := $(3)
-$(2): $(6) $(BUILD_SYSTEM)/Makefile build/make/tools/generate-notice-files.py
-	build/make/tools/generate-notice-files.py --text-output $(2) $(foreach xdir, $(7), -e $(xdir) )\
-	    $(if $(filter $(1),xml_excluded_vendor_product_odm_vendor_dlkm_odm_dlkm),-e vendor -e product -e system_ext -e odm -e vendor_dlkm -e odm_dlkm --xml-output, \
-	      $(if $(filter $(1),xml_excluded_system_product_odm_vendor_dlkm_odm_dlkm),-e system -e product -e system_ext -e odm -e vendor_dlkm -e odm_dlkm --xml-output, \
-	        $(if $(filter $(1),xml_product),-i product --xml-output, \
-	          $(if $(filter $(1),xml_system_ext),-i system_ext --xml-output, \
-	            $(if $(filter $(1),xml_system),-i system --xml-output, \
-	              $(if $(filter $(1),xml_odm),-i odm --xml-output, \
-	                $(if $(filter $(1),xml_vendor_dlkm),-i vendor_dlkm --xml-output, \
-	                  $(if $(filter $(1),xml_odm_dlkm),-i odm_dlkm --xml-output, \
-	                    --html-output)))))))) $(3) \
-	    -t $$(PRIVATE_MESSAGE) $$(foreach dir,$$(sort $$(PRIVATE_DIR)), -s $$(dir)/src)
-notice_files: $(2) $(3)
-endef
+$(KATI_obsolete_var combine-notice-files, To create notice files use xml-notice-rule, html-notice-rule, or text-notice-rule.)
 
 # Notice file logic isn't relevant for TARGET_BUILD_APPS
 ifndef TARGET_BUILD_APPS
@@ -6184,25 +6151,39 @@ dexpreopt_config_zip: $(DEXPREOPT_CONFIG_ZIP)
 # -----------------------------------------------------------------
 # A zip of the symbols directory.  Keep the full paths to make it
 # more obvious where these files came from.
+# Also produces a textproto containing mappings from elf IDs to symbols
+# filename, which will allow finding the appropriate symbols to deobfuscate
+# a stack trace frame.
 #
+
 name := $(TARGET_PRODUCT)
 ifeq ($(TARGET_BUILD_TYPE),debug)
   name := $(name)_debug
 endif
-name := $(name)-symbols-$(FILE_NAME_TAG)
 
-SYMBOLS_ZIP := $(PRODUCT_OUT)/$(name).zip
+# The path to the zip file containing binaries with symbols.
+SYMBOLS_ZIP := $(PRODUCT_OUT)/$(name)-symbols-$(FILE_NAME_TAG).zip
+# The path to a file containing mappings from elf IDs to filenames.
+SYMBOLS_MAPPING := $(PRODUCT_OUT)/$(name)-symbols-mapping-$(FILE_NAME_TAG).textproto
+.KATI_READONLY := SYMBOLS_ZIP SYMBOLS_MAPPING
 # For apps_only build we'll establish the dependency later in build/make/core/main.mk.
 ifeq (,$(TARGET_BUILD_UNBUNDLED))
 $(SYMBOLS_ZIP): $(INTERNAL_ALLIMAGES_FILES) $(updater_dep)
 endif
 $(SYMBOLS_ZIP): PRIVATE_LIST_FILE := $(call intermediates-dir-for,PACKAGING,symbols)/filelist
-$(SYMBOLS_ZIP): $(SOONG_ZIP)
+$(SYMBOLS_ZIP): PRIVATE_MAPPING_PACKAGING_DIR := $(call intermediates-dir-for,PACKAGING,elf_symbol_mapping)
+$(SYMBOLS_ZIP): $(SOONG_ZIP) $(SYMBOLS_MAP)
 	@echo "Package symbols: $@"
 	$(hide) rm -rf $@ $(PRIVATE_LIST_FILE)
-	$(hide) mkdir -p $(dir $@) $(TARGET_OUT_UNSTRIPPED) $(dir $(PRIVATE_LIST_FILE))
+	$(hide) mkdir -p $(TARGET_OUT_UNSTRIPPED) $(dir $(PRIVATE_LIST_FILE)) $(PRIVATE_MAPPING_PACKAGING_DIR)
+	# Find all of the files in the symbols directory and zip them into the symbols zip.
 	$(hide) find -L $(TARGET_OUT_UNSTRIPPED) -type f | sort >$(PRIVATE_LIST_FILE)
 	$(hide) $(SOONG_ZIP) --ignore_missing_files -d -o $@ -C $(OUT_DIR)/.. -l $(PRIVATE_LIST_FILE)
+	# Find all of the files in the symbols mapping directory and merge them into the symbols mapping textproto.
+	$(hide) find -L $(PRIVATE_MAPPING_PACKAGING_DIR) -type f | sort >$(PRIVATE_LIST_FILE)
+	$(hide) $(SYMBOLS_MAP) -merge $(SYMBOLS_MAPPING) -ignore_missing_files @$(PRIVATE_LIST_FILE)
+$(SYMBOLS_ZIP): .KATI_IMPLICIT_OUTPUTS := $(SYMBOLS_MAPPING)
+
 # -----------------------------------------------------------------
 # A zip of the coverage directory.
 #
@@ -6295,17 +6276,35 @@ endif # EMMA_INSTRUMENT=true
 
 #------------------------------------------------------------------
 # A zip of Proguard obfuscation dictionary files.
+# Also produces a textproto containing mappings from the hashes of the
+# dictionary contents (which are also stored in the dex files on the
+# devices) to the filename of the proguard dictionary, which will allow
+# finding the appropriate dictionary to deobfuscate a stack trace frame.
 #
+
+# The path to the zip file containing proguard dictionaries.
 PROGUARD_DICT_ZIP := $(PRODUCT_OUT)/$(TARGET_PRODUCT)-proguard-dict-$(FILE_NAME_TAG).zip
+# The path to the zip file containing mappings from dictionary hashes to filenames.
+PROGUARD_DICT_MAPPING := $(PRODUCT_OUT)/$(TARGET_PRODUCT)-proguard-dict-mapping-$(FILE_NAME_TAG).textproto
+.KATI_READONLY := PROGUARD_DICT_ZIP PROGUARD_DICT_MAPPING
 # For apps_only build we'll establish the dependency later in build/make/core/main.mk.
 ifeq (,$(TARGET_BUILD_UNBUNDLED))
 $(PROGUARD_DICT_ZIP): $(INTERNAL_ALLIMAGES_FILES) $(updater_dep)
 endif
 $(PROGUARD_DICT_ZIP): PRIVATE_PACKAGING_DIR := $(call intermediates-dir-for,PACKAGING,proguard_dictionary)
-$(PROGUARD_DICT_ZIP): $(SOONG_ZIP)
+$(PROGUARD_DICT_ZIP): PRIVATE_MAPPING_PACKAGING_DIR := $(call intermediates-dir-for,PACKAGING,proguard_dictionary_mapping)
+$(PROGUARD_DICT_ZIP): PRIVATE_LIST_FILE := $(call intermediates-dir-for,PACKAGING,proguard_dictionary_filelist)/filelist
+$(PROGUARD_DICT_ZIP): $(SOONG_ZIP) $(SYMBOLS_MAP)
 	@echo "Packaging Proguard obfuscation dictionary files."
-	mkdir -p $(dir $@) $(PRIVATE_PACKAGING_DIR)
-	$(SOONG_ZIP) --ignore_missing_files -d -o $@ -C $(PRIVATE_PACKAGING_DIR) -P out/target/common/obj -D $(PRIVATE_PACKAGING_DIR)
+	rm -rf $@ $(PRIVATE_LIST_FILE)
+	mkdir -p $(PRIVATE_PACKAGING_DIR) $(PRIVATE_MAPPING_PACKAGING_DIR) $(dir $(PRIVATE_LIST_FILE))
+	# Zip all of the files in the proguard dictionary directory.
+	$(SOONG_ZIP) --ignore_missing_files -d -o $@ -C $(PRIVATE_PACKAGING_DIR) -D $(PRIVATE_PACKAGING_DIR)
+	# Find all of the files in the proguard dictionary mapping directory and merge them into the mapping textproto.
+	# Strip the PRIVATE_PACKAGING_DIR off the filenames to match soong_zip's -C argument.
+	$(hide) find -L $(PRIVATE_MAPPING_PACKAGING_DIR) -type f | sort >$(PRIVATE_LIST_FILE)
+	$(SYMBOLS_MAP) -merge $(PROGUARD_DICT_MAPPING) -strip_prefix $(PRIVATE_PACKAGING_DIR)/ -ignore_missing_files @$(PRIVATE_LIST_FILE)
+$(PROGUARD_DICT_ZIP): .KATI_IMPLICIT_OUTPUTS := $(PROGUARD_DICT_MAPPING)
 
 #------------------------------------------------------------------
 # A zip of Proguard usage files.
