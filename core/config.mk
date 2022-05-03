@@ -430,21 +430,6 @@ $(hide) $(HOST_OTOOL) -l $(1) | grep LC_ID_DYLIB -A 5 > $(2)
 $(hide) $(HOST_NM) -gP $(1) | cut -f1-2 -d" " | (grep -v U$$ >> $(2) || true)
 endef
 
-GOMA_POOL :=
-RBE_POOL :=
-GOMA_OR_RBE_POOL :=
-# When goma or RBE are enabled, kati will be passed --default_pool=local_pool to put
-# most rules into the local pool.  Explicitly set the pool to "none" for rules that
-# should be run outside the local pool, i.e. with -j500.
-ifneq (,$(filter-out false,$(USE_GOMA)))
-  GOMA_POOL := none
-  GOMA_OR_RBE_POOL := none
-else ifneq (,$(filter-out false,$(USE_RBE)))
-  RBE_POOL := none
-  GOMA_OR_RBE_POOL := none
-endif
-.KATI_READONLY := GOMA_POOL RBE_POOL GOMA_OR_RBE_POOL
-
 ifeq ($(CALLED_FROM_SETUP),true)
 include $(BUILD_SYSTEM)/ccache.mk
 include $(BUILD_SYSTEM)/goma.mk
@@ -839,7 +824,7 @@ BUILD_DATETIME_FROM_FILE := $$(cat $(BUILD_DATETIME_FILE))
 # is made which breaks compatibility with the previous platform sepolicy version,
 # not just on every increase in PLATFORM_SDK_VERSION.  The minor version should
 # be reset to 0 on every bump of the PLATFORM_SDK_VERSION.
-sepolicy_major_vers := 32
+sepolicy_major_vers := 33
 sepolicy_minor_vers := 0
 
 ifneq ($(sepolicy_major_vers), $(PLATFORM_SDK_VERSION))
@@ -1236,10 +1221,42 @@ define find_warning_allowed_projects
     $(filter $(ANDROID_WARNING_ALLOWED_PROJECTS),$(1)/)
 endef
 
+GOMA_POOL :=
+RBE_POOL :=
+GOMA_OR_RBE_POOL :=
+# When goma or RBE are enabled, kati will be passed --default_pool=local_pool to put
+# most rules into the local pool.  Explicitly set the pool to "none" for rules that
+# should be run outside the local pool, i.e. with -j500.
+ifneq (,$(filter-out false,$(USE_GOMA)))
+  GOMA_POOL := none
+  GOMA_OR_RBE_POOL := none
+else ifneq (,$(filter-out false,$(USE_RBE)))
+  RBE_POOL := none
+  GOMA_OR_RBE_POOL := none
+endif
+.KATI_READONLY := GOMA_POOL RBE_POOL GOMA_OR_RBE_POOL
+
+JAVAC_NINJA_POOL :=
+R8_NINJA_POOL :=
+D8_NINJA_POOL :=
+
+ifneq ($(filter-out false,$(USE_RBE)),)
+  ifdef RBE_JAVAC
+    JAVAC_NINJA_POOL := $(RBE_POOL)
+  endif
+  ifdef RBE_R8
+    R8_NINJA_POOL := $(RBE_POOL)
+  endif
+  ifdef RBE_D8
+    D8_NINJA_POOL := $(RBE_POOL)
+  endif
+endif
+
+.KATI_READONLY := JAVAC_NINJA_POOL R8_NINJA_POOL D8_NINJA_POOL
+
 # These goals don't need to collect and include Android.mks/CleanSpec.mks
 # in the source tree.
-dont_bother_goals := out \
-    product-graph dump-products
+dont_bother_goals := out product-graph
 
 # Make ANDROID Soong config variables visible to Android.mk files, for
 # consistency with those defined in BoardConfig.mk files.
