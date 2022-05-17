@@ -68,6 +68,7 @@ PRODUCT_PACKAGES += \
     com.android.neuralnetworks \
     com.android.scheduling \
     com.android.sdkext \
+    com.android.sepolicy \
     com.android.tethering \
     com.android.tzdata \
     com.android.uwb \
@@ -398,6 +399,7 @@ PRODUCT_SYSTEM_PROPERTIES += \
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     arping \
+    com.android.sepolicy.cert-debug.der \
     dmuserd \
     idlcli \
     init-debug.rc \

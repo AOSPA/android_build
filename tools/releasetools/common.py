@@ -454,6 +454,11 @@ class BuildInfo(object):
     return vabc_enabled
 
   @property
+  def is_android_r(self):
+    system_prop = self.info_dict.get("system.build.prop")
+    return system_prop and system_prop.GetProp("ro.build.version.release") == "11"
+
+  @property
   def is_vabc_xor(self):
     vendor_prop = self.info_dict.get("vendor.build.prop")
     vabc_xor_enabled = vendor_prop and \
@@ -727,7 +732,7 @@ class RamdiskFormat(object):
   GZ = 2
 
 
-def _GetRamdiskFormat(info_dict):
+def GetRamdiskFormat(info_dict):
   if info_dict.get('lz4_ramdisks') == 'true':
     ramdisk_format = RamdiskFormat.LZ4
   else:
@@ -836,7 +841,7 @@ def LoadInfoDict(input_file, repacking=False):
 
   # Load recovery fstab if applicable.
   d["fstab"] = _FindAndLoadRecoveryFstab(d, input_file, read_helper)
-  ramdisk_format = _GetRamdiskFormat(d)
+  ramdisk_format = GetRamdiskFormat(d)
 
   # Tries to load the build props for all partitions with care_map, including
   # system and vendor.
@@ -1581,7 +1586,7 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file, info_dict=None,
   img = tempfile.NamedTemporaryFile()
 
   if has_ramdisk:
-    ramdisk_format = _GetRamdiskFormat(info_dict)
+    ramdisk_format = GetRamdiskFormat(info_dict)
     ramdisk_img = _MakeRamdisk(sourcedir, fs_config_file,
                                ramdisk_format=ramdisk_format)
 
@@ -1862,7 +1867,7 @@ def _BuildVendorBootImage(sourcedir, partition_name, info_dict=None):
 
   img = tempfile.NamedTemporaryFile()
 
-  ramdisk_format = _GetRamdiskFormat(info_dict)
+  ramdisk_format = GetRamdiskFormat(info_dict)
   ramdisk_img = _MakeRamdisk(sourcedir, ramdisk_format=ramdisk_format)
 
   # use MKBOOTIMG from environ, or "mkbootimg" if empty or not set
