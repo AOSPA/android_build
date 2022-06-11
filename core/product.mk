@@ -250,8 +250,8 @@ _product_list_vars += PRODUCT_CFI_INCLUDE_PATHS
 # Whether any paths are excluded from sanitization when SANITIZE_TARGET=cfi
 _product_list_vars += PRODUCT_CFI_EXCLUDE_PATHS
 
-# Whether the Scudo hardened allocator is disabled platform-wide
-_product_single_value_vars += PRODUCT_DISABLE_SCUDO
+# Whether the Scudo hardened allocator is enabled platform-wide
+_product_single_value_vars += PRODUCT_USE_SCUDO
 
 # List of extra VNDK versions to be included
 _product_list_vars += PRODUCT_EXTRA_VNDK_VERSIONS
