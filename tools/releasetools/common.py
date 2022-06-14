@@ -3565,23 +3565,8 @@ def MakeRecoveryPatch(input_dir, output_sink, recovery_img, boot_img,
     output_sink(recovery_img_path, recovery_img.data)
 
   else:
-    system_root_image = info_dict.get("system_root_image") == "true"
-    path = os.path.join(input_dir, recovery_resource_dat_path)
-    # With system-root-image, boot and recovery images will have mismatching
-    # entries (only recovery has the ramdisk entry) (Bug: 72731506). Use bsdiff
-    # to handle such a case.
-    if system_root_image:
-      diff_program = ["bsdiff"]
-      bonus_args = ""
-      assert not os.path.exists(path)
-    else:
-      diff_program = ["imgdiff"]
-      if os.path.exists(path):
-        diff_program.append("-b")
-        diff_program.append(path)
-        bonus_args = "--bonus /vendor/etc/recovery-resource.dat"
-      else:
-        bonus_args = ""
+    diff_program = ["bsdiff"]
+    bonus_args = ""
 
     d = Difference(recovery_img, boot_img, diff_program=diff_program)
     _, _, patch = d.ComputePatch()
