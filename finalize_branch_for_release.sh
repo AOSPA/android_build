@@ -2,7 +2,7 @@
 
 set -e
 
-source ../envsetup.sh
+source "$(dirname "$0")"/envsetup.sh
 
 # default target to modify tree and build SDK
 lunch aosp_arm64-userdebug
@@ -17,10 +17,14 @@ set -x
 # Update references in the codebase to new API version (TODO)
 # ...
 
-AIDL_TRANSITIVE_FREEZE=true m aidl-freeze-api
+# Adding -j1 option because of file(Android.bp) race condition.
+AIDL_TRANSITIVE_FREEZE=true m aidl-freeze-api -j1
 
-# TODO(b/229413853): test while simulating 'rel' for more requirements AIDL_FROZEN_REL=true
-m # test build
+m check-vndk-list || update-vndk-list.sh # for new versions of AIDL interfaces
+
+# for now, we simulate the release state for AIDL, but in the future, we would want
+# to actually turn the branch into the REL state and test with that
+AIDL_FROZEN_REL=true m # test build
 
 # Build SDK (TODO)
 # lunch sdk...

@@ -186,6 +186,8 @@ $(call add_json_list, RamdiskSnapshotDirsIncluded,       $(RAMDISK_SNAPSHOT_DIRS
 $(call add_json_list, RamdiskSnapshotDirsExcluded,       $(RAMDISK_SNAPSHOT_DIRS_EXCLUDED))
 $(call add_json_bool, HostFakeSnapshotEnabled,           $(HOST_FAKE_SNAPSHOT_ENABLE))
 
+$(call add_json_bool, MultitreeUpdateMeta,               $(filter true,$(TARGET_MULTITREE_UPDATE_META)))
+
 $(call add_json_bool, Treble_linker_namespaces,          $(filter true,$(PRODUCT_TREBLE_LINKER_NAMESPACES)))
 $(call add_json_bool, Enforce_vintf_manifest,            $(filter true,$(PRODUCT_ENFORCE_VINTF_MANIFEST)))
 
