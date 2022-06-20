@@ -19,7 +19,9 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_product.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_product.mk)
 
 # Default AOSP sounds
+ifeq ($(AOSPA_BUILD),)
 $(call inherit-product-if-exists, frameworks/base/data/sounds/AllAudio.mk)
+endif
 
 # Additional settings used in all AOSP builds
 PRODUCT_PRODUCT_PROPERTIES += \
