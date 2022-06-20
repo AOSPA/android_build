@@ -50,8 +50,6 @@ PRODUCT_VENDOR_PROPERTIES := \
 # Put en_US first in the list, so make it default.
 PRODUCT_LOCALES := en_US
 
-# Import Pixel Audio here so that files are overridden properly
-$(call inherit-product, vendor/google/pixel/PixelAudio.mk)
 # Get some sounds
 $(call inherit-product-if-exists, frameworks/base/data/sounds/AllAudio.mk)
 

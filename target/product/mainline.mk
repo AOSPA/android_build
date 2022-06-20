@@ -26,8 +26,6 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_system_ext.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_vendor.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_product.mk)
 
-# Import Pixel Audio here so that files are overridden properly
-$(call inherit-product, vendor/google/pixel/PixelAudio.mk)
 $(call inherit-product, frameworks/base/data/sounds/AllAudio.mk)
 
 PRODUCT_PROPERTY_OVERRIDES += \

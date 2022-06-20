@@ -18,8 +18,6 @@
 $(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_product.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_product.mk)
 
-# Import Pixel Audio here so that files are overridden properly
-$(call inherit-product, vendor/google/pixel/PixelAudio.mk)
 # Default AOSP sounds
 $(call inherit-product-if-exists, frameworks/base/data/sounds/AllAudio.mk)
 
