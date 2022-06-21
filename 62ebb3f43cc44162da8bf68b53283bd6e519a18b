@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "dab0515d_724c8fe1",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000092
+      },
+      "writtenOn": "2022-06-21T02:51:37Z",
+      "side": 1,
+      "message": "This is unsafe. My /data was corrupted, that\u0027s why I don\u0027t push them to gerrit.",
+      "revId": "62ebb3f43cc44162da8bf68b53283bd6e519a18b",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
