@@ -721,6 +721,12 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     if readonly and mount_point not in ro_mount_points:
       continue
 
+    if src_prop == "fs_type":
+      # This property is legacy and only used on a few partitions. b/202600377
+      allowed_partitions = set(["system", "system_other", "data", "oem"])
+      if mount_point not in allowed_partitions:
+          continue
+
     if mount_point == "system_other":
       # Propagate system properties to system_other. They'll get overridden
       # after as needed.
