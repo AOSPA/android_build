@@ -589,6 +589,13 @@ def main():
     OPTIONS.framework_misc_info_keys = merge_utils.InferFrameworkMiscInfoKeys(
         input_namelist=framework_namelist)
 
+  # TODO(b/223203648): Remove the need to hardcode *_disable_sparse keys.
+  OPTIONS.framework_misc_info_keys += (
+      'system_disable_sparse',
+      'system_ext_disable_sparse',
+      'product_disable_sparse',
+  )
+
   if OPTIONS.vendor_item_list:
     OPTIONS.vendor_item_list = common.LoadListFromFile(OPTIONS.vendor_item_list)
   else:
