@@ -16,6 +16,23 @@
       "message": "increases zip size",
       "revId": "c9b953d71ea81dbd710fc87c068d3bd533e7c5d8",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "aca66953_67512fe5",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000469
+      },
+      "writtenOn": "2022-07-22T20:24:40Z",
+      "side": 1,
+      "message": "iirc fastboot updatepackage became humongous with this",
+      "revId": "c9b953d71ea81dbd710fc87c068d3bd533e7c5d8",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
