@@ -3327,9 +3327,9 @@ endef
 # files and we should not strip.
 define dexpreopt-remove-classes.dex
 $(hide) if (zipinfo $1 '*.dex' 2>/dev/null | grep -v ' stor ' >/dev/null) ; then \
-zip --quiet --delete $(1) classes.dex; \
+$(SOONG_ZIP) --quiet --delete $(1) classes.dex; \
 dex_index=2; \
-while zip --quiet --delete $(1) classes$${dex_index}.dex > /dev/null; do \
+while $(SOONG_ZIP) --quiet --delete $(1) classes$${dex_index}.dex > /dev/null; do \
   let dex_index=dex_index+1; \
 done \
 fi

@@ -69,7 +69,7 @@ $(my_unzipped_timestamp_path): $(LOCAL_FULL_CLASSES_PRE_JACOCO_JAR)
 $(my_classes_to_report_on_path): PRIVATE_UNZIPPED_PATH := $(my_unzipped_path)
 $(my_classes_to_report_on_path): $(my_unzipped_timestamp_path)
 	rm -f $@
-	zip -q $@ \
+	$(SOONG_ZIP) -q $@ \
 	  -r $(PRIVATE_UNZIPPED_PATH)
 
 # Make a rule to copy the jacoco-report-classes.jar to a packaging directory.
