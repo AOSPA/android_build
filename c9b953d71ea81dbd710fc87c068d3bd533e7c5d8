@@ -33,6 +33,24 @@
       "message": "iirc fastboot updatepackage became humongous with this",
       "revId": "c9b953d71ea81dbd710fc87c068d3bd533e7c5d8",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "3b57227a_8b1f496d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2022-07-23T14:11:16Z",
+      "side": 1,
+      "message": "checked right now and it seems to be fine, although with erofs I didnt notice any build time improvements",
+      "parentUuid": "aca66953_67512fe5",
+      "revId": "c9b953d71ea81dbd710fc87c068d3bd533e7c5d8",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
