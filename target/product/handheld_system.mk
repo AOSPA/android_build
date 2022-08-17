@@ -63,6 +63,7 @@ PRODUCT_PACKAGES += \
     SharedStorageBackup \
     SimAppDialog \
     Telecom \
+    TelephonyProvider \
     Traceur \
     UserDictionaryProvider \
     VpnDialogs \
@@ -71,7 +72,6 @@ PRODUCT_PACKAGES += \
 ifneq ($(TARGET_NO_TELEPHONY), true)
 PRODUCT_PACKAGES += \
   MmsService \
-  TelephonyProvider \
   TeleService
 endif #TARGET_NO_TELEPHONY
 
