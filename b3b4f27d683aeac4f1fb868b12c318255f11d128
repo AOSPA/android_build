@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "3987d2fc_cab05194",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2022-08-24T21:12:30Z",
+      "side": 1,
+      "message": "build/make/core/combo/TARGET_linux-arm.mk:53: error: Incorrect TARGET_2ND_ARCH_VARIANT, armv8-2a. Use armv8-a instead.. without this",
+      "revId": "b3b4f27d683aeac4f1fb868b12c318255f11d128",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
