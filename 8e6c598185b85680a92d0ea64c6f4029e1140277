@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "07cf8f03_c9ed8b08",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 6
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2022-08-25T03:54:37Z",
+      "side": 1,
+      "message": "timeservices, datarmnetctl, and other repos are still broken in LA.UM.9.14.  Revert when moving to LA.VENDOR.1.0.",
+      "revId": "8e6c598185b85680a92d0ea64c6f4029e1140277",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
