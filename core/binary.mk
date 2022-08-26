@@ -131,7 +131,7 @@ my_tidy_checks := $(subst $(space),,$(my_tidy_checks))
 # If clang-tidy is being used, don't use the RBE pool (as clang-tidy runs in
 # the same action, and is not remoted)
 my_pool :=
-ifeq (,$(strip $(my_cc))$(strip $(my_cxx))$(strip $(my_tidy_checks)))
+ifeq (,$(strip $(my_cc))$(strip $(my_cxx))$(strip $(my_tidy_checks)$(strip LOCAL_SDCLANG)$(strip LOCAL_SDCLANG_2)))
   my_pool := $(GOMA_OR_RBE_POOL)
 endif
 
