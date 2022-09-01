@@ -3505,7 +3505,7 @@ INSTALLED_VENDORIMAGE_TARGET := $(PRODUCT_OUT)/vendor.img
 $(eval $(call copy-one-file,$(BOARD_PREBUILT_VENDORIMAGE),$(INSTALLED_VENDORIMAGE_TARGET)))
 $(if $(strip $(ALL_TARGETS.$(INSTALLED_VENDORIMAGE_TARGET).META_LIC)),,\
     $(if $(strip $(ALL_TARGETS.$(BOARD_PREBUILT_VENDORIMAGE).META_LIC)),\
-        $(eval ALL_TARGETS.$(INSTALLED_VENDORIMAGE_TARGET).META_LIC:=$(ALL_TARGETS.$(BOARD_PREBUILT_VENDORIMAGE).META_LIC)),\
+        $(call declare-copy-target-license-metadata,$(INSTALLED_VENDORIMAGE_TARGET),$(BOARD_PREBUILT_VENDORIMAGE)),\
         $(call declare-license-metadata,$(INSTALLED_VENDORIMAGE_TARGET),legacy_proprietary,proprietary,,"Vendor Image",vendor)))
 endif
 
@@ -5264,7 +5264,7 @@ ifneq (,$(strip $(BOARD_AVB_VBMETA_SYSTEM)))
 endif # BOARD_AVB_VBMETA_SYSTEM
 ifneq (,$(strip $(BOARD_AVB_VBMETA_VENDOR)))
 	$(hide) echo "avb_vbmeta_vendor=$(BOARD_AVB_VBMETA_VENDOR)" >> $@
-	$(hide) echo "avb_vbmeta_vendor_args=$(BOARD_AVB_MAKE_VBMETA_SYSTEM_IMAGE_ARGS)" >> $@
+	$(hide) echo "avb_vbmeta_vendor_args=$(BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS)" >> $@
 	$(hide) echo "avb_vbmeta_vendor_key_path=$(BOARD_AVB_VBMETA_VENDOR_KEY_PATH)" >> $@
 	$(hide) echo "avb_vbmeta_vendor_algorithm=$(BOARD_AVB_VBMETA_VENDOR_ALGORITHM)" >> $@
 	$(hide) echo "avb_vbmeta_vendor_rollback_index_location=$(BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION)" >> $@
