@@ -84,9 +84,7 @@ PLATFORM_SDK_EXTENSION_VERSION := 3
 # TODO(b/159866756): Remove this workaround when building against
 # BOARD_VNDK_VERSION := current is supported.
 ifeq (true,$(BUILDING_WITH_VSDK))
-  PLATFORM_VNDK_VERSION := U
-else
-  PLATFORM_VNDK_VERSION := 34
+  PLATFORM_VNDK_VERSION := UpsideDownCake
 endif
 
 # This is the sdk extension version that PLATFORM_SDK_VERSION ships with.
@@ -111,7 +109,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-    PLATFORM_SECURITY_PATCH := 2022-07-05
+    PLATFORM_SECURITY_PATCH := 2022-08-05
 endif
 
 include $(BUILD_SYSTEM)/version_util.mk
