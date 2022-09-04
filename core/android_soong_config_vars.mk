@@ -26,6 +26,7 @@ $(call add_soong_config_namespace,ANDROID)
 
 # Add variables to the namespace below:
 
+$(call add_soong_config_var,ANDROID,TARGET_DYNAMIC_64_32_MEDIASERVER)
 $(call add_soong_config_var,ANDROID,TARGET_ENABLE_MEDIADRM_64)
 $(call add_soong_config_var,ANDROID,IS_TARGET_MIXED_SEPOLICY)
 ifeq ($(IS_TARGET_MIXED_SEPOLICY),true)
@@ -76,6 +77,7 @@ $(call soong_config_set,art_module,source_build,$(ART_MODULE_BUILD_FROM_SOURCE))
 # default.
 INDIVIDUALLY_TOGGLEABLE_PREBUILT_MODULES := \
   bluetooth \
+  permission \
   uwb \
   wifi \
 
