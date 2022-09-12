@@ -83,14 +83,6 @@ endif
 PLATFORM_SDK_EXTENSION_VERSION := 3
 .KATI_READONLY := PLATFORM_SDK_EXTENSION_VERSION
 
-# TODO(b/159866756): Remove this workaround when building against
-# BOARD_VNDK_VERSION := current is supported.
-ifeq (true,$(BUILDING_WITH_VSDK))
-  PLATFORM_VNDK_VERSION := UpsideDownCake
-else
-  PLATFORM_VNDK_VERSION := 34
-endif
-
 # This is the sdk extension version that PLATFORM_SDK_VERSION ships with.
 PLATFORM_BASE_SDK_EXTENSION_VERSION := 3
 .KATI_READONLY := PLATFORM_BASE_SDK_EXTENSION_VERSION
