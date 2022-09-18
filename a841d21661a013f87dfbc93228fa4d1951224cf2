@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "be275a75_0f928a69",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000463
+      },
+      "writtenOn": "2022-09-18T19:07:29Z",
+      "side": 1,
+      "message": "This won\u0027t be merged, it\u0027s just a little haxx for my personal test builds as signed builds takes so long to finish.",
+      "revId": "a841d21661a013f87dfbc93228fa4d1951224cf2",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
