@@ -864,6 +864,10 @@ def LoadInfoDict(input_file, repacking=False):
         d["avb_{}_salt".format(partition)] = sha256(
             fingerprint.encode()).hexdigest()
 
+    # Set up the salt for partitions without build.prop
+    if build_info.fingerprint:
+      d["avb_salt"] = sha256(build_info.fingerprint.encode()).hexdigest()
+
     # Set the vbmeta digest if exists
     try:
       d["vbmeta_digest"] = read_helper("META/vbmeta_digest.txt").rstrip()
@@ -2391,6 +2395,7 @@ def SignSePolicy(sepolicy, key, password):
   """
 
   if OPTIONS.sign_sepolicy_path is None:
+    logger.info("No sign_sepolicy_path specified, %s was not signed", sepolicy)
     return False
 
   java_library_path = os.path.join(
@@ -2403,7 +2408,7 @@ def SignSePolicy(sepolicy, key, password):
 
   cmd.extend([key + OPTIONS.public_key_suffix,
               key + OPTIONS.private_key_suffix,
-              sepolicy])
+              sepolicy, os.path.dirname(sepolicy)])
 
   proc = Run(cmd, stdin=subprocess.PIPE)
   if password is not None:

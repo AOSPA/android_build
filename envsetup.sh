@@ -455,10 +455,19 @@ function multitree_lunch()
 {
     local code
     local results
+    # Lunch must be run in the topdir, but this way we get a clear error
+    # message, instead of FileNotFound.
+    local T=$(multitree_gettop)
+    if [ -n "$T" ]; then
+      "$T/build/build/make/orchestrator/core/orchestrator.py" "$@"
+    else
+      _multitree_lunch_error
+      return 1
+    fi
     if $(echo "$1" | grep -q '^-') ; then
         # Calls starting with a -- argument are passed directly and the function
         # returns with the lunch.py exit code.
-        build/build/make/orchestrator/core/lunch.py "$@"
+        "${T}/build/build/make/orchestrator/core/lunch.py" "$@"
         code=$?
         if [[ $code -eq 2 ]] ; then
           echo 1>&2
@@ -469,7 +478,7 @@ function multitree_lunch()
         fi
     else
         # All other calls go through the --lunch variant of lunch.py
-        results=($(build/build/make/orchestrator/core/lunch.py --lunch "$@"))
+        results=($(${T}/build/build/make/orchestrator/core/lunch.py --lunch "$@"))
         code=$?
         if [[ $code -eq 2 ]] ; then
           echo 1>&2
@@ -1062,7 +1071,7 @@ function qpid() {
 # Easy way to make system.img/etc writable
 function syswrite() {
   adb wait-for-device && adb root || return 1
-  if [[ $(adb disable-verity | grep "reboot") ]]; then
+  if [[ $(adb disable-verity | grep -i "reboot") ]]; then
       echo "rebooting"
       adb reboot && adb wait-for-device && adb root || return 1
   fi
@@ -1856,7 +1865,8 @@ function call_hook
 function _trigger_build()
 (
     local -r bc="$1"; shift
-    if T="$(gettop)"; then
+    local T=$(gettop)
+    if [ -n "$T" ]; then
       _wrap_build "$T/build/soong/soong_ui.bash" --build-mode --${bc} --dir="$(pwd)" "$@"
     else
       >&2 echo "Couldn't locate the top of the tree. Try setting TOP."
@@ -1875,7 +1885,20 @@ function b()
         bazel help
     else
         # Else, always run with the bp2build configuration, which sets Bazel's package path to the synthetic workspace.
-        bazel "$@" --config=bp2build
+        # Add the --config=bp2build after the first argument that doesn't start with a dash. That should be the bazel
+        # command. (build, test, run, ect) If the --config was added at the end, it wouldn't work with commands like:
+        # b run //foo -- --args-for-foo
+        local previous_args=""
+        for arg in $@;
+        do
+            previous_args+="$arg "
+            shift
+            if [[ $arg != -* ]]; # if $arg doesn't start with a dash
+            then
+                break
+            fi
+        done
+        bazel $previous_args --config=bp2build $@
     fi
 )
 
@@ -1941,8 +1964,9 @@ function _multitree_lunch_error()
 
 function multitree_build()
 {
-    if T="$(multitree_gettop)"; then
-      "$T/build/build/orchestrator/core/orchestrator.py" "$@"
+    local T=$(multitree_gettop)
+    if [ -n "$T" ]; then
+      "$T/build/build/make/orchestrator/core/orchestrator.py" "$@"
     else
       _multitree_lunch_error
       return 1
