@@ -10,7 +10,8 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
               invocations of 'm' etc.
 - tapas:      tapas [<App1> <App2> ...] [arm|x86|arm64|x86_64] [eng|userdebug|user]
               Sets up the build environment for building unbundled apps (APKs).
-- banchan:    banchan <module1> [<module2> ...] [arm|x86|arm64|x86_64] [eng|userdebug|user]
+- banchan:    banchan <module1> [<module2> ...] [arm|x86|arm64|x86_64|arm64_only|x86_64only] \
+                      [eng|userdebug|user]
               Sets up the build environment for building unbundled modules (APEXes).
 - croot:      Changes directory to the top of the tree, or a subdirectory thereof.
 - m:          Makes from the top of the tree.
@@ -398,6 +399,7 @@ function addcompletions()
       packages/modules/adb/adb.bash
       system/core/fastboot/fastboot.bash
       tools/asuite/asuite.sh
+      prebuilts/bazel/common/bazel-complete.bash
     )
     # Completion can be disabled selectively to allow users to use non-standard completion.
     # e.g.
@@ -419,6 +421,8 @@ function addcompletions()
     if [ -z "$ZSH_VERSION" ]; then
         # Doesn't work in zsh.
         complete -o nospace -F _croot croot
+        # TODO(b/244559459): Support b autocompletion for zsh
+        complete -F _bazel__complete -o nospace b
     fi
     complete -F _lunch lunch
 
@@ -895,7 +899,7 @@ function tapas()
 function banchan()
 {
     local showHelp="$(echo $* | xargs -n 1 echo | \grep -E '^(help)$' | xargs)"
-    local product="$(echo $* | xargs -n 1 echo | \grep -E '^(.*_)?(arm|x86|arm64|x86_64)$' | xargs)"
+    local product="$(echo $* | xargs -n 1 echo | \grep -E '^(.*_)?(arm|x86|arm64|x86_64|arm64only|x86_64only)$' | xargs)"
     local variant="$(echo $* | xargs -n 1 echo | \grep -E '^(user|userdebug|eng)$' | xargs)"
     local apps="$(echo $* | xargs -n 1 echo | \grep -E -v '^(user|userdebug|eng|(.*_)?(arm|x86|arm64|x86_64))$' | xargs)"
 
@@ -924,6 +928,8 @@ function banchan()
       x86)    product=module_x86;;
       arm64)  product=module_arm64;;
       x86_64) product=module_x86_64;;
+      arm64only)  product=module_arm64only;;
+      x86_64only) product=module_x86_64only;;
     esac
     if [ -z "$variant" ]; then
         variant=eng
@@ -1877,10 +1883,20 @@ function _trigger_build()
 # Convenience entry point (like m) to use Bazel in AOSP.
 function b()
 (
+    # Look for the --run-soong-tests flag and skip passing --skip-soong-tests to Soong if present
+    local bazel_args=""
+    local skip_tests="--skip-soong-tests"
+    for i in $@; do
+        if [[ $i != "--run-soong-tests" ]]; then
+            bazel_args+="$i "
+        else
+            skip_tests=""
+        fi
+    done
     # Generate BUILD, bzl files into the synthetic Bazel workspace (out/soong/workspace).
-    _trigger_build "all-modules" bp2build USE_BAZEL_ANALYSIS= || return 1
+    _trigger_build "all-modules" bp2build $skip_tests USE_BAZEL_ANALYSIS= || return 1
     # Then, run Bazel using the synthetic workspace as the --package_path.
-    if [[ -z "$@" ]]; then
+    if [[ -z "$bazel_args" ]]; then
         # If there are no args, show help.
         bazel help
     else
@@ -1888,17 +1904,21 @@ function b()
         # Add the --config=bp2build after the first argument that doesn't start with a dash. That should be the bazel
         # command. (build, test, run, ect) If the --config was added at the end, it wouldn't work with commands like:
         # b run //foo -- --args-for-foo
-        local previous_args=""
-        for arg in $@;
-        do
-            previous_args+="$arg "
-            shift
-            if [[ $arg != -* ]]; # if $arg doesn't start with a dash
+        local config_set=0
+        local bazel_args_with_config=""
+        for arg in $bazel_args; do
+            if [[ $arg == "--" && $config_set -ne 1 ]]; # if we find --, insert config argument here
             then
-                break
+                bazel_args_with_config+="--config=bp2build -- "
+                config_set=1
+            else
+                bazel_args_with_config+="$arg "
             fi
         done
-        bazel $previous_args --config=bp2build $@
+        if [[ $config_set -ne 1 ]]; then
+            bazel_args_with_config+="--config=bp2build "
+        fi
+        bazel $bazel_args_with_config
     fi
 )
 
@@ -2093,6 +2113,13 @@ function showcommands() {
           -f $OUT_DIR/combined-${TARGET_PRODUCT}.ninja \
           -t commands "$@")
     fi
+}
+
+function avbtool() {
+    if [[ ! -f "$ANDROID_SOONG_HOST_OUT"/bin/avbtool ]]; then
+        m avbtool
+    fi
+    "$ANDROID_SOONG_HOST_OUT"/bin/avbtool $@
 }
 
 validate_current_shell
