@@ -479,6 +479,9 @@ else
   $(warning "Compile using pure AOSP tree")
 endif
 
+# This property is set by flashing debug boot image, so default to false.
+ADDITIONAL_SYSTEM_PROPERTIES += ro.force.debuggable=0
+
 # ------------------------------------------------------------
 # Define a function that, given a list of module tags, returns
 # non-empty if that module should be installed in /system.
@@ -954,7 +957,7 @@ $(foreach suite,general-tests device-tests vts tvts art-host-tests host-unit-tes
           $(eval my_testcases := $(HOST_OUT_TESTCASES)),\
           $(eval my_testcases := $$(COMPATIBILITY_TESTCASES_OUT_$(suite))))\
         $(eval target := $(my_testcases)/$(lastword $(subst /, ,$(dir $(f))))/$(notdir $(f)))\
-        $(if $(strip $(ALL_TARGETS.$(target).META_LIC)),,$(eval ALL_TARGETS.$(target).META_LIC:=$(module_license_metadata)))\
+        $(if $(strip $(ALL_TARGETS.$(target).META_LIC)),,$(call declare-copy-target-license-metadata,$(target),$(f)))\
         $(eval COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES := \
           $$(COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES) $(f):$(target))\
         $(eval COMPATIBILITY.$(suite).HOST_SHARED_LIBRARY.FILES := \
@@ -1957,10 +1960,6 @@ ALL_SDK_TARGETS := $(INTERNAL_SDK_TARGET)
 sdk: $(ALL_SDK_TARGETS)
 $(call dist-for-goals,sdk, \
     $(ALL_SDK_TARGETS) \
-    $(SYMBOLS_ZIP) \
-    $(SYMBOLS_MAPPING) \
-    $(COVERAGE_ZIP) \
-    $(APPCOMPAT_ZIP) \
     $(INSTALLED_BUILD_PROP_TARGET) \
 )
 endif

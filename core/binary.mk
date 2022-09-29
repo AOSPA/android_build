@@ -131,7 +131,7 @@ my_tidy_checks := $(subst $(space),,$(my_tidy_checks))
 # If clang-tidy is being used, don't use the RBE pool (as clang-tidy runs in
 # the same action, and is not remoted)
 my_pool :=
-ifeq (,$(strip $(my_cc))$(strip $(my_cxx))$(strip $(my_tidy_checks)))
+ifeq (,$(strip $(my_cc))$(strip $(my_cxx))$(strip $(my_tidy_checks)$(strip LOCAL_SDCLANG)$(strip LOCAL_SDCLANG_2)))
   my_pool := $(GOMA_OR_RBE_POOL)
 endif
 
@@ -1529,7 +1529,7 @@ ifneq (HEADER_LIBRARIES,$(LOCAL_MODULE_CLASS))
         ifeq (,$(strip $(call find_warning_allowed_projects,$(LOCAL_PATH))))
           my_cflags := -Wall -Werror $(my_cflags)
         else
-          $(eval MODULES_ADDED_WALL := $(MODULES_ADDED_WALL) $(LOCAL_MODULE_MAKEFILE):$(LOCAL_MODULE))
+          $(eval MODULES_WARNINGS_ALLOWED := $(MODULES_USING_WNO_ERROR) $(LOCAL_MODULE_MAKEFILE):$(LOCAL_MODULE))
           my_cflags := -Wall $(my_cflags)
         endif
       endif

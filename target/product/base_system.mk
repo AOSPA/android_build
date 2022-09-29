@@ -24,7 +24,7 @@ PRODUCT_PACKAGES += \
     android.hidl.manager-V1.0-java \
     android.hidl.memory@1.0-impl \
     android.hidl.memory@1.0-impl.vendor \
-    android.system.suspend@1.0-service \
+    android.system.suspend-service \
     android.test.base \
     android.test.mock \
     android.test.runner \
@@ -121,7 +121,6 @@ PRODUCT_PACKAGES += \
     init_system \
     input \
     installd \
-    IntentResolver \
     ip \
     iptables \
     ip-up-vpn \
@@ -274,7 +273,6 @@ PRODUCT_PACKAGES += \
     traced \
     traced_probes \
     tune2fs \
-    tzdatacheck \
     uiautomator \
     uinput \
     uncrypt \
@@ -351,7 +349,6 @@ PRODUCT_HOST_PACKAGES += \
     sqlite3 \
     tinyplay \
     tune2fs \
-    tzdatacheck \
     unwind_info \
     unwind_reg_info \
     unwind_symbols \

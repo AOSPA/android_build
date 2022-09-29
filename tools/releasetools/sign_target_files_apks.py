@@ -881,7 +881,7 @@ def RewriteProps(data):
         pieces[-1] = EditTags(pieces[-1])
         value = "/".join(pieces)
       elif key == "ro.build.description":
-        pieces = value.split(" ")
+        pieces = value.split()
         assert pieces[-1].endswith("-keys")
         pieces[-1] = EditTags(pieces[-1])
         value = " ".join(pieces)
@@ -1098,7 +1098,7 @@ def RewriteAvbProps(misc_info):
 
     tokens = []
     changed = False
-    for token in args.split(' '):
+    for token in args.split():
       fingerprint_key = 'com.android.build.{}.fingerprint'.format(partition)
       if not token.startswith(fingerprint_key):
         tokens.append(token)
@@ -1355,7 +1355,8 @@ def BuildVendorPartitions(output_zip_path):
       img_file_path = "IMAGES/{}.img".format(p)
       map_file_path = "IMAGES/{}.map".format(p)
       common.ZipWrite(output_zip, os.path.join(vendor_tempdir, img_file_path), img_file_path)
-      common.ZipWrite(output_zip, os.path.join(vendor_tempdir, map_file_path), map_file_path)
+      if os.path.exists(os.path.join(vendor_tempdir, map_file_path)):
+        common.ZipWrite(output_zip, os.path.join(vendor_tempdir, map_file_path), map_file_path)
     # copy recovery.img, boot.img, recovery patch & install.sh
     if OPTIONS.rebuild_recovery:
       recovery_img = "IMAGES/recovery.img"
