@@ -25,4 +25,6 @@
 // VSC spec support
 #define BLE_VND_INCLUDED TRUE
 
+// TODO(b/249331105)
+#define AVDT_NUM_SEPS 35
 #endif
