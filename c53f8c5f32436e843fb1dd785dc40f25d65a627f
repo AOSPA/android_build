@@ -16,6 +16,24 @@
       "message": "is this necessary?  I think recovery asks if you want to override the assert or at least it was for me.",
       "revId": "c53f8c5f32436e843fb1dd785dc40f25d65a627f",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "807865fe_0527e9a8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000737
+      },
+      "writtenOn": "2022-10-03T21:43:51Z",
+      "side": 1,
+      "message": "The fact is that our current recovery doesn\u0027t allow us to downgrade to the last build, every time I do a test build and it doesn\u0027t boot, I need to do format data, I only have a device and I use it as the main one, So doing format data in these cases is problematic. This commit works on Surya currently, I didn\u0027t have time to test it on spes which is AB, so ours I can say it will work on AB devices too.",
+      "parentUuid": "33a76447_a50274dc",
+      "revId": "c53f8c5f32436e843fb1dd785dc40f25d65a627f",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
