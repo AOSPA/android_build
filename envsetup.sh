@@ -1897,7 +1897,7 @@ function b()
     _trigger_build "all-modules" bp2build $skip_tests USE_BAZEL_ANALYSIS= || return 1
     # Then, run Bazel using the synthetic workspace as the --package_path.
     if [[ -z "$bazel_args" ]]; then
-        # If there are no args, show help.
+        # If there are no args, show help and exit.
         bazel help
     else
         # Else, always run with the bp2build configuration, which sets Bazel's package path to the synthetic workspace.
@@ -1905,20 +1905,31 @@ function b()
         # command. (build, test, run, ect) If the --config was added at the end, it wouldn't work with commands like:
         # b run //foo -- --args-for-foo
         local config_set=0
-        local bazel_args_with_config=""
+
+        # Represent the args as an array, not a string.
+        local bazel_args_with_config=()
         for arg in $bazel_args; do
             if [[ $arg == "--" && $config_set -ne 1 ]]; # if we find --, insert config argument here
             then
-                bazel_args_with_config+="--config=bp2build -- "
+                bazel_args_with_config+=("--config=bp2build -- ")
                 config_set=1
             else
-                bazel_args_with_config+="$arg "
+                bazel_args_with_config+=("$arg ")
             fi
         done
         if [[ $config_set -ne 1 ]]; then
-            bazel_args_with_config+="--config=bp2build "
+            bazel_args_with_config+=("--config=bp2build ")
         fi
-        bazel $bazel_args_with_config
+
+        # Call Bazel.
+        if [ -n "$ZSH_VERSION" ]; then
+            # zsh breaks posix by not doing string-splitting on unquoted args
+            # by default. Explicitly use the "=" flag to split.
+            # See https://zsh.sourceforge.io/Guide/zshguide05.html section 5.4.4.
+            bazel ${=bazel_args_with_config}
+        else
+            bazel ${bazel_args_with_config[@]}
+        fi
     fi
 )
 

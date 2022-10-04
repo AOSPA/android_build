@@ -14,9 +14,10 @@
 # limitations under the License.
 
 tests=(
- $(dirname $0)/lunch_tests.sh
+ $(dirname $0)/b_tests.sh
 )
 
 for test in $tests; do
   bash -x $test
+  zsh -x $test
 done
