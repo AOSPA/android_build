@@ -379,27 +379,6 @@ PRODUCT_VENDOR_PROPERTIES += ro.zygote?=zygote32
 PRODUCT_SYSTEM_PROPERTIES += debug.atrace.tags.enableflags=0
 PRODUCT_SYSTEM_PROPERTIES += persist.traced.enable=1
 
-PRODUCT_SYSTEM_PROPERTIES += \
-    log.tag.CCodec=I \
-    log.tag.MediaCodec=I \
-    log.tag.MediaPlayerService=I \
-    log.tag.CCodecBufferChannel=I \
-    log.tag.MediaCodecSource=I \
-    log.tag.NuPlayerRenderer=I \
-    log.tag.NuPlayerDecoder=I \
-    log.tag.NuPlayer=I \
-    log.tag.MPEG4Writer=I \
-    log.tag.CCodecBuffers=I \
-    log.tag.CCodecConfig=I \
-    log.tag.MediaCodecList=I \
-    log.tag.FrameDecoder=I \
-    log.tag.MediaMetadataRetriever=I \
-    log.tag.MediaCodecsXmlParser=I \
-    log.tag.NuPlayerDriver=I \
-    log.tag.StagefrightRecorder=I \
-    log.tag.GenericSource=I \
-    log.tag.GraphicBufferSource=I
-
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
