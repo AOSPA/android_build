@@ -602,13 +602,7 @@ $(APKCERTS_FILE):
 	$(if $(filter true,$(PRODUCT_FSVERITY_GENERATE_METADATA)),\
 	  $(call _apkcerts_write_line,BuildManifest,$(FSVERITY_APK_KEY_PATH).x509.pem,$(FSVERITY_APK_KEY_PATH).pk8,,system,$@) \
 	  $(if $(filter true,$(BUILDING_SYSTEM_EXT_IMAGE)),\
-            $(call _apkcerts_write_line,BuildManifestSystemExt,$(FSVERITY_APK_KEY_PATH).x509.pem,$(FSVERITY_APK_KEY_PATH).pk8,,system_ext,$@)) \
-	  $(if $(filter true,$(BUILDING_VENDOR_IMAGE)),\
-            $(call _apkcerts_write_line,BuildManifestVendor,$(FSVERITY_APK_KEY_PATH).x509.pem,$(FSVERITY_APK_KEY_PATH).pk8,,vendor,$@)) \
-	  $(if $(filter true,$(BUILDING_ODM_IMAGE)),\
-            $(call _apkcerts_write_line,BuildManifestOdm,$(FSVERITY_APK_KEY_PATH).x509.pem,$(FSVERITY_APK_KEY_PATH).pk8,,odm,$@)) \
-	  $(if $(filter true,$(BUILDING_PRODUCT_IMAGE)),\
-            $(call _apkcerts_write_line,BuildManifestProduct,$(FSVERITY_APK_KEY_PATH).x509.pem,$(FSVERITY_APK_KEY_PATH).pk8,,product,$@)))
+            $(call _apkcerts_write_line,BuildManifestSystemExt,$(FSVERITY_APK_KEY_PATH).x509.pem,$(FSVERITY_APK_KEY_PATH).pk8,,system_ext,$@)))
 	# In case value of PACKAGES is empty.
 	$(hide) touch $@
 
@@ -2963,15 +2957,6 @@ fsverity-metadata-targets-patterns := \
 ifdef BUILDING_SYSTEM_EXT_IMAGE
 fsverity-metadata-targets-patterns += $(TARGET_OUT_SYSTEM_EXT)/framework/%
 endif
-ifdef BUILDING_VENDOR_IMAGE
-fsverity-metadata-targets-patterns += $(TARGET_OUT_VENDOR)/framework/%
-endif
-ifdef BUILDING_ODM_IMAGE
-fsverity-metadata-targets-patterns += $(TARGET_OUT_ODM)/framework/%
-endif
-ifdef BUILDING_PRODUCT_IMAGE
-fsverity-metadata-targets-patterns += $(TARGET_OUT_PRODUCT)/framework/%
-endif
 
 # Generate fsv_meta
 fsverity-metadata-targets := $(sort $(filter \
@@ -3044,18 +3029,6 @@ $(eval $(call fsverity-generate-and-install-manifest-apk, \
 ifdef BUILDING_SYSTEM_EXT_IMAGE
   $(eval $(call fsverity-generate-and-install-manifest-apk, \
     $(TARGET_OUT_SYSTEM_EXT)/etc/security/fsverity/BuildManifestSystemExt.apk,system_ext))
-endif
-ifdef BUILDING_VENDOR_IMAGE
-  $(eval $(call fsverity-generate-and-install-manifest-apk, \
-    $(TARGET_OUT_VENDOR)/etc/security/fsverity/BuildManifestVendor.apk,vendor))
-endif
-ifdef BUILDING_ODM_IMAGE
-  $(eval $(call fsverity-generate-and-install-manifest-apk, \
-    $(TARGET_OUT_ODM)/etc/security/fsverity/BuildManifestOdm.apk,odm))
-endif
-ifdef BUILDING_PRODUCT_IMAGE
-  $(eval $(call fsverity-generate-and-install-manifest-apk, \
-    $(TARGET_OUT_PRODUCT)/etc/security/fsverity/BuildManifestProduct.apk,product))
 endif
 
 endif  # PRODUCT_FSVERITY_GENERATE_METADATA
@@ -5121,8 +5094,8 @@ INTERNAL_OTATOOLS_PACKAGE_FILES += \
 endif
 
 INTERNAL_OTATOOLS_RELEASETOOLS := \
-  $(sort $(shell find build/make/tools/releasetools -name "*.pyc" -prune -o \
-      \( -type f -o -type l \) -print))
+  $(shell find build/make/tools/releasetools -name "*.pyc" -prune -o \
+      \( -type f -o -type l \) -print | sort)
 
 BUILT_OTATOOLS_PACKAGE := $(PRODUCT_OUT)/otatools.zip
 $(BUILT_OTATOOLS_PACKAGE): PRIVATE_ZIP_ROOT := $(call intermediates-dir-for,PACKAGING,otatools)/otatools
