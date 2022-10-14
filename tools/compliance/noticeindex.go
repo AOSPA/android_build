@@ -360,18 +360,17 @@ func (ni *NoticeIndex) getLibName(noticeFor *TargetNode, h hash) string {
 						continue
 					}
 				}
-				for r, prefix := range SafePrebuiltPrefixes {
-					match := r.FindString(licenseText)
+				for _, safePrebuiltPrefix := range safePrebuiltPrefixes {
+					match := safePrebuiltPrefix.re.FindString(licenseText)
 					if len(match) == 0 {
 						continue
 					}
-					strip := SafePathPrefixes[prefix]
-					if strip {
+					if safePrebuiltPrefix.strip {
 						// strip entire prefix
 						match = licenseText[len(match):]
 					} else {
 						// strip from prebuilts/ until safe prefix
-						match = licenseText[len(match)-len(prefix):]
+						match = licenseText[len(match)-len(safePrebuiltPrefix.prefix):]
 					}
 					// remove LICENSE or NOTICE or other filename
 					li := strings.LastIndex(match, "/")
@@ -391,10 +390,10 @@ func (ni *NoticeIndex) getLibName(noticeFor *TargetNode, h hash) string {
 				break
 			}
 		}
-		for prefix, strip := range SafePathPrefixes {
-			if strings.HasPrefix(p, prefix) {
-				if strip {
-					return p[len(prefix):]
+		for _, safePathPrefix := range safePathPrefixes {
+			if strings.HasPrefix(p, safePathPrefix.prefix) {
+				if safePathPrefix.strip {
+					return p[len(safePathPrefix.prefix):]
 				} else {
 					return p
 				}
