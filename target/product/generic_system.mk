@@ -33,8 +33,12 @@ PRODUCT_PACKAGES += \
     LiveWallpapersPicker \
     PartnerBookmarksProvider \
     preinstalled-packages-platform-generic-system.xml \
-    Stk \
     Tag \
+
+ifneq ($(TARGET_NO_TELEPHONY), true)
+PRODUCT_PACKAGES += \
+    Stk
+endif #TARGET_NO_TELEPHONY
 
 # OTA support
 PRODUCT_PACKAGES += \
