@@ -52,9 +52,11 @@ PRODUCT_PACKAGES += \
     com.android.adbd \
     com.android.adservices \
     com.android.appsearch \
+    com.android.configinfrastructure \
     com.android.conscrypt \
     com.android.cronet \
     com.android.extservices \
+    com.android.federatedcompute \
     com.android.healthconnect \
     com.android.i18n \
     com.android.ipsec \
