@@ -54,7 +54,9 @@ PRODUCT_APEX_BOOT_JARS := \
     com.android.adservices:framework-adservices \
     com.android.adservices:framework-sdksandbox \
     com.android.appsearch:framework-appsearch \
+    com.android.configinfrastructure:framework-configinfrastructure \
     com.android.conscrypt:conscrypt \
+    com.android.federatedcompute:framework-federatedcompute \
     com.android.healthconnect:framework-healthconnect \
     com.android.i18n:core-icu4j \
     com.android.ipsec:android.net.ipsec.ike \
