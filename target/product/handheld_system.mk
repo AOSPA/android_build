@@ -43,6 +43,7 @@ PRODUCT_PACKAGES += \
     CameraExtensionsProxy \
     CaptivePortalLogin \
     CertInstaller \
+    CredentialManager \
     DocumentsUI \
     DownloadProviderUi \
     EasterEgg \

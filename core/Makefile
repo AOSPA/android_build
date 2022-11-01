@@ -975,10 +975,8 @@ INTERNAL_BOOTIMAGE_ARGS := \
 
 # TODO(b/229701033): clean up BOARD_BUILD_GKI_BOOT_IMAGE_WITHOUT_RAMDISK.
 ifneq ($(BOARD_BUILD_GKI_BOOT_IMAGE_WITHOUT_RAMDISK),true)
-  ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-    ifneq ($(BUILDING_INIT_BOOT_IMAGE),true)
-      INTERNAL_BOOTIMAGE_ARGS += --ramdisk $(INSTALLED_RAMDISK_TARGET)
-    endif
+  ifneq ($(BUILDING_INIT_BOOT_IMAGE),true)
+    INTERNAL_BOOTIMAGE_ARGS += --ramdisk $(INSTALLED_RAMDISK_TARGET)
   endif
 endif
 
@@ -989,9 +987,6 @@ endif
 endif
 
 INTERNAL_BOOTIMAGE_FILES := $(filter-out --%,$(INTERNAL_BOOTIMAGE_ARGS))
-
-# TODO(b/241346584) Remove this when BOARD_BUILD_SYSTEM_ROOT_IMAGE is deprecated
-INTERNAL_KERNEL_CMDLINE := $(strip $(INTERNAL_KERNEL_CMDLINE) buildvariant=$(TARGET_BUILD_VARIANT))
 
 # kernel cmdline/base/pagesize in boot.
 # - If using GKI, use GENERIC_KERNEL_CMDLINE. Remove kernel base and pagesize because they are
@@ -1989,8 +1984,6 @@ $(if $(BOARD_AVB_ENABLE),\
         $(hide) echo "avb_system_dlkm_rollback_index_location=$(BOARD_SYSTEM_SYSTEM_DLKM_ROLLBACK_INDEX_LOCATION)" >> $(1)))
 $(if $(filter true,$(BOARD_USES_RECOVERY_AS_BOOT)),\
     $(hide) echo "recovery_as_boot=true" >> $(1))
-$(if $(filter true,$(BOARD_BUILD_SYSTEM_ROOT_IMAGE)),\
-    $(hide) echo "system_root_image=true" >> $(1))
 $(if $(filter true,$(BOARD_BUILD_GKI_BOOT_IMAGE_WITHOUT_RAMDISK)),\
     $(hide) echo "gki_boot_image_without_ramdisk=true" >> $(1))
 $(hide) echo "root_dir=$(TARGET_ROOT_OUT)" >> $(1)
@@ -2267,20 +2260,18 @@ endif
 #      (BOARD_USES_FULL_RECOVERY_IMAGE = true);
 #   b) We build a single image that contains boot and recovery both - no recovery image to install
 #      (BOARD_USES_RECOVERY_AS_BOOT = true);
-#   c) We mount the system image as / and therefore do not have a ramdisk in boot.img
-#      (BOARD_BUILD_SYSTEM_ROOT_IMAGE = true).
-#   d) We include the recovery DTBO image within recovery - not needing the resource file as we
+#   c) We include the recovery DTBO image within recovery - not needing the resource file as we
 #      do bsdiff because boot and recovery will contain different number of entries
 #      (BOARD_INCLUDE_RECOVERY_DTBO = true).
-#   e) We include the recovery ACPIO image within recovery - not needing the resource file as we
+#   d) We include the recovery ACPIO image within recovery - not needing the resource file as we
 #      do bsdiff because boot and recovery will contain different number of entries
 #      (BOARD_INCLUDE_RECOVERY_ACPIO = true).
-#   f) We build a single image that contains vendor_boot and recovery both - no recovery image to
+#   e) We build a single image that contains vendor_boot and recovery both - no recovery image to
 #      install
 #      (BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT = true).
 
 ifeq (,$(filter true, $(BOARD_USES_FULL_RECOVERY_IMAGE) $(BOARD_USES_RECOVERY_AS_BOOT) \
-  $(BOARD_BUILD_SYSTEM_ROOT_IMAGE) $(BOARD_INCLUDE_RECOVERY_DTBO) $(BOARD_INCLUDE_RECOVERY_ACPIO) \
+  $(BOARD_INCLUDE_RECOVERY_DTBO) $(BOARD_INCLUDE_RECOVERY_ACPIO) \
   $(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)))
 # Named '.dat' so we don't attempt to use imgdiff for patching it.
 RECOVERY_RESOURCE_ZIP := $(TARGET_OUT_VENDOR)/etc/recovery-resource.dat
@@ -2402,8 +2393,7 @@ $(INTERNAL_RECOVERY_RAMDISK_FILES_TIMESTAMP): $(MKBOOTFS) $(COMPRESSION_COMMAND_
 	# Use rsync because "cp -Rf" fails to overwrite broken symlinks on Mac.
 	rsync -a --exclude=sdcard $(IGNORE_RECOVERY_SEPOLICY) $(IGNORE_CACHE_LINK) $(TARGET_ROOT_OUT) $(TARGET_RECOVERY_OUT)
 	# Modifying ramdisk contents...
-	$(if $(filter true,$(BOARD_BUILD_SYSTEM_ROOT_IMAGE)),, \
-	  ln -sf /system/bin/init $(TARGET_RECOVERY_ROOT_OUT)/init)
+	ln -sf /system/bin/init $(TARGET_RECOVERY_ROOT_OUT)/init
 	# Removes $(TARGET_RECOVERY_ROOT_OUT)/init*.rc EXCEPT init.recovery*.rc.
 	find $(TARGET_RECOVERY_ROOT_OUT) -maxdepth 1 -name 'init*.rc' -type f -not -name "init.recovery.*.rc" | xargs rm -f
 	cp $(TARGET_ROOT_OUT)/init.recovery.*.rc $(TARGET_RECOVERY_ROOT_OUT)/ 2> /dev/null || true # Ignore error when the src file doesn't exist.
@@ -3158,7 +3148,7 @@ INSTALLED_SYSTEMIMAGE := $(INSTALLED_SYSTEMIMAGE_TARGET)
 ifneq ($(INSTALLED_BOOTIMAGE_TARGET),)
 ifneq ($(INSTALLED_RECOVERYIMAGE_TARGET),)
 ifneq ($(BOARD_USES_FULL_RECOVERY_IMAGE),true)
-ifneq (,$(filter true, $(BOARD_BUILD_SYSTEM_ROOT_IMAGE) $(BOARD_INCLUDE_RECOVERY_DTBO) $(BOARD_INCLUDE_RECOVERY_ACPIO)))
+ifneq (,$(filter true,$(BOARD_INCLUDE_RECOVERY_DTBO) $(BOARD_INCLUDE_RECOVERY_ACPIO)))
 diff_tool := $(HOST_OUT_EXECUTABLES)/bsdiff
 else
 diff_tool := $(HOST_OUT_EXECUTABLES)/imgdiff
@@ -4386,18 +4376,6 @@ $(foreach partition,$(BOARD_CUSTOMIMAGES_PARTITION_LIST), \
     $(eval $(call check-and-set-custom-avb-chain-args,$(partition))))
 endif
 
-# Add kernel cmdline descriptor for kernel to mount system.img as root with
-# dm-verity. This works when system.img is either chained or not-chained:
-# - chained: The --setup_as_rootfs_from_kernel option will add dm-verity kernel
-#   cmdline descriptor to system.img
-# - not-chained: The --include_descriptors_from_image option for make_vbmeta_image
-#   will include the kernel cmdline descriptor from system.img into vbmeta.img
-ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-ifeq ($(filter system, $(BOARD_SUPER_PARTITION_PARTITION_LIST)),)
-BOARD_AVB_SYSTEM_ADD_HASHTREE_FOOTER_ARGS += --setup_as_rootfs_from_kernel
-endif
-endif
-
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --padding_size 4096
 BOARD_AVB_MAKE_VBMETA_SYSTEM_IMAGE_ARGS += --padding_size 4096
 BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += --padding_size 4096
@@ -4603,6 +4581,26 @@ ifeq (,$(TARGET_BUILD_UNBUNDLED))
 intermediates := $(call intermediates-dir-for,PACKAGING,check_vintf_all)
 check_vintf_all_deps :=
 
+APEX_OUT := $(PRODUCT_OUT)/apex
+# -----------------------------------------------------------------
+# Create apex-info-file.xsd
+
+APEX_DIRS := \
+  $(TARGET_OUT)/apex/% \
+  $(TARGET_OUT_SYSTEM_EXT)/apex/% \
+  $(TARGET_OUT_VENDOR)/apex/% \
+  $(TARGET_OUT_ODM)/apex/% \
+  $(TARGET_OUT_PRODUCT)/apex/% \
+
+apex_vintf_files := $(sort $(filter $(APEX_DIRS), $(INTERNAL_ALLIMAGES_FILES)))
+APEX_INFO_FILE   := $(APEX_OUT)/apex-info-list.xml
+
+$(APEX_INFO_FILE): $(HOST_OUT_EXECUTABLES)/dump_apex_info $(apex_vintf_files)
+	@echo "Creating apex-info-file in $(PRODUCT_OUT) "
+	$< --root_dir $(PRODUCT_OUT) --out_file $@
+
+apex_vintf_files :=
+
 # The build system only writes VINTF metadata to */etc/vintf paths. Legacy paths aren't needed here
 # because they are only used for prebuilt images.
 check_vintf_common_srcs_patterns := \
@@ -4613,6 +4611,7 @@ check_vintf_common_srcs_patterns := \
   $(TARGET_OUT_SYSTEM_EXT)/etc/vintf/% \
 
 check_vintf_common_srcs := $(sort $(filter $(check_vintf_common_srcs_patterns),$(INTERNAL_ALLIMAGES_FILES)))
+check_vintf_common_srcs += $(APEX_INFO_FILE)
 check_vintf_common_srcs_patterns :=
 
 check_vintf_has_system :=
@@ -4637,7 +4636,10 @@ $(check_vintf_system_log): $(HOST_OUT_EXECUTABLES)/checkvintf $(check_vintf_syst
 $(call declare-0p-target,$(check_vintf_system_log))
 check_vintf_system_log :=
 
-vintffm_log := $(intermediates)/vintffm.log
+# -- Check framework manifest against frozen manifests for GSI targets. They need to be compatible.
+ifneq (true, $(BUILDING_VENDOR_IMAGE))
+    vintffm_log := $(intermediates)/vintffm.log
+endif
 check_vintf_all_deps += $(vintffm_log)
 $(vintffm_log): $(HOST_OUT_EXECUTABLES)/vintffm $(check_vintf_system_deps)
 	@( $< --check --dirmap /system:$(TARGET_OUT) \
@@ -4792,10 +4794,12 @@ check_vintf_compatible_args += \
   --dirmap /odm:$(TARGET_OUT_ODM) \
   --dirmap /product:$(TARGET_OUT_PRODUCT) \
   --dirmap /system_ext:$(TARGET_OUT_SYSTEM_EXT) \
+  --dirmap /apex:$(APEX_OUT) \
 
 ifdef PRODUCT_SHIPPING_API_LEVEL
 check_vintf_compatible_args += --property ro.product.first_api_level=$(PRODUCT_SHIPPING_API_LEVEL)
 endif # PRODUCT_SHIPPING_API_LEVEL
+check_vintf_compatible_args += --apex-info-file $(APEX_INFO_FILE)
 
 $(check_vintf_compatible_log): PRIVATE_CHECK_VINTF_ARGS := $(check_vintf_compatible_args)
 $(check_vintf_compatible_log): PRIVATE_CHECK_VINTF_DEPS := $(check_vintf_compatible_deps)
@@ -5040,6 +5044,7 @@ INTERNAL_OTATOOLS_MODULES += \
   apex_compression_tool \
   deapexer \
   debugfs_static \
+  dump_apex_info \
   merge_zips \
   resize2fs \
   soong_zip \
@@ -5732,10 +5737,8 @@ endif # INSTALLED_RECOVERYIMAGE_TARGET defined or BOARD_USES_RECOVERY_AS_BOOT is
 	    $(TARGET_ROOT_OUT),$(zip_root)/ROOT)
 	@# If we are using recovery as boot, this is already done when processing recovery.
 ifneq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
 	$(hide) $(call package_files-copy-root, \
 	    $(TARGET_RAMDISK_OUT),$(zip_root)/BOOT/RAMDISK)
-endif
 ifdef INSTALLED_KERNEL_TARGET
 	$(hide) cp $(INSTALLED_KERNEL_TARGET) $(zip_root)/BOOT/
 endif
@@ -6041,10 +6044,8 @@ ifdef BUILDING_SYSTEM_DLKM_IMAGE
 endif
 	@# ROOT always contains the files for the root under normal boot.
 	$(hide) $(call fs_config,$(zip_root)/ROOT,) > $(zip_root)/META/root_filesystem_config.txt
-ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
-	@# BOOT/RAMDISK exists and contains the ramdisk for recovery if using BOARD_USES_RECOVERY_AS_BOOT.
+	@# BOOT/RAMDISK contains the first stage and recovery ramdisk.
 	$(hide) $(call fs_config,$(zip_root)/BOOT/RAMDISK,) > $(zip_root)/META/boot_filesystem_config.txt
-endif
 ifdef BUILDING_INIT_BOOT_IMAGE
 	$(hide) $(call package_files-copy-root, $(TARGET_RAMDISK_OUT),$(zip_root)/INIT_BOOT/RAMDISK)
 	$(hide) $(call fs_config,$(zip_root)/INIT_BOOT/RAMDISK,) > $(zip_root)/META/init_boot_filesystem_config.txt
@@ -6054,10 +6055,6 @@ endif # BOARD_KERNEL_PAGESIZE
 endif # BUILDING_INIT_BOOT_IMAGE
 ifneq ($(INSTALLED_VENDOR_BOOTIMAGE_TARGET),)
 	$(call fs_config,$(zip_root)/VENDOR_BOOT/RAMDISK,) > $(zip_root)/META/vendor_boot_filesystem_config.txt
-endif
-ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-	@# BOOT/RAMDISK also exists and contains the first stage ramdisk if not using BOARD_BUILD_SYSTEM_ROOT_IMAGE.
-	$(hide) $(call fs_config,$(zip_root)/BOOT/RAMDISK,) > $(zip_root)/META/boot_filesystem_config.txt
 endif
 ifneq ($(INSTALLED_RECOVERYIMAGE_TARGET),)
 	$(hide) $(call fs_config,$(zip_root)/RECOVERY/RAMDISK,) > $(zip_root)/META/recovery_filesystem_config.txt
@@ -6859,7 +6856,11 @@ $(INTERNAL_SDK_TARGET): PRIVATE_NAME := $(sdk_name)
 $(INTERNAL_SDK_TARGET): PRIVATE_DIR := $(sdk_dir)/$(sdk_name)
 $(INTERNAL_SDK_TARGET): PRIVATE_DEP_FILE := $(sdk_dep_file)
 $(INTERNAL_SDK_TARGET): PRIVATE_INPUT_FILES := $(sdk_atree_files)
-
+$(INTERNAL_SDK_TARGET): PRIVATE_PLATFORM_NAME := \
+  $(strip $(if $(filter $(PLATFORM_SDK_EXTENSION_VERSION),$(PLATFORM_BASE_SDK_EXTENSION_VERSION)),\
+    android-$(PLATFORM_SDK_VERSION),\
+    android-$(PLATFORM_SDK_VERSION)-ext$(PLATFORM_SDK_EXTENSION_VERSION)) \
+)
 # Set SDK_GNU_ERROR to non-empty to fail when a GNU target is built.
 #
 #SDK_GNU_ERROR := true
@@ -6884,7 +6885,7 @@ $(INTERNAL_SDK_TARGET): $(deps)
 	        -I $(PRODUCT_OUT) \
 	        -I $(HOST_OUT) \
 	        -I $(TARGET_COMMON_OUT_ROOT) \
-	        -v "PLATFORM_NAME=android-$(PLATFORM_VERSION)" \
+	        -v "PLATFORM_NAME=$(PRIVATE_PLATFORM_NAME)" \
 	        -v "OUT_DIR=$(OUT_DIR)" \
 	        -v "HOST_OUT=$(HOST_OUT)" \
 	        -v "TARGET_ARCH=$(TARGET_ARCH)" \
@@ -6971,10 +6972,15 @@ haiku: $(SOONG_FUZZ_PACKAGING_ARCH_MODULES) $(ALL_FUZZ_TARGETS)
 $(call dist-for-goals,haiku,$(SOONG_FUZZ_PACKAGING_ARCH_MODULES))
 $(call dist-for-goals,haiku,$(PRODUCT_OUT)/module-info.json)
 
-.PHONY: haiku-java
-haiku-java: $(SOONG_JAVA_FUZZ_PACKAGING_ARCH_MODULES) $(ALL_JAVA_FUZZ_TARGETS)
-$(call dist-for-goals,haiku-java,$(SOONG_JAVA_FUZZ_PACKAGING_ARCH_MODULES))
-$(call dist-for-goals,haiku-java,$(PRODUCT_OUT)/module-info.json)
+.PHONY: haiku-java-device
+haiku-java-device: $(SOONG_JAVA_FUZZ_DEVICE_PACKAGING_ARCH_MODULES) $(ALL_JAVA_FUZZ_DEVICE_TARGETS)
+$(call dist-for-goals,haiku-java-device,$(SOONG_JAVA_FUZZ_DEVICE_PACKAGING_ARCH_MODULES))
+$(call dist-for-goals,haiku-java-device,$(PRODUCT_OUT)/module-info.json)
+
+.PHONY: haiku-java-host
+haiku-java-host: $(SOONG_JAVA_FUZZ_HOST_PACKAGING_ARCH_MODULES) $(ALL_JAVA_FUZZ_HOST_TARGETS)
+$(call dist-for-goals,haiku-java-host,$(SOONG_JAVA_FUZZ_HOST_PACKAGING_ARCH_MODULES))
+$(call dist-for-goals,haiku-java-host,$(PRODUCT_OUT)/module-info.json)
 
 .PHONY: haiku-rust
 haiku-rust: $(SOONG_RUST_FUZZ_PACKAGING_ARCH_MODULES) $(ALL_RUST_FUZZ_TARGETS)
