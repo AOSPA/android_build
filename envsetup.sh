@@ -253,6 +253,9 @@ function setpaths()
     local ATEST_PATH="$T/prebuilts/asuite/atest/$os_arch"
     ANDROID_BUILD_PATHS=$ANDROID_BUILD_PATHS:$ACLOUD_PATH:$AIDEGEN_PATH:$ATEST_PATH
 
+    # Build system
+    ANDROID_BUILD_PATHS=$ANDROID_BUILD_PATHS:$T/build/bazel/bin
+
     export ANDROID_BUILD_PATHS=$(tr -s : <<<"${ANDROID_BUILD_PATHS}:")
     export PATH=$ANDROID_BUILD_PATHS$PATH
 
@@ -292,22 +295,6 @@ function setpaths()
     # needed for building linux on MacOS
     # TODO: fix the path
     #export HOST_EXTRACFLAGS="-I "$T/system/kernel_headers/host_include
-}
-
-function bazel()
-{
-    if which bazel &>/dev/null; then
-        >&2 echo "NOTE: bazel() function sourced from Android's envsetup.sh is being used instead of $(which bazel)"
-        >&2 echo
-    fi
-
-    local T="$(gettop)"
-    if [ ! "$T" ]; then
-        >&2 echo "Couldn't locate the top of the Android tree. Try setting TOP. This bazel() function cannot be used outside of the AOSP directory."
-        return
-    fi
-
-    "$T/tools/bazel" "$@"
 }
 
 function printconfig()
@@ -1566,12 +1553,10 @@ function verifymodinfo() {
     fi
 }
 
-# List all modules for the current device, as cached in module-info.json. If any build change is
-# made and it should be reflected in the output, you should run 'refreshmod' first.
+# List all modules for the current device, as cached in all_modules.txt. If any build change is
+# made and it should be reflected in the output, you should run `m nothing` first.
 function allmod() {
-    verifymodinfo || return 1
-
-    python3 -c "import json; print('\n'.join(sorted(json.load(open('$ANDROID_PRODUCT_OUT/module-info.json')).keys())))"
+    cat $ANDROID_PRODUCT_OUT/all_modules.txt 2>/dev/null
 }
 
 # Return the Bazel label of a Soong module if it is converted with bp2build.
@@ -1588,9 +1573,9 @@ function bmod()
     #
     # For a snappy result, use the latest generated version in soong_injection,
     # and ask users to run m bp2build if it doesn't exist.
-    converted_json="out/soong/soong_injection/metrics/converted_modules_path_map.json"
+    converted_json="$(get_abs_build_var OUT_DIR)/soong/soong_injection/metrics/converted_modules_path_map.json"
 
-    if [ ! -f $(gettop)/${converted_json} ]; then
+    if [ ! -f ${converted_json} ]; then
       echo "bp2build files not found. Have you ran 'm bp2build'?" >&2
       return 1
     fi
@@ -1750,7 +1735,7 @@ function installmod() {
 
 function _complete_android_module_names() {
     local word=${COMP_WORDS[COMP_CWORD]}
-    COMPREPLY=( $(QUIET_VERIFYMODINFO=true allmod | grep -E "^$word") )
+    COMPREPLY=( $(allmod | grep -E "^$word") )
 }
 
 # Print colored exit condition
@@ -1878,59 +1863,6 @@ function _trigger_build()
     else
       >&2 echo "Couldn't locate the top of the tree. Try setting TOP."
       return 1
-    fi
-)
-
-# Convenience entry point (like m) to use Bazel in AOSP.
-function b()
-(
-    # zsh breaks posix by not doing string-splitting on unquoted args by default.
-    # See https://zsh.sourceforge.io/Guide/zshguide05.html section 5.4.4.
-    # Tell it to emulate Bourne shell for this function.
-    if [ -n "$ZSH_VERSION" ]; then emulate -L sh; fi
-
-    # Look for the --run-soong-tests flag and skip passing --skip-soong-tests to Soong if present
-    local bazel_args=""
-    local skip_tests="--skip-soong-tests"
-    for i in $@; do
-        if [[ $i != "--run-soong-tests" ]]; then
-            bazel_args+="$i "
-        else
-            skip_tests=""
-        fi
-    done
-
-    # Generate BUILD, bzl files into the synthetic Bazel workspace (out/soong/workspace).
-    # RBE is disabled because it's not used with b builds and adds overhead: b/251441524
-    USE_RBE=false _trigger_build "all-modules" bp2build $skip_tests USE_BAZEL_ANALYSIS= || return 1
-    # Then, run Bazel using the synthetic workspace as the --package_path.
-    if [[ -z "$bazel_args" ]]; then
-        # If there are no args, show help and exit.
-        bazel help
-    else
-        # Else, always run with the bp2build configuration, which sets Bazel's package path to the synthetic workspace.
-        # Add the --config=bp2build after the first argument that doesn't start with a dash. That should be the bazel
-        # command. (build, test, run, ect) If the --config was added at the end, it wouldn't work with commands like:
-        # b run //foo -- --args-for-foo
-        local config_set=0
-
-        # Represent the args as an array, not a string.
-        local bazel_args_with_config=()
-        for arg in $bazel_args; do
-            if [[ $arg == "--" && $config_set -ne 1 ]]; # if we find --, insert config argument here
-            then
-                bazel_args_with_config+=("--config=bp2build -- ")
-                config_set=1
-            else
-                bazel_args_with_config+=("$arg ")
-            fi
-        done
-        if [[ $config_set -ne 1 ]]; then
-            bazel_args_with_config+=("--config=bp2build ")
-        fi
-
-        # Call Bazel.
-        bazel ${bazel_args_with_config[@]}
     fi
 )
 
@@ -2110,13 +2042,7 @@ function showcommands() {
             return
             ;;
     esac
-    if [[ -z "$OUT_DIR" ]]; then
-      if [[ -z "$OUT_DIR_COMMON_BASE" ]]; then
-        OUT_DIR=out
-      else
-        OUT_DIR=${OUT_DIR_COMMON_BASE}/${PWD##*/}
-      fi
-    fi
+    OUT_DIR="$(get_abs_build_var OUT_DIR)"
     if [[ "$1" == "--regenerate" ]]; then
       shift 1
       NINJA_ARGS="-t commands $@" m
