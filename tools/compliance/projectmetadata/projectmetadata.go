@@ -40,9 +40,37 @@ type ProjectMetadata struct {
 	project string
 }
 
+// ProjectUrlMap maps url type name to url value
+type ProjectUrlMap map[string]string
+
+// DownloadUrl returns the address of a download location
+func (m ProjectUrlMap) DownloadUrl() string {
+	for _, urlType := range []string{"GIT", "SVN", "HG", "DARCS"} {
+		if url, ok := m[urlType]; ok {
+			return url
+		}
+	}
+	return ""
+}
+
 // String returns a string representation of the metadata for error messages.
 func (pm *ProjectMetadata) String() string {
 	return fmt.Sprintf("project: %q\n%s", pm.project, pm.proto.String())
+}
+
+// ProjectName returns the name of the project.
+func (pm *ProjectMetadata) Name() string {
+	return pm.proto.GetName()
+}
+
+// ProjectVersion returns the version of the project if available.
+func (pm *ProjectMetadata) Version() string {
+	tp := pm.proto.GetThirdParty()
+	if tp != nil {
+		version := tp.GetVersion()
+		return version
+	}
+	return ""
 }
 
 // VersionedName returns the name of the project including the version if any.
@@ -65,13 +93,35 @@ func (pm *ProjectMetadata) VersionedName() string {
 	return pm.proto.GetDescription()
 }
 
+// UrlsByTypeName returns a map of URLs by Type Name
+func (pm *ProjectMetadata) UrlsByTypeName() ProjectUrlMap {
+	tp := pm.proto.GetThirdParty()
+	if tp == nil {
+		return nil
+	}
+	if len(tp.Url) == 0 {
+		return nil
+	}
+	urls := make(ProjectUrlMap)
+
+	for _, url := range tp.Url {
+		uri := url.GetValue()
+		if uri == "" {
+			continue
+		}
+		urls[project_metadata_proto.URL_Type_name[int32(url.GetType())]] = uri
+	}
+	return urls
+}
+
 // projectIndex describes a project to be read; after `wg.Wait()`, will contain either
 // a `ProjectMetadata`, pm (can be nil even without error), or a non-nil `err`.
 type projectIndex struct {
 	project string
-	pm *ProjectMetadata
-	err error
-	done chan struct{}
+	path    string
+	pm      *ProjectMetadata
+	err     error
+	done    chan struct{}
 }
 
 // finish marks the task to read the `projectIndex` completed.
@@ -181,6 +231,19 @@ func (ix *Index) MetadataForProjects(projects ...string) ([]*ProjectMetadata, er
 	return result, nil
 }
 
+// AllMetadataFiles returns the sorted list of all METADATA files read thus far.
+func (ix *Index) AllMetadataFiles() []string {
+	files := []string(nil)
+	ix.projects.Range(func(key, value any) bool {
+		pi := value.(*projectIndex)
+		if pi.path != "" {
+			files = append(files, pi.path)
+		}
+		return true
+	})
+	return files
+}
+
 // readMetadataFile tries to read and parse a METADATA file at `path` for `project`.
 func (ix *Index) readMetadataFile(pi *projectIndex, path string) {
 	f, err := ix.rootFS.Open(path)
@@ -201,9 +264,24 @@ func (ix *Index) readMetadataFile(pi *projectIndex, path string) {
 	pm := &ProjectMetadata{project: pi.project}
 	err = uo.Unmarshal(data, &pm.proto)
 	if err != nil {
-		pi.err = fmt.Errorf("error in project %q metadata %q: %w", pi.project, path, err)
+		pi.err = fmt.Errorf(`error in project %q METADATA %q: %v
+
+METADATA and METADATA.android files must parse as text protobufs
+defined by
+   build/soong/compliance/project_metadata_proto/project_metadata.proto
+
+* unknown fields don't matter
+* check invalid ENUM names
+* check quoting
+* check unescaped nested quotes
+* check the comment marker for protobuf is '#' not '//'
+
+if importing a library that uses a different sort of METADATA file, add
+a METADATA.android file beside it to parse instead
+`, pi.project, path, err)
 		return
 	}
 
+	pi.path = path
 	pi.pm = pm
 }
