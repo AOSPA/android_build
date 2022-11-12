@@ -55,6 +55,7 @@ PRODUCT_PACKAGES += \
     com.android.conscrypt \
     com.android.cronet \
     com.android.extservices \
+    com.android.healthconnect \
     com.android.i18n \
     com.android.ipsec \
     com.android.location.provider \
@@ -121,6 +122,7 @@ PRODUCT_PACKAGES += \
     init_system \
     input \
     installd \
+    IntentResolver \
     ip \
     iptables \
     ip-up-vpn \
@@ -221,6 +223,7 @@ PRODUCT_PACKAGES += \
     mke2fs \
     mkfs.erofs \
     monkey \
+    mtectrl \
     mtpd \
     ndc \
     netd \
@@ -408,7 +411,6 @@ PRODUCT_PACKAGES_DEBUG := \
     procrank \
     profcollectd \
     profcollectctl \
-    remount \
     servicedispatcher \
     showmap \
     sqlite3 \
