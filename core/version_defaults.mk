@@ -80,7 +80,7 @@ endif
 .KATI_READONLY := PLATFORM_SDK_VERSION
 
 # This is the sdk extension version of this tree.
-PLATFORM_SDK_EXTENSION_VERSION := 4
+PLATFORM_SDK_EXTENSION_VERSION := 5
 .KATI_READONLY := PLATFORM_SDK_EXTENSION_VERSION
 
 # TODO(b/159866756): Remove this workaround when building against

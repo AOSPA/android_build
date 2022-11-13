@@ -23,6 +23,8 @@
 # - Released GSI contains more VNDK packages to support old version vendors
 # - etc.
 #
+# See device/generic/common/README.md for more details.
+#
 
 BUILDING_GSI := true
 
@@ -83,6 +85,7 @@ PRODUCT_BUILD_USERDATA_IMAGE := false
 PRODUCT_BUILD_VENDOR_IMAGE := false
 PRODUCT_BUILD_SUPER_PARTITION := false
 PRODUCT_BUILD_SUPER_EMPTY_IMAGE := false
+PRODUCT_BUILD_SYSTEM_DLKM_IMAGE := false
 PRODUCT_EXPORT_BOOT_IMAGE_TO_DIST := true
 
 # Always build modules from source
