@@ -5040,9 +5040,11 @@ INTERNAL_OTATOOLS_MODULES := \
 INTERNAL_OTATOOLS_MODULES += \
   apexer \
   apex_compression_tool \
+  blkid \
   deapexer \
   debugfs_static \
   dump_apex_info \
+  fsck.erofs \
   merge_zips \
   resize2fs \
   soong_zip \
