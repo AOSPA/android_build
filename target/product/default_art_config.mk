@@ -57,7 +57,6 @@ PRODUCT_APEX_BOOT_JARS := \
     com.android.configinfrastructure:framework-configinfrastructure \
     com.android.conscrypt:conscrypt \
     com.android.devicelock:framework-devicelock \
-    com.android.federatedcompute:framework-federatedcompute \
     com.android.healthconnect:framework-healthconnect \
     com.android.i18n:core-icu4j \
     com.android.ipsec:android.net.ipsec.ike \
@@ -73,6 +72,7 @@ PRODUCT_APEX_BOOT_JARS := \
     com.android.tethering:framework-connectivity-t \
     com.android.tethering:framework-tethering \
     com.android.uwb:framework-uwb \
+    com.android.virt:framework-virtualization \
     com.android.wifi:framework-wifi \
 
 # List of system_server classpath jars delivered via apex.
@@ -116,3 +116,5 @@ PRODUCT_SYSTEM_PROPERTIES += \
     dalvik.vm.image-dex2oat-Xmx=64m \
     dalvik.vm.dex2oat-Xms=64m \
     dalvik.vm.dex2oat-Xmx=512m \
+
+PRODUCT_ENABLE_UFFD_GC := false  # TODO(jiakaiz): Change this to "default".
