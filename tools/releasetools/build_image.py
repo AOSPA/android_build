@@ -365,7 +365,7 @@ def BuildImageMkfs(in_dir, prop_dict, out_file, target_out, fs_config):
 
     run_fsck = RunErofsFsck
   elif fs_type.startswith("squash"):
-    build_command = ["mksquashfsimage.sh"]
+    build_command = ["mksquashfsimage"]
     build_command.extend([in_dir, out_file])
     if "squashfs_sparse_flag" in prop_dict and not disable_sparse:
       build_command.extend([prop_dict["squashfs_sparse_flag"]])
@@ -387,7 +387,7 @@ def BuildImageMkfs(in_dir, prop_dict, out_file, target_out, fs_config):
     if prop_dict.get("squashfs_disable_4k_align") == "true":
       build_command.extend(["-a"])
   elif fs_type.startswith("f2fs"):
-    build_command = ["mkf2fsuserimg.sh"]
+    build_command = ["mkf2fsuserimg"]
     build_command.extend([out_file, prop_dict["image_size"]])
     if "f2fs_sparse_flag" in prop_dict and not disable_sparse:
       build_command.extend([prop_dict["f2fs_sparse_flag"]])
@@ -410,7 +410,7 @@ def BuildImageMkfs(in_dir, prop_dict, out_file, target_out, fs_config):
       build_command.append("--casefold")
     if (needs_compress or prop_dict.get("f2fs_compress") == "true"):
       build_command.append("--compression")
-    if (prop_dict.get("mount_point") != "data"):
+    if "ro_mount_point" in prop_dict:
       build_command.append("--readonly")
     if (prop_dict.get("f2fs_compress") == "true"):
       build_command.append("--sldc")
@@ -671,11 +671,6 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
       "f2fs_sparse_flag",
       "skip_fsck",
       "ext_mkuserimg",
-      "verity",
-      "verity_key",
-      "verity_signer_cmd",
-      "verity_fec",
-      "verity_disable",
       "avb_enable",
       "avb_avbtool",
       "use_dynamic_partition_size",
@@ -761,6 +756,8 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     prop = "{}_extfs_rsv_pct".format(prefix)
     if not copy_prop(prop, "extfs_rsv_pct"):
       d["extfs_rsv_pct"] = "0"
+
+    d["ro_mount_point"] = "1"
 
   # Copy partition-specific properties.
   d["mount_point"] = mount_point

@@ -34,7 +34,6 @@ $(call add_soong_config_var_value,ANDROID,MIXED_SEPOLICY_VERSION,$(BOARD_SEPOLIC
 endif
 $(call add_soong_config_var,ANDROID,BOARD_USES_ODMIMAGE)
 $(call add_soong_config_var,ANDROID,BOARD_USES_RECOVERY_AS_BOOT)
-$(call add_soong_config_var,ANDROID,BOARD_BUILD_SYSTEM_ROOT_IMAGE)
 $(call add_soong_config_var,ANDROID,PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT)
 
 # Default behavior for the tree wrt building modules or using prebuilts. This
@@ -72,6 +71,10 @@ endif
 
 $(call soong_config_set,art_module,source_build,$(ART_MODULE_BUILD_FROM_SOURCE))
 
+ifdef TARGET_BOARD_AUTO
+  $(call add_soong_config_var_value, ANDROID, target_board_auto, $(TARGET_BOARD_AUTO))
+endif
+
 # Ensure that those mainline modules who have individually toggleable prebuilts
 # are controlled by the MODULE_BUILD_FROM_SOURCE environment variable by
 # default.
@@ -99,8 +102,8 @@ ifeq (eng,$(TARGET_BUILD_VARIANT))
 $(call soong_config_set,messaging,build_variant_eng,true)
 endif
 
-# TODO(b/203088572): Remove when Java optimizations enabled by default for
-# SystemUI.
+# Enable SystemUI optimizations by default unless explicitly set.
+SYSTEMUI_OPTIMIZE_JAVA ?= true
 $(call add_soong_config_var,ANDROID,SYSTEMUI_OPTIMIZE_JAVA)
 
 # Enable system_server optimizations by default unless explicitly set or if

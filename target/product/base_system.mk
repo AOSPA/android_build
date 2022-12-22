@@ -52,9 +52,12 @@ PRODUCT_PACKAGES += \
     com.android.adbd \
     com.android.adservices \
     com.android.appsearch \
+    com.android.configinfrastructure \
     com.android.conscrypt \
     com.android.cronet \
+    com.android.devicelock \
     com.android.extservices \
+    com.android.federatedcompute \
     com.android.healthconnect \
     com.android.i18n \
     com.android.ipsec \
@@ -69,7 +72,6 @@ PRODUCT_PACKAGES += \
     com.android.neuralnetworks \
     com.android.scheduling \
     com.android.sdkext \
-    com.android.sepolicy \
     com.android.tethering \
     com.android.tzdata \
     com.android.uwb \
@@ -241,6 +243,7 @@ PRODUCT_PACKAGES += \
     pppd \
     preinstalled-packages-platform.xml \
     privapp-permissions-platform.xml \
+    prng_seeder \
     racoon \
     recovery-persist \
     resize2fs \
@@ -325,6 +328,11 @@ ifeq ($(EMMA_INSTRUMENT),true)
   endif # EMMA_INSTRUMENT_STATIC
 endif # EMMA_INSTRUMENT
 
+# For testing purposes
+ifeq ($(FORCE_AUDIO_SILENT), true)
+    PRODUCT_SYSTEM_PROPERTIES += ro.audio.silent=1
+endif
+
 # Host tools to install
 PRODUCT_HOST_PACKAGES += \
     BugReport \
@@ -374,38 +382,17 @@ PRODUCT_VENDOR_PROPERTIES += ro.zygote?=zygote32
 PRODUCT_SYSTEM_PROPERTIES += debug.atrace.tags.enableflags=0
 PRODUCT_SYSTEM_PROPERTIES += persist.traced.enable=1
 
-PRODUCT_SYSTEM_PROPERTIES += \
-    log.tag.CCodec=I \
-    log.tag.MediaCodec=I \
-    log.tag.MediaPlayerService=I \
-    log.tag.CCodecBufferChannel=I \
-    log.tag.MediaCodecSource=I \
-    log.tag.NuPlayerRenderer=I \
-    log.tag.NuPlayerDecoder=I \
-    log.tag.NuPlayer=I \
-    log.tag.MPEG4Writer=I \
-    log.tag.CCodecBuffers=I \
-    log.tag.CCodecConfig=I \
-    log.tag.MediaCodecList=I \
-    log.tag.FrameDecoder=I \
-    log.tag.MediaMetadataRetriever=I \
-    log.tag.MediaCodecsXmlParser=I \
-    log.tag.NuPlayerDriver=I \
-    log.tag.StagefrightRecorder=I \
-    log.tag.GenericSource=I \
-    log.tag.GraphicBufferSource=I
-
 # Packages included only for eng or userdebug builds, previously debug tagged
 PRODUCT_PACKAGES_DEBUG := \
     adb_keys \
     arping \
-    com.android.sepolicy.cert-debug.der \
     dmuserd \
     idlcli \
     init-debug.rc \
     iotop \
     iperf3 \
     iw \
+    layertracegenerator \
     logpersist.start \
     logtagd.rc \
     procrank \

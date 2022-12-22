@@ -36,9 +36,11 @@ $(MODULE_INFO_JSON):
 			'"test_options_tags": [$(foreach w,$(sort $(ALL_MODULES.$(m).TEST_OPTIONS_TAGS)),"$(w)", )], ' \
 			'"data": [$(foreach w,$(sort $(ALL_MODULES.$(m).TEST_DATA)),"$(w)", )], ' \
 			'"runtime_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).LOCAL_RUNTIME_LIBRARIES)),"$(w)", )], ' \
+			'"static_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).LOCAL_STATIC_LIBRARIES)),"$(w)", )], ' \
 			'"data_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).TEST_DATA_BINS)),"$(w)", )], ' \
 			'"supported_variants": [$(foreach w,$(sort $(ALL_MODULES.$(m).SUPPORTED_VARIANTS)),"$(w)", )], ' \
 			'"host_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).HOST_REQUIRED_FROM_TARGET)),"$(w)", )], ' \
+			'"target_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).TARGET_REQUIRED_FROM_HOST)),"$(w)", )], ' \
 			'},\n' \
 	 ) | sed -e 's/, *\]/]/g' -e 's/, *\}/ }/g' -e '$$s/,$$//' >> $@
 	$(hide) echo '}' >> $@
@@ -48,3 +50,9 @@ droidcore-unbundled: $(MODULE_INFO_JSON)
 
 $(call dist-for-goals, general-tests, $(MODULE_INFO_JSON))
 $(call dist-for-goals, droidcore-unbundled, $(MODULE_INFO_JSON))
+
+# On every build, generate an all_modules.txt file to be used for autocompleting
+# the m command. After timing this using $(shell date +"%s.%3N"), it only adds
+# 0.01 seconds to the internal master build, and will only rerun on builds that
+# rerun kati.
+$(file >$(PRODUCT_OUT)/all_modules.txt,$(subst $(space),$(newline),$(ALL_MODULES)))

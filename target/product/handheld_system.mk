@@ -43,6 +43,7 @@ PRODUCT_PACKAGES += \
     CameraExtensionsProxy \
     CaptivePortalLogin \
     CertInstaller \
+    CredentialManager \
     DocumentsUI \
     DownloadProviderUi \
     EasterEgg \
@@ -87,7 +88,8 @@ PRODUCT_SYSTEM_SERVER_APPS += \
     Telecom \
 
 PRODUCT_COPY_FILES += \
-    frameworks/av/media/libeffects/data/audio_effects.conf:system/etc/audio_effects.conf
+    frameworks/av/media/libeffects/data/audio_effects.conf:system/etc/audio_effects.conf \
+    frameworks/native/data/etc/android.software.window_magnification.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/android.software.window_magnification.xml \
 
 PRODUCT_VENDOR_PROPERTIES += \
     ro.carrier?=unknown \
