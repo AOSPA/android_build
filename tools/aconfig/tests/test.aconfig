@@ -39,6 +39,7 @@ flag {
     namespace: "aconfig_test"
     description: "This flag is DISABLED + READ_WRITE"
     bug: "456"
+    is_exported: true
 }
 
 # This flag's final value calculated from:
@@ -57,4 +58,12 @@ flag {
     namespace: "other_namespace"
     description: "This flag is DISABLED + READ_WRITE, and is defined in another namespace"
     bug: "999"
+}
+
+flag {
+    name: "disabled_rw_exported"
+    namespace: "aconfig_test"
+    description: "This flag is exported"
+    bug: "111"
+    is_exported: true
 }

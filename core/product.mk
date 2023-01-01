@@ -183,8 +183,6 @@ _product_list_vars += PRODUCT_SYSTEM_SERVER_JARS_EXTRA
 # Set to true to disable <uses-library> checks for a product.
 _product_list_vars += PRODUCT_BROKEN_VERIFY_USES_LIBRARIES
 
-# All of the apps that we force preopt, this overrides WITH_DEXPREOPT.
-_product_list_vars += PRODUCT_ALWAYS_PREOPT_EXTRACTED_APK
 _product_list_vars += PRODUCT_DEXPREOPT_SPEED_APPS
 _product_list_vars += PRODUCT_LOADED_BY_PRIVILEGED_MODULES
 _product_single_value_vars += PRODUCT_VBOOT_SIGNING_KEY
@@ -451,6 +449,9 @@ _product_single_value_vars += PRODUCT_VIRTUAL_AB_COW_VERSION
 
 # If set, determines whether the build system checks vendor seapp contexts violations.
 _product_single_value_vars += PRODUCT_CHECK_VENDOR_SEAPP_VIOLATIONS
+
+# If set, determines whether the build system checks dev type violations.
+_product_single_value_vars += PRODUCT_CHECK_DEV_TYPE_VIOLATIONS
 
 _product_list_vars += PRODUCT_AFDO_PROFILES
 
