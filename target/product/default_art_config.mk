@@ -83,9 +83,11 @@ PRODUCT_APEX_SYSTEM_SERVER_JARS := \
     com.android.adservices:service-sdksandbox \
     com.android.appsearch:service-appsearch \
     com.android.art:service-art \
+    com.android.configinfrastructure:service-configinfrastructure \
     com.android.healthconnect:service-healthconnect \
     com.android.media:service-media-s \
     com.android.permission:service-permission \
+    com.android.rkpd:service-rkp \
 
 # Use $(wildcard) to avoid referencing the profile in thin manifests that don't have the
 # art project.
