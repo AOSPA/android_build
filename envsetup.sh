@@ -718,6 +718,8 @@ function lunch()
         cd $T > /dev/null
         vendor/aospa/build/tools/roomservice.py $product
         cd - > /dev/null
+        # execute contents of vendorsetup.sh files if exists in the product repos
+        source_vendorsetup
         check_product $product
     else
         T=$(gettop)
