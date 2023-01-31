@@ -17,9 +17,6 @@
 # Check whether there is any module that isn't available for platform
 # is installed to the platform.
 
-# Temporarily opt out of this
-ifneq (,$(TARGET_USES_PLATFORM_AVAILABLITY_CHECK))
-
 # Skip for unbundled builds that don't produce a platform image.
 ifeq (,$(TARGET_BUILD_UNBUNDLED))
 
@@ -61,5 +58,4 @@ it depends on other modules that are not available for platform.)
       $(eval $(call not_available_for_platform_rule,$(i),$(m)))))
 endif
 
-endif
 endif
