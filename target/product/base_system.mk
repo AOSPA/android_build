@@ -237,6 +237,7 @@ PRODUCT_PACKAGES += \
     pppd \
     preinstalled-packages-platform.xml \
     privapp-permissions-platform.xml \
+    prng_seeder \
     racoon \
     recovery-persist \
     resize2fs \
