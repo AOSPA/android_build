@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "764f3ea8_25be8d36",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2023-02-11T14:23:37Z",
+      "side": 1,
+      "message": "verified by author, approved by Juhyung, let\u0027s do it. Thanks Alexander!",
+      "revId": "9f24c8bb42808955f504c3b5938c164d5940fb76",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
