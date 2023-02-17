@@ -1,3 +1,55 @@
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# gettop is duplicated here and in shell_utils.mk, because it's difficult
+# to find shell_utils.make without it for all the novel ways this file can be
+# sourced.  Other common functions should only be in one place or the other.
+function _gettop_once
+{
+    local TOPFILE=build/make/core/envsetup.mk
+    if [ -n "$TOP" -a -f "$TOP/$TOPFILE" ] ; then
+        # The following circumlocution ensures we remove symlinks from TOP.
+        (cd "$TOP"; PWD= /bin/pwd)
+    else
+        if [ -f $TOPFILE ] ; then
+            # The following circumlocution (repeated below as well) ensures
+            # that we record the true directory name and not one that is
+            # faked up with symlink names.
+            PWD= /bin/pwd
+        else
+            local HERE=$PWD
+            local T=
+            while [ \( ! \( -f $TOPFILE \) \) -a \( "$PWD" != "/" \) ]; do
+                \cd ..
+                T=`PWD= /bin/pwd -P`
+            done
+            \cd "$HERE"
+            if [ -f "$T/$TOPFILE" ]; then
+                echo "$T"
+            fi
+        fi
+    fi
+}
+T=$(_gettop_once)
+if [ ! "$T" ]; then
+    echo "Couldn't locate the top of the tree. Always source build/envsetup.sh from the root of the tree." >&2
+    return 1
+fi
+IMPORTING_ENVSETUP=true source $T/build/make/shell_utils.sh
+
+
+# Help
 function hmm() {
 cat <<EOF
 
@@ -27,6 +79,7 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
 - ggrep:      Greps on all local Gradle files.
 - gogrep:     Greps on all local Go files.
 - jgrep:      Greps on all local Java files.
+- jsongrep:   Greps on all local Json files.
 - ktgrep:     Greps on all local Kotlin files.
 - resgrep:    Greps on all local res/*.xml files.
 - mangrep:    Greps on all local AndroidManifest.xml files.
@@ -35,6 +88,7 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
 - rsgrep:     Greps on all local Rust files.
 - sepgrep:    Greps on all local sepolicy files.
 - sgrep:      Greps on all local source files.
+- tomlgrep:   Greps on all local Toml files.
 - pygrep:     Greps on all local Python files.
 - godir:      Go to the directory containing a file.
 - allmod:     List all modules.
@@ -243,7 +297,22 @@ function set_lunch_paths()
     if [ -n $ANDROID_PYTHONPATH ]; then
         export PYTHONPATH=${PYTHONPATH//$ANDROID_PYTHONPATH/}
     fi
-    export ANDROID_PYTHONPATH=$T/development/python-packages:
+    # //development/python-packages contains both a pseudo-PYTHONPATH which
+    # mimics an already assembled venv, but also contains real Python packages
+    # that are not in that layout until they are installed. We can fake it for
+    # the latter type by adding the package source directories to the PYTHONPATH
+    # directly. For the former group, we only need to add the python-packages
+    # directory itself.
+    #
+    # This could be cleaned up by converting the remaining packages that are in
+    # the first category into a typical python source layout (that is, another
+    # layer of directory nesting) and automatically adding all subdirectories of
+    # python-packages to the PYTHONPATH instead of manually curating this. We
+    # can't convert the packages like adb to the other style because doing so
+    # would prevent exporting type info from those packages.
+    #
+    # http://b/266688086
+    export ANDROID_PYTHONPATH=$T/development/python-packages/adb:$T/development/python-packages:
     if [ -n $VENDOR_PYTHONPATH ]; then
         ANDROID_PYTHONPATH=$ANDROID_PYTHONPATH$VENDOR_PYTHONPATH
     fi
@@ -928,33 +997,6 @@ function banchan()
     destroy_build_var_cache
 }
 
-function gettop
-{
-    local TOPFILE=build/make/core/envsetup.mk
-    if [ -n "$TOP" -a -f "$TOP/$TOPFILE" ] ; then
-        # The following circumlocution ensures we remove symlinks from TOP.
-        (cd "$TOP"; PWD= /bin/pwd)
-    else
-        if [ -f $TOPFILE ] ; then
-            # The following circumlocution (repeated below as well) ensures
-            # that we record the true directory name and not one that is
-            # faked up with symlink names.
-            PWD= /bin/pwd
-        else
-            local HERE=$PWD
-            local T=
-            while [ \( ! \( -f $TOPFILE \) \) -a \( "$PWD" != "/" \) ]; do
-                \cd ..
-                T=`PWD= /bin/pwd -P`
-            done
-            \cd "$HERE"
-            if [ -f "$T/$TOPFILE" ]; then
-                echo "$T"
-            fi
-        fi
-    fi
-}
-
 # TODO: Merge into gettop as part of launching multitree
 function multitree_gettop
 {
@@ -1208,6 +1250,18 @@ function jgrep()
 function rsgrep()
 {
     find . -name .repo -prune -o -name .git -prune -o -name out -prune -o -type f -name "*\.rs" \
+        -exec grep --color -n "$@" {} +
+}
+
+function jsongrep()
+{
+    find . -name .repo -prune -o -name .git -prune -o -name out -prune -o -type f -name "*\.json" \
+        -exec grep --color -n "$@" {} +
+}
+
+function tomlgrep()
+{
+    find . -name .repo -prune -o -name .git -prune -o -name out -prune -o -type f -name "*\.toml" \
         -exec grep --color -n "$@" {} +
 }
 
@@ -1825,11 +1879,6 @@ function _wrap_build()
         color_failed=""
         color_success=""
         color_reset=""
-    fi
-
-    if [[ "x${USE_RBE}" == "x" && $mins -gt 15 && "${ANDROID_BUILD_ENVIRONMENT_CONFIG}" == "googler" ]]; then
-        echo
-        echo "${color_warning}Start using RBE (http://go/build-fast) to get faster builds!${color_reset}"
     fi
 
     echo

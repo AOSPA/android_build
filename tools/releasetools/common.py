@@ -1503,12 +1503,14 @@ def BuildVBMeta(image_path, partitions, name, needed_partitions):
 
   custom_partitions = OPTIONS.info_dict.get(
       "avb_custom_images_partition_list", "").strip().split()
+  custom_avb_partitions = ["vbmeta_" + part for part in OPTIONS.info_dict.get("avb_custom_vbmeta_images_partition_list", "").strip().split()]
 
   for partition, path in partitions.items():
     if partition not in needed_partitions:
       continue
     assert (partition in AVB_PARTITIONS or
             partition in AVB_VBMETA_PARTITIONS or
+            partition in custom_avb_partitions or
             partition in custom_partitions), \
         'Unknown partition: {}'.format(partition)
     assert os.path.exists(path), \
@@ -2318,12 +2320,22 @@ def GetMinSdkVersionInt(apk_name, codename_to_api_level_map):
   try:
     return int(version)
   except ValueError:
-    # Not a decimal number. Codename?
-    if version in codename_to_api_level_map:
-      return codename_to_api_level_map[version]
+    # Not a decimal number.
+    #
+    # It could be either a straight codename, e.g.
+    #     UpsideDownCake
+    #
+    # Or a codename with API fingerprint SHA, e.g.
+    #     UpsideDownCake.e7d3947f14eb9dc4fec25ff6c5f8563e
+    #
+    # Extract the codename and try and map it to a version number.
+    split = version.split(".")
+    codename = split[0]
+    if codename in codename_to_api_level_map:
+      return codename_to_api_level_map[codename]
     raise ExternalError(
-        "Unknown minSdkVersion: '{}'. Known codenames: {}".format(
-            version, codename_to_api_level_map))
+        "Unknown codename: '{}' from minSdkVersion: '{}'. Known codenames: {}".format(
+            codename, version, codename_to_api_level_map))
 
 
 def SignFile(input_name, output_name, key, password, min_api_level=None,

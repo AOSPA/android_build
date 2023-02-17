@@ -59,6 +59,12 @@ def __print_attr(attr, value):
         if _options.format == "pretty":
             print(attr, "=", repr(value))
         elif _options.format == "make":
+            value = list(value)
+            for i, x in enumerate(value):
+                if type(x) == "tuple" and len(x) == 1:
+                    value[i] = "@inherit:" + x[0] + ".mk"
+                elif type(x) != "string":
+                    fail("Wasn't a list of strings:", attr, " value:", value)
             print(attr, ":=", " ".join(value))
     elif _options.format == "pretty":
         print(attr, "=", repr(value))
@@ -456,6 +462,9 @@ def _addsuffix(suffix, string_or_list):
 
 def __words(string_or_list):
     if type(string_or_list) == "list":
+        for x in string_or_list:
+            if type(x) != "string":
+                return string_or_list
         string_or_list = " ".join(string_or_list)
     return _mkstrip(string_or_list).split()
 

@@ -181,6 +181,7 @@ endif
 
 ifeq ($(HOST_OS),linux)
 $(call dist-for-goals,sdk,$(API_FINGERPRINT))
+$(call dist-for-goals,droidcore,$(API_FINGERPRINT))
 endif
 
 INSTALLED_RECOVERYIMAGE_TARGET :=
@@ -508,6 +509,15 @@ $(if $(filter top,$(1)),\
 endef
 
 # $(1): kernel module directory name (top is an out of band value for no directory)
+define build-vendor-kernel-ramdisk-recovery-load
+$(if $(filter top,$(1)),\
+  $(eval _kver :=)$(eval _sep :=),\
+  $(eval _kver := $(1))$(eval _sep :=_))\
+  $(if $(BOARD_VENDOR_KERNEL_RAMDISK_RECOVERY_KERNEL_MODULES_LOAD$(_sep)$(_kver)),\
+    $(call copy-many-files,$(call module-load-list-copy-paths,$(call intermediates-dir-for,PACKAGING,vendor_kernel_ramdisk_recovery_module_list$(_sep)$(_kver)),$(BOARD_VENDOR_KERNEL_RAMDISK_KERNEL_MODULES$(_sep)$(_kver)),$(BOARD_VENDOR_KERNEL_RAMDISK_RECOVERY_KERNEL_MODULES_LOAD$(_sep)$(_kver)),modules.load.recovery,$(TARGET_VENDOR_KERNEL_RAMDISK_OUT))))
+endef
+
+# $(1): kernel module directory name (top is an out of band value for no directory)
 define build-vendor-charger-load
 $(if $(filter top,$(1)),\
   $(eval _kver :=)$(eval _sep :=),\
@@ -578,6 +588,7 @@ $(foreach kmd,$(BOARD_KERNEL_MODULE_DIRS), \
   $(eval $(result_var) += $(call build-image-kernel-modules-dir,VENDOR_RAMDISK,$(output_dir),,modules.load,$(VENDOR_RAMDISK_STRIPPED_MODULE_STAGING_DIR),$(kmd))) \
   $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,VENDOR_KERNEL_RAMDISK,$(TARGET_VENDOR_KERNEL_RAMDISK_OUT),,modules.load,$(VENDOR_KERNEL_RAMDISK_STRIPPED_MODULE_STAGING_DIR),$(kmd))) \
   $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-vendor-ramdisk-recovery-load,$(kmd))) \
+  $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-vendor-kernel-ramdisk-recovery-load,$(kmd))) \
   $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,VENDOR,$(if $(filter true,$(BOARD_USES_VENDOR_DLKMIMAGE)),$(TARGET_OUT_VENDOR_DLKM),$(TARGET_OUT_VENDOR)),vendor,modules.load,$(VENDOR_STRIPPED_MODULE_STAGING_DIR),$(kmd),$(BOARD_SYSTEM_KERNEL_MODULES),system)) \
   $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-vendor-charger-load,$(kmd))) \
   $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,ODM,$(if $(filter true,$(BOARD_USES_ODM_DLKMIMAGE)),$(TARGET_OUT_ODM_DLKM),$(TARGET_OUT_ODM)),odm,modules.load,,$(kmd))) \
@@ -585,6 +596,19 @@ $(foreach kmd,$(BOARD_KERNEL_MODULE_DIRS), \
   $(if $(filter true,$(BOARD_USES_RECOVERY_AS_BOOT)),\
     $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-recovery-as-boot-load,$(kmd))),\
     $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,GENERIC_RAMDISK,$(TARGET_RAMDISK_OUT),,modules.load,,$(kmd)))))
+
+ifeq ($(BOARD_SYSTEM_KERNEL_MODULES),)
+ifneq ($(BOARD_SYSTEM_DLKM_SRC),)
+ifneq ($(wildcard $(BOARD_SYSTEM_DLKM_SRC)/*),)
+  SYSTEM_KERNEL_MODULES := $(shell find $(BOARD_SYSTEM_DLKM_SRC) -type f)
+  SRC_SYSTEM_KERNEL_MODULES := $(SYSTEM_KERNEL_MODULES)
+  DST_SYSTEM_KERNEL_MODULES := $(patsubst $(BOARD_SYSTEM_DLKM_SRC)/%,:$(TARGET_OUT_SYSTEM_DLKM)/%,$(SRC_SYSTEM_KERNEL_MODULES))
+  SYSTEM_KERNEL_MODULE_COPY_PAIRS := $(join $(SRC_SYSTEM_KERNEL_MODULES),$(DST_SYSTEM_KERNEL_MODULES))
+  ALL_DEFAULT_INSTALLED_MODULES += $(call copy-many-files,$(SYSTEM_KERNEL_MODULE_COPY_PAIRS))
+endif
+endif
+endif
+
 
 # -----------------------------------------------------------------
 # Cert-to-package mapping.  Used by the post-build signing tools.
@@ -738,12 +762,6 @@ $(WALL_WERROR):
 $(call declare-0p-target,$(WALL_WERROR))
 
 $(call dist-for-goals,droidcore-unbundled,$(WALL_WERROR))
-
-# -----------------------------------------------------------------
-# C/C++ flag information for modules
-$(call dist-for-goals,droidcore-unbundled,$(SOONG_MODULES_CFLAG_ARTIFACTS))
-
-$(foreach a,$(SOONG_MODULES_CFLAG_ARTIFACTS),$(call declare-0p-target,$(call word-colon,1,$(a))))
 
 # -----------------------------------------------------------------
 # Modules missing profile files
@@ -924,16 +942,19 @@ COMPRESSION_COMMAND := $(MINIGZIP)
 RAMDISK_EXT := .gz
 endif
 
+# This file contains /dev nodes description added to the generic ramdisk
+RAMDISK_NODE_LIST := $(PRODUCT_OUT)/ramdisk_node_list
+
 # We just build this directly to the install location.
 INSTALLED_RAMDISK_TARGET := $(BUILT_RAMDISK_TARGET)
 $(INSTALLED_RAMDISK_TARGET): PRIVATE_DIRS := debug_ramdisk dev metadata mnt proc second_stage_resources sys
-$(INSTALLED_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_RAMDISK_FILES) $(INSTALLED_FILES_FILE_RAMDISK) | $(COMPRESSION_COMMAND_DEPS)
+$(INSTALLED_RAMDISK_TARGET): $(MKBOOTFS) $(RAMDISK_NODE_LIST) $(INTERNAL_RAMDISK_FILES) $(INSTALLED_FILES_FILE_RAMDISK) | $(COMPRESSION_COMMAND_DEPS)
 	$(call pretty,"Target ramdisk: $@")
 	$(hide) mkdir -p $(addprefix $(TARGET_RAMDISK_OUT)/,$(PRIVATE_DIRS))
 ifeq (true,$(BOARD_USES_GENERIC_KERNEL_IMAGE))
 	$(hide) mkdir -p $(addprefix $(TARGET_RAMDISK_OUT)/first_stage_ramdisk/,$(PRIVATE_DIRS))
 endif
-	$(hide) $(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_RAMDISK_OUT) | $(COMPRESSION_COMMAND) > $@
+	$(hide) $(MKBOOTFS) -n $(RAMDISK_NODE_LIST) -d $(TARGET_OUT) $(TARGET_RAMDISK_OUT) | $(COMPRESSION_COMMAND) > $@
 
 $(call declare-1p-container,$(INSTALLED_RAMDISK_TARGET),)
 $(call declare-container-license-deps,$(INSTALLED_RAMDISK_TARGET),$(INTERNAL_RAMDISK_FILE),$(PRODUCT_OUT)/:/)
@@ -1268,7 +1289,7 @@ $(INSTALLED_INIT_BOOT_IMAGE_TARGET): $(INTERNAL_PREBUILT_INIT_BOOT_IMAGE) $(AVBT
 	$(AVBTOOL) add_hash_footer \
 	    --image $@ \
 	    $(call get-partition-size-argument,$(BOARD_INIT_BOOT_IMAGE_PARTITION_SIZE)) \
-	    --partition_name boot $(INTERNAL_AVB_INIT_BOOT_SIGNING_ARGS) \
+	    --partition_name init_boot $(INTERNAL_AVB_INIT_BOOT_SIGNING_ARGS) \
 	    $(BOARD_AVB_INIT_BOOT_ADD_HASH_FOOTER_ARGS)
 
 $(call declare-1p-container,$(INSTALLED_INIT_BOOT_IMAGE_TARGET),)
@@ -3492,6 +3513,18 @@ ifdef BOARD_USES_VENDOR_DLKMIMAGE
   INTERNAL_VENDORIMAGE_FILES += $(call create-partition-compat-symlink,$(TARGET_OUT_VENDOR)/lib/modules,/vendor_dlkm/lib/modules,vendor_dlkm.img)
 endif
 
+# Install vendor/etc/linker.config.pb when PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS is set
+ifneq ($(strip $(PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS)),)
+vendor_linker_config_file := $(TARGET_OUT_VENDOR)/etc/linker.config.pb
+$(vendor_linker_config_file): private_linker_config_fragments := $(PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS)
+$(vendor_linker_config_file): $(PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS) | $(HOST_OUT_EXECUTABLES)/conv_linker_config
+	$(HOST_OUT_EXECUTABLES)/conv_linker_config proto \
+		--source $(call normalize-path-list,$(private_linker_config_fragments)) \
+		--output $@
+$(call define declare-0p-target,$(vendor_linker_config_file),)
+INTERNAL_VENDORIMAGE_FILES += $(vendor_linker_config_file)
+endif
+
 INSTALLED_FILES_FILE_VENDOR := $(PRODUCT_OUT)/installed-files-vendor.txt
 INSTALLED_FILES_JSON_VENDOR := $(INSTALLED_FILES_FILE_VENDOR:.txt=.json)
 $(INSTALLED_FILES_FILE_VENDOR): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_VENDOR)
@@ -4078,7 +4111,8 @@ endif # end of AVB for BUILDING_SYSTEM_OTHER_IMAGE
 
 INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES := \
     $(BOARD_AVB_VBMETA_SYSTEM) \
-    $(BOARD_AVB_VBMETA_VENDOR)
+    $(BOARD_AVB_VBMETA_VENDOR) \
+    $(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),$(BOARD_AVB_VBMETA_$(call to-upper,$(partition))))
 
 # Not allowing the same partition to appear in multiple groups.
 ifneq ($(words $(sort $(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES))),$(words $(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES)))
@@ -4384,6 +4418,11 @@ ifdef BOARD_AVB_VBMETA_VENDOR
 $(eval $(call check-and-set-avb-args,vbmeta_vendor))
 endif
 
+ifdef BOARD_AVB_VBMETA_CUSTOM_PARTITIONS
+$(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),$(eval $(call check-and-set-avb-args,vbmeta_$(partition))))
+$(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),$(eval BOARD_AVB_MAKE_VBMETA_$(call to-upper,$(partition))_IMAGE_ARGS += --padding_size 4096))
+endif
+
 ifneq ($(strip $(BOARD_CUSTOMIMAGES_PARTITION_LIST)),)
 $(foreach partition,$(BOARD_CUSTOMIMAGES_PARTITION_LIST), \
     $(eval $(call check-and-set-custom-avb-chain-args,$(partition))))
@@ -4410,6 +4449,13 @@ endif
 ifdef BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX
 BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += \
     --rollback_index $(BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX)
+endif
+
+ifdef BOARD_AVB_VBMETA_CUSTOM_PARTITIONS
+  $(foreach partition,$(call to-upper,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)), \
+      $(if $(BOARD_AVB_VBMETA_$(partition)_ROLLBACK_INDEX),$(eval \
+        BOARD_AVB_MAKE_VBMETA_$(partition)_IMAGE_ARGS += \
+          --rollback_index $(BOARD_AVB_VBMETA_$(partition)_ROLLBACK_INDEX))))
 endif
 
 # $(1): the directory to extract public keys to
@@ -4468,7 +4514,11 @@ define extract-avb-chain-public-keys
   $(if $(BOARD_CUSTOMIMAGES_PARTITION_LIST),\
     $(hide) $(foreach partition,$(BOARD_CUSTOMIMAGES_PARTITION_LIST), \
         $(AVBTOOL) extract_public_key --key $(BOARD_AVB_$(call to-upper,$(partition))_KEY_PATH) \
-            --output $(1)/$(partition).avbpubkey;))
+            --output $(1)/$(partition).avbpubkey;)) \
+  $(if $(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),\
+    $(hide) $(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS), \
+        $(AVBTOOL) extract_public_key --key $(BOARD_AVB_VBMETA_$(call to-upper,$(partition))_KEY_PATH) \
+            --output $(1)/vbmeta_$(partition).avbpubkey;))
 endef
 
 # Builds a chained VBMeta image. This VBMeta image will contain the descriptors for the partitions
@@ -4480,13 +4530,13 @@ endef
 # $(1): VBMeta image name, such as "vbmeta_system", "vbmeta_vendor" etc.
 # $(2): Output filename.
 define build-chained-vbmeta-image
-  $(call pretty,"Target chained vbmeta image: $@")
-  $(hide) $(AVBTOOL) make_vbmeta_image \
-      $(INTERNAL_AVB_$(call to-upper,$(1))_SIGNING_ARGS) \
-      $(BOARD_AVB_MAKE_$(call to-upper,$(1))_IMAGE_ARGS) \
-      $(foreach image,$(BOARD_AVB_$(call to-upper,$(1))), \
-          --include_descriptors_from_image $(call images-for-partitions,$(image))) \
-      --output $@
+	$(call pretty,"Target chained vbmeta image: $@")
+	$(hide) $(AVBTOOL) make_vbmeta_image \
+	    $(INTERNAL_AVB_$(call to-upper,$(1))_SIGNING_ARGS) \
+	    $(BOARD_AVB_MAKE_$(call to-upper,$(1))_IMAGE_ARGS) \
+	    $(foreach image,$(BOARD_AVB_$(call to-upper,$(1))), \
+	        --include_descriptors_from_image $(call images-for-partitions,$(image))) \
+	    --output $@
 endef
 
 ifdef BUILDING_SYSTEM_IMAGE
@@ -4514,7 +4564,26 @@ $(INSTALLED_VBMETA_VENDORIMAGE_TARGET): \
 
 $(call declare-1p-container,$(INSTALLED_VBMETA_VENDORIMAGE_TARGET),)
 
-UNMOUNTED_NOTICE_VENDOR_DEPS+= $(INSTALLED_VBMETA_VENDORIMAGE_TARGET)
+UNMOUNTED_NOTICE_VENDOR_DEPS += $(INSTALLED_VBMETA_VENDORIMAGE_TARGET)
+endif
+
+ifdef BOARD_AVB_VBMETA_CUSTOM_PARTITIONS
+define declare-custom-vbmeta-target
+INSTALLED_VBMETA_$(call to-upper,$(1))IMAGE_TARGET := $(PRODUCT_OUT)/vbmeta_$(call to-lower,$(1)).img
+$$(INSTALLED_VBMETA_$(call to-upper,$(1))IMAGE_TARGET): \
+	    $(AVBTOOL) \
+	    $(call images-for-partitions,$(BOARD_AVB_VBMETA_$(call to-upper,$(1)))) \
+	    $(BOARD_AVB_VBMETA_$(call to-upper,$(1))_KEY_PATH)
+	$$(call build-chained-vbmeta-image,vbmeta_$(call to-lower,$(1)))
+
+$(call declare-1p-container,$(INSTALLED_VBMETA_$(call to-upper,$(1))IMAGE_TARGET),)
+
+UNMOUNTED_NOTICE_VENDOR_DEPS += $(INSTALLED_VBMETA_$(call to-upper,$(1))IMAGE_TARGET)
+endef
+
+$(foreach partition,\
+          $(call to-upper,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)),\
+          $(eval $(call declare-custom-vbmeta-target,$(partition))))
 endif
 
 define build-vbmetaimage-target
@@ -4533,6 +4602,7 @@ ifdef BUILDING_VBMETA_IMAGE
 INSTALLED_VBMETAIMAGE_TARGET := $(BUILT_VBMETAIMAGE_TARGET)
 $(INSTALLED_VBMETAIMAGE_TARGET): PRIVATE_AVB_VBMETA_SIGNING_ARGS := \
     --algorithm $(BOARD_AVB_ALGORITHM) --key $(BOARD_AVB_KEY_PATH)
+
 
 $(INSTALLED_VBMETAIMAGE_TARGET): \
 	    $(AVBTOOL) \
@@ -4554,8 +4624,10 @@ $(INSTALLED_VBMETAIMAGE_TARGET): \
 	    $(INSTALLED_RECOVERYIMAGE_TARGET) \
 	    $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET) \
 	    $(INSTALLED_VBMETA_VENDORIMAGE_TARGET) \
+      $(foreach partition,$(call to-upper,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)),$(INSTALLED_VBMETA_$(partition)IMAGE_TARGET)) \
 	    $(BOARD_AVB_VBMETA_SYSTEM_KEY_PATH) \
 	    $(BOARD_AVB_VBMETA_VENDOR_KEY_PATH) \
+      $(foreach partition,$(call to-upper,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)),$(BOARD_AVB_VBMETA_$(partition)_KEY_PATH)) \
 	    $(BOARD_AVB_KEY_PATH)
 	$(build-vbmetaimage-target)
 
@@ -5015,6 +5087,7 @@ INTERNAL_OTATOOLS_MODULES := \
   img2simg \
   img_from_target_files \
   imgdiff \
+  initrd_bootconfig \
   libconscrypt_openjdk_jni \
   lpmake \
   lpunpack \
@@ -5060,7 +5133,7 @@ INTERNAL_OTATOOLS_MODULES := \
 INTERNAL_OTATOOLS_MODULES += \
   apexer \
   apex_compression_tool \
-  blkid \
+  blkid_static \
   deapexer \
   debugfs_static \
   dump_apex_info \
@@ -5071,7 +5144,7 @@ INTERNAL_OTATOOLS_MODULES += \
 
 ifeq (true,$(PRODUCT_SUPPORTS_VBOOT))
 INTERNAL_OTATOOLS_MODULES += \
-  futility \
+  futility-host \
   vboot_signer
 endif
 
@@ -5307,6 +5380,15 @@ ifneq (,$(strip $(BOARD_AVB_VBMETA_VENDOR)))
 	$(hide) echo "avb_vbmeta_vendor_algorithm=$(BOARD_AVB_VBMETA_VENDOR_ALGORITHM)" >> $@
 	$(hide) echo "avb_vbmeta_vendor_rollback_index_location=$(BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION)" >> $@
 endif # BOARD_AVB_VBMETA_VENDOR_KEY_PATH
+ifneq (,$(strip $(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)))
+	$(hide) echo "avb_custom_vbmeta_images_partition_list=$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)" >> $@
+	$(hide) $(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),\
+	echo "avb_vbmeta_$(partition)=$(BOARD_AVB_VBMETA_$(call to-upper,$(partition)))" >> $@ ;\
+	echo "avb_vbmeta_$(partition)_args=$(BOARD_AVB_MAKE_VBMETA_$(call to-upper,$(partition))_IMAGE_ARGS)" >> $@ ;\
+	echo "avb_vbmeta_$(partition)_key_path=$(BOARD_AVB_VBMETA_$(call to-upper,$(partition))_KEY_PATH)" >> $@ ;\
+	echo "avb_vbmeta_$(partition)_algorithm=$(BOARD_AVB_VBMETA_$(call to-upper,$(partition))_ALGORITHM)" >> $@ ;\
+	echo "avb_vbmeta_$(partition)_rollback_index_location=$(BOARD_AVB_VBMETA_$(call to-upper,$(partition))_ROLLBACK_INDEX_LOCATION)" >> $@ ;)
+endif # BOARD_AVB_VBMETA_CUSTOM_PARTITIONS
 endif # BOARD_AVB_ENABLE
 ifdef BOARD_BPT_INPUT_FILES
 	$(hide) echo "board_bpt_enable=true" >> $@
@@ -7012,17 +7094,9 @@ FUZZ_SHARED_DEPS := $(call copy-many-files,$(strip $(FUZZ_TARGET_SHARED_DEPS_INS
 haiku: $(SOONG_FUZZ_PACKAGING_ARCH_MODULES) $(ALL_FUZZ_TARGETS)
 $(call dist-for-goals,haiku,$(SOONG_FUZZ_PACKAGING_ARCH_MODULES))
 $(call dist-for-goals,haiku,$(PRODUCT_OUT)/module-info.json)
-
-.PHONY: haiku-java-device
-haiku-java-device: $(SOONG_JAVA_FUZZ_DEVICE_PACKAGING_ARCH_MODULES) $(ALL_JAVA_FUZZ_DEVICE_TARGETS)
-$(call dist-for-goals,haiku-java-device,$(SOONG_JAVA_FUZZ_DEVICE_PACKAGING_ARCH_MODULES))
-$(call dist-for-goals,haiku-java-device,$(PRODUCT_OUT)/module-info.json)
-
-.PHONY: haiku-java-host
-haiku-java-host: $(SOONG_JAVA_FUZZ_HOST_PACKAGING_ARCH_MODULES) $(ALL_JAVA_FUZZ_HOST_TARGETS)
-$(call dist-for-goals,haiku-java-host,$(SOONG_JAVA_FUZZ_HOST_PACKAGING_ARCH_MODULES))
-$(call dist-for-goals,haiku-java-host,$(PRODUCT_OUT)/module-info.json)
-
+.PHONY: haiku-java
+haiku-java: $(SOONG_JAVA_FUZZ_PACKAGING_ARCH_MODULES) $(ALL_JAVA_FUZZ_TARGETS)
+$(call dist-for-goals,haiku-java,$(SOONG_JAVA_FUZZ_PACKAGING_ARCH_MODULES))
 .PHONY: haiku-rust
 haiku-rust: $(SOONG_RUST_FUZZ_PACKAGING_ARCH_MODULES) $(ALL_RUST_FUZZ_TARGETS)
 $(call dist-for-goals,haiku-rust,$(SOONG_RUST_FUZZ_PACKAGING_ARCH_MODULES))
