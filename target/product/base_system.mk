@@ -54,7 +54,6 @@ PRODUCT_PACKAGES += \
     com.android.appsearch \
     com.android.configinfrastructure \
     com.android.conscrypt \
-    com.android.cronet \
     com.android.devicelock \
     com.android.extservices \
     com.android.healthconnect \
@@ -398,6 +397,7 @@ PRODUCT_PACKAGES_DEBUG := \
     procrank \
     profcollectd \
     profcollectctl \
+    record_binder \
     servicedispatcher \
     showmap \
     sqlite3 \
