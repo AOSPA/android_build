@@ -91,6 +91,10 @@ $(foreach m, $(INDIVIDUALLY_TOGGLEABLE_PREBUILT_MODULES),\
 # Apex build mode variables
 ifdef APEX_BUILD_FOR_PRE_S_DEVICES
 $(call add_soong_config_var_value,ANDROID,library_linking_strategy,prefer_static)
+else
+ifdef KEEP_APEX_INHERIT
+$(call add_soong_config_var_value,ANDROID,library_linking_strategy,prefer_static)
+endif
 endif
 
 ifeq (true,$(MODULE_BUILD_FROM_SOURCE))
@@ -105,6 +109,10 @@ endif
 # Enable SystemUI optimizations by default unless explicitly set.
 SYSTEMUI_OPTIMIZE_JAVA ?= true
 $(call add_soong_config_var,ANDROID,SYSTEMUI_OPTIMIZE_JAVA)
+
+# Disable Compose in SystemUI by default.
+SYSTEMUI_USE_COMPOSE ?= false
+$(call add_soong_config_var,ANDROID,SYSTEMUI_USE_COMPOSE)
 
 ifdef PRODUCT_AVF_ENABLED
 $(call add_soong_config_var_value,ANDROID,avf_enabled,$(PRODUCT_AVF_ENABLED))

@@ -740,12 +740,6 @@ $(call declare-0p-target,$(WALL_WERROR))
 $(call dist-for-goals,droidcore-unbundled,$(WALL_WERROR))
 
 # -----------------------------------------------------------------
-# C/C++ flag information for modules
-$(call dist-for-goals,droidcore-unbundled,$(SOONG_MODULES_CFLAG_ARTIFACTS))
-
-$(foreach a,$(SOONG_MODULES_CFLAG_ARTIFACTS),$(call declare-0p-target,$(call word-colon,1,$(a))))
-
-# -----------------------------------------------------------------
 # Modules missing profile files
 PGO_PROFILE_MISSING := $(PRODUCT_OUT)/pgo_profile_file_missing.txt
 $(PGO_PROFILE_MISSING):
@@ -3494,6 +3488,18 @@ ifdef BOARD_USES_VENDOR_DLKMIMAGE
   INTERNAL_VENDORIMAGE_FILES += $(call create-partition-compat-symlink,$(TARGET_OUT_VENDOR)/lib/modules,/vendor_dlkm/lib/modules,vendor_dlkm.img)
 endif
 
+# Install vendor/etc/linker.config.pb when PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS is set
+ifneq ($(strip $(PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS)),)
+vendor_linker_config_file := $(TARGET_OUT_VENDOR)/etc/linker.config.pb
+$(vendor_linker_config_file): private_linker_config_fragments := $(PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS)
+$(vendor_linker_config_file): $(PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS) | $(HOST_OUT_EXECUTABLES)/conv_linker_config
+	$(HOST_OUT_EXECUTABLES)/conv_linker_config proto \
+		--source $(call normalize-path-list,$(private_linker_config_fragments)) \
+		--output $@
+$(call define declare-0p-target,$(vendor_linker_config_file),)
+INTERNAL_VENDORIMAGE_FILES += $(vendor_linker_config_file)
+endif
+
 INSTALLED_FILES_FILE_VENDOR := $(PRODUCT_OUT)/installed-files-vendor.txt
 INSTALLED_FILES_JSON_VENDOR := $(INSTALLED_FILES_FILE_VENDOR:.txt=.json)
 $(INSTALLED_FILES_FILE_VENDOR): .KATI_IMPLICIT_OUTPUTS := $(INSTALLED_FILES_JSON_VENDOR)
@@ -3975,11 +3981,15 @@ INSTALLED_PVMFW_EMBEDDED_AVBKEY_TARGET := $(PRODUCT_OUT)/pvmfw_embedded.avbpubke
 INSTALLED_PVMFW_BINARY_TARGET := $(call module-installed-files,pvmfw_bin)
 INTERNAL_PVMFWIMAGE_FILES := $(call module-target-built-files,pvmfw_img)
 INTERNAL_PVMFW_EMBEDDED_AVBKEY := $(call module-target-built-files,pvmfw_embedded_key)
+INTERNAL_PVMFW_SYMBOL := $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/pvmfw
 
 $(call declare-1p-container,$(INSTALLED_PVMFWIMAGE_TARGET),)
 $(call declare-container-license-deps,$(INSTALLED_PVMFWIMAGE_TARGET),$(INTERNAL_PVMFWIMAGE_FILES),$(PRODUCT_OUT)/:/)
 
 UNMOUNTED_NOTICE_VENDOR_DEPS += $(INSTALLED_PVMFWIMAGE_TARGET)
+
+# Place the unstripped pvmfw image to the symbols directory
+$(INTERNAL_PVMFWIMAGE_FILES): |$(INTERNAL_PVMFW_SYMBOL)
 
 $(eval $(call copy-one-file,$(INTERNAL_PVMFWIMAGE_FILES),$(INSTALLED_PVMFWIMAGE_TARGET)))
 
@@ -4077,7 +4087,8 @@ endif # end of AVB for BUILDING_SYSTEM_OTHER_IMAGE
 
 INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES := \
     $(BOARD_AVB_VBMETA_SYSTEM) \
-    $(BOARD_AVB_VBMETA_VENDOR)
+    $(BOARD_AVB_VBMETA_VENDOR) \
+    $(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),$(BOARD_AVB_VBMETA_$(call to-upper,$(partition))))
 
 # Not allowing the same partition to appear in multiple groups.
 ifneq ($(words $(sort $(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES))),$(words $(INTERNAL_AVB_PARTITIONS_IN_CHAINED_VBMETA_IMAGES)))
@@ -4410,6 +4421,11 @@ ifdef BOARD_AVB_VBMETA_VENDOR
 $(eval $(call check-and-set-avb-args,vbmeta_vendor))
 endif
 
+ifdef BOARD_AVB_VBMETA_CUSTOM_PARTITIONS
+$(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),$(eval $(call check-and-set-avb-args,vbmeta_$(partition))))
+$(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),$(eval BOARD_AVB_MAKE_VBMETA_$(call to-upper,$(partition))_IMAGE_ARGS += --padding_size 4096))
+endif
+
 ifneq ($(strip $(BOARD_CUSTOMIMAGES_PARTITION_LIST)),)
 $(foreach partition,$(BOARD_CUSTOMIMAGES_PARTITION_LIST), \
     $(eval $(call check-and-set-custom-avb-chain-args,$(partition))))
@@ -4436,6 +4452,13 @@ endif
 ifdef BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX
 BOARD_AVB_MAKE_VBMETA_VENDOR_IMAGE_ARGS += \
     --rollback_index $(BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX)
+endif
+
+ifdef BOARD_AVB_VBMETA_CUSTOM_PARTITIONS
+  $(foreach partition,$(call to-upper,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)), \
+      $(if $(BOARD_AVB_VBMETA_$(partition)_ROLLBACK_INDEX),$(eval \
+        BOARD_AVB_MAKE_VBMETA_$(partition)_IMAGE_ARGS += \
+          --rollback_index $(BOARD_AVB_VBMETA_$(partition)_ROLLBACK_INDEX))))
 endif
 
 # $(1): the directory to extract public keys to
@@ -4494,7 +4517,11 @@ define extract-avb-chain-public-keys
   $(if $(BOARD_CUSTOMIMAGES_PARTITION_LIST),\
     $(hide) $(foreach partition,$(BOARD_CUSTOMIMAGES_PARTITION_LIST), \
         $(AVBTOOL) extract_public_key --key $(BOARD_AVB_$(call to-upper,$(partition))_KEY_PATH) \
-            --output $(1)/$(partition).avbpubkey;))
+            --output $(1)/$(partition).avbpubkey;)) \
+  $(if $(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),\
+    $(hide) $(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS), \
+        $(AVBTOOL) extract_public_key --key $(BOARD_AVB_VBMETA_$(call to-upper,$(partition))_KEY_PATH) \
+            --output $(1)/vbmeta_$(partition).avbpubkey;))
 endef
 
 # Builds a chained VBMeta image. This VBMeta image will contain the descriptors for the partitions
@@ -4506,13 +4533,13 @@ endef
 # $(1): VBMeta image name, such as "vbmeta_system", "vbmeta_vendor" etc.
 # $(2): Output filename.
 define build-chained-vbmeta-image
-  $(call pretty,"Target chained vbmeta image: $@")
-  $(hide) $(AVBTOOL) make_vbmeta_image \
-      $(INTERNAL_AVB_$(call to-upper,$(1))_SIGNING_ARGS) \
-      $(BOARD_AVB_MAKE_$(call to-upper,$(1))_IMAGE_ARGS) \
-      $(foreach image,$(BOARD_AVB_$(call to-upper,$(1))), \
-          --include_descriptors_from_image $(call images-for-partitions,$(image))) \
-      --output $@
+	$(call pretty,"Target chained vbmeta image: $@")
+	$(hide) $(AVBTOOL) make_vbmeta_image \
+	    $(INTERNAL_AVB_$(call to-upper,$(1))_SIGNING_ARGS) \
+	    $(BOARD_AVB_MAKE_$(call to-upper,$(1))_IMAGE_ARGS) \
+	    $(foreach image,$(BOARD_AVB_$(call to-upper,$(1))), \
+	        --include_descriptors_from_image $(call images-for-partitions,$(image))) \
+	    --output $@
 endef
 
 ifdef BUILDING_SYSTEM_IMAGE
@@ -4540,7 +4567,26 @@ $(INSTALLED_VBMETA_VENDORIMAGE_TARGET): \
 
 $(call declare-1p-container,$(INSTALLED_VBMETA_VENDORIMAGE_TARGET),)
 
-UNMOUNTED_NOTICE_VENDOR_DEPS+= $(INSTALLED_VBMETA_VENDORIMAGE_TARGET)
+UNMOUNTED_NOTICE_VENDOR_DEPS += $(INSTALLED_VBMETA_VENDORIMAGE_TARGET)
+endif
+
+ifdef BOARD_AVB_VBMETA_CUSTOM_PARTITIONS
+define declare-custom-vbmeta-target
+INSTALLED_VBMETA_$(call to-upper,$(1))IMAGE_TARGET := $(PRODUCT_OUT)/vbmeta_$(call to-lower,$(1)).img
+$$(INSTALLED_VBMETA_$(call to-upper,$(1))IMAGE_TARGET): \
+	    $(AVBTOOL) \
+	    $(call images-for-partitions,$(BOARD_AVB_VBMETA_$(call to-upper,$(1)))) \
+	    $(BOARD_AVB_VBMETA_$(call to-upper,$(1))_KEY_PATH)
+	$$(call build-chained-vbmeta-image,vbmeta_$(call to-lower,$(1)))
+
+$(call declare-1p-container,$(INSTALLED_VBMETA_$(call to-upper,$(1))IMAGE_TARGET),)
+
+UNMOUNTED_NOTICE_VENDOR_DEPS += $(INSTALLED_VBMETA_$(call to-upper,$(1))IMAGE_TARGET)
+endef
+
+$(foreach partition,\
+          $(call to-upper,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)),\
+          $(eval $(call declare-custom-vbmeta-target,$(partition))))
 endif
 
 define build-vbmetaimage-target
@@ -4580,8 +4626,10 @@ $(INSTALLED_VBMETAIMAGE_TARGET): \
 	    $(INSTALLED_RECOVERYIMAGE_TARGET) \
 	    $(INSTALLED_VBMETA_SYSTEMIMAGE_TARGET) \
 	    $(INSTALLED_VBMETA_VENDORIMAGE_TARGET) \
+      $(foreach partition,$(call to-upper,$( BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)),$(INSTALLED_VBMETA_$(partition)IMAGE_TARGET)) \
 	    $(BOARD_AVB_VBMETA_SYSTEM_KEY_PATH) \
 	    $(BOARD_AVB_VBMETA_VENDOR_KEY_PATH) \
+      $(foreach partition,$(call to-upper,$( BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)),$(BOARD_AVB_VBMETA_$(partition)_KEY_PATH)) \
 	    $(BOARD_AVB_KEY_PATH)
 	$(build-vbmetaimage-target)
 
@@ -4610,6 +4658,7 @@ INTERNAL_ALLIMAGES_FILES := \
     $(INTERNAL_VENDOR_DLKMIMAGE_FILES) \
     $(INTERNAL_ODM_DLKMIMAGE_FILES) \
     $(INTERNAL_SYSTEM_DLKMIMAGE_FILES) \
+    $(INTERNAL_PVMFWIMAGE_FILES) \
 
 # -----------------------------------------------------------------
 # Check VINTF of build
@@ -4622,35 +4671,39 @@ check_vintf_all_deps :=
 
 APEX_OUT := $(PRODUCT_OUT)/apex
 # -----------------------------------------------------------------
-# Create apex-info-file.xsd
+# Create apex-info-file.xml
 
-APEX_DIRS := \
+apex_dirs := \
   $(TARGET_OUT)/apex/% \
   $(TARGET_OUT_SYSTEM_EXT)/apex/% \
   $(TARGET_OUT_VENDOR)/apex/% \
   $(TARGET_OUT_ODM)/apex/% \
   $(TARGET_OUT_PRODUCT)/apex/% \
 
-apex_vintf_files := $(sort $(filter $(APEX_DIRS), $(INTERNAL_ALLIMAGES_FILES)))
-APEX_INFO_FILE   := $(APEX_OUT)/apex-info-list.xml
+apex_files := $(sort $(filter $(apex_dirs), $(INTERNAL_ALLIMAGES_FILES)))
+APEX_INFO_FILE := $(APEX_OUT)/apex-info-list.xml
 
-$(APEX_INFO_FILE): $(HOST_OUT_EXECUTABLES)/dump_apex_info $(apex_vintf_files)
+# dump_apex_info scans $(PRODUCT_OUT)/apex and writes apex-info-list.xml there.
+# This relies on the fact that rules for .apex files install the contents in $(PRODUCT_OUT)/apex.
+$(APEX_INFO_FILE): $(HOST_OUT_EXECUTABLES)/dump_apex_info $(apex_files)
 	@echo "Creating apex-info-file in $(PRODUCT_OUT) "
 	$< --root_dir $(PRODUCT_OUT)
 
-apex_vintf_files :=
+apex_files :=
+apex_dirs :=
 
 # The build system only writes VINTF metadata to */etc/vintf paths. Legacy paths aren't needed here
 # because they are only used for prebuilt images.
+# APEX files in /vendor/apex can have VINTF fragments as well.
 check_vintf_common_srcs_patterns := \
   $(TARGET_OUT)/etc/vintf/% \
   $(TARGET_OUT_VENDOR)/etc/vintf/% \
   $(TARGET_OUT_ODM)/etc/vintf/% \
   $(TARGET_OUT_PRODUCT)/etc/vintf/% \
   $(TARGET_OUT_SYSTEM_EXT)/etc/vintf/% \
+  $(TARGET_OUT_VENDOR)/apex/% \
 
 check_vintf_common_srcs := $(sort $(filter $(check_vintf_common_srcs_patterns),$(INTERNAL_ALLIMAGES_FILES)))
-check_vintf_common_srcs += $(APEX_INFO_FILE)
 check_vintf_common_srcs_patterns :=
 
 check_vintf_has_system :=
@@ -4691,7 +4744,8 @@ check_vintf_system_deps :=
 
 # -- Check vendor manifest / matrix including fragments (excluding other device manifests / matrices)
 check_vintf_vendor_deps := $(filter $(TARGET_OUT_VENDOR)/etc/vintf/%, $(check_vintf_common_srcs))
-ifneq ($(check_vintf_vendor_deps),)
+check_vintf_vendor_deps += $(filter $(TARGET_OUT_VENDOR)/apex/%, $(check_vintf_common_srcs))
+ifneq ($(strip $(check_vintf_vendor_deps)),)
 check_vintf_has_vendor := true
 check_vintf_vendor_log := $(intermediates)/check_vintf_vendor.log
 check_vintf_all_deps += $(check_vintf_vendor_log)
@@ -4702,9 +4756,9 @@ $(check_vintf_vendor_log): PRIVATE_VENDOR_SKUS := \
   $(if $(DEVICE_MANIFEST_FILE),EMPTY_VENDOR_SKU_PLACEHOLDER,\
     $(if $(DEVICE_MANIFEST_SKUS),,EMPTY_VENDOR_SKU_PLACEHOLDER)) \
   $(DEVICE_MANIFEST_SKUS)
-$(check_vintf_vendor_log): $(HOST_OUT_EXECUTABLES)/checkvintf $(check_vintf_vendor_deps)
+$(check_vintf_vendor_log): $(HOST_OUT_EXECUTABLES)/checkvintf $(check_vintf_vendor_deps) $(APEX_INFO_FILE)
 	$(foreach vendor_sku,$(PRIVATE_VENDOR_SKUS), \
-	  ( $< --check-one --dirmap /vendor:$(TARGET_OUT_VENDOR) \
+	  ( $< --check-one --dirmap /vendor:$(TARGET_OUT_VENDOR) --dirmap /apex:$(APEX_OUT) \
 	       --property ro.boot.product.vendor.sku=$(filter-out EMPTY_VENDOR_SKU_PLACEHOLDER,$(vendor_sku)) \
 	       > $@ 2>&1 ) || ( cat $@ && exit 1 ); )
 $(call declare-0p-target,$(check_vintf_vendor_log))
@@ -4818,7 +4872,7 @@ check_vintf_compatible_log := $(intermediates)/check_vintf_compatible.log
 check_vintf_all_deps += $(check_vintf_compatible_log)
 
 check_vintf_compatible_args :=
-check_vintf_compatible_deps := $(check_vintf_common_srcs)
+check_vintf_compatible_deps := $(check_vintf_common_srcs) $(APEX_INFO_FILE)
 
 ifeq ($(PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS),true)
 ifneq (,$(BUILT_KERNEL_VERSION_FILE)$(BUILT_KERNEL_CONFIGS_FILE))
@@ -5327,6 +5381,15 @@ ifneq (,$(strip $(BOARD_AVB_VBMETA_VENDOR)))
 	$(hide) echo "avb_vbmeta_vendor_algorithm=$(BOARD_AVB_VBMETA_VENDOR_ALGORITHM)" >> $@
 	$(hide) echo "avb_vbmeta_vendor_rollback_index_location=$(BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION)" >> $@
 endif # BOARD_AVB_VBMETA_VENDOR_KEY_PATH
+ifneq (,$(strip $(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)))
+	$(hide) echo "avb_custom_vbmeta_images_partition_list=$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS)" >> $@
+	$(hide) $(foreach partition,$(BOARD_AVB_VBMETA_CUSTOM_PARTITIONS),\
+	echo "avb_vbmeta_$(partition)=$(BOARD_AVB_VBMETA_$(call to-upper,$(partition)))" >> $@ ;\
+	echo "avb_vbmeta_$(partition)_args=$(BOARD_AVB_MAKE_VBMETA_$(call to-upper,$(partition))_IMAGE_ARGS)" >> $@ ;\
+	echo "avb_vbmeta_$(partition)_key_path=$(BOARD_AVB_VBMETA_$(call to-upper,$(partition))_KEY_PATH)" >> $@ ;\
+	echo "avb_vbmeta_$(partition)_algorithm=$(BOARD_AVB_VBMETA_$(call to-upper,$(partition))_ALGORITHM)" >> $@ ;\
+	echo "avb_vbmeta_$(partition)_rollback_index_location=$(BOARD_AVB_VBMETA_$(call to-upper,$(partition))_ROLLBACK_INDEX_LOCATION)" >> $@ ;)
+endif # BOARD_AVB_VBMETA_CUSTOM_PARTITIONS
 endif # BOARD_AVB_ENABLE
 ifdef BOARD_BPT_INPUT_FILES
 	$(hide) echo "board_bpt_enable=true" >> $@
