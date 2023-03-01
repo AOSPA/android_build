@@ -63,6 +63,7 @@ PRODUCT_APEX_BOOT_JARS := \
     com.android.adservices:framework-adservices \
     com.android.adservices:framework-sdksandbox \
     com.android.appsearch:framework-appsearch \
+    com.android.btservices:framework-bluetooth \
     com.android.configinfrastructure:framework-configinfrastructure \
     com.android.conscrypt:conscrypt \
     com.android.crashrecovery:framework-crashrecovery \
@@ -115,6 +116,7 @@ PRODUCT_STANDALONE_SYSTEM_SERVER_JARS := \
 # Keep the list sorted by module names and then library names.
 # Note: For modules available in Q, DO NOT add new entries here.
 PRODUCT_APEX_STANDALONE_SYSTEM_SERVER_JARS := \
+    com.android.btservices:service-bluetooth \
     com.android.devicelock:service-devicelock \
     com.android.os.statsd:service-statsd \
     com.android.scheduling:service-scheduling \
