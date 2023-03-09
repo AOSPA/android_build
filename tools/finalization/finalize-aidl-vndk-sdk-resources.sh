@@ -2,25 +2,17 @@
 
 set -ex
 
-function finalize_aidl_vndk_sdk_resources() {
-    local top="$(dirname "$0")"/../../../..
-    source $top/build/make/tools/finalization/environment.sh
+function apply_droidstubs_hack() {
+    if ! grep -q 'STOPSHIP: RESTORE THIS LOGIC WHEN DECLARING "REL" BUILD' "$top/build/soong/java/droidstubs.go" ; then
+        git -C "$top/build/soong" apply --allow-empty ../../build/make/tools/finalization/build_soong_java_droidstubs.go.apply_hack.diff
+    fi
+}
 
-    local SDK_CODENAME="public static final int $FINAL_PLATFORM_CODENAME_JAVA = CUR_DEVELOPMENT;"
-    local SDK_VERSION="public static final int $FINAL_PLATFORM_CODENAME_JAVA = $FINAL_PLATFORM_SDK_VERSION;"
-
-    # default target to modify tree and build SDK
-    local m="$top/build/soong/soong_ui.bash --make-mode TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug"
-
-    # This script is WIP and only finalizes part of the Android branch for release.
-    # The full process can be found at (INTERNAL) go/android-sdk-finalization.
-
-    # Update references in the codebase to new API version (TODO)
-
-    # bionic/NDK
+function finalize_bionic_ndk() {
     # Adding __ANDROID_API_<>__.
     # If this hasn't done then it's not used and not really needed. Still, let's check and add this.
-    if ! grep -q "\__.*$((${FINAL_PLATFORM_SDK_VERSION}))" api-level.h ; then
+    local api_level="$top/bionic/libc/include/android/api-level.h"
+    if ! grep -q "\__.*$((${FINAL_PLATFORM_SDK_VERSION}))" $api_level ; then
         local tmpfile=$(mktemp /tmp/finalization.XXXXXX)
         echo "
 /** Names the \"${FINAL_PLATFORM_CODENAME:0:1}\" API level ($FINAL_PLATFORM_SDK_VERSION), for comparison against \`__ANDROID_API__\`. */
@@ -31,6 +23,61 @@ function finalize_aidl_vndk_sdk_resources() {
 
         rm "$tmpfile"
     fi
+}
+
+function finalize_modules_utils() {
+    local shortCodename="${FINAL_PLATFORM_CODENAME:0:1}"
+    local methodPlaceholder="INSERT_NEW_AT_LEAST_${shortCodename}_METHOD_HERE"
+
+    local tmpfile=$(mktemp /tmp/finalization.XXXXXX)
+    echo "    /** Checks if the device is running on a release version of Android $FINAL_PLATFORM_CODENAME or newer */
+    @ChecksSdkIntAtLeast(api = $FINAL_PLATFORM_SDK_VERSION /* BUILD_VERSION_CODES.$FINAL_PLATFORM_CODENAME */)
+    public static boolean isAtLeast${FINAL_PLATFORM_CODENAME:0:1}() {
+        return SDK_INT >= $FINAL_PLATFORM_SDK_VERSION;
+    }" > "$tmpfile"
+
+    local javaFuncRegex='\/\*\*[^{]*isAtLeast'"${shortCodename}"'() {[^{}]*}'
+    local javaFuncReplace="N;N;N;N;N;N;N;N; s/$javaFuncRegex/$methodPlaceholder/; /$javaFuncRegex/!{P;D};"
+
+    local javaSdkLevel="$top/frameworks/libs/modules-utils/java/com/android/modules/utils/build/SdkLevel.java"
+    sed -i "$javaFuncReplace" $javaSdkLevel
+
+    sed -i "/${methodPlaceholder}"'/{
+           r '"$tmpfile"'
+           d}' $javaSdkLevel
+
+    echo "// Checks if the device is running on release version of Android ${FINAL_PLATFORM_CODENAME:0:1} or newer.
+inline bool IsAtLeast${FINAL_PLATFORM_CODENAME:0:1}() { return android_get_device_api_level() >= $FINAL_PLATFORM_SDK_VERSION; }" > "$tmpfile"
+
+    local cppFuncRegex='\/\/[^{]*IsAtLeast'"${shortCodename}"'() {[^{}]*}'
+    local cppFuncReplace="N;N;N;N;N;N; s/$cppFuncRegex/$methodPlaceholder/; /$cppFuncRegex/!{P;D};"
+
+    local cppSdkLevel="$top/frameworks/libs/modules-utils/build/include/android-modules-utils/sdk_level.h"
+    sed -i "$cppFuncReplace" $cppSdkLevel
+    sed -i "/${methodPlaceholder}"'/{
+           r '"$tmpfile"'
+           d}' $cppSdkLevel
+
+    rm "$tmpfile"
+}
+
+function finalize_aidl_vndk_sdk_resources() {
+    local top="$(dirname "$0")"/../../../..
+    source $top/build/make/tools/finalization/environment.sh
+
+    local SDK_CODENAME="public static final int $FINAL_PLATFORM_CODENAME_JAVA = CUR_DEVELOPMENT;"
+    local SDK_VERSION="public static final int $FINAL_PLATFORM_CODENAME_JAVA = $FINAL_PLATFORM_SDK_VERSION;"
+
+    # default target to modify tree and build SDK
+    local m="$top/build/soong/soong_ui.bash --make-mode TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug"
+
+    # The full process can be found at (INTERNAL) go/android-sdk-finalization.
+
+    # apply droidstubs hack to prevent tools from incrementing an API version
+    apply_droidstubs_hack
+
+    # bionic/NDK
+    finalize_bionic_ndk
 
     # VNDK definitions for new SDK version
     cp "$top/development/vndk/tools/definition-tool/datasets/vndk-lib-extra-list-current.txt" \
@@ -50,6 +97,9 @@ function finalize_aidl_vndk_sdk_resources() {
     echo "DONE: THIS INTENTIONALLY MAY FAIL AND REPAIR ITSELF"
 
     # Finalize SDK
+
+    # frameworks/libs/modules-utils
+    finalize_modules_utils
 
     # build/make
     local version_defaults="$top/build/make/core/version_defaults.mk"
