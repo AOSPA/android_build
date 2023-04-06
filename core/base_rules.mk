@@ -967,6 +967,8 @@ ALL_MODULES.$(my_register_name).CHECKED := \
     $(ALL_MODULES.$(my_register_name).CHECKED) $(my_checked_module)
 ALL_MODULES.$(my_register_name).BUILT := \
     $(ALL_MODULES.$(my_register_name).BUILT) $(LOCAL_BUILT_MODULE)
+ALL_MODULES.$(my_register_name).SOONG_MODULE_TYPE := \
+    $(ALL_MODULES.$(my_register_name).SOONG_MODULE_TYPE) $(LOCAL_SOONG_MODULE_TYPE)
 ifndef LOCAL_IS_HOST_MODULE
 ALL_MODULES.$(my_register_name).TARGET_BUILT := \
     $(ALL_MODULES.$(my_register_name).TARGET_BUILT) $(LOCAL_BUILT_MODULE)
@@ -1258,3 +1260,8 @@ endif
 ###########################################################
 
 include $(BUILD_NOTICE_FILE)
+
+###########################################################
+## SBOM generation
+###########################################################
+include $(BUILD_SBOM_GEN)
