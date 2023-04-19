@@ -19,6 +19,5 @@
 
 # /product packages
 PRODUCT_PACKAGES += \
-    Dialer \
     ImsServiceEntitlement \
     preinstalled-packages-platform-telephony-product.xml
