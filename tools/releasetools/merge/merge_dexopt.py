@@ -25,7 +25,6 @@ import logging
 import os
 import shutil
 import subprocess
-import traceback
 
 import common
 import merge_utils
@@ -261,13 +260,7 @@ def MergeDexopt(temp_dir, output_target_files_dir):
 
     # Run the command from temp_dir so all tool paths are its descendants.
     logging.info('running %s', command)
-    # TODO(b/276743653)
-    try:
-      subprocess.check_call(command, cwd=temp_dir)
-    except Exception as e:
-      print(traceback.format_exc())
-      print(e)
-      continue
+    subprocess.check_call(command, cwd=temp_dir)
 
     # Call the generated script.
     command = ['sh', 'dexpreopt_app.sh', apk_path]
