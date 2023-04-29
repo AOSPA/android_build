@@ -92,9 +92,7 @@ function finalize_aidl_vndk_sdk_resources() {
     AIDL_TRANSITIVE_FREEZE=true $m aidl-freeze-api create_reference_dumps
 
     # Generate ABI dumps
-    ANDROID_BUILD_TOP="$top" \
-        out/host/linux-x86/bin/create_reference_dumps \
-        -p aosp_arm64 --build-variant user
+    ANDROID_BUILD_TOP="$top" out/host/linux-x86/bin/create_reference_dumps
 
     echo "NOTE: THIS INTENTIONALLY MAY FAIL AND REPAIR ITSELF (until 'DONE')"
     # Update new versions of files. See update-vndk-list.sh (which requires envsetup.sh)
@@ -106,6 +104,12 @@ function finalize_aidl_vndk_sdk_resources() {
 
     # frameworks/libs/modules-utils
     finalize_modules_utils
+
+    # development/sdk
+    local platform_source="$top/development/sdk/platform_source.prop_template"
+    sed -i -e 's/Pkg\.Revision.*/Pkg\.Revision=1/g' $platform_source
+    local build_tools_source="$top/development/sdk/build_tools_source.prop_template"
+    sed -i -e 's/Pkg\.Revision.*/Pkg\.Revision=${PLATFORM_SDK_VERSION}.0.0/g' $build_tools_source
 
     # build/make
     local version_defaults="$top/build/make/core/version_defaults.mk"
