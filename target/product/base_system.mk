@@ -241,6 +241,7 @@ PRODUCT_PACKAGES += \
     platform.xml \
     pm \
     pppd \
+    preinstalled-packages-asl-files.xml \
     preinstalled-packages-platform.xml \
     privapp-permissions-platform.xml \
     prng_seeder \

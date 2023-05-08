@@ -720,24 +720,44 @@ class BuildInfo(object):
       script.AssertOemProperty(prop, values, oem_no_mount)
 
 
-def ReadFromInputFile(input_file, fn):
-  """Reads the contents of fn from input zipfile or directory."""
+def DoesInputFileContain(input_file, fn):
+  """Check whether the input target_files.zip contain an entry `fn`"""
   if isinstance(input_file, zipfile.ZipFile):
-    return input_file.read(fn).decode()
+    return fn in input_file.namelist()
   elif zipfile.is_zipfile(input_file):
     with zipfile.ZipFile(input_file, "r", allowZip64=True) as zfp:
-      return zfp.read(fn).decode()
+      return fn in zfp.namelist()
+  else:
+    if not os.path.isdir(input_file):
+      raise ValueError(
+          "Invalid input_file, accepted inputs are ZipFile object, path to .zip file on disk, or path to extracted directory. Actual: " + input_file)
+    path = os.path.join(input_file, *fn.split("/"))
+    return os.path.exists(path)
+
+
+def ReadBytesFromInputFile(input_file, fn):
+  """Reads the bytes of fn from input zipfile or directory."""
+  if isinstance(input_file, zipfile.ZipFile):
+    return input_file.read(fn)
+  elif zipfile.is_zipfile(input_file):
+    with zipfile.ZipFile(input_file, "r", allowZip64=True) as zfp:
+      return zfp.read(fn)
   else:
     if not os.path.isdir(input_file):
       raise ValueError(
           "Invalid input_file, accepted inputs are ZipFile object, path to .zip file on disk, or path to extracted directory. Actual: " + input_file)
     path = os.path.join(input_file, *fn.split("/"))
     try:
-      with open(path) as f:
+      with open(path, "rb") as f:
         return f.read()
     except IOError as e:
       if e.errno == errno.ENOENT:
         raise KeyError(fn)
+
+
+def ReadFromInputFile(input_file, fn):
+  """Reads the str contents of fn from input zipfile or directory."""
+  return ReadBytesFromInputFile(input_file, fn).decode()
 
 
 def ExtractFromInputFile(input_file, fn):
@@ -1379,11 +1399,7 @@ def RunHostInitVerifier(product_out, partition_map):
 def AppendAVBSigningArgs(cmd, partition):
   """Append signing arguments for avbtool."""
   # e.g., "--key path/to/signing_key --algorithm SHA256_RSA4096"
-  key_path = OPTIONS.info_dict.get("avb_" + partition + "_key_path")
-  if key_path and not os.path.exists(key_path) and OPTIONS.search_path:
-    new_key_path = os.path.join(OPTIONS.search_path, key_path)
-    if os.path.exists(new_key_path):
-      key_path = new_key_path
+  key_path = ResolveAVBSigningPathArgs(OPTIONS.info_dict.get("avb_" + partition + "_key_path"))
   algorithm = OPTIONS.info_dict.get("avb_" + partition + "_algorithm")
   if key_path and algorithm:
     cmd.extend(["--key", key_path, "--algorithm", algorithm])
@@ -1391,6 +1407,32 @@ def AppendAVBSigningArgs(cmd, partition):
   # make_vbmeta_image doesn't like "--salt" (and it's not needed).
   if avb_salt and not partition.startswith("vbmeta"):
     cmd.extend(["--salt", avb_salt])
+
+
+def ResolveAVBSigningPathArgs(split_args):
+
+  def ResolveBinaryPath(path):
+    if os.path.exists(path):
+      return path
+    new_path = os.path.join(OPTIONS.search_path, path)
+    if os.path.exists(new_path):
+      return new_path
+    raise ExternalError(
+      "Failed to find {}".format(new_path))
+
+  if not split_args:
+    return split_args
+
+  if isinstance(split_args, list):
+    for index, arg in enumerate(split_args[:-1]):
+      if arg == '--signing_helper':
+        signing_helper_path = split_args[index + 1]
+        split_args[index + 1] = ResolveBinaryPath(signing_helper_path)
+        break
+  elif isinstance(split_args, str):
+    split_args = ResolveBinaryPath(split_args)
+
+  return split_args
 
 
 def GetAvbPartitionArg(partition, image, info_dict=None):
@@ -1445,10 +1487,7 @@ def GetAvbChainedPartitionArg(partition, info_dict, key=None):
   """
   if key is None:
     key = info_dict["avb_" + partition + "_key_path"]
-  if key and not os.path.exists(key) and OPTIONS.search_path:
-    new_key_path = os.path.join(OPTIONS.search_path, key)
-    if os.path.exists(new_key_path):
-      key = new_key_path
+  key = ResolveAVBSigningPathArgs(key)
   pubkey_path = ExtractAvbPublicKey(info_dict["avb_avbtool"], key)
   rollback_index_location = info_dict[
       "avb_" + partition + "_rollback_index_location"]
@@ -1464,10 +1503,7 @@ def _GenerateGkiCertificate(image, image_name):
   key_path = OPTIONS.info_dict.get("gki_signing_key_path")
   algorithm = OPTIONS.info_dict.get("gki_signing_algorithm")
 
-  if not os.path.exists(key_path) and OPTIONS.search_path:
-    new_key_path = os.path.join(OPTIONS.search_path, key_path)
-    if os.path.exists(new_key_path):
-      key_path = new_key_path
+  key_path = ResolveAVBSigningPathArgs(key_path)
 
   # Checks key_path exists, before processing --gki_signing_* args.
   if not os.path.exists(key_path):
@@ -1527,7 +1563,8 @@ def BuildVBMeta(image_path, partitions, name, needed_partitions):
 
   custom_partitions = OPTIONS.info_dict.get(
       "avb_custom_images_partition_list", "").strip().split()
-  custom_avb_partitions = ["vbmeta_" + part for part in OPTIONS.info_dict.get("avb_custom_vbmeta_images_partition_list", "").strip().split()]
+  custom_avb_partitions = ["vbmeta_" + part for part in OPTIONS.info_dict.get(
+      "avb_custom_vbmeta_images_partition_list", "").strip().split()]
 
   for partition, path in partitions.items():
     if partition not in needed_partitions:
@@ -1563,6 +1600,8 @@ def BuildVBMeta(image_path, partitions, name, needed_partitions):
             found = True
             break
         assert found, 'Failed to find {}'.format(chained_image)
+
+    split_args = ResolveAVBSigningPathArgs(split_args)
     cmd.extend(split_args)
 
   RunAndCheckOutput(cmd)
@@ -1773,7 +1812,8 @@ def _BuildBootableImage(image_name, sourcedir, fs_config_file,
     AppendAVBSigningArgs(cmd, partition_name)
     args = info_dict.get("avb_" + partition_name + "_add_hash_footer_args")
     if args and args.strip():
-      cmd.extend(shlex.split(args))
+      split_args = ResolveAVBSigningPathArgs(shlex.split(args))
+      cmd.extend(split_args)
     RunAndCheckOutput(cmd)
 
   img.seek(os.SEEK_SET, 0)
@@ -1814,7 +1854,8 @@ def _SignBootableImage(image_path, prebuilt_name, partition_name,
     AppendAVBSigningArgs(cmd, partition_name)
     args = info_dict.get("avb_" + partition_name + "_add_hash_footer_args")
     if args and args.strip():
-      cmd.extend(shlex.split(args))
+      split_args = ResolveAVBSigningPathArgs(shlex.split(args))
+      cmd.extend(split_args)
     RunAndCheckOutput(cmd)
 
 
@@ -1889,7 +1930,7 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
   data = _BuildBootableImage(prebuilt_name, os.path.join(unpack_dir, tree_subdir),
                              os.path.join(unpack_dir, fs_config),
                              os.path.join(unpack_dir, 'META/ramdisk_node_list')
-                                if dev_nodes else None,
+                             if dev_nodes else None,
                              info_dict, has_ramdisk, two_step_image)
   if data:
     return File(name, data)
@@ -1994,7 +2035,8 @@ def _BuildVendorBootImage(sourcedir, partition_name, info_dict=None):
     AppendAVBSigningArgs(cmd, partition_name)
     args = info_dict.get(f'avb_{partition_name}_add_hash_footer_args')
     if args and args.strip():
-      cmd.extend(shlex.split(args))
+      split_args = ResolveAVBSigningPathArgs(shlex.split(args))
+      cmd.extend(split_args)
     RunAndCheckOutput(cmd)
 
   img.seek(os.SEEK_SET, 0)
@@ -2957,7 +2999,6 @@ def ZipDelete(zip_filename, entries, force=False):
       cmd.append("-x")
       cmd.append(entry)
     RunAndCheckOutput(cmd)
-
 
   os.replace(new_zipfile, zip_filename)
 
@@ -4062,6 +4103,7 @@ def IsSparseImage(filepath):
     # Magic for android sparse image format
     # https://source.android.com/devices/bootloader/images
     return fp.read(4) == b'\x3A\xFF\x26\xED'
+
 
 def ParseUpdateEngineConfig(path: str):
   """Parse the update_engine config stored in file `path`
