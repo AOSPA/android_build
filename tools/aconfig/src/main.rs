@@ -19,9 +19,12 @@
 use anyhow::Result;
 use clap::{builder::ArgAction, builder::EnumValueParser, Arg, ArgMatches, Command};
 use std::fs;
+use std::io;
+use std::io::Write;
 
 mod aconfig;
 mod cache;
+mod codegen_java;
 mod commands;
 mod protos;
 
@@ -39,17 +42,26 @@ fn cli() -> Command {
                         .value_parser(clap::value_parser!(u32))
                         .required(true),
                 )
+                .arg(Arg::new("namespace").long("namespace").required(true))
                 .arg(Arg::new("aconfig").long("aconfig").action(ArgAction::Append))
                 .arg(Arg::new("override").long("override").action(ArgAction::Append))
                 .arg(Arg::new("cache").long("cache").required(true)),
         )
         .subcommand(
-            Command::new("dump").arg(Arg::new("cache").long("cache").required(true)).arg(
-                Arg::new("format")
-                    .long("format")
-                    .value_parser(EnumValueParser::<commands::Format>::new())
-                    .default_value("text"),
-            ),
+            Command::new("create-java-lib")
+                .arg(Arg::new("cache").long("cache").required(true))
+                .arg(Arg::new("out").long("out").required(true)),
+        )
+        .subcommand(
+            Command::new("dump")
+                .arg(Arg::new("cache").long("cache").required(true))
+                .arg(
+                    Arg::new("format")
+                        .long("format")
+                        .value_parser(EnumValueParser::<commands::Format>::new())
+                        .default_value("text"),
+                )
+                .arg(Arg::new("out").long("out").default_value("-")),
         )
 }
 
@@ -67,19 +79,38 @@ fn main() -> Result<()> {
     match matches.subcommand() {
         Some(("create-cache", sub_matches)) => {
             let build_id = *sub_matches.get_one::<u32>("build-id").unwrap();
+            let namespace = sub_matches.get_one::<String>("namespace").unwrap();
             let aconfigs = open_zero_or_more_files(sub_matches, "aconfig")?;
             let overrides = open_zero_or_more_files(sub_matches, "override")?;
-            let cache = commands::create_cache(build_id, aconfigs, overrides)?;
+            let cache = commands::create_cache(build_id, namespace, aconfigs, overrides)?;
             let path = sub_matches.get_one::<String>("cache").unwrap();
             let file = fs::File::create(path)?;
             cache.write_to_writer(file)?;
+        }
+        Some(("create-java-lib", sub_matches)) => {
+            let path = sub_matches.get_one::<String>("cache").unwrap();
+            let file = fs::File::open(path)?;
+            let cache = Cache::read_from_reader(file)?;
+            let out = sub_matches.get_one::<String>("out").unwrap();
+            let generated_file = commands::generate_code(&cache).unwrap();
+            fs::write(
+                format!("{}/{}", out, generated_file.file_name),
+                generated_file.file_content,
+            )?;
         }
         Some(("dump", sub_matches)) => {
             let path = sub_matches.get_one::<String>("cache").unwrap();
             let file = fs::File::open(path)?;
             let cache = Cache::read_from_reader(file)?;
             let format = sub_matches.get_one("format").unwrap();
-            commands::dump_cache(cache, *format)?;
+            let output = commands::dump_cache(cache, *format)?;
+            let path = sub_matches.get_one::<String>("out").unwrap();
+            let mut file: Box<dyn Write> = if path == "-" {
+                Box::new(io::stdout())
+            } else {
+                Box::new(fs::File::create(path)?)
+            };
+            file.write_all(&output)?;
         }
         _ => unreachable!(),
     }
