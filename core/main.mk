@@ -1271,6 +1271,7 @@ define product-installed-files
     $(if $(filter tests,$(tags_to_install)),$(call get-product-var,$(1),PRODUCT_PACKAGES_TESTS)) \
     $(if $(filter asan,$(tags_to_install)),$(call get-product-var,$(1),PRODUCT_PACKAGES_DEBUG_ASAN)) \
     $(if $(filter java_coverage,$(tags_to_install)),$(call get-product-var,$(1),PRODUCT_PACKAGES_DEBUG_JAVA_COVERAGE)) \
+    $(if $(filter arm64,$(TARGET_ARCH) $(TARGET_2ND_ARCH)),$(call get-product-var,$(1),PRODUCT_PACKAGES_ARM64)) \
     $(call auto-included-modules) \
   ) \
   $(eval ### Filter out the overridden packages and executables before doing expansion) \
@@ -2200,7 +2201,8 @@ $(PRODUCT_OUT)/sbom-metadata.csv: $(installed_files)
 	  $(eval _is_kernel_modules_blocklist := $(if $(findstring $f,$(ALL_KERNEL_MODULES_BLOCKLIST)),Y)) \
 	  $(eval _is_fsverity_build_manifest_apk := $(if $(findstring $f,$(ALL_FSVERITY_BUILD_MANIFEST_APK)),Y)) \
 	  $(eval _is_linker_config := $(if $(findstring $f,$(SYSTEM_LINKER_CONFIG) $(vendor_linker_config_file)),Y)) \
-	  $(eval _is_platform_generated := $(_is_build_prop)$(_is_notice_file)$(_is_dexpreopt_image_profile)$(_is_product_system_other_avbkey)$(_is_event_log_tags_file)$(_is_system_other_odex_marker)$(_is_kernel_modules_blocklist)$(_is_fsverity_build_manifest_apk)$(_is_linker_config)) \
+	  $(eval _is_partition_compat_symlink := $(if $(findstring $f,$(PARTITION_COMPAT_SYMLINKS)),Y)) \
+	  $(eval _is_platform_generated := $(_is_build_prop)$(_is_notice_file)$(_is_dexpreopt_image_profile)$(_is_product_system_other_avbkey)$(_is_event_log_tags_file)$(_is_system_other_odex_marker)$(_is_kernel_modules_blocklist)$(_is_fsverity_build_manifest_apk)$(_is_linker_config)$(_is_partition_compat_symlink)) \
 	  @echo /$(_path_on_device)$(comma)$(_module_path)$(comma)$(_soong_module_type)$(comma)$(_is_prebuilt_make_module)$(comma)$(_product_copy_files)$(comma)$(_kernel_module_copy_files)$(comma)$(_is_platform_generated) >> $@ $(newline) \
 	  $(if $(_post_installed_dexpreopt_zip), \
 	  for i in $$(zipinfo -1 $(_post_installed_dexpreopt_zip)); do echo /$$i$(comma)$(_module_path)$(comma)$(_soong_module_type)$(comma)$(_is_prebuilt_make_module)$(comma)$(_product_copy_files)$(comma)$(_kernel_module_copy_files)$(comma)$(_is_platform_generated) >> $@ ; done $(newline) \
@@ -2215,6 +2217,7 @@ $(PRODUCT_OUT)/sbom.spdx: $(PRODUCT_OUT)/sbom-metadata.csv $(GEN_SBOM)
 	rm -rf $@
 	$(GEN_SBOM) --output_file $@ --metadata $(PRODUCT_OUT)/sbom-metadata.csv --product_out_dir=$(PRODUCT_OUT) --build_version $(BUILD_FINGERPRINT_FROM_FILE) --product_mfr="$(PRODUCT_MANUFACTURER)" --json
 
+$(call dist-for-goals,droid,$(PRODUCT_OUT)/sbom.spdx.json:sbom/sbom.spdx.json)
 else
 apps_only_sbom_files := $(sort $(patsubst %,%.spdx,$(apps_only_installed_files)))
 $(apps_only_sbom_files): $(PRODUCT_OUT)/sbom-metadata.csv $(GEN_SBOM)
