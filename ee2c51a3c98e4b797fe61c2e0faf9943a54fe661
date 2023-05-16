@@ -16,6 +16,24 @@
       "message": "should we do this in vendor instead?",
       "revId": "ee2c51a3c98e4b797fe61c2e0faf9943a54fe661",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "6d086673_350c3c19",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000760
+      },
+      "writtenOn": "2023-05-16T05:56:25Z",
+      "side": 1,
+      "message": "\u003e should we do this in vendor instead?\n\nyes let\u0027s do it",
+      "parentUuid": "b7d2fdbc_8bf52de3",
+      "revId": "ee2c51a3c98e4b797fe61c2e0faf9943a54fe661",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
