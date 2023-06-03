@@ -549,7 +549,10 @@ DISABLE_PREOPT :=
 DISABLE_PREOPT_BOOT_IMAGES :=
 ifneq (,$(TARGET_BUILD_APPS)$(TARGET_BUILD_UNBUNDLED_IMAGE))
   DISABLE_PREOPT := true
-  DISABLE_PREOPT_BOOT_IMAGES := true
+  # VSDK builds perform dexpreopt during merge_target_files build step.
+  ifneq (true,$(BUILDING_WITH_VSDK))
+    DISABLE_PREOPT_BOOT_IMAGES := true
+  endif
 endif
 ifeq (true,$(TARGET_BUILD_UNBUNDLED))
   ifneq (true,$(UNBUNDLED_BUILD_SDKS_FROM_SOURCE))
@@ -1207,13 +1210,6 @@ TARGET_AVAIALBLE_SDK_VERSIONS := $(call numerically_sort,$(TARGET_AVAILABLE_SDK_
 
 TARGET_SDK_VERSIONS_WITHOUT_JAVA_18_SUPPORT := $(call numbers_less_than,24,$(TARGET_AVAILABLE_SDK_VERSIONS))
 TARGET_SDK_VERSIONS_WITHOUT_JAVA_19_SUPPORT := $(call numbers_less_than,30,$(TARGET_AVAILABLE_SDK_VERSIONS))
-
-# Missing optional uses-libraries so that the platform doesn't create build rules that depend on
-# them.
-INTERNAL_PLATFORM_MISSING_USES_LIBRARIES := \
-  com.google.android.ble \
-  com.google.android.media.effects \
-  com.google.android.wearable \
 
 # This is the standard way to name a directory containing prebuilt target
 # objects. E.g., prebuilt/$(TARGET_PREBUILT_TAG)/libc.so
