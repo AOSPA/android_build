@@ -229,7 +229,7 @@ PRODUCT_PACKAGES += \
     mtpd \
     ndc \
     netd \
-    NetworkStackNext \
+    NetworkStack \
     odsign \
     org.apache.http.legacy \
     otacerts \
@@ -241,6 +241,7 @@ PRODUCT_PACKAGES += \
     platform.xml \
     pm \
     pppd \
+    preinstalled-packages-asl-files.xml \
     preinstalled-packages-platform.xml \
     privapp-permissions-platform.xml \
     prng_seeder \

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2008 The Android Open Source Project
+# Copyright 2023 The Android Open-Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# BUILD_ID is usually used to specify the branch name
-# (like "MAIN") or a branch name and a release candidate
-# (like "CRB01").  It must be a single word, and is
-# capitalized by convention.
 
-BUILD_ID=UKQ1.230525.003
+# To enable ANGLE as the default system GLES drivers, add
+# $(call inherit-product, $(SRC_TARGET_DIR)/product/angle_enabled.mk) to the Makefile.
+
+$(call inherit-product, $(SRC_TARGET_DIR)/product/angle_supported.mk)
+
+PRODUCT_VENDOR_PROPERTIES += \
+    persist.graphics.egl=angle

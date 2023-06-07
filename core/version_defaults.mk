@@ -43,7 +43,7 @@ endif
 DEFAULT_PLATFORM_VERSION := UP1A
 .KATI_READONLY := DEFAULT_PLATFORM_VERSION
 # b/244510347: Revert this temporary fix that is enabling GMS apps from T to run
-MIN_PLATFORM_VERSION := TP1A
+MIN_PLATFORM_VERSION := UP1A
 MAX_PLATFORM_VERSION := VP1A
 
 # The last stable version name of the platform that was released.  During
@@ -54,8 +54,7 @@ PLATFORM_VERSION_LAST_STABLE := 14
 
 # These are the current development codenames, if the build is not a final
 # release build.  If this is a final release build, it is simply "REL".
-PLATFORM_VERSION_CODENAME.TP1A := Tiramisu
-PLATFORM_VERSION_CODENAME.UP1A := UpsideDownCake
+PLATFORM_VERSION_CODENAME.UP1A := REL
 PLATFORM_VERSION_CODENAME.VP1A := VanillaIceCream
 
 # This is the user-visible version.  In a final release build it should
@@ -114,7 +113,7 @@ ifndef PLATFORM_SECURITY_PATCH
     #  It must be of the form "YYYY-MM-DD" on production devices.
     #  It must match one of the Android Security Patch Level strings of the Public Security Bulletins.
     #  If there is no $PLATFORM_SECURITY_PATCH set, keep it empty.
-    PLATFORM_SECURITY_PATCH := 2023-06-05
+    PLATFORM_SECURITY_PATCH := 2023-07-05
 endif
 
 include $(BUILD_SYSTEM)/version_util.mk
