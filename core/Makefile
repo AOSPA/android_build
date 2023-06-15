@@ -5403,6 +5403,9 @@ endif
 ifdef BOARD_PREBUILT_DTBOIMAGE
 	$(hide) echo "flash dtbo" >> $@
 endif
+ifneq ($(INSTALLED_DTIMAGE_TARGET),)
+	$(hide) echo "flash dts dt.img" >> $@
+endif
 ifneq ($(INSTALLED_VENDOR_KERNEL_BOOTIMAGE_TARGET),)
 	$(hide) echo "flash vendor_kernel_boot" >> $@
 endif
@@ -5894,7 +5897,9 @@ endef
 define copy-image-and-generate-map
   mkdir -p $(2)
   cp $(1) $(2)
-  $(if $(3),$(HOST_OUT_EXECUTABLES)/map_file_generator $(1) $(2)/$(3))
+  $(if $(3),
+    UNSQUASHFS=$(HOST_OUT_EXECUTABLES)/unsquashfs $(HOST_OUT_EXECUTABLES)/map_file_generator $(1) $(2)/$(3)
+  )
 endef
 
 # By conditionally including the dependency of the target files package on the
