@@ -174,6 +174,7 @@ _board_strip_list += ODM_MANIFEST_SKUS
 
 
 _build_broken_var_list := \
+  BUILD_BROKEN_PLUGIN_VALIDATION \
   BUILD_BROKEN_CLANG_ASFLAGS \
   BUILD_BROKEN_CLANG_CFLAGS \
   BUILD_BROKEN_DEPFILE \
@@ -255,7 +256,7 @@ else
   endif
 
   $(shell build/soong/scripts/update_out $(OUT_DIR)/rbc/rbc_board_config_results.mk \
-    $(OUT_DIR)/rbcrun RBC_OUT="make" $(OUT_DIR)/rbc/boardlauncher.rbc)
+    $(OUT_DIR)/rbcrun --mode=rbc $(OUT_DIR)/rbc/boardlauncher.rbc)
   ifneq ($(.SHELLSTATUS),0)
     $(error board configuration runner failed: $(.SHELLSTATUS))
   endif
@@ -945,6 +946,11 @@ ifneq ($(TARGET_OTA_ALLOW_NON_AB),true)
   ifneq ($(strip $(TARGET_RECOVERY_UPDATER_LIBS)),)
     $(error Do not use TARGET_RECOVERY_UPDATER_LIBS when using TARGET_OTA_ALLOW_NON_AB)
   endif
+endif
+
+# For Non A/B full OTA, disable brotli compression.
+ifeq ($(TARGET_OTA_ALLOW_NON_AB),true)
+  BOARD_NON_AB_OTA_DISABLE_COMPRESSION := true
 endif
 
 # Quick check for building generic OTA packages. Currently it only supports A/B OTAs.

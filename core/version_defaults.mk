@@ -40,7 +40,7 @@ ifdef INTERNAL_BUILD_ID_MAKEFILE
   include $(INTERNAL_BUILD_ID_MAKEFILE)
 endif
 
-DEFAULT_PLATFORM_VERSION := UP1A
+DEFAULT_PLATFORM_VERSION := VP1A
 .KATI_READONLY := DEFAULT_PLATFORM_VERSION
 # b/244510347: Revert this temporary fix that is enabling GMS apps from T to run
 MIN_PLATFORM_VERSION := UP1A
@@ -54,7 +54,7 @@ PLATFORM_VERSION_LAST_STABLE := 14
 
 # These are the current development codenames, if the build is not a final
 # release build.  If this is a final release build, it is simply "REL".
-PLATFORM_VERSION_CODENAME.UP1A := REL
+PLATFORM_VERSION_CODENAME.UP1A := UpsideDownCake
 PLATFORM_VERSION_CODENAME.VP1A := VanillaIceCream
 
 # This is the user-visible version.  In a final release build it should
@@ -86,9 +86,9 @@ PLATFORM_SDK_EXTENSION_VERSION := 7
 # TODO(b/159866756): Remove this workaround when building against
 # BOARD_VNDK_VERSION := current is supported.
 ifeq (true,$(BUILDING_WITH_VSDK))
-  PLATFORM_VNDK_VERSION := UpsideDownCake
+  PLATFORM_VNDK_VERSION := VanillaIceCream
 else
-  PLATFORM_VNDK_VERSION := 34
+  PLATFORM_VNDK_VERSION := 35
 endif
 
 # This is the sdk extension version that PLATFORM_SDK_VERSION ships with.
@@ -100,7 +100,7 @@ PLATFORM_VERSION_KNOWN_CODENAMES := \
 Base Base11 Cupcake Donut Eclair Eclair01 EclairMr1 Froyo Gingerbread GingerbreadMr1 \
 Honeycomb HoneycombMr1 HoneycombMr2 IceCreamSandwich IceCreamSandwichMr1 \
 JellyBean JellyBeanMr1 JellyBeanMr2 Kitkat KitkatWatch Lollipop LollipopMr1 M N NMr1 O OMr1 P \
-Q R S Sv2 Tiramisu UpsideDownCake
+Q R S Sv2 Tiramisu UpsideDownCake VanillaIceCream
 
 # Convert from space separated list to comma separated
 PLATFORM_VERSION_KNOWN_CODENAMES := \
