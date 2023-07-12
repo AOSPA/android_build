@@ -1045,8 +1045,8 @@ COMPRESSION_COMMAND_DEPS := $(LZ4)
 COMPRESSION_COMMAND := $(LZ4) -l -12 --favor-decSpeed
 RAMDISK_EXT := .lz4
 else
-COMPRESSION_COMMAND_DEPS := $(MINIGZIP)
-COMPRESSION_COMMAND := $(MINIGZIP)
+COMPRESSION_COMMAND_DEPS := $(GZIP)
+COMPRESSION_COMMAND := $(GZIP)
 RAMDISK_EXT := .gz
 endif
 
@@ -4999,7 +4999,9 @@ my_board_extracted_kernel := true
 endif # INSTALLED_BOOTIMAGE_TARGET
 endif # my_board_extracted_kernel
 
-ifneq ($(my_board_extracted_kernel),true)
+ifeq ($(my_board_extracted_kernel),true)
+$(call dist-for-goals, droid_targets, $(BUILT_KERNEL_VERSION_FILE))
+else
 $(warning Neither INSTALLED_KERNEL_TARGET nor INSTALLED_BOOTIMAGE_TARGET is defined when \
     PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS  is true. Information about the updated kernel \
     cannot be built into OTA update package. You can fix this by: \
@@ -5262,7 +5264,6 @@ INTERNAL_OTATOOLS_MODULES := \
   make_f2fs_casefold \
   merge_ota \
   merge_target_files \
-  minigzip \
   mk_combined_img \
   mkbootfs \
   mkbootimg \

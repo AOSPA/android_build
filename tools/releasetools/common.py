@@ -985,7 +985,7 @@ class PartitionBuildProps(object):
         each of the variables.
     ramdisk_format: If name is "boot", the format of ramdisk inside the
         boot image. Otherwise, its value is ignored.
-        Use lz4 to decompress by default. If its value is gzip, use minigzip.
+        Use lz4 to decompress by default. If its value is gzip, use gzip.
   """
 
   def __init__(self, input_file, name, placeholder_values=None):
@@ -1638,9 +1638,9 @@ def _MakeRamdisk(sourcedir, fs_config_file=None,
     p2 = Run(["lz4", "-l", "-12", "--favor-decSpeed"], stdin=p1.stdout,
              stdout=ramdisk_img.file.fileno())
   elif ramdisk_format == RamdiskFormat.GZ:
-    p2 = Run(["minigzip"], stdin=p1.stdout, stdout=ramdisk_img.file.fileno())
+    p2 = Run(["gzip"], stdin=p1.stdout, stdout=ramdisk_img.file.fileno())
   else:
-    raise ValueError("Only support lz4 or minigzip ramdisk format.")
+    raise ValueError("Only support lz4 or gzip ramdisk format.")
 
   p2.wait()
   p1.wait()
@@ -2120,20 +2120,33 @@ def UnzipSingleFile(input_zip: zipfile.ZipFile, info: zipfile.ZipInfo, dirname: 
   # According to https://stackoverflow.com/questions/434641/how-do-i-set-permissions-attributes-on-a-file-in-a-zip-file-using-pythons-zip/6297838#6297838
   # higher bits of |external_attr| are unix file permission and types
   unix_filetype = info.external_attr >> 16
+  file_perm = unix_filetype & 0o777
 
   def CheckMask(a, mask):
     return (a & mask) == mask
 
   def IsSymlink(a):
     return CheckMask(a, stat.S_IFLNK)
+
+  def IsDir(a):
+    return CheckMask(a, stat.S_IFDIR)
   # python3.11 zipfile implementation doesn't handle symlink correctly
   if not IsSymlink(unix_filetype):
-    return input_zip.extract(info, dirname)
+    target = input_zip.extract(info, dirname)
+    # We want to ensure that the file is at least read/writable by owner and readable by all users
+    if IsDir(unix_filetype):
+      os.chmod(target, file_perm | 0o755)
+    else:
+      os.chmod(target, file_perm | 0o644)
+    return target
   if dirname is None:
     dirname = os.getcwd()
   target = os.path.join(dirname, info.filename)
   os.makedirs(os.path.dirname(target), exist_ok=True)
+  if os.path.exists(target):
+    os.unlink(target)
   os.symlink(input_zip.read(info).decode(), target)
+  return target
 
 
 def UnzipToDir(filename, dirname, patterns=None):
@@ -4075,7 +4088,7 @@ def GetBootImageBuildProp(boot_img, ramdisk_format=RamdiskFormat.LZ4):
   Get build.prop from ramdisk within the boot image
 
   Args:
-    boot_img: the boot image file. Ramdisk must be compressed with lz4 or minigzip format.
+    boot_img: the boot image file. Ramdisk must be compressed with lz4 or gzip format.
 
   Return:
     An extracted file that stores properties in the boot image.
@@ -4094,11 +4107,11 @@ def GetBootImageBuildProp(boot_img, ramdisk_format=RamdiskFormat.LZ4):
     elif ramdisk_format == RamdiskFormat.GZ:
       with open(ramdisk, 'rb') as input_stream:
         with open(uncompressed_ramdisk, 'wb') as output_stream:
-          p2 = Run(['minigzip', '-d'], stdin=input_stream.fileno(),
+          p2 = Run(['gzip', '-d'], stdin=input_stream.fileno(),
                    stdout=output_stream.fileno())
           p2.wait()
     else:
-      logger.error('Only support lz4 or minigzip ramdisk format.')
+      logger.error('Only support lz4 or gzip ramdisk format.')
       return None
 
     abs_uncompressed_ramdisk = os.path.abspath(uncompressed_ramdisk)
