@@ -42,7 +42,7 @@ where
         cpp_namespace,
         package: package.to_string(),
         readwrite,
-        for_prod: codegen_mode == CodegenMode::Production,
+        for_test: codegen_mode == CodegenMode::Test,
         class_elements,
     };
 
@@ -65,6 +65,16 @@ where
                 }
                 CodegenMode::Test => include_str!("../templates/cpp_test_flag_provider.template"),
             },
+            dir: "",
+        },
+        FileSpec {
+            name: &format!("{}_c.h", header),
+            template: include_str!("../templates/c_exported_header.template"),
+            dir: "include",
+        },
+        FileSpec {
+            name: &format!("{}_c.cc", header),
+            template: include_str!("../templates/c_source_file.template"),
             dir: "",
         },
     ];
@@ -92,7 +102,7 @@ pub struct Context {
     pub cpp_namespace: String,
     pub package: String,
     pub readwrite: bool,
-    pub for_prod: bool,
+    pub for_test: bool,
     pub class_elements: Vec<ClassElement>,
 }
 
@@ -101,7 +111,6 @@ pub struct ClassElement {
     pub readwrite: bool,
     pub default_value: String,
     pub flag_name: String,
-    pub uppercase_flag_name: String,
     pub device_config_namespace: String,
     pub device_config_flag: String,
 }
@@ -115,7 +124,6 @@ fn create_class_element(package: &str, pf: &ProtoParsedFlag) -> ClassElement {
             "false".to_string()
         },
         flag_name: pf.name().to_string(),
-        uppercase_flag_name: pf.name().to_string().to_ascii_uppercase(),
         device_config_namespace: pf.namespace().to_string(),
         device_config_flag: codegen::create_device_config_ident(package, pf.name())
             .expect("values checked at flag parse time"),
@@ -147,18 +155,9 @@ public:
     virtual bool enabled_ro() = 0;
 
     virtual bool enabled_rw() = 0;
-
-    virtual void override_flag(std::string const&, bool) {}
-
-    virtual void reset_overrides() {}
 };
 
 extern std::unique_ptr<flag_provider_interface> provider_;
-
-extern std::string const DISABLED_RO;
-extern std::string const DISABLED_RW;
-extern std::string const ENABLED_RO;
-extern std::string const ENABLED_RW;
 
 inline bool disabled_ro() {
     return false;
@@ -174,14 +173,6 @@ inline bool enabled_ro() {
 
 inline bool enabled_rw() {
     return provider_->enabled_rw();
-}
-
-inline void override_flag(std::string const& name, bool val) {
-    return provider_->override_flag(name, val);
-}
-
-inline void reset_overrides() {
-    return provider_->reset_overrides();
 }
 
 }
@@ -203,46 +194,59 @@ public:
 
     virtual bool disabled_ro() = 0;
 
+    virtual void disabled_ro(bool val) = 0;
+
     virtual bool disabled_rw() = 0;
+
+    virtual void disabled_rw(bool val) = 0;
 
     virtual bool enabled_ro() = 0;
 
+    virtual void enabled_ro(bool val) = 0;
+
     virtual bool enabled_rw() = 0;
 
-    virtual void override_flag(std::string const&, bool) {}
+    virtual void enabled_rw(bool val) = 0;
 
-    virtual void reset_overrides() {}
+    virtual void reset_flags() {}
 };
 
 extern std::unique_ptr<flag_provider_interface> provider_;
 
-extern std::string const DISABLED_RO;
-extern std::string const DISABLED_RW;
-extern std::string const ENABLED_RO;
-extern std::string const ENABLED_RW;
-
 inline bool disabled_ro() {
     return provider_->disabled_ro();
+}
+
+inline void disabled_ro(bool val) {
+    provider_->disabled_ro(val);
 }
 
 inline bool disabled_rw() {
     return provider_->disabled_rw();
 }
 
+inline void disabled_rw(bool val) {
+    provider_->disabled_rw(val);
+}
+
 inline bool enabled_ro() {
     return provider_->enabled_ro();
+}
+
+inline void enabled_ro(bool val) {
+    provider_->enabled_ro(val);
 }
 
 inline bool enabled_rw() {
     return provider_->enabled_rw();
 }
 
-inline void override_flag(std::string const& name, bool val) {
-    return provider_->override_flag(name, val);
+inline void enabled_rw(bool val) {
+    provider_->enabled_rw(val);
 }
 
-inline void reset_overrides() {
-    return provider_->reset_overrides();
+inline void reset_flags() {
+    return provider_->reset_flags();
 }
 
 }
@@ -296,28 +300,20 @@ public:
 using namespace server_configurable_flags;
 
 #include <unordered_map>
-#include <unordered_set>
-#include <cassert>
 
 namespace com::android::aconfig::test {
 class flag_provider : public flag_provider_interface {
 private:
     std::unordered_map<std::string, bool> overrides_;
-    std::unordered_set<std::string> flag_names_;
 
 public:
 
     flag_provider()
-        : overrides_(),
-          flag_names_() {
-        flag_names_.insert(DISABLED_RO);
-        flag_names_.insert(DISABLED_RW);
-        flag_names_.insert(ENABLED_RO);
-        flag_names_.insert(ENABLED_RW);
-    }
+        : overrides_()
+    {}
 
     virtual bool disabled_ro() override {
-        auto it = overrides_.find(DISABLED_RO);
+        auto it = overrides_.find("disabled_ro");
         if (it != overrides_.end()) {
             return it->second;
         } else {
@@ -325,8 +321,12 @@ public:
         }
     }
 
+    virtual void disabled_ro(bool val) override {
+        overrides_["disabled_ro"] = val;
+    }
+
     virtual bool disabled_rw() override {
-        auto it = overrides_.find(DISABLED_RW);
+        auto it = overrides_.find("disabled_rw");
         if (it != overrides_.end()) {
             return it->second;
         } else {
@@ -337,8 +337,12 @@ public:
         }
     }
 
+    virtual void disabled_rw(bool val) override {
+        overrides_["disabled_rw"] = val;
+    }
+
     virtual bool enabled_ro() override {
-        auto it = overrides_.find(ENABLED_RO);
+        auto it = overrides_.find("enabled_ro");
         if (it != overrides_.end()) {
             return it->second;
         } else {
@@ -346,8 +350,12 @@ public:
         }
     }
 
+    virtual void enabled_ro(bool val) override {
+        overrides_["enabled_ro"] = val;
+    }
+
     virtual bool enabled_rw() override {
-        auto it = overrides_.find(ENABLED_RW);
+        auto it = overrides_.find("enabled_rw");
         if (it != overrides_.end()) {
             return it->second;
         } else {
@@ -358,12 +366,11 @@ public:
         }
     }
 
-    virtual void override_flag(std::string const& flag, bool val) override {
-        assert(flag_names_.count(flag));
-        overrides_[flag] = val;
+    virtual void enabled_rw(bool val) override {
+        overrides_["enabled_rw"] = val;
     }
 
-    virtual void reset_overrides() override {
+    virtual void reset_flags() override {
         overrides_.clear();
     }
 };
@@ -376,17 +383,126 @@ public:
 #include "com_android_aconfig_test_flag_provider.h"
 
 namespace com::android::aconfig::test {
-
-    std::string const DISABLED_RO = "com.android.aconfig.test.disabled_ro";
-    std::string const DISABLED_RW = "com.android.aconfig.test.disabled_rw";
-    std::string const ENABLED_RO = "com.android.aconfig.test.enabled_ro";
-    std::string const ENABLED_RW = "com.android.aconfig.test.enabled_rw";
-
     std::unique_ptr<flag_provider_interface> provider_ =
         std::make_unique<flag_provider>();
 }
 "#;
 
+    const C_EXPORTED_PROD_HEADER_EXPECTED: &str = r#"
+#ifndef com_android_aconfig_test_c_HEADER_H
+#define com_android_aconfig_test_c_HEADER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+bool com_android_aconfig_test_disabled_ro();
+
+bool com_android_aconfig_test_disabled_rw();
+
+bool com_android_aconfig_test_enabled_ro();
+
+bool com_android_aconfig_test_enabled_rw();
+
+#ifdef __cplusplus
+}
+#endif
+#endif
+"#;
+
+    const C_EXPORTED_TEST_HEADER_EXPECTED: &str = r#"
+#ifndef com_android_aconfig_test_c_HEADER_H
+#define com_android_aconfig_test_c_HEADER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+bool com_android_aconfig_test_disabled_ro();
+
+void set_com_android_aconfig_test_disabled_ro(bool val);
+
+bool com_android_aconfig_test_disabled_rw();
+
+void set_com_android_aconfig_test_disabled_rw(bool val);
+
+bool com_android_aconfig_test_enabled_ro();
+
+void set_com_android_aconfig_test_enabled_ro(bool val);
+
+bool com_android_aconfig_test_enabled_rw();
+
+void set_com_android_aconfig_test_enabled_rw(bool val);
+
+void com_android_aconfig_test_reset_flags();
+
+#ifdef __cplusplus
+}
+#endif
+#endif
+"#;
+
+    const C_PROD_SOURCE_FILE_EXPECTED: &str = r#"
+#include "com_android_aconfig_test_c.h"
+#include "com_android_aconfig_test.h"
+
+bool com_android_aconfig_test_disabled_ro() {
+    return com::android::aconfig::test::disabled_ro();
+}
+
+bool com_android_aconfig_test_disabled_rw() {
+    return com::android::aconfig::test::disabled_rw();
+}
+
+bool com_android_aconfig_test_enabled_ro() {
+    return com::android::aconfig::test::enabled_ro();
+}
+
+bool com_android_aconfig_test_enabled_rw() {
+    return com::android::aconfig::test::enabled_rw();
+}
+"#;
+
+    const C_TEST_SOURCE_FILE_EXPECTED: &str = r#"
+#include "com_android_aconfig_test_c.h"
+#include "com_android_aconfig_test.h"
+
+bool com_android_aconfig_test_disabled_ro() {
+    return com::android::aconfig::test::disabled_ro();
+}
+
+void set_com_android_aconfig_test_disabled_ro(bool val) {
+    com::android::aconfig::test::disabled_ro(val);
+}
+
+bool com_android_aconfig_test_disabled_rw() {
+    return com::android::aconfig::test::disabled_rw();
+}
+
+void set_com_android_aconfig_test_disabled_rw(bool val) {
+    com::android::aconfig::test::disabled_rw(val);
+}
+
+bool com_android_aconfig_test_enabled_ro() {
+    return com::android::aconfig::test::enabled_ro();
+}
+
+void set_com_android_aconfig_test_enabled_ro(bool val) {
+    com::android::aconfig::test::enabled_ro(val);
+}
+
+bool com_android_aconfig_test_enabled_rw() {
+    return com::android::aconfig::test::enabled_rw();
+}
+
+void set_com_android_aconfig_test_enabled_rw(bool val) {
+    com::android::aconfig::test::enabled_rw(val);
+}
+
+void com_android_aconfig_test_reset_flags() {
+    com::android::aconfig::test::reset_flags();
+}
+"#;
     fn test_generate_cpp_code(mode: CodegenMode) {
         let parsed_flags = crate::test::parse_test_flags();
         let generated =
@@ -432,6 +548,32 @@ namespace com::android::aconfig::test {
             None,
             crate::test::first_significant_code_diff(
                 SOURCE_FILE_EXPECTED,
+                generated_files_map.get(&target_file_path).unwrap()
+            )
+        );
+
+        target_file_path = String::from("include/com_android_aconfig_test_c.h");
+        assert!(generated_files_map.contains_key(&target_file_path));
+        assert_eq!(
+            None,
+            crate::test::first_significant_code_diff(
+                match mode {
+                    CodegenMode::Production => C_EXPORTED_PROD_HEADER_EXPECTED,
+                    CodegenMode::Test => C_EXPORTED_TEST_HEADER_EXPECTED,
+                },
+                generated_files_map.get(&target_file_path).unwrap()
+            )
+        );
+
+        target_file_path = String::from("com_android_aconfig_test_c.cc");
+        assert!(generated_files_map.contains_key(&target_file_path));
+        assert_eq!(
+            None,
+            crate::test::first_significant_code_diff(
+                match mode {
+                    CodegenMode::Production => C_PROD_SOURCE_FILE_EXPECTED,
+                    CodegenMode::Test => C_TEST_SOURCE_FILE_EXPECTED,
+                },
                 generated_files_map.get(&target_file_path).unwrap()
             )
         );
