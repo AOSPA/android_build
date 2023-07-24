@@ -27,6 +27,7 @@ $(call inherit-product-if-exists, external/google-fonts/cutive-mono/fonts.mk)
 $(call inherit-product-if-exists, external/google-fonts/source-sans-pro/fonts.mk)
 $(call inherit-product-if-exists, external/noto-fonts/fonts.mk)
 $(call inherit-product-if-exists, external/roboto-fonts/fonts.mk)
+$(call inherit-product-if-exists, external/roboto-flex-fonts/fonts.mk)
 $(call inherit-product-if-exists, external/hyphenation-patterns/patterns.mk)
 $(call inherit-product-if-exists, frameworks/base/data/keyboards/keyboards.mk)
 $(call inherit-product-if-exists, frameworks/webview/chromium/chromium.mk)
@@ -44,6 +45,7 @@ PRODUCT_PACKAGES += \
     CaptivePortalLogin \
     CertInstaller \
     CredentialManager \
+    DeviceAsWebcam \
     DocumentsUI \
     DownloadProviderUi \
     EasterEgg \

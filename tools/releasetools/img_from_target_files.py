@@ -64,7 +64,7 @@ OPTIONS.super_device_list = None
 OPTIONS.retrofit_dap = None
 OPTIONS.build_super = None
 OPTIONS.sparse_userimages = None
-
+OPTIONS.use_fastboot_info = False
 
 def LoadOptions(input_file):
   """Loads information from input_file to OPTIONS.
@@ -120,6 +120,8 @@ def EntriesForUserImages(input_file):
       'OTA/android-info.txt:android-info.txt',
       'META/fastboot-info.txt:fastboot-info.txt',
   ]
+  if OPTIONS.use_fastboot_info:
+    entries.append('META/fastboot-info.txt:fastboot-info.txt')
   with zipfile.ZipFile(input_file) as input_zip:
     namelist = input_zip.namelist()
   if 'PREBUILT_IMAGES/kernel_16k' in namelist:

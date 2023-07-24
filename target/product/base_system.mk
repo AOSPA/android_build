@@ -268,7 +268,6 @@ PRODUCT_PACKAGES += \
     sm \
     snapshotctl \
     snapuserd \
-    SoundPicker \
     storaged \
     surfaceflinger \
     svc \
@@ -293,11 +292,11 @@ PRODUCT_PACKAGES += \
     wifi.rc \
     wm \
 
-ifneq ($(TARGET_HAS_LOW_RAM), true)
-PRODUCT_PACKAGES += \
-    credstore \
-    llkd \
-    SecureElement
+# These packages are not used on Android TV
+ifneq ($(PRODUCT_IS_ATV),true)
+  PRODUCT_PACKAGES += \
+      SoundPicker \
+
 endif
 
 # VINTF data for system image
