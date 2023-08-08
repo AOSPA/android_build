@@ -15,7 +15,7 @@
 #
 
 # Inherit from this product for devices that support 64-bit apps using:
-# $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
+# $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_32_mixed.mk)
 # The inheritance for this must come before the inheritance chain that leads
 # to core_minimal.mk
 
