@@ -72,6 +72,7 @@ PRODUCT_PACKAGES += \
     com.android.scheduling \
     com.android.sdkext \
     com.android.tethering \
+    com.android.threadnetwork \
     com.android.tzdata \
     com.android.uwb \
     com.android.virt \
@@ -96,6 +97,7 @@ PRODUCT_PACKAGES += \
     flags_health_check \
     framework-graphics \
     framework-minus-apex \
+    framework-minus-apex-install-dependencies \
     framework-res \
     framework-sysconfig.xml \
     fsck.erofs \
