@@ -43,6 +43,10 @@ def MergeDexopt(temp_dir, output_target_files_dir):
     output_target_files_dir: The name of a directory that will be used to create
       the output target files package after all the special cases are processed.
   """
+  # TODO(b/290110288)
+  if OPTIONS.vendor_misc_info.get('building_with_vsdk') == 'true':
+      return
+
   # Load vendor and framework META/misc_info.txt.
   if (OPTIONS.vendor_misc_info.get('building_with_vsdk') != 'true' or
       OPTIONS.framework_dexpreopt_tools is None or
