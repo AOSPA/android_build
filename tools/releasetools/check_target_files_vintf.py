@@ -276,7 +276,8 @@ def PrepareApexDirectory(inp):
   extracted_root = os.path.join(root_dir, 'apex')
 
   # Always create /apex directory for dirmap
-  os.makedirs(extracted_root)
+  if not os.path.isdir(extracted_root):
+    os.makedirs(extracted_root)
 
   create_info_file = False
 
