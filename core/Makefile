@@ -4173,7 +4173,7 @@ pvmfwimage: $(INSTALLED_PVMFWIMAGE_TARGET)
 
 INSTALLED_PVMFWIMAGE_TARGET := $(PRODUCT_OUT)/pvmfw.img
 INSTALLED_PVMFW_EMBEDDED_AVBKEY_TARGET := $(PRODUCT_OUT)/pvmfw_embedded.avbpubkey
-INSTALLED_PVMFW_BINARY_TARGET := $(call module-installed-files,pvmfw_bin)
+INSTALLED_PVMFW_BINARY_TARGET := $(call module-target-built-files,pvmfw_bin)
 INTERNAL_PVMFWIMAGE_FILES := $(call module-target-built-files,pvmfw_img)
 INTERNAL_PVMFW_EMBEDDED_AVBKEY := $(call module-target-built-files,pvmfw_embedded_key)
 INTERNAL_PVMFW_SYMBOL := $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/pvmfw
@@ -5323,6 +5323,7 @@ INTERNAL_OTATOOLS_MODULES := \
   toybox \
   tune2fs \
   unpack_bootimg \
+  update_device \
   update_host_simulator \
   validate_target_files \
   verity_signer \
