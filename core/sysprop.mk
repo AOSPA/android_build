@@ -151,12 +151,19 @@ endef
 # by the device implementer. Here, we are adding a mandatory tag that
 # identifies the signing config of the build.
 BUILD_VERSION_TAGS := $(BUILD_VERSION_TAGS)
-
+ifeq ($(TARGET_BUILD_TYPE),debug)
+  BUILD_VERSION_TAGS += debug
+endif
 # The "test-keys" tag marks builds signed with the old test keys,
 # which are available in the SDK.  "dev-keys" marks builds signed with
 # non-default dev keys (usually private keys from a vendor directory).
-# Those are hardcoded to "release-keys" to bypass root detection.
-BUILD_KEYS := release-keys
+# Both of these tags will be removed and replaced with "release-keys"
+# when the target-files is signed in a post-build step.
+ifeq ($(DEFAULT_SYSTEM_DEV_CERTIFICATE),build/make/target/product/security/testkey)
+BUILD_KEYS := test-keys
+else
+BUILD_KEYS := dev-keys
+endif
 BUILD_VERSION_TAGS += $(BUILD_KEYS)
 BUILD_VERSION_TAGS := $(subst $(space),$(comma),$(sort $(BUILD_VERSION_TAGS)))
 
