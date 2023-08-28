@@ -2,6 +2,8 @@
 # Currently runtime_dependencies only include the runtime libs information for cc binaries.
 
 MODULE_INFO_JSON := $(PRODUCT_OUT)/module-info.json
+COMMA := ,
+_NEWLINE := '\n'
 
 $(MODULE_INFO_JSON):
 	@echo Generating $@
@@ -9,42 +11,40 @@ $(MODULE_INFO_JSON):
 					$(patsubst -D%,,$(subst -I,,$(foreach imp,$(ALL_MODULES.$(m).IMPORTS), \
 					$(EXPORTS.$(imp).FLAGS))) $(ALL_MODULES.$(m).INCS))))
 	$(hide) echo -ne '{\n ' > $@
-	$(hide) echo -ne $(foreach m, $(sort $(ALL_MODULES)), \
-		' "$(m)": {' \
-			'"class": [$(foreach w,$(sort $(ALL_MODULES.$(m).CLASS)),"$(w)", )], ' \
-			'"path": [$(foreach w,$(sort $(ALL_MODULES.$(m).PATH)),"$(w)", )], ' \
-			'"tags": [$(foreach w,$(sort $(ALL_MODULES.$(m).TAGS)),"$(w)", )], ' \
-			'"installed": [$(foreach w,$(sort $(ALL_MODULES.$(m).INSTALLED)),"$(w)", )], ' \
-			'"compatibility_suites": [$(foreach w,$(sort $(ALL_MODULES.$(m).COMPATIBILITY_SUITES)),"$(w)", )], ' \
-			'"auto_test_config": [$(ALL_MODULES.$(m).auto_test_config)], ' \
-			'"module_name": "$(ALL_MODULES.$(m).MODULE_NAME)", ' \
-			'"test_config": [$(foreach w,$(strip $(ALL_MODULES.$(m).TEST_CONFIG) $(ALL_MODULES.$(m).EXTRA_TEST_CONFIGS)),"$(w)", )], ' \
-			'"dependencies": [$(foreach w,$(sort $(ALL_DEPS.$(m).ALL_DEPS)),"$(w)", )], ' \
-			'"shared_libs": [$(foreach w,$(sort $(ALL_MODULES.$(m).SHARED_LIBS)),"$(w)", )], ' \
-			'"static_libs": [$(foreach w,$(sort $(ALL_MODULES.$(m).STATIC_LIBS)),"$(w)", )], ' \
-			'"system_shared_libs": [$(foreach w,$(sort $(ALL_MODULES.$(m).SYSTEM_SHARED_LIBS)),"$(w)", )], ' \
-			'"srcs": [$(foreach w,$(sort $(ALL_MODULES.$(m).SRCS)),"$(w)", )], ' \
-			'"incs": [$(foreach w,$(sort $(ALL_MODULES.$(m).INCS)),"$(w)", )], ' \
-                        '"static": [$(foreach w,$(sort $(ALL_MODULES.$(m).STATIC)),"$(w)", )], ' \
-                        '"wstatic": [$(foreach w,$(sort $(ALL_MODULES.$(m).WSTATIC)),"$(w)", )], ' \
-                        '"export": [$(foreach w,$(sort $(ALL_MODULES.$(m).EXPORT)),"$(w)", )], ' \
-                        '"cflags": [$(foreach w,$(sort $(ALL_MODULES.$(m).CFLAGS)),"$(w)", )], ' \
-                        '"abi_checker": [$(foreach w,$(sort $(ALL_MODULES.$(m).ABI_CHECKER)),"$(w)", )], ' \
-			'"srcjars": [$(foreach w,$(sort $(ALL_MODULES.$(m).SRCJARS)),"$(w)", )], ' \
-			'"classes_jar": [$(foreach w,$(sort $(ALL_MODULES.$(m).CLASSES_JAR)),"$(w)", )], ' \
-			'"test_mainline_modules": [$(foreach w,$(sort $(ALL_MODULES.$(m).TEST_MAINLINE_MODULES)),"$(w)", )], ' \
-			'"is_unit_test": "$(ALL_MODULES.$(m).IS_UNIT_TEST)", ' \
-			'"test_options_tags": [$(foreach w,$(sort $(ALL_MODULES.$(m).TEST_OPTIONS_TAGS)),"$(w)", )], ' \
-			'"data": [$(foreach w,$(sort $(ALL_MODULES.$(m).TEST_DATA)),"$(w)", )], ' \
-			'"runtime_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).LOCAL_RUNTIME_LIBRARIES)),"$(w)", )], ' \
-			'"static_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).LOCAL_STATIC_LIBRARIES)),"$(w)", )], ' \
-			'"data_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).TEST_DATA_BINS)),"$(w)", )], ' \
-			'"supported_variants": [$(foreach w,$(sort $(ALL_MODULES.$(m).SUPPORTED_VARIANTS)),"$(w)", )], ' \
-			'"host_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).HOST_REQUIRED_FROM_TARGET)),"$(w)", )], ' \
-			'"target_dependencies": [$(foreach w,$(sort $(ALL_MODULES.$(m).TARGET_REQUIRED_FROM_HOST)),"$(w)", )], ' \
-			'},\n' \
-	 ) | sed -e 's/, *\]/]/g' -e 's/, *\}/ }/g' -e '$$s/,$$//' >> $@
-	$(hide) echo '}' >> $@
+	$(hide) echo -ne $(KATI_foreach_sep m,$(COMMA)$(_NEWLINE), $(sort $(ALL_MODULES)),\
+		'"$(m)": {' \
+			'"class": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).CLASS)),"$(w)")],' \
+			'"path": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).PATH)),"$(w)")],' \
+			'"tags": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).TAGS)),"$(w)")],' \
+			'"installed": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).INSTALLED)),"$(w)")],' \
+			'"compatibility_suites": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).COMPATIBILITY_SUITES)),"$(w)")],' \
+			'"auto_test_config": [$(ALL_MODULES.$(m).auto_test_config)],' \
+			'"module_name": "$(ALL_MODULES.$(m).MODULE_NAME)"$(COMMA)' \
+			'"test_config": [$(KATI_foreach_sep w,$(COMMA) ,$(strip $(ALL_MODULES.$(m).TEST_CONFIG) $(ALL_MODULES.$(m).EXTRA_TEST_CONFIGS)),"$(w)")],' \
+			'"dependencies": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_DEPS.$(m).ALL_DEPS)),"$(w)")],' \
+			'"shared_libs": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SHARED_LIBS)),"$(w)")],' \
+			'"static_libs": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).STATIC_LIBS)),"$(w)")],' \
+			'"system_shared_libs": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SYSTEM_SHARED_LIBS)),"$(w)")],' \
+			'"srcs": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SRCS)),"$(w)")],' \
+			'"incs": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).INCS)),"$(w)", )], ' \
+                        '"static": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).STATIC)),"$(w)", )], ' \
+                        '"wstatic": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).WSTATIC)),"$(w)", )], ' \
+                        '"export": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).EXPORT)),"$(w)", )], ' \
+                        '"cflags": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).CFLAGS)),"$(w)", )], ' \
+                        '"abi_checker": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).ABI_CHECKER)),"$(w)", )], ' \
+			'"srcjars": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SRCJARS)),"$(w)")],' \
+			'"classes_jar": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).CLASSES_JAR)),"$(w)")],' \
+			'"test_mainline_modules": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).TEST_MAINLINE_MODULES)),"$(w)")],' \
+			'"is_unit_test": "$(ALL_MODULES.$(m).IS_UNIT_TEST)"$(COMMA)' \
+			'"test_options_tags": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).TEST_OPTIONS_TAGS)),"$(w)")],' \
+			'"data": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).TEST_DATA)),"$(w)")],' \
+			'"runtime_dependencies": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).LOCAL_RUNTIME_LIBRARIES)),"$(w)")],' \
+			'"static_dependencies": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).LOCAL_STATIC_LIBRARIES)),"$(w)")],' \
+			'"data_dependencies": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).TEST_DATA_BINS)),"$(w)")],' \
+			'"supported_variants": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SUPPORTED_VARIANTS)),"$(w)")],' \
+			'"host_dependencies": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).HOST_REQUIRED_FROM_TARGET)),"$(w)")],' \
+			'"target_dependencies": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).TARGET_REQUIRED_FROM_HOST)),"$(w)")]' \
+			'}')'\n}\n' >> $@
 
 
 droidcore-unbundled: $(MODULE_INFO_JSON)

@@ -91,7 +91,6 @@ PRODUCT_PACKAGES += \
     dump.erofs \
     dumpstate \
     dumpsys \
-    DynamicSystemInstallationService \
     e2fsck \
     ExtShared \
     flags_health_check \
@@ -301,6 +300,13 @@ ifneq ($(PRODUCT_IS_ATV),true)
 
 endif
 
+# Product does not support Dynamic System Update
+ifneq ($(PRODUCT_NO_DYNAMIC_SYSTEM_UPDATE),true)
+    PRODUCT_PACKAGES += \
+        DynamicSystemInstallationService \
+
+endif
+
 # VINTF data for system image
 PRODUCT_PACKAGES += \
     system_manifest.xml \
@@ -356,7 +362,6 @@ PRODUCT_HOST_PACKAGES += \
     incident_report \
     ld.mc \
     lpdump \
-    minigzip \
     mke2fs \
     mkfs.erofs \
     resize2fs \
