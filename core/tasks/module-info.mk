@@ -26,12 +26,12 @@ $(MODULE_INFO_JSON):
 			'"static_libs": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).STATIC_LIBS)),"$(w)")],' \
 			'"system_shared_libs": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SYSTEM_SHARED_LIBS)),"$(w)")],' \
 			'"srcs": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SRCS)),"$(w)")],' \
-			'"incs": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).INCS)),"$(w)", )], ' \
-                        '"static": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).STATIC)),"$(w)", )], ' \
-                        '"wstatic": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).WSTATIC)),"$(w)", )], ' \
-                        '"export": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).EXPORT)),"$(w)", )], ' \
-                        '"cflags": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).CFLAGS)),"$(w)", )], ' \
-                        '"abi_checker": [$(foreach w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).ABI_CHECKER)),"$(w)", )], ' \
+			'"incs": [$(foreach w,$(sort $(ALL_MODULES.$(m).INCS)),"$(w)", )], ' \
+                        '"static": [$(foreach w,$(sort $(ALL_MODULES.$(m).STATIC)),"$(w)", )], ' \
+                        '"wstatic": [$(foreach w,$(sort $(ALL_MODULES.$(m).WSTATIC)),"$(w)", )], ' \
+                        '"export": [$(foreach w,$(sort $(ALL_MODULES.$(m).EXPORT)),"$(w)", )], ' \
+                        '"cflags": [$(foreach w,$(sort $(ALL_MODULES.$(m).CFLAGS)),"$(w)", )], ' \
+                        '"abi_checker": [$(foreach w,$(sort $(ALL_MODULES.$(m).ABI_CHECKER)),"$(w)", )], ' \
 			'"srcjars": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SRCJARS)),"$(w)")],' \
 			'"classes_jar": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).CLASSES_JAR)),"$(w)")],' \
 			'"test_mainline_modules": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).TEST_MAINLINE_MODULES)),"$(w)")],' \
