@@ -44,7 +44,7 @@ $(MODULE_INFO_JSON):
 			'"supported_variants": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).SUPPORTED_VARIANTS)),"$(w)")],' \
 			'"host_dependencies": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).HOST_REQUIRED_FROM_TARGET)),"$(w)")],' \
 			'"target_dependencies": [$(KATI_foreach_sep w,$(COMMA) ,$(sort $(ALL_MODULES.$(m).TARGET_REQUIRED_FROM_HOST)),"$(w)")]' \
-			'}')'\n}\n' >> $@
+			'}') '\n}\n' | sed -e 's/, *\]/]/g' -e 's/, *\}/ }/g' -e '$$s/,$$//' >> $@
 
 
 droidcore-unbundled: $(MODULE_INFO_JSON)
