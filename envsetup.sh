@@ -253,7 +253,7 @@ function set_lunch_paths()
     # Note: on windows/cygwin, ANDROID_LUNCH_BUILD_PATHS will contain spaces
     # due to "C:\Program Files" being in the path.
 
-    # Handle compat with the old ANDROID_BUILD_PATHS variable. 
+    # Handle compat with the old ANDROID_BUILD_PATHS variable.
     # TODO: Remove this after we think everyone has lunched again.
     if [ -z "$ANDROID_LUNCH_BUILD_PATHS" -a -n "$ANDROID_BUILD_PATHS" ] ; then
       ANDROID_LUNCH_BUILD_PATHS="$ANDROID_BUILD_PATHS"
@@ -842,6 +842,7 @@ function lunch()
     export TARGET_PRODUCT=$(get_build_var TARGET_PRODUCT)
     export TARGET_BOARD_PLATFORM=$(get_build_var TARGET_BOARD_PLATFORM)
     export TARGET_BUILD_VARIANT=$(get_build_var TARGET_BUILD_VARIANT)
+    export PLATFORM_VERSION=$(get_build_var PLATFORM_VERSION)
     if [ -n "$release" ]; then
       export TARGET_RELEASE=$release
     else
