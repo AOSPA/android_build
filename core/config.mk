@@ -411,22 +411,6 @@ $(if $(findstring ro.config.low_ram=true,$(PRODUCT_VENDOR_PROPERTIES)),true,\
 $(if $(findstring ro.config.low_ram=true,$(PRODUCT_ODM_PROPERTIES)),true,false)))))))))
 endef
 
-# Get the board API level.
-board_api_level := $(PLATFORM_SDK_VERSION)
-ifdef BOARD_API_LEVEL
-  board_api_level := $(BOARD_API_LEVEL)
-else ifdef BOARD_SHIPPING_API_LEVEL
-  # Vendors with GRF must define BOARD_SHIPPING_API_LEVEL for the vendor API level.
-  board_api_level := $(BOARD_SHIPPING_API_LEVEL)
-endif
-
-# Calculate the VSR vendor API level.
-vsr_vendor_api_level := $(board_api_level)
-
-ifdef PRODUCT_SHIPPING_API_LEVEL
-  vsr_vendor_api_level := $(call math_min,$(PRODUCT_SHIPPING_API_LEVEL),$(board_api_level))
-endif
-
 # Set TARGET_MAX_PAGE_SIZE_SUPPORTED.
 # TARGET_MAX_PAGE_SIZE_SUPPORTED indicates the alignment of the ELF segments.
 ifdef PRODUCT_MAX_PAGE_SIZE_SUPPORTED
@@ -438,7 +422,7 @@ else
   # The default binary alignment for userspace is 4096.
   TARGET_MAX_PAGE_SIZE_SUPPORTED := 4096
   # When VSR vendor API level >= 34, binary alignment will be 65536.
-  ifeq ($(call math_gt_or_eq,$(vsr_vendor_api_level),34),true)
+  ifeq ($(call math_gt_or_eq,$(VSR_VENDOR_API_LEVEL),34),true)
     ifeq ($(TARGET_ARCH),arm64)
       TARGET_MAX_PAGE_SIZE_SUPPORTED := 65536
     endif
@@ -743,6 +727,7 @@ endif
 IMG_FROM_TARGET_FILES := $(HOST_OUT_EXECUTABLES)/img_from_target_files$(HOST_EXECUTABLE_SUFFIX)
 MAKE_RECOVERY_PATCH := $(HOST_OUT_EXECUTABLES)/make_recovery_patch$(HOST_EXECUTABLE_SUFFIX)
 OTA_FROM_TARGET_FILES := $(HOST_OUT_EXECUTABLES)/ota_from_target_files$(HOST_EXECUTABLE_SUFFIX)
+OTA_FROM_RAW_IMG := $(HOST_OUT_EXECUTABLES)/ota_from_raw_img$(HOST_EXECUTABLE_SUFFIX)
 SPARSE_IMG := $(HOST_OUT_EXECUTABLES)/sparse_img$(HOST_EXECUTABLE_SUFFIX)
 CHECK_PARTITION_SIZES := $(HOST_OUT_EXECUTABLES)/check_partition_sizes$(HOST_EXECUTABLE_SUFFIX)
 SYMBOLS_MAP := $(HOST_OUT_EXECUTABLES)/symbols_map
@@ -939,22 +924,15 @@ ifndef BOARD_SEPOLICY_VERS
 BOARD_SEPOLICY_VERS := $(PLATFORM_SEPOLICY_VERSION)
 endif
 
-ifeq ($(BOARD_SEPOLICY_VERS),$(PLATFORM_SEPOLICY_VERSION))
-IS_TARGET_MIXED_SEPOLICY :=
-else
-IS_TARGET_MIXED_SEPOLICY := true
-endif
-
-.KATI_READONLY := IS_TARGET_MIXED_SEPOLICY
-
 # A list of SEPolicy versions, besides PLATFORM_SEPOLICY_VERSION, that the framework supports.
-PLATFORM_SEPOLICY_COMPAT_VERSIONS := \
+PLATFORM_SEPOLICY_COMPAT_VERSIONS := $(filter-out $(PLATFORM_SEPOLICY_VERSION), \
     29.0 \
     30.0 \
     31.0 \
     32.0 \
     33.0 \
     34.0 \
+    )
 
 .KATI_READONLY := \
     PLATFORM_SEPOLICY_COMPAT_VERSIONS \
