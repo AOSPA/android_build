@@ -115,6 +115,7 @@ $(call add_json_list, CFIExcludePaths,                   $(CFI_EXCLUDE_PATHS) $(
 $(call add_json_list, CFIIncludePaths,                   $(CFI_INCLUDE_PATHS) $(PRODUCT_CFI_INCLUDE_PATHS))
 $(call add_json_list, IntegerOverflowExcludePaths,       $(INTEGER_OVERFLOW_EXCLUDE_PATHS) $(PRODUCT_INTEGER_OVERFLOW_EXCLUDE_PATHS))
 $(call add_json_list, HWASanIncludePaths,                $(HWASAN_INCLUDE_PATHS) $(PRODUCT_HWASAN_INCLUDE_PATHS))
+$(call add_json_list, HWASanExcludePaths,                $(HWASAN_EXCLUDE_PATHS) $(PRODUCT_HWASAN_EXCLUDE_PATHS))
 $(call add_json_list, IntegerOverflowIncludePaths,       $(INTEGER_OVERFLOW_INCLUDE_PATHS) $(PRODUCT_INTEGER_OVERFLOW_INCLUDE_PATHS))
 
 $(call add_json_list, BoundSanitizerExcludePaths ,	 	 $(BOUNDS_EXCLUDE_PATHS) $(PRODUCT_BOUNDS_EXCLUDE_PATHS))
@@ -304,6 +305,7 @@ $(call add_json_bool, BuildBrokenTrebleSyspropNeverallow, $(filter true,$(BUILD_
 # KEYSTONE - b/274610335 - Temporarily allow QCom's unconverted python2 scripts
 $(call add_json_bool, BuildBrokenUsesSoongPython2Modules, true)
 $(call add_json_bool, BuildBrokenVendorPropertyNamespace, $(filter true,$(BUILD_BROKEN_VENDOR_PROPERTY_NAMESPACE)))
+$(call add_json_bool, BuildBrokenIncorrectPartitionImages, $(filter true,$(BUILD_BROKEN_INCORRECT_PARTITION_IMAGES)))
 $(call add_json_list, BuildBrokenInputDirModules, $(BUILD_BROKEN_INPUT_DIR_MODULES))
 
 $(call add_json_list, BuildWarningBadOptionalUsesLibsAllowlist,    $(BUILD_WARNING_BAD_OPTIONAL_USES_LIBS_ALLOWLIST))
@@ -331,7 +333,7 @@ $(call add_json_str,  ProductBrand,        $(PRODUCT_BRAND))
 $(call add_json_list, BuildVersionTags,    $(BUILD_VERSION_TAGS))
 
 $(call add_json_str, ReleaseVersion,    $(_RELEASE_VERSION))
-$(call add_json_list, ReleaseAconfigValueSets,    $(RELEASE_ACONFIG_VALUE_SETS))
+$(call add_json_str, ReleaseAconfigValueSets,    $(RELEASE_ACONFIG_VALUE_SETS))
 $(call add_json_str, ReleaseAconfigFlagDefaultPermission,    $(RELEASE_ACONFIG_FLAG_DEFAULT_PERMISSION))
 
 $(call add_json_bool, KeepVndk, $(filter true,$(KEEP_VNDK)))
