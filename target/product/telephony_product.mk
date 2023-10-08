@@ -20,6 +20,7 @@
 # /product packages
 ifneq ($(TARGET_NO_TELEPHONY), true)
 PRODUCT_PACKAGES += \
+    Dialer \
     ImsServiceEntitlement \
     preinstalled-packages-platform-telephony-product.xml
 endif #TARGET_NO_TELEPHONY
