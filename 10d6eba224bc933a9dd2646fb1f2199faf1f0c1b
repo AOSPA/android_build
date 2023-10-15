@@ -16,6 +16,24 @@
       "message": "instead of moving all the filter, just remove this shity comment \n\n# Attestation specific properties for AOSP/GSI build running on device.\n\nhttps://gerrit.omnirom.org/c/android_build/+/44153",
       "revId": "10d6eba224bc933a9dd2646fb1f2199faf1f0c1b",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "797799c4_58d88b38",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2023-10-15T15:17:50Z",
+      "side": 1,
+      "message": "wow thanks!",
+      "parentUuid": "50cb8d59_166677e9",
+      "revId": "10d6eba224bc933a9dd2646fb1f2199faf1f0c1b",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
