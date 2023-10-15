@@ -16,6 +16,23 @@
       "message": "where are we using it",
       "revId": "c4f51bdeb3e0c3a5a5be67f6d5fd9d0122017691",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "65bb6ad5_1f7856a3",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000541
+      },
+      "writtenOn": "2023-10-15T17:56:44Z",
+      "side": 1,
+      "message": "We\u0027re not AFAICT. Use `rom-build.sh` if you wanna sign.",
+      "revId": "c4f51bdeb3e0c3a5a5be67f6d5fd9d0122017691",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
