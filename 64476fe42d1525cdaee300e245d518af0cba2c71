@@ -16,6 +16,23 @@
       "message": "can we avoid changing build for this?  Can we set it in the media component for legacy SoCs?",
       "revId": "64476fe42d1525cdaee300e245d518af0cba2c71",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "395d65ee_379e440b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000551
+      },
+      "writtenOn": "2023-10-23T17:55:44Z",
+      "side": 1,
+      "message": "we can - build, i\u0027m not so sure. we\u0027re not changing it here - it\u0027s in the device trees - we\u0027re just changing :\u003d to a ?\u003d so we can configure the flag later on, and set default value to false. please correct me if i am wrong.",
+      "revId": "64476fe42d1525cdaee300e245d518af0cba2c71",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
