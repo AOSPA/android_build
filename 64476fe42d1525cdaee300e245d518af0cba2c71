@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "ea97bba2_34b04120",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2023-10-23T16:25:20Z",
+      "side": 1,
+      "message": "can we avoid changing build for this?  Can we set it in the media component for legacy SoCs?",
+      "revId": "64476fe42d1525cdaee300e245d518af0cba2c71",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
