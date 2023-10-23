@@ -1299,11 +1299,11 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
         'avb_system_key_path': pubkey,
         'avb_system_rollback_index_location': 2,
     }
-    args = common.GetAvbChainedPartitionArg('system', info_dict).split(':')
-    self.assertEqual(3, len(args))
-    self.assertEqual('system', args[0])
-    self.assertEqual('2', args[1])
-    self.assertTrue(os.path.exists(args[2]))
+    chained_partition_args = common.GetAvbChainedPartitionArg(
+        'system', info_dict)
+    self.assertEqual('system', chained_partition_args.partition)
+    self.assertEqual(2, chained_partition_args.rollback_index_location)
+    self.assertTrue(os.path.exists(chained_partition_args.pubkey_path))
 
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_GetAvbChainedPartitionArg_withPrivateKey(self):
@@ -1313,11 +1313,11 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
         'avb_product_key_path': key,
         'avb_product_rollback_index_location': 2,
     }
-    args = common.GetAvbChainedPartitionArg('product', info_dict).split(':')
-    self.assertEqual(3, len(args))
-    self.assertEqual('product', args[0])
-    self.assertEqual('2', args[1])
-    self.assertTrue(os.path.exists(args[2]))
+    chained_partition_args = common.GetAvbChainedPartitionArg(
+        'product', info_dict)
+    self.assertEqual('product', chained_partition_args.partition)
+    self.assertEqual(2, chained_partition_args.rollback_index_location)
+    self.assertTrue(os.path.exists(chained_partition_args.pubkey_path))
 
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_GetAvbChainedPartitionArg_withSpecifiedKey(self):
@@ -1327,12 +1327,11 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
         'avb_system_rollback_index_location': 2,
     }
     pubkey = os.path.join(self.testdata_dir, 'testkey.pubkey.pem')
-    args = common.GetAvbChainedPartitionArg(
-        'system', info_dict, pubkey).split(':')
-    self.assertEqual(3, len(args))
-    self.assertEqual('system', args[0])
-    self.assertEqual('2', args[1])
-    self.assertTrue(os.path.exists(args[2]))
+    chained_partition_args = common.GetAvbChainedPartitionArg(
+        'system', info_dict, pubkey)
+    self.assertEqual('system', chained_partition_args.partition)
+    self.assertEqual(2, chained_partition_args.rollback_index_location)
+    self.assertTrue(os.path.exists(chained_partition_args.pubkey_path))
 
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_GetAvbChainedPartitionArg_invalidKey(self):
@@ -1585,7 +1584,8 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     info_dict = {}
     cmd = common.GetAvbPartitionArg('system', '/path/to/system.img', info_dict)
     self.assertEqual(
-        ['--include_descriptors_from_image', '/path/to/system.img'], cmd)
+        [common.AVB_ARG_NAME_INCLUDE_DESC_FROM_IMG, '/path/to/system.img'],
+        cmd)
 
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_AppendVBMetaArgsForPartition_vendorAsChainedPartition(self):
@@ -1598,12 +1598,11 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     }
     cmd = common.GetAvbPartitionArg('vendor', '/path/to/vendor.img', info_dict)
     self.assertEqual(2, len(cmd))
-    self.assertEqual('--chain_partition', cmd[0])
-    chained_partition_args = cmd[1].split(':')
-    self.assertEqual(3, len(chained_partition_args))
-    self.assertEqual('vendor', chained_partition_args[0])
-    self.assertEqual('5', chained_partition_args[1])
-    self.assertTrue(os.path.exists(chained_partition_args[2]))
+    self.assertEqual(common.AVB_ARG_NAME_CHAIN_PARTITION, cmd[0])
+    chained_partition_args = cmd[1]
+    self.assertEqual('vendor', chained_partition_args.partition)
+    self.assertEqual(5, chained_partition_args.rollback_index_location)
+    self.assertTrue(os.path.exists(chained_partition_args.pubkey_path))
 
   @test_utils.SkipIfExternalToolsUnavailable()
   def test_AppendVBMetaArgsForPartition_recoveryAsChainedPartition_nonAb(self):
@@ -1631,12 +1630,11 @@ class CommonUtilsTest(test_utils.ReleaseToolsTestCase):
     cmd = common.GetAvbPartitionArg(
         'recovery', '/path/to/recovery.img', info_dict)
     self.assertEqual(2, len(cmd))
-    self.assertEqual('--chain_partition', cmd[0])
-    chained_partition_args = cmd[1].split(':')
-    self.assertEqual(3, len(chained_partition_args))
-    self.assertEqual('recovery', chained_partition_args[0])
-    self.assertEqual('3', chained_partition_args[1])
-    self.assertTrue(os.path.exists(chained_partition_args[2]))
+    self.assertEqual(common.AVB_ARG_NAME_CHAIN_PARTITION, cmd[0])
+    chained_partition_args = cmd[1]
+    self.assertEqual('recovery', chained_partition_args.partition)
+    self.assertEqual(3, chained_partition_args.rollback_index_location)
+    self.assertTrue(os.path.exists(chained_partition_args.pubkey_path))
 
   def test_GenerateGkiCertificate_KeyPathNotFound(self):
     pubkey = os.path.join(self.testdata_dir, 'no_testkey_gki.pem')
