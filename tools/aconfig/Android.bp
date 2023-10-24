@@ -24,14 +24,23 @@ java_library_host {
     },
 }
 
+python_library_host {
+    name: "libaconfig_python_proto",
+    srcs: ["protos/aconfig.proto"],
+    proto: {
+        canonical_path_from_root: false,
+    },
+}
+
 // host binary: aconfig
 
-rust_protobuf_host {
+rust_protobuf {
     name: "libaconfig_protos",
     protos: ["protos/aconfig.proto"],
     crate_name: "aconfig_protos",
     source_stem: "aconfig_protos",
     use_protobuf3: true,
+    host_supported: true,
 }
 
 rust_defaults {
