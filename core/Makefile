@@ -657,6 +657,12 @@ ifneq ($(strip $(BOARD_GENERIC_RAMDISK_KERNEL_MODULES)),)
   endif
 endif
 
+ifneq ($(BOARD_DO_NOT_STRIP_GENERIC_RAMDISK_MODULES),true)
+  GENERIC_RAMDISK_STRIPPED_MODULE_STAGING_DIR := $(call intermediates-dir-for,PACKAGING,depmod_generic_ramdisk_kernel_stripped)
+else
+  GENERIC_RAMDISK_STRIPPED_MODULE_STAGING_DIR :=
+endif
+
 ifneq ($(BOARD_DO_NOT_STRIP_RECOVERY_MODULES),true)
 	RECOVERY_STRIPPED_MODULE_STAGING_DIR := $(call intermediates-dir-for,PACKAGING,depmod_recovery_stripped)
 else
@@ -711,7 +717,7 @@ $(foreach kmd,$(BOARD_KERNEL_MODULE_DIRS), \
   $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,SYSTEM,$(if $(filter true,$(BOARD_USES_SYSTEM_DLKMIMAGE)),$(TARGET_OUT_SYSTEM_DLKM),$(TARGET_OUT_SYSTEM)),system,modules.load,,$(kmd))) \
   $(if $(filter true,$(BOARD_USES_RECOVERY_AS_BOOT)),\
     $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-recovery-as-boot-load,$(kmd))),\
-    $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,GENERIC_RAMDISK,$(TARGET_RAMDISK_OUT),,modules.load,,$(kmd)))))
+    $(eval ALL_DEFAULT_INSTALLED_MODULES += $(call build-image-kernel-modules-dir,GENERIC_RAMDISK,$(TARGET_RAMDISK_OUT),,modules.load,$(GENERIC_RAMDISK_STRIPPED_MODULE_STAGING_DIR),$(kmd)))))
 
 ifeq ($(BOARD_SYSTEM_KERNEL_MODULES),)
 ifneq ($(BOARD_SYSTEM_DLKM_SRC),)
@@ -1054,11 +1060,32 @@ TARGET_OUT_RAMDISK_16K := $(PRODUCT_OUT)/ramdisk_16k
 BUILT_RAMDISK_16K_TARGET := $(PRODUCT_OUT)/ramdisk_16k.img
 RAMDISK_16K_STAGING_DIR := $(call intermediates-dir-for,PACKAGING,depmod_ramdisk_16k)
 
+ifneq ($(BOARD_SYSTEM_KERNEL_MODULES),)
+SYSTEM_DLKM_MODULE_PATTERNS := $(foreach path,$(BOARD_SYSTEM_KERNEL_MODULES),%/$(notdir $(path)))
+
+endif
+
+# For non-GKI modules, strip them before install. As debug symbols take up
+# significant space.
 $(foreach \
   file,\
-  $(BOARD_KERNEL_MODULES_16K),\
+  $(filter-out $(SYSTEM_DLKM_MODULE_PATTERNS),$(BOARD_KERNEL_MODULES_16K)),\
   $(eval \
     $(call copy-and-strip-kernel-module,\
+      $(file),\
+      $(RAMDISK_16K_STAGING_DIR)/lib/modules/0.0/$(notdir $(file)) \
+    ) \
+  ) \
+)
+
+# For GKI modules, copy as-is without stripping, because stripping would
+# remove the signature of kernel modules, and GKI modules must be signed
+# for kernel to load them.
+$(foreach \
+  file,\
+  $(filter $(SYSTEM_DLKM_MODULE_PATTERNS),$(BOARD_KERNEL_MODULES_16K)),\
+  $(eval \
+    $(call copy-one-file,\
       $(file),\
       $(RAMDISK_16K_STAGING_DIR)/lib/modules/0.0/$(notdir $(file)) \
     ) \
@@ -5025,8 +5052,11 @@ APEX_OUT := $(intermediates)/apex
 APEX_INFO_FILE := $(APEX_OUT)/apex-info-list.xml
 
 # apexd_host scans/activates APEX files and writes /apex/apex-info-list.xml
+# Note that `@echo $(PRIVATE_APEX_FILES)` line is added to trigger the rule when the APEX list is changed.
+$(APEX_INFO_FILE): PRIVATE_APEX_FILES := $(apex_files)
 $(APEX_INFO_FILE): $(HOST_OUT_EXECUTABLES)/apexd_host $(apex_files)
 	@echo "Extracting apexes..."
+	@echo $(PRIVATE_APEX_FILES) > /dev/null
 	@rm -rf $(APEX_OUT)
 	@mkdir -p $(APEX_OUT)
 	$< --vendor_path $(TARGET_OUT_VENDOR) \

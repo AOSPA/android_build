@@ -41,6 +41,7 @@ PRODUCT_PACKAGES += \
     BuiltInPrintService \
     CalendarProvider \
     cameraserver \
+    com.android.nfcservices \
     CameraExtensionsProxy \
     CaptivePortalLogin \
     CertInstaller \
