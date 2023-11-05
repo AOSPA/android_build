@@ -17,6 +17,10 @@ endif
 # PRODUCT_AFDO_PROFILES takes precedence over product-agnostic profiles in AFDO_PROFILES
 ALL_AFDO_PROFILES := $(PRODUCT_AFDO_PROFILES) $(AFDO_PROFILES)
 
+ifneq (,$(filter-out environment undefined,$(origin GENRULE_SANDBOXING)))
+  $(error GENRULE_SANDBOXING can only be provided via an environment variable, use BUILD_BROKEN_GENRULE_SANDBOXING to disable genrule sandboxing in board config)
+endif
+
 ifeq ($(WRITE_SOONG_VARIABLES),true)
 
 # Create soong.variables with copies of makefile settings.  Runs every build,
@@ -302,12 +306,14 @@ $(call add_json_list, BuildBrokenPluginValidation,        $(BUILD_BROKEN_PLUGIN_
 $(call add_json_bool, BuildBrokenClangProperty,           $(filter true,$(BUILD_BROKEN_CLANG_PROPERTY)))
 $(call add_json_bool, BuildBrokenClangAsFlags,            $(filter true,$(BUILD_BROKEN_CLANG_ASFLAGS)))
 $(call add_json_bool, BuildBrokenClangCFlags,             $(filter true,$(BUILD_BROKEN_CLANG_CFLAGS)))
-$(call add_json_bool, GenruleSandboxing,                  $(filter true,$(GENRULE_SANDBOXING)))
+# Use the value of GENRULE_SANDBOXING if set, otherwise use the inverse of BUILD_BROKEN_GENRULE_SANDBOXING
+$(call add_json_bool, GenruleSandboxing,                   $(if $(GENRULE_SANDBOXING),$(filter true,$(GENRULE_SANDBOXING)),$(if $(filter true,$(BUILD_BROKEN_GENRULE_SANDBOXING)),,true)))
 $(call add_json_bool, BuildBrokenEnforceSyspropOwner,     $(filter true,$(BUILD_BROKEN_ENFORCE_SYSPROP_OWNER)))
 $(call add_json_bool, BuildBrokenTrebleSyspropNeverallow, $(filter true,$(BUILD_BROKEN_TREBLE_SYSPROP_NEVERALLOW)))
 # KEYSTONE - b/274610335 - Temporarily allow QCom's unconverted python2 scripts
 $(call add_json_bool, BuildBrokenUsesSoongPython2Modules, true)
 $(call add_json_bool, BuildBrokenVendorPropertyNamespace, $(filter true,$(BUILD_BROKEN_VENDOR_PROPERTY_NAMESPACE)))
+
 $(call add_json_bool, BuildBrokenIncorrectPartitionImages, $(filter true,$(BUILD_BROKEN_INCORRECT_PARTITION_IMAGES)))
 $(call add_json_list, BuildBrokenInputDirModules, $(BUILD_BROKEN_INPUT_DIR_MODULES))
 
@@ -403,6 +409,8 @@ $(call add_json_map, PartitionVarsForBazelMigrationOnlyDoNotUse)
   $(call add_json_bool, CopyImagesForTargetFilesZip, $(filter true,$(COPY_IMAGES_FOR_TARGET_FILES_ZIP)))
 
   $(call add_json_bool, BoardAvbEnable, $(filter true,$(BOARD_AVB_ENABLE)))
+
+  $(call add_json_list, ProductPackages, $(sort $(PRODUCT_PACKAGES)))
 $(call end_json_map)
 
 $(call add_json_bool, NextReleaseHideFlaggedApi, $(filter true,$(PRODUCT_NEXT_RELEASE_HIDE_FLAGGED_API)))
