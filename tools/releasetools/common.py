@@ -210,7 +210,7 @@ def InitLogging():
           '': {
               'handlers': ['default'],
               'propagate': True,
-              'level': 'WARNING',
+              'level': 'NOTSET',
           }
       }
   }
@@ -1238,26 +1238,16 @@ def _FindAndLoadRecoveryFstab(info_dict, input_file, read_helper):
   system_root_image = info_dict.get('system_root_image') == 'true'
   if info_dict.get('no_recovery') != 'true':
     recovery_fstab_path = 'RECOVERY/RAMDISK/system/etc/recovery.fstab'
-    if isinstance(input_file, zipfile.ZipFile):
-      if recovery_fstab_path not in input_file.namelist():
-        recovery_fstab_path = 'RECOVERY/RAMDISK/etc/recovery.fstab'
-    else:
-      path = os.path.join(input_file, *recovery_fstab_path.split('/'))
-      if not os.path.exists(path):
-        recovery_fstab_path = 'RECOVERY/RAMDISK/etc/recovery.fstab'
+    if not DoesInputFileContain(input_file, recovery_fstab_path):
+      recovery_fstab_path = 'RECOVERY/RAMDISK/etc/recovery.fstab'
     return LoadRecoveryFSTab(
         read_helper, info_dict['fstab_version'], recovery_fstab_path,
         system_root_image)
 
   if info_dict.get('recovery_as_boot') == 'true':
     recovery_fstab_path = 'BOOT/RAMDISK/system/etc/recovery.fstab'
-    if isinstance(input_file, zipfile.ZipFile):
-      if recovery_fstab_path not in input_file.namelist():
-        recovery_fstab_path = 'BOOT/RAMDISK/etc/recovery.fstab'
-    else:
-      path = os.path.join(input_file, *recovery_fstab_path.split('/'))
-      if not os.path.exists(path):
-        recovery_fstab_path = 'BOOT/RAMDISK/etc/recovery.fstab'
+    if not DoesInputFileContain(input_file, recovery_fstab_path):
+      recovery_fstab_path = 'BOOT/RAMDISK/etc/recovery.fstab'
     return LoadRecoveryFSTab(
         read_helper, info_dict['fstab_version'], recovery_fstab_path,
         system_root_image)
@@ -1950,7 +1940,15 @@ def _SignBootableImage(image_path, prebuilt_name, partition_name,
     cmd = [avbtool, "add_hash_footer", "--image", image_path,
            "--partition_size", str(part_size), "--partition_name",
            partition_name]
-    AppendAVBSigningArgs(cmd, partition_name)
+    # Use sha256 of the kernel as salt for reproducible builds
+    with tempfile.TemporaryDirectory() as tmpdir:
+      RunAndCheckOutput(["unpack_bootimg", "--boot_img", image_path, "--out", tmpdir])
+      for filename in ["kernel", "ramdisk", "vendor_ramdisk00"]:
+        path = os.path.join(tmpdir, filename)
+        if os.path.exists(path) and os.path.getsize(path):
+          with open(path, "rb") as fp:
+            salt = sha256(fp.read()).hexdigest()
+    AppendAVBSigningArgs(cmd, partition_name, salt)
     args = info_dict.get("avb_" + partition_name + "_add_hash_footer_args")
     if args and args.strip():
       split_args = ResolveAVBSigningPathArgs(shlex.split(args))
