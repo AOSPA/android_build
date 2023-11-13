@@ -774,7 +774,7 @@ function lunch()
         answer=$1
     else
         print_lunch_menu
-        echo "Which would you like? [aosp_arm-eng]"
+        echo "Which would you like? [aosp_arm-trunk_staging-eng]"
         echo -n "Pick from common choices above (e.g. 13) or specify your own (e.g. aosp_barbet-eng): "
         read answer
         used_lunch_menu=1
@@ -784,7 +784,7 @@ function lunch()
 
     if [ -z "$answer" ]
     then
-        selection=aosp_arm-eng
+        selection=aosp_arm-trunk_staging-eng
     elif (echo -n $answer | grep -q -e "^[0-9][0-9]*$")
     then
         local choices=($(TARGET_BUILD_APPS= get_build_var COMMON_LUNCH_CHOICES))
@@ -889,6 +889,8 @@ function tapas()
 {
     local showHelp="$(echo $* | xargs -n 1 echo | \grep -E '^(help)$' | xargs)"
     local arch="$(echo $* | xargs -n 1 echo | \grep -E '^(arm|x86|arm64|x86_64)$' | xargs)"
+    # TODO(b/307975293): Expand tapas to take release arguments (and update hmm() usage).
+    local release="trunk_staging"
     local variant="$(echo $* | xargs -n 1 echo | \grep -E '^(user|userdebug|eng)$' | xargs)"
     local density="$(echo $* | xargs -n 1 echo | \grep -E '^(ldpi|mdpi|tvdpi|hdpi|xhdpi|xxhdpi|xxxhdpi|alldpi)$' | xargs)"
     local keys="$(echo $* | xargs -n 1 echo | \grep -E '^(devkeys)$' | xargs)"
@@ -902,6 +904,10 @@ function tapas()
 
     if [ $(echo $arch | wc -w) -gt 1 ]; then
         echo "tapas: Error: Multiple build archs supplied: $arch"
+        return
+    fi
+    if [ $(echo $release | wc -w) -gt 1 ]; then
+        echo "tapas: Error: Multiple build releases supplied: $release"
         return
     fi
     if [ $(echo $variant | wc -w) -gt 1 ]; then
@@ -938,6 +944,7 @@ function tapas()
     fi
 
     export TARGET_PRODUCT=$product
+    export TARGET_RELEASE=$release
     export TARGET_BUILD_VARIANT=$variant
     export TARGET_BUILD_DENSITY=$density
     export TARGET_BUILD_TYPE=release
@@ -2121,6 +2128,11 @@ function avbtool() {
 function overrideflags() {
     local T="$(gettop)"
     (\cd "${T}" && build/make/tools/overrideflags.sh "$@")
+}
+
+function aninja() {
+    local T="$(gettop)"
+    (\cd "${T}" && prebuilts/build-tools/linux-x86/bin/ninja -f out/combined-${TARGET_PRODUCT}.ninja "$@")
 }
 
 validate_current_shell
