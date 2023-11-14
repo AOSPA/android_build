@@ -81,3 +81,9 @@ endif
 ifeq ($(strip $(TARGET_USES_AOSP_FOR_WLAN)),true)
     $(call soong_config_set,wifi,target_uses_aosp_for_wlan,true)
 endif
+ifeq ($(strip $(CONFIG_MAC_PRIVACY_LOGGING)),true)
+    $(call soong_config_set,wifi,mac_privacy_logging,true)
+endif
+ifeq ($(strip $(TARGET_SUPPORTS_WEARABLES)),true)
+    $(call soong_config_set,target_supports_wearables,true)
+endif
