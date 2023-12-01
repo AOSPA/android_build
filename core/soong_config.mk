@@ -172,7 +172,7 @@ $(call add_json_bool, UncompressPrivAppDex,              $(call invert_bool,$(fi
 $(call add_json_list, ModulesLoadedByPrivilegedModules,  $(PRODUCT_LOADED_BY_PRIVILEGED_MODULES))
 
 $(call add_json_list, BootJars,                          $(PRODUCT_BOOT_JARS))
-$(call add_json_list, ApexBootJars,                      $(PRODUCT_APEX_BOOT_JARS))
+$(call add_json_list, ApexBootJars,                      $(filter-out $(APEX_BOOT_JARS_EXCLUDED), $(PRODUCT_APEX_BOOT_JARS)))
 
 $(call add_json_bool, VndkUseCoreVariant,                $(TARGET_VNDK_USE_CORE_VARIANT))
 $(call add_json_bool, VndkSnapshotBuildArtifacts,        $(VNDK_SNAPSHOT_BUILD_ARTIFACTS))
@@ -419,6 +419,8 @@ $(call add_json_map, PartitionVarsForBazelMigrationOnlyDoNotUse)
 $(call end_json_map)
 
 $(call add_json_bool, NextReleaseHideFlaggedApi, $(filter true,$(PRODUCT_NEXT_RELEASE_HIDE_FLAGGED_API)))
+
+$(call add_json_bool, BuildFromSourceStub, $(findstring true,$(PRODUCT_BUILD_FROM_SOURCE_STUB) $(BUILD_FROM_SOURCE_STUB)))
 
 $(call json_end)
 
