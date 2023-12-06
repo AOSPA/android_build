@@ -138,11 +138,6 @@ _base_mk_allowed_list += \
     $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.cryptfshw@1.0.so
 endif
 
-ifeq (1,$(USE_CUSTOM_AUDIO_POLICY))
-_base_mk_allowed_list += \
-    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.audiohalext@1.0.so
-endif
-
 _base_mk_allowed_list += \
     $(TARGET_COPY_OUT_SYSTEM_EXT)/lib/vendor.qti.hardware.camera.device@1.0.so \
     $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/libvr_amb_engine.so \
