@@ -805,10 +805,27 @@ function lunch()
 
     export TARGET_BUILD_APPS=
 
-    # This must be <product>-<release>-<variant>
-    local product release variant
-    # Split string on the '-' character.
-    IFS="-" read -r product release variant <<< "$selection"
+    # Support <product>-<variant> or <product>-<release>-<variant>
+    # Default value of <release> is next if not specified.
+    local product release_and_variant release variant
+    product=${selection%%-*} # Trim everything after first dash
+    release_and_variant=${selection#*-} # Trim everything up to first dash
+    if [ "$release_and_variant" != "$selection" ]; then
+        local first=${release_and_variant%%-*} # Trim everything after first dash
+        if [ "$first" != "$release_and_variant" ]; then
+            # There is a 2nd dash, split into release-variant
+            release=$first # Everything up to the dash
+            variant=${release_and_variant#*-} # Trim everything up to dash
+        else
+            # There is not a 2nd dash, default to variant as the second param
+            variant=$first
+        fi
+    fi
+
+    if [ ! -n "$release" ]; then
+        echo "Release not specified, defaulting to 'next' build"
+        release=next
+    fi
 
     if [[ -z "$product" ]] || [[ -z "$release" ]] || [[ -z "$variant" ]]
     then
