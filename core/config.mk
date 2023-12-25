@@ -1142,8 +1142,8 @@ endif
 # Flags for DEX2OAT
 first_non_empty_of_three = $(if $(1),$(1),$(if $(2),$(2),$(3)))
 DEX2OAT_TARGET_ARCH := $(TARGET_ARCH)
-DEX2OAT_TARGET_CPU_VARIANT := $(call first_non_empty_of_three,$(TARGET_CPU_VARIANT),$(TARGET_ARCH_VARIANT),default)
-DEX2OAT_TARGET_CPU_VARIANT_RUNTIME := $(call first_non_empty_of_three,$(TARGET_CPU_VARIANT_RUNTIME),$(TARGET_ARCH_VARIANT),default)
+DEX2OAT_TARGET_CPU_VARIANT ?= $(call first_non_empty_of_three,$(TARGET_CPU_VARIANT),$(TARGET_ARCH_VARIANT),default)
+DEX2OAT_TARGET_CPU_VARIANT_RUNTIME ?= $(call first_non_empty_of_three,$(TARGET_CPU_VARIANT_RUNTIME),$(TARGET_ARCH_VARIANT),default)
 DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES := default
 
 ifdef TARGET_2ND_ARCH
