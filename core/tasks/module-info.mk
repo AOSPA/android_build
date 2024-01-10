@@ -13,13 +13,18 @@ define write-optional-json-bool
 $(if $(strip $(2)),'$(COMMA)$(strip $(1)): "$(strip $(2))"')
 endef
 
-$(MODULE_INFO_JSON):
+SOONG_MODULE_INFO := $(SOONG_OUT_DIR)/module-info-$(TARGET_PRODUCT).json
+
+$(MODULE_INFO_JSON): PRIVATE_SOONG_MODULE_INFO := $(SOONG_MODULE_INFO)
+$(MODULE_INFO_JSON): PRIVATE_MERGE_JSON_OBJECTS := $(HOST_OUT_EXECUTABLES)/merge_module_info_json
+$(MODULE_INFO_JSON): $(HOST_OUT_EXECUTABLES)/merge_module_info_json
+$(MODULE_INFO_JSON): $(SOONG_MODULE_INFO)
 	@echo Generating $@
 	$(foreach m, $(sort $(ALL_MODULES)), $(eval ALL_MODULES.$(m).INCS := \
 					$(patsubst -D%,,$(subst -I,,$(foreach imp,$(ALL_MODULES.$(m).IMPORTS), \
 					$(EXPORTS.$(imp).FLAGS))) $(ALL_MODULES.$(m).INCS))))
-	$(hide) echo -ne '{\n ' > $@
-	$(hide) echo -ne $(KATI_foreach_sep m,$(COMMA)$(_NEWLINE), $(sort $(ALL_MODULES)),\
+	$(hide) echo -ne '{\n ' > $@.tmp
+	$(hide) echo -ne $(KATI_foreach_sep m,$(COMMA)$(_NEWLINE), $(sort $(ALL_MAKE_MODULE_INFO_JSON_MODULES)),\
 		'"$(m)": {' \
 			'"module_name": "$(ALL_MODULES.$(m).MODULE_NAME)"' \
 			$(call write-optional-json-list, "class", $(sort $(ALL_MODULES.$(m).CLASS))) \
@@ -52,7 +57,9 @@ $(MODULE_INFO_JSON):
 			$(call write-optional-json-list, "supported_variants", $(sort $(ALL_MODULES.$(m).SUPPORTED_VARIANTS))) \
 			$(call write-optional-json-list, "host_dependencies", $(sort $(ALL_MODULES.$(m).HOST_REQUIRED_FROM_TARGET))) \
 			$(call write-optional-json-list, "target_dependencies", $(sort $(ALL_MODULES.$(m).TARGET_REQUIRED_FROM_HOST))) \
-			'}') '\n}\n' | sed -e 's/, *\]/]/g' -e 's/, *\}/ }/g' -e '$$s/,$$//' >> $@
+			'}') '\n}\n' | sed -e 's/, *\]/]/g' -e 's/, *\}/ }/g' -e '$$s/,$$//' >> $@.tmp
+	$(PRIVATE_MERGE_JSON_OBJECTS) -o $@ $(PRIVATE_SOONG_MODULE_INFO) $@.tmp
+	rm $@.tmp
 
 
 droidcore-unbundled: $(MODULE_INFO_JSON)
