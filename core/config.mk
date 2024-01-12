@@ -834,10 +834,14 @@ endif
 # Set BOARD_SYSTEMSDK_VERSIONS to the latest SystemSDK version starting from P-launching
 # devices if unset.
 ifndef BOARD_SYSTEMSDK_VERSIONS
-  ifeq (REL,$(PLATFORM_VERSION_CODENAME))
-    BOARD_SYSTEMSDK_VERSIONS := $(PLATFORM_SDK_VERSION)
-  else
-    BOARD_SYSTEMSDK_VERSIONS := $(PLATFORM_VERSION_CODENAME)
+  ifdef PRODUCT_SHIPPING_API_LEVEL
+  ifneq ($(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),28),)
+    ifeq (REL,$(PLATFORM_VERSION_CODENAME))
+      BOARD_SYSTEMSDK_VERSIONS := $(PLATFORM_SDK_VERSION)
+    else
+      BOARD_SYSTEMSDK_VERSIONS := $(PLATFORM_VERSION_CODENAME)
+    endif
+  endif
   endif
 endif
 
