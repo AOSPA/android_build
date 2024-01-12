@@ -823,8 +823,8 @@ function lunch()
     fi
 
     if [ ! -n "$release" ]; then
-        echo "Release not specified, defaulting to 'next' build"
-        release=next
+        echo "Release not specified, defaulting to 'trunk_food' build"
+        release=trunk_food
     fi
 
     if [[ -z "$product" ]] || [[ -z "$release" ]] || [[ -z "$variant" ]]
