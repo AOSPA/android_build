@@ -86,6 +86,16 @@ $(call dist-for-goals,layoutlib,$(LAYOUTLIB_RES)/layoutlib-res.zip:layoutlib_nat
 LAYOUTLIB_SBOM := $(call intermediates-dir-for,PACKAGING,layoutlib-sbom,HOST)
 _layoutlib_font_config_files := $(sort $(wildcard frameworks/base/data/fonts/*.xml))
 _layoutlib_fonts_files := $(filter $(TARGET_OUT)/fonts/%.ttf $(TARGET_OUT)/fonts/%.ttc $(TARGET_OUT)/fonts/%.otf, $(INTERNAL_SYSTEMIMAGE_FILES))
+_layoutlib_keyboard_files := $(sort $(wildcard frameworks/base/data/keyboards/*.kcm))
+
+# Find out files disted with layoutlib in Soong.
+### Filter out static libraries for Windows and files already handled in make.
+_layoutlib_filter_out_disted := $(addprefix layoutlib_native/,fonts/% keyboards/% build.prop res.zip windows/%.a)
+_layoutlib_files_disted_by_soong := \
+  $(strip \
+    $(foreach p,$(_all_dist_src_dst_pairs), \
+      $(if $(filter-out $(_layoutlib_filter_out_disted),$(filter layoutlib_native/% layoutlib.jar,$(call word-colon,2,$p))),$p)))
+
 $(LAYOUTLIB_SBOM)/sbom-metadata.csv:
 	rm -rf $@
 	echo installed_file,module_path,soong_module_type,is_prebuilt_make_module,product_copy_files,kernel_module_copy_files,is_platform_generated,build_output_path,static_libraries,whole_static_libraries,is_static_lib >> $@
@@ -102,6 +112,21 @@ $(LAYOUTLIB_SBOM)/sbom-metadata.csv:
 	  echo data/fonts/$(notdir $f),$(_module_path),$(_soong_module_type),,,,,$f,,, >> $@; \
 	)
 
+	$(foreach f,$(_layoutlib_keyboard_files), \
+	  echo data/keyboards/$(notdir $f),frameworks/base/data/keyboards,prebuilt_etc,,,,,$f,,, >> $@; \
+	)
+
+	$(foreach f,$(_layoutlib_files_disted_by_soong), \
+	  $(eval _prebuilt_module_file := $(call word-colon,1,$f)) \
+	  $(eval _dist_file := $(call word-colon,2,$f)) \
+	  $(eval _dist_file := $(patsubst data/windows/%,data/win/lib64/%,$(patsubst layoutlib_native/%,data/%,$(_dist_file)))) \
+	  $(eval _dist_file := $(subst layoutlib.jar,data/layoutlib.jar,$(_dist_file))) \
+	  $(eval _module_name := $(strip $(foreach m,$(ALL_MODULES),$(if $(filter $(_prebuilt_module_file),$(ALL_MODULES.$m.CHECKED)),$m)))) \
+	  $(eval _module_path := $(strip $(sort $(ALL_MODULES.$(_module_name).PATH)))) \
+	  $(eval _soong_module_type := $(strip $(sort $(ALL_MODULES.$(_module_name).SOONG_MODULE_TYPE)))) \
+	  echo $(patsubst layoutlib_native/%,%,$(_dist_file)),$(_module_path),$(_soong_module_type),,,,,$(_prebuilt_module_file),,, >> $@; \
+	)
+
 	$(foreach f,$(LAYOUTLIB_RES_FILES), \
 	  $(eval _path := $(subst frameworks/base/core/res,data,$f)) \
 	  echo $(_path),,,,,,Y,$f,,, >> $@; \
@@ -109,9 +134,9 @@ $(LAYOUTLIB_SBOM)/sbom-metadata.csv:
 
 .PHONY: layoutlib-sbom
 layoutlib-sbom: $(LAYOUTLIB_SBOM)/layoutlib.spdx.json
-$(LAYOUTLIB_SBOM)/layoutlib.spdx.json: $(PRODUCT_OUT)/always_dirty_file.txt $(LAYOUTLIB_SBOM)/sbom-metadata.csv $(_layoutlib_font_config_files) $(_layoutlib_fonts_files) $(LAYOUTLIB_BUILD_PROP)/layoutlib-build.prop $(LAYOUTLIB_RES_FILES)
+$(LAYOUTLIB_SBOM)/layoutlib.spdx.json: $(PRODUCT_OUT)/always_dirty_file.txt $(GEN_SBOM) $(LAYOUTLIB_SBOM)/sbom-metadata.csv $(_layoutlib_font_config_files) $(_layoutlib_fonts_files) $(LAYOUTLIB_BUILD_PROP)/layoutlib-build.prop $(_layoutlib_keyboard_files) $(LAYOUTLIB_RES_FILES)
 	rm -rf $@
-	$(GEN_SBOM) --output_file $@ --metadata $(LAYOUTLIB_SBOM)/sbom-metadata.csv --build_version $(BUILD_FINGERPRINT_FROM_FILE) --product_mfr "$(PRODUCT_MANUFACTURER)" --json
+	$(GEN_SBOM) --output_file $@ --metadata $(LAYOUTLIB_SBOM)/sbom-metadata.csv --build_version $(BUILD_FINGERPRINT_FROM_FILE) --product_mfr "$(PRODUCT_MANUFACTURER)" --module_name "layoutlib" --json
 
 $(call dist-for-goals,layoutlib,$(LAYOUTLIB_SBOM)/layoutlib.spdx.json:layoutlib_native/sbom/layoutlib.spdx.json)
 

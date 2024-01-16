@@ -430,25 +430,25 @@ else
 endif
 .KATI_READONLY := TARGET_MAX_PAGE_SIZE_SUPPORTED
 
-# Only arm64 arch supports TARGET_MAX_PAGE_SIZE_SUPPORTED greater than 4096.
+# Only arm64 and x86_64 archs supports TARGET_MAX_PAGE_SIZE_SUPPORTED greater than 4096.
 ifneq ($(TARGET_MAX_PAGE_SIZE_SUPPORTED),4096)
-  ifneq ($(TARGET_ARCH),arm64)
-    $(error TARGET_MAX_PAGE_SIZE_SUPPORTED=$(TARGET_MAX_PAGE_SIZE_SUPPORTED) is greater than 4096. Only supported in arm64 arch)
+  ifeq (,$(filter arm64 x86_64,$(TARGET_ARCH)))
+    $(error TARGET_MAX_PAGE_SIZE_SUPPORTED=$(TARGET_MAX_PAGE_SIZE_SUPPORTED) is greater than 4096. Only supported in arm64 and x86_64 archs)
   endif
 endif
 
 # Boolean variable determining if AOSP is page size agnostic. This means
 # that AOSP can use a kernel configured with 4k/16k/64k PAGE SIZES.
-TARGET_PAGE_SIZE_AGNOSTIC := false
-ifdef PRODUCT_PAGE_SIZE_AGNOSTIC
-  TARGET_PAGE_SIZE_AGNOSTIC := $(PRODUCT_PAGE_SIZE_AGNOSTIC)
-  ifeq ($(TARGET_PAGE_SIZE_AGNOSTIC),true)
+TARGET_NO_BIONIC_PAGE_SIZE_MACRO := false
+ifdef PRODUCT_NO_BIONIC_PAGE_SIZE_MACRO
+  TARGET_NO_BIONIC_PAGE_SIZE_MACRO := $(PRODUCT_NO_BIONIC_PAGE_SIZE_MACRO)
+  ifeq ($(TARGET_NO_BIONIC_PAGE_SIZE_MACRO),true)
       ifneq ($(TARGET_MAX_PAGE_SIZE_SUPPORTED),65536)
           $(error TARGET_MAX_PAGE_SIZE_SUPPORTED has to be 65536 to support page size agnostic)
       endif
   endif
 endif
-.KATI_READONLY := TARGET_PAGE_SIZE_AGNOSTIC
+.KATI_READONLY := TARGET_NO_BIONIC_PAGE_SIZE_MACRO
 
 # Pruned directory options used when using findleaves.py
 # See envsetup.mk for a description of SCAN_EXCLUDE_DIRS
@@ -686,7 +686,6 @@ NANOPB_SRCS := $(HOST_OUT_EXECUTABLES)/protoc-gen-nanopb
 MKBOOTFS := $(HOST_OUT_EXECUTABLES)/mkbootfs$(HOST_EXECUTABLE_SUFFIX)
 MINIGZIP := $(GZIP)
 LZ4 := $(HOST_OUT_EXECUTABLES)/lz4$(HOST_EXECUTABLE_SUFFIX)
-GENERATE_GKI_CERTIFICATE := $(HOST_OUT_EXECUTABLES)/generate_gki_certificate$(HOST_EXECUTABLE_SUFFIX)
 ifeq (,$(strip $(BOARD_CUSTOM_MKBOOTIMG)))
 MKBOOTIMG := $(HOST_OUT_EXECUTABLES)/mkbootimg$(HOST_EXECUTABLE_SUFFIX)
 else
@@ -816,7 +815,11 @@ $(KATI_obsolete_var $(foreach req,$(requirements),$(req)_OVERRIDE) \
 requirements :=
 
 # Set default value of KEEP_VNDK.
-KEEP_VNDK ?= true
+ifeq ($(RELEASE_DEPRECATE_VNDK),true)
+  KEEP_VNDK ?= false
+else
+  KEEP_VNDK ?= true
+endif
 
 # BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED can be true only if early-mount of
 # partitions is supported. But the early-mount must be supported for full
@@ -1312,3 +1315,9 @@ DEFAULT_DATA_OUT_MODULES := ltp $(ltp_packages)
 .KATI_READONLY := DEFAULT_DATA_OUT_MODULES
 
 include $(BUILD_SYSTEM)/dumpvar.mk
+
+ifeq (true,$(FULL_SYSTEM_OPTIMIZE_JAVA))
+ifeq (false,$(SYSTEM_OPTIMIZE_JAVA))
+$(error SYSTEM_OPTIMIZE_JAVA must be enabled when FULL_SYSTEM_OPTIMIZE_JAVA is enabled)
+endif
+endif

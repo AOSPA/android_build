@@ -56,7 +56,7 @@ cat <<EOF
 Run "m help" for help with the build system itself.
 
 Invoke ". build/envsetup.sh" from your shell to add the following functions to your environment:
-- lunch:      lunch <product_name>-<build_variant>
+- lunch:      lunch <product_name>-<release_type>-<build_variant>
               Selects <product_name> as the product to build, and <build_variant> as the variant to
               build, and stores those selections in the environment to be read by subsequent
               invocations of 'm' etc.
@@ -205,6 +205,7 @@ function check_product()
         return
     fi
         TARGET_PRODUCT=$1 \
+        TARGET_RELEASE= \
         TARGET_BUILD_VARIANT= \
         TARGET_BUILD_TYPE= \
         TARGET_BUILD_APPS= \
@@ -486,7 +487,7 @@ function addcompletions()
 
 function multitree_lunch_help()
 {
-    echo "usage: lunch PRODUCT-VARIANT" 1>&2
+    echo "usage: lunch PRODUCT-RELEASE-VARIANT" 1>&2
     echo "    Set up android build environment based on a product short name and variant" 1>&2
     echo 1>&2
     echo "lunch COMBO_FILE VARIANT" 1>&2
@@ -728,7 +729,7 @@ function print_lunch_menu()
 {
     local uname=$(uname)
     local choices
-    choices=$(TARGET_BUILD_APPS= TARGET_PRODUCT= TARGET_BUILD_VARIANT= get_build_var COMMON_LUNCH_CHOICES 2>/dev/null)
+    choices=$(TARGET_BUILD_APPS= TARGET_PRODUCT= TARGET_RELEASE= TARGET_BUILD_VARIANT= get_build_var COMMON_LUNCH_CHOICES 2>/dev/null)
     local ret=$?
 
     echo
@@ -775,7 +776,7 @@ function lunch()
     else
         print_lunch_menu
         echo "Which would you like? [aosp_arm-trunk_staging-eng]"
-        echo -n "Pick from common choices above (e.g. 13) or specify your own (e.g. aosp_barbet-eng): "
+        echo -n "Pick from common choices above (e.g. 13) or specify your own (e.g. aosp_barbet-trunk_staging-eng): "
         read answer
         used_lunch_menu=1
     fi
@@ -804,7 +805,8 @@ function lunch()
 
     export TARGET_BUILD_APPS=
 
-    # Support either <product>-<variant> or <product>-<release>-<variant>
+    # Support <product>-<variant> or <product>-<release>-<variant>
+    # Default value of <release> is next if not specified.
     local product release_and_variant release variant
     product=${selection%%-*} # Trim everything after first dash
     release_and_variant=${selection#*-} # Trim everything up to first dash
@@ -820,10 +822,16 @@ function lunch()
         fi
     fi
 
-    if [ -z "$product" ]
+    if [ ! -n "$release" ]; then
+        echo "Release not specified, defaulting to 'next' build"
+        release=next
+    fi
+
+    if [[ -z "$product" ]] || [[ -z "$release" ]] || [[ -z "$variant" ]]
     then
         echo
         echo "Invalid lunch combo: $selection"
+        echo "Valid combos must be of the form <product>-<release>-<variant>"
         return 1
     fi
 
@@ -843,22 +851,25 @@ function lunch()
     export TARGET_BOARD_PLATFORM=$(get_build_var TARGET_BOARD_PLATFORM)
     export TARGET_BUILD_VARIANT=$(get_build_var TARGET_BUILD_VARIANT)
     export PLATFORM_VERSION=$(get_build_var PLATFORM_VERSION)
-    if [ -n "$release" ]; then
-      export TARGET_RELEASE=$release
-    else
-      unset TARGET_RELEASE
-    fi
+    export TARGET_RELEASE=$release
+    # Note this is the string "release", not the value of the variable.
     export TARGET_BUILD_TYPE=release
-
-    if [ $used_lunch_menu -eq 1 ]; then
-      echo
-      echo "Hint: next time you can simply run 'lunch $selection'"
-    fi
 
     [[ -n "${ANDROID_QUIET_BUILD:-}" ]] || echo
 
     set_stuff_for_environment
     [[ -n "${ANDROID_QUIET_BUILD:-}" ]] || printconfig
+
+    if [ "${TARGET_BUILD_VARIANT}" = "userdebug" ] && [[  -z "${ANDROID_QUIET_BUILD}" ]]; then
+      echo
+      echo "Want FASTER LOCAL BUILDS? Use -eng instead of -userdebug (however for" \
+        "performance benchmarking continue to use userdebug)"
+    fi
+    if [ $used_lunch_menu -eq 1 ]; then
+      echo
+      echo "Hint: next time you can simply run 'lunch $selection'"
+    fi
+
     destroy_build_var_cache
 
     if [[ -n "${CHECK_MU_CONFIG:-}" ]]; then
@@ -962,6 +973,8 @@ function banchan()
 {
     local showHelp="$(echo $* | xargs -n 1 echo | \grep -E '^(help)$' | xargs)"
     local product="$(echo $* | xargs -n 1 echo | \grep -E '^(.*_)?(arm|x86|arm64|riscv64|x86_64|arm64only|x86_64only)$' | xargs)"
+    # TODO: Expand banchan to take release arguments (and update hmm() usage).
+    local release="trunk_staging"
     local variant="$(echo $* | xargs -n 1 echo | \grep -E '^(user|userdebug|eng)$' | xargs)"
     local apps="$(echo $* | xargs -n 1 echo | \grep -E -v '^(user|userdebug|eng|(.*_)?(arm|x86|arm64|riscv64|x86_64))$' | xargs)"
 
@@ -974,6 +987,10 @@ function banchan()
         product=arm64
     elif [ $(echo $product | wc -w) -gt 1 ]; then
         echo "banchan: Error: Multiple build archs or products supplied: $products"
+        return
+    fi
+    if [ $(echo $release | wc -w) -gt 1 ]; then
+        echo "banchan: Error: Multiple build releases supplied: $release"
         return
     fi
     if [ $(echo $variant | wc -w) -gt 1 ]; then
@@ -999,6 +1016,7 @@ function banchan()
     fi
 
     export TARGET_PRODUCT=$product
+    export TARGET_RELEASE=$release
     export TARGET_BUILD_VARIANT=$variant
     export TARGET_BUILD_DENSITY=alldpi
     export TARGET_BUILD_TYPE=release

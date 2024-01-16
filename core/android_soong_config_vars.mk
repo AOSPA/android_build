@@ -31,6 +31,7 @@ $(call add_soong_config_var,ANDROID,TARGET_DYNAMIC_64_32_DRMSERVER)
 $(call add_soong_config_var,ANDROID,TARGET_ENABLE_MEDIADRM_64)
 $(call add_soong_config_var,ANDROID,BOARD_USES_ODMIMAGE)
 $(call add_soong_config_var,ANDROID,BOARD_USES_RECOVERY_AS_BOOT)
+$(call add_soong_config_var,ANDROID,CHECK_DEV_TYPE_VIOLATIONS)
 $(call add_soong_config_var,ANDROID,PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT)
 
 # Default behavior for the tree wrt building modules or using prebuilts. This
@@ -198,7 +199,13 @@ else ifneq (platform:services,$(lastword $(PRODUCT_SYSTEM_SERVER_JARS)))
 else
   SYSTEM_OPTIMIZE_JAVA ?= true
 endif
+
+ifeq (true,$(FULL_SYSTEM_OPTIMIZE_JAVA))
+  SYSTEM_OPTIMIZE_JAVA := true
+endif
+
 $(call add_soong_config_var,ANDROID,SYSTEM_OPTIMIZE_JAVA)
+$(call add_soong_config_var,ANDROID,FULL_SYSTEM_OPTIMIZE_JAVA)
 
 # Check for SupplementalApi module.
 ifeq ($(wildcard packages/modules/SupplementalApi),)

@@ -41,7 +41,6 @@ PRODUCT_PACKAGES += \
     BuiltInPrintService \
     CalendarProvider \
     cameraserver \
-    com.android.nfcservices \
     CameraExtensionsProxy \
     CaptivePortalLogin \
     CertInstaller \
@@ -73,7 +72,9 @@ PRODUCT_PACKAGES += \
     UserDictionaryProvider \
     VpnDialogs \
     vr \
+    $(RELEASE_PACKAGE_NFC_STACK)
 
+PRODUCT_PACKAGES += $(RELEASE_PACKAGE_VIRTUAL_CAMERA)
 
 ifneq ($(TARGET_USES_QSPA), true)
 PRODUCT_PACKAGES += \

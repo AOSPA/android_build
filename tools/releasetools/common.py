@@ -39,17 +39,22 @@ import tempfile
 import threading
 import time
 import zipfile
+
+from typing import Iterable, Callable
 from dataclasses import dataclass
-from genericpath import isdir
 from hashlib import sha1, sha256
 
 import images
-import rangelib
 import sparse_img
 from blockimgdiff import BlockImageDiff
 
 logger = logging.getLogger(__name__)
 
+
+@dataclass
+class OptionHandler:
+  extra_long_opts: Iterable[str]
+  handler: Callable
 
 class Options(object):
 
@@ -1154,8 +1159,7 @@ class PartitionBuildProps(object):
     return self.build_props.get(prop)
 
 
-def LoadRecoveryFSTab(read_helper, fstab_version, recovery_fstab_path,
-                      system_root_image=False):
+def LoadRecoveryFSTab(read_helper, fstab_version, recovery_fstab_path):
   class Partition(object):
     def __init__(self, mount_point, fs_type, device, length, context, slotselect):
       self.mount_point = mount_point
@@ -1214,12 +1218,6 @@ def LoadRecoveryFSTab(read_helper, fstab_version, recovery_fstab_path,
                                device=pieces[0], length=length, context=context,
                                slotselect=slotselect)
 
-  # / is used for the system mount point when the root directory is included in
-  # system. Other areas assume system is always at "/system" so point /system
-  # at /.
-  if system_root_image:
-    assert '/system' not in d and '/' in d
-    d["/system"] = d["/"]
   return d
 
 
@@ -1235,22 +1233,19 @@ def _FindAndLoadRecoveryFstab(info_dict, input_file, read_helper):
   # ../RAMDISK/system/etc/recovery.fstab. This function has to handle both
   # cases, since it may load the info_dict from an old build (e.g. when
   # generating incremental OTAs from that build).
-  system_root_image = info_dict.get('system_root_image') == 'true'
   if info_dict.get('no_recovery') != 'true':
     recovery_fstab_path = 'RECOVERY/RAMDISK/system/etc/recovery.fstab'
     if not DoesInputFileContain(input_file, recovery_fstab_path):
       recovery_fstab_path = 'RECOVERY/RAMDISK/etc/recovery.fstab'
     return LoadRecoveryFSTab(
-        read_helper, info_dict['fstab_version'], recovery_fstab_path,
-        system_root_image)
+        read_helper, info_dict['fstab_version'], recovery_fstab_path)
 
   if info_dict.get('recovery_as_boot') == 'true':
     recovery_fstab_path = 'BOOT/RAMDISK/system/etc/recovery.fstab'
     if not DoesInputFileContain(input_file, recovery_fstab_path):
       recovery_fstab_path = 'BOOT/RAMDISK/etc/recovery.fstab'
     return LoadRecoveryFSTab(
-        read_helper, info_dict['fstab_version'], recovery_fstab_path,
-        system_root_image)
+        read_helper, info_dict['fstab_version'], recovery_fstab_path)
 
   return None
 
@@ -1946,8 +1941,11 @@ def _SignBootableImage(image_path, prebuilt_name, partition_name,
       for filename in ["kernel", "ramdisk", "vendor_ramdisk00"]:
         path = os.path.join(tmpdir, filename)
         if os.path.exists(path) and os.path.getsize(path):
+          print("Using {} as salt for avb footer of {}".format(
+              filename, partition_name))
           with open(path, "rb") as fp:
             salt = sha256(fp.read()).hexdigest()
+            break
     AppendAVBSigningArgs(cmd, partition_name, salt)
     args = info_dict.get("avb_" + partition_name + "_add_hash_footer_args")
     if args and args.strip():
@@ -1974,11 +1972,6 @@ def HasRamdisk(partition_name, info_dict=None):
 
   if info_dict.get("gki_boot_image_without_ramdisk") == "true":
     return False  # A GKI boot.img has no ramdisk since Android-13.
-
-  if info_dict.get("system_root_image") == "true":
-    # The ramdisk content is merged into the system.img, so there is NO
-    # ramdisk in the boot.img or boot-<kernel version>.img.
-    return False
 
   if info_dict.get("init_boot") == "true":
     # The ramdisk is moved to the init_boot.img, so there is NO
@@ -2654,7 +2647,9 @@ def CheckSize(data, target, info_dict):
     device = p.device
     if "/" in device:
       device = device[device.rfind("/")+1:]
-    limit = info_dict.get(device + "_size")
+    limit = info_dict.get(device + "_size", 0)
+    if isinstance(limit, str):
+      limit = int(limit, 0)
   if not fs_type or not limit:
     return
 
@@ -2791,12 +2786,19 @@ def Usage(docstring):
 def ParseOptions(argv,
                  docstring,
                  extra_opts="", extra_long_opts=(),
-                 extra_option_handler=None):
+                 extra_option_handler: Iterable[OptionHandler] = None):
   """Parse the options in argv and return any arguments that aren't
   flags.  docstring is the calling module's docstring, to be displayed
   for errors and -h.  extra_opts and extra_long_opts are for flags
   defined by the caller, which are processed by passing them to
   extra_option_handler."""
+  extra_long_opts = list(extra_long_opts)
+  if not isinstance(extra_option_handler, Iterable):
+    extra_option_handler = [extra_option_handler]
+
+  for handler in extra_option_handler:
+    if isinstance(handler, OptionHandler):
+      extra_long_opts.extend(handler.extra_long_opts)
 
   try:
     opts, args = getopt.getopt(
@@ -2858,8 +2860,19 @@ def ParseOptions(argv,
     elif o in ("--logfile",):
       OPTIONS.logfile = a
     else:
-      if extra_option_handler is None or not extra_option_handler(o, a):
-        assert False, "unknown option \"%s\"" % (o,)
+      if extra_option_handler is None:
+        raise ValueError("unknown option \"%s\"" % (o,))
+      success = False
+      for handler in extra_option_handler:
+        if isinstance(handler, OptionHandler):
+          if handler.handler(o, a):
+            success = True
+            break
+        elif handler(o, a):
+          success = True
+      if not success:
+        raise ValueError("unknown option \"%s\"" % (o,))
+
 
   if OPTIONS.search_path:
     os.environ["PATH"] = (os.path.join(OPTIONS.search_path, "bin") +
@@ -3095,6 +3108,34 @@ def ZipWriteStr(zip_file, zinfo_or_arcname, data, perms=None,
   zip_file.writestr(zinfo, data)
   zipfile.ZIP64_LIMIT = saved_zip64_limit
 
+def ZipExclude(input_zip, output_zip, entries, force=False):
+  """Deletes entries from a ZIP file.
+
+  Args:
+    zip_filename: The name of the ZIP file.
+    entries: The name of the entry, or the list of names to be deleted.
+  """
+  if isinstance(entries, str):
+    entries = [entries]
+  # If list is empty, nothing to do
+  if not entries:
+    shutil.copy(input_zip, output_zip)
+    return
+
+  with zipfile.ZipFile(input_zip, 'r') as zin:
+    if not force and len(set(zin.namelist()).intersection(entries)) == 0:
+      raise ExternalError(
+          "Failed to delete zip entries, name not matched: %s" % entries)
+
+    fd, new_zipfile = tempfile.mkstemp(dir=os.path.dirname(input_zip))
+    os.close(fd)
+    cmd = ["zip2zip", "-i", input_zip, "-o", new_zipfile]
+    for entry in entries:
+      cmd.append("-x")
+      cmd.append(entry)
+    RunAndCheckOutput(cmd)
+  os.replace(new_zipfile, output_zip)
+
 
 def ZipDelete(zip_filename, entries, force=False):
   """Deletes entries from a ZIP file.
@@ -3109,20 +3150,7 @@ def ZipDelete(zip_filename, entries, force=False):
   if not entries:
     return
 
-  with zipfile.ZipFile(zip_filename, 'r') as zin:
-    if not force and len(set(zin.namelist()).intersection(entries)) == 0:
-      raise ExternalError(
-          "Failed to delete zip entries, name not matched: %s" % entries)
-
-    fd, new_zipfile = tempfile.mkstemp(dir=os.path.dirname(zip_filename))
-    os.close(fd)
-    cmd = ["zip2zip", "-i", zip_filename, "-o", new_zipfile]
-    for entry in entries:
-      cmd.append("-x")
-      cmd.append(entry)
-    RunAndCheckOutput(cmd)
-
-  os.replace(new_zipfile, zip_filename)
+  ZipExclude(zip_filename, zip_filename, entries, force)
 
 
 def ZipClose(zip_file):
@@ -3617,7 +3645,7 @@ class BlockDifference(object):
     #   compression_time:   75s  | 265s               | 719s
     #   decompression_time: 15s  | 25s                | 25s
 
-    if not self.src and not OPTIONS.info_dict.get("board_non_ab_ota_disable_compression"):
+    if not self.src:
       brotli_cmd = ['brotli', '--quality=6',
                     '--output={}.new.dat.br'.format(self.path),
                     '{}.new.dat'.format(self.path)]
@@ -3828,14 +3856,11 @@ def MakeRecoveryPatch(input_dir, output_sink, recovery_img, boot_img,
     output_sink(recovery_img_path, recovery_img.data)
 
   else:
-    system_root_image = info_dict.get("system_root_image") == "true"
     include_recovery_dtbo = info_dict.get("include_recovery_dtbo") == "true"
     include_recovery_acpio = info_dict.get("include_recovery_acpio") == "true"
     path = os.path.join(input_dir, recovery_resource_dat_path)
-    # With system-root-image, boot and recovery images will have mismatching
-    # entries (only recovery has the ramdisk entry) (Bug: 72731506). Use bsdiff
-    # to handle such a case.
-    if system_root_image or include_recovery_dtbo or include_recovery_acpio:
+    # Use bsdiff to handle mismatching entries (Bug: 72731506)
+    if include_recovery_dtbo or include_recovery_acpio:
       diff_program = ["bsdiff"]
       bonus_args = ""
       assert not os.path.exists(path)

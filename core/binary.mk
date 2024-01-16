@@ -289,25 +289,20 @@ ifeq ($(NATIVE_COVERAGE),true)
 endif
 
 ifneq ($(LOCAL_USE_VNDK),)
-  # Required VNDK version for vendor modules is BOARD_VNDK_VERSION.
-  my_api_level := $(BOARD_VNDK_VERSION)
-  ifeq ($(my_api_level),current)
-    # Build with current PLATFORM_VNDK_VERSION.
-    # If PLATFORM_VNDK_VERSION has a CODENAME, it will return
-    # __ANDROID_API_FUTURE__.
-    my_api_level := $(call codename-or-sdk-to-sdk,$(PLATFORM_VNDK_VERSION))
-  else
-    # Build with current BOARD_VNDK_VERSION.
-    my_api_level := $(call codename-or-sdk-to-sdk,$(BOARD_VNDK_VERSION))
-  endif
   my_cflags += -D__ANDROID_VNDK__
   ifneq ($(LOCAL_USE_VNDK_VENDOR),)
-    # Vendor modules have LOCAL_USE_VNDK_VENDOR when
-    # BOARD_VNDK_VERSION is defined.
+    # Vendor modules have LOCAL_USE_VNDK_VENDOR
     my_cflags += -D__ANDROID_VENDOR__
+
+    ifeq ($(BOARD_API_LEVEL),)
+      # TODO(b/314036847): This is a fallback for UDC targets.
+      # This must be a build failure when UDC is no longer built from this source tree.
+      my_cflags += -D__ANDROID_VENDOR_API__=$(PLATFORM_SDK_VERSION)
+    else
+      my_cflags += -D__ANDROID_VENDOR_API__=$(BOARD_API_LEVEL)
+    endif
   else ifneq ($(LOCAL_USE_VNDK_PRODUCT),)
-    # Product modules have LOCAL_USE_VNDK_PRODUCT when
-    # PRODUCT_PRODUCT_VNDK_VERSION is defined.
+    # Product modules have LOCAL_USE_VNDK_PRODUCT
     my_cflags += -D__ANDROID_PRODUCT__
   endif
 endif
@@ -354,17 +349,15 @@ endif
 # MinGW spits out warnings about -fPIC even for -fpie?!) being ignored because
 # all code is position independent, and then those warnings get promoted to
 # errors.
-ifneq ($(LOCAL_NO_PIC),true)
-  ifneq ($(filter EXECUTABLES NATIVE_TESTS,$(LOCAL_MODULE_CLASS)),)
-    my_cflags += -fPIE
-    ifndef BUILD_HOST_static
-      ifneq ($(LOCAL_FORCE_STATIC_EXECUTABLE),true)
-        my_ldflags += -pie
-      endif
+ifneq ($(filter EXECUTABLES NATIVE_TESTS,$(LOCAL_MODULE_CLASS)),)
+  my_cflags += -fPIE
+  ifndef BUILD_HOST_static
+    ifneq ($(LOCAL_FORCE_STATIC_EXECUTABLE),true)
+      my_ldflags += -pie
     endif
-  else
-    my_cflags += -fPIC
   endif
+else
+  my_cflags += -fPIC
 endif
 
 ifdef LOCAL_IS_HOST_MODULE
@@ -1459,17 +1452,6 @@ built_whole_libraries := \
     $(foreach lib,$(my_whole_static_libraries), \
       $(call intermediates-dir-for, \
         STATIC_LIBRARIES,$(lib),$(my_kind),,$(LOCAL_2ND_ARCH_VAR_PREFIX),$(my_host_cross))/$(lib)$(a_suffix))
-
-# We don't care about installed static libraries, since the
-# libraries have already been linked into the module at that point.
-# We do, however, care about the NOTICE files for any static
-# libraries that we use. (see notice_files.mk)
-installed_static_library_notice_file_targets := \
-    $(foreach lib,$(my_static_libraries) $(my_whole_static_libraries), \
-      NOTICE-$(if $(LOCAL_IS_HOST_MODULE),HOST$(if $(my_host_cross),_CROSS,),TARGET)-STATIC_LIBRARIES-$(lib))
-
-$(notice_target): | $(installed_static_library_notice_file_targets)
-$(LOCAL_INSTALLED_MODULE): | $(notice_target)
 
 # Default is -fno-rtti.
 ifeq ($(strip $(LOCAL_RTTI_FLAG)),)

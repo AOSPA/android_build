@@ -182,6 +182,12 @@ ADDITIONAL_SYSTEM_PROPERTIES += ro.treble.enabled=${PRODUCT_FULL_TREBLE}
 $(KATI_obsolete_var PRODUCT_FULL_TREBLE,\
 	Code should be written to work regardless of a device being Treble)
 
+# Set ro.llndk.api_level to show the maximum vendor API level that the LLNDK in
+# the system partition supports.
+ifdef RELEASE_BOARD_API_LEVEL
+ADDITIONAL_SYSTEM_PROPERTIES += ro.llndk.api_level=$(RELEASE_BOARD_API_LEVEL)
+endif
+
 # Sets ro.actionable_compatible_property.enabled to know on runtime whether the
 # allowed list of actionable compatible properties is enabled or not.
 ADDITIONAL_SYSTEM_PROPERTIES += ro.actionable_compatible_property.enabled=true
@@ -293,16 +299,22 @@ endif
 
 # Vendors with GRF must define BOARD_SHIPPING_API_LEVEL for the vendor API level.
 # This must not be defined for the non-GRF devices.
+# The values of the GRF properties will be verified by post_process_props.py
 ifdef BOARD_SHIPPING_API_LEVEL
 ADDITIONAL_VENDOR_PROPERTIES += \
     ro.board.first_api_level=$(BOARD_SHIPPING_API_LEVEL)
+endif
 
-# To manually set the vendor API level of the vendor modules, BOARD_API_LEVEL can be used.
-# The values of the GRF properties will be verified by post_process_props.py
+# Build system set BOARD_API_LEVEL to show the api level of the vendor API surface.
+# This must not be altered outside of build system.
 ifdef BOARD_API_LEVEL
 ADDITIONAL_VENDOR_PROPERTIES += \
     ro.board.api_level=$(BOARD_API_LEVEL)
 endif
+# BOARD_API_LEVEL_FROZEN is true when the vendor API surface is frozen.
+ifdef BOARD_API_LEVEL_FROZEN
+ADDITIONAL_VENDOR_PROPERTIES += \
+    ro.board.api_frozen=$(BOARD_API_LEVEL_FROZEN)
 endif
 
 # Set build prop. This prop is read by ota_from_target_files when generating OTA,
@@ -335,15 +347,14 @@ ADDITIONAL_VENDOR_PROPERTIES += \
     ro.build.ab_update=$(AB_OTA_UPDATER)
 endif
 
-# Set ro.product.vndk.version to know the VNDK version required by product
-# modules. It uses the version in PRODUCT_PRODUCT_VNDK_VERSION. If the value
-# is "current", use PLATFORM_VNDK_VERSION.
-ifdef PRODUCT_PRODUCT_VNDK_VERSION
-ifeq ($(KEEP_VNDK),true)
-ifeq ($(PRODUCT_PRODUCT_VNDK_VERSION),current)
+# Set ro.product.vndk.version to PLATFORM_VNDK_VERSION only if
+# KEEP_VNDK is true, PRODUCT_PRODUCT_VNDK_VERSION is current and
+# PLATFORM_VNDK_VERSION is less than or equal to 35.
+# ro.product.vndk.version must be removed for the other future builds.
+ifeq ($(KEEP_VNDK)|$(PRODUCT_PRODUCT_VNDK_VERSION),true|current)
+ifeq ($(call math_is_number,$(PLATFORM_VNDK_VERSION)),true)
+ifeq ($(call math_lt_or_eq,$(PLATFORM_VNDK_VERSION),35),true)
 ADDITIONAL_PRODUCT_PROPERTIES += ro.product.vndk.version=$(PLATFORM_VNDK_VERSION)
-else
-ADDITIONAL_PRODUCT_PROPERTIES += ro.product.vndk.version=$(PRODUCT_PRODUCT_VNDK_VERSION)
 endif
 endif
 endif
@@ -1285,6 +1296,11 @@ define product-installed-modules
     $(if $(filter asan,$(tags_to_install)),$(call get-product-var,$(1),PRODUCT_PACKAGES_DEBUG_ASAN)) \
     $(if $(filter java_coverage,$(tags_to_install)),$(call get-product-var,$(1),PRODUCT_PACKAGES_DEBUG_JAVA_COVERAGE)) \
     $(if $(filter arm64,$(TARGET_ARCH) $(TARGET_2ND_ARCH)),$(call get-product-var,$(1),PRODUCT_PACKAGES_ARM64)) \
+    $(if $(PRODUCT_SHIPPING_API_LEVEL), \
+      $(if $(call math_gt_or_eq,29,$(PRODUCT_SHIPPING_API_LEVEL)),$(call get-product-var,$(1),PRODUCT_PACKAGES_SHIPPING_API_LEVEL_29)) \
+      $(if $(call math_gt_or_eq,33,$(PRODUCT_SHIPPING_API_LEVEL)),$(call get-product-var,$(1),PRODUCT_PACKAGES_SHIPPING_API_LEVEL_33)) \
+      $(if $(call math_gt_or_eq,34,$(PRODUCT_SHIPPING_API_LEVEL)),$(call get-product-var,$(1),PRODUCT_PACKAGES_SHIPPING_API_LEVEL_34)) \
+    ) \
     $(call auto-included-modules) \
   ) \
   $(eval ### Filter out the overridden packages and executables before doing expansion) \
@@ -1433,28 +1449,7 @@ modules_to_install := $(sort \
 # var to prevent Make from trying to make a sense of it.
 _unused := $(call copy-many-files, $(sort $(ALL_COMPATIBILITY_DIST_FILES)))
 
-# Don't include any GNU General Public License shared objects or static
-# libraries in SDK images.  GPL executables (not static/dynamic libraries)
-# are okay if they don't link against any closed source libraries (directly
-# or indirectly)
-
-# It's ok (and necessary) to build the host tools, but nothing that's
-# going to be installed on the target (including static libraries).
-
 ifdef is_sdk_build
-  target_gnu_MODULES := \
-              $(filter \
-                      $(TARGET_OUT_INTERMEDIATES)/% \
-                      $(TARGET_OUT)/% \
-                      $(TARGET_OUT_DATA)/%, \
-                              $(sort $(call get-tagged-modules,gnu)))
-  target_gnu_MODULES := $(filter-out $(TARGET_OUT_EXECUTABLES)/%,$(target_gnu_MODULES))
-  target_gnu_MODULES := $(filter-out %/libopenjdkjvmti.so,$(target_gnu_MODULES))
-  target_gnu_MODULES := $(filter-out %/libopenjdkjvmtid.so,$(target_gnu_MODULES))
-  $(info Removing from sdk:)$(foreach d,$(target_gnu_MODULES),$(info : $(d)))
-  modules_to_install := \
-              $(filter-out $(target_gnu_MODULES),$(modules_to_install))
-
   # Ensure every module listed in PRODUCT_PACKAGES* gets something installed
   # TODO: Should we do this for all builds and not just the sdk?
   dangling_modules :=
@@ -2043,13 +2038,6 @@ $(call dist-for-goals,droidcore,$(LSDUMP_PATHS_FILE))
 .PHONY: check-elf-files
 check-elf-files:
 
-#xxx scrape this from ALL_MODULE_NAME_TAGS
-.PHONY: modules
-modules:
-	@echo "Available sub-modules:"
-	@echo "$(call module-names-for-tag-list,$(ALL_MODULE_TAGS))" | \
-	      tr -s ' ' '\n' | sort -u
-
 .PHONY: dump-files
 dump-files:
 	@echo "Target files for $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT) ($(INTERNAL_PRODUCT)):"
@@ -2213,7 +2201,7 @@ metadata_list := $(OUT_DIR)/.module_paths/METADATA.list
 metadata_files := $(subst $(newline),$(space),$(file <$(metadata_list)))
 $(PRODUCT_OUT)/sbom-metadata.csv:
 	rm -f $@
-	echo installed_file,module_path,soong_module_type,is_prebuilt_make_module,product_copy_files,kernel_module_copy_files,is_platform_generated,build_output_path,static_libraries,whole_static_libraries,is_static_lib >> $@
+	echo 'installed_file,module_path,soong_module_type,is_prebuilt_make_module,product_copy_files,kernel_module_copy_files,is_platform_generated,build_output_path,static_libraries,whole_static_libraries,is_static_lib' >> $@
 	$(eval _all_static_libs :=)
 	$(foreach f,$(installed_files),\
 	  $(eval _module_name := $(ALL_INSTALLED_FILES.$f)) \
@@ -2241,7 +2229,7 @@ $(PRODUCT_OUT)/sbom-metadata.csv:
 	  $(eval _whole_static_libs := $(ALL_INSTALLED_FILES.$f.WHOLE_STATIC_LIBRARIES)) \
 	  $(foreach l,$(_static_libs),$(eval _all_static_libs += $l:$(strip $(sort $(ALL_MODULES.$l.PATH))):$(strip $(sort $(ALL_MODULES.$l.SOONG_MODULE_TYPE))):$(ALL_STATIC_LIBRARIES.$l.BUILT_FILE))) \
 	  $(foreach l,$(_whole_static_libs),$(eval _all_static_libs += $l:$(strip $(sort $(ALL_MODULES.$l.PATH))):$(strip $(sort $(ALL_MODULES.$l.SOONG_MODULE_TYPE))):$(ALL_STATIC_LIBRARIES.$l.BUILT_FILE))) \
-	  echo /$(_path_on_device),$(_module_path),$(_soong_module_type),$(_is_prebuilt_make_module),$(_product_copy_files),$(_kernel_module_copy_files),$(_is_platform_generated),$(_build_output_path),$(_static_libs),$(_whole_static_libs), >> $@; \
+	  echo '/$(_path_on_device),$(_module_path),$(_soong_module_type),$(_is_prebuilt_make_module),$(_product_copy_files),$(_kernel_module_copy_files),$(_is_platform_generated),$(_build_output_path),$(_static_libs),$(_whole_static_libs),' >> $@; \
 	)
 	$(foreach l,$(sort $(_all_static_libs)), \
 	  $(eval _lib_stem := $(call word-colon,1,$l)) \
@@ -2251,7 +2239,7 @@ $(PRODUCT_OUT)/sbom-metadata.csv:
 	  $(eval _static_libs := $(ALL_STATIC_LIBRARIES.$l.STATIC_LIBRARIES)) \
 	  $(eval _whole_static_libs := $(ALL_STATIC_LIBRARIES.$l.WHOLE_STATIC_LIBRARIES)) \
 	  $(eval _is_static_lib := Y) \
-	  echo $(_lib_stem).a,$(_module_path),$(_soong_module_type),,,,,$(_built_file),$(_static_libs),$(_whole_static_libs),$(_is_static_lib) >> $@; \
+	  echo '$(_lib_stem).a,$(_module_path),$(_soong_module_type),,,,,$(_built_file),$(_static_libs),$(_whole_static_libs),$(_is_static_lib)' >> $@; \
 	)
 
 # (TODO: b/272358583 find another way of always rebuilding sbom.spdx)
