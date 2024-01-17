@@ -25,9 +25,10 @@ ifeq (,$(TARGET_BUILD_UNBUNDLED))
 _modules_not_available_for_platform := \
 $(strip $(foreach m,$(product_MODULES),\
   $(if $(filter-out FAKE,$(ALL_MODULES.$(m).CLASS)),\
-    $(if $(ALL_MODULES.$(m).INSTALLED),\
-      $(if $(filter true,$(ALL_MODULES.$(m).NOT_AVAILABLE_FOR_PLATFORM)),\
-        $(m))))))
+    $(if $(filter-out packages/modules/Bluetooth/android/app,$(ALL_MODULES.$(m).PATH)),\
+      $(if $(ALL_MODULES.$(m).INSTALLED),\
+        $(if $(filter true,$(ALL_MODULES.$(m).NOT_AVAILABLE_FOR_PLATFORM)),\
+          $(m)))))))
 
 ifndef ALLOW_MISSING_DEPENDENCIES
   _violators_with_path := $(foreach m,$(sort $(_modules_not_available_for_platform)),\
