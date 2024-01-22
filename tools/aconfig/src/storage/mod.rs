@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+pub mod flag_table;
+pub mod flag_value;
 pub mod package_table;
 
 use anyhow::{anyhow, Result};
@@ -23,12 +25,14 @@ use std::path::PathBuf;
 
 use crate::commands::OutputFile;
 use crate::protos::{ProtoParsedFlag, ProtoParsedFlags};
-use crate::storage::package_table::PackageTable;
+use crate::storage::{
+    flag_table::FlagTable, flag_value::FlagValueList, package_table::PackageTable,
+};
 
 pub const FILE_VERSION: u32 = 1;
 
 pub const HASH_PRIMES: [u32; 29] = [
-    7, 13, 29, 53, 97, 193, 389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241,
+    7, 17, 29, 53, 97, 193, 389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241,
     786433, 1572869, 3145739, 6291469, 12582917, 25165843, 50331653, 100663319, 201326611,
     402653189, 805306457, 1610612741,
 ];
@@ -55,6 +59,8 @@ pub struct FlagPackage<'a> {
     pub package_id: u32,
     pub flag_names: HashSet<&'a str>,
     pub boolean_flags: Vec<&'a ProtoParsedFlag>,
+    // offset of the first boolean flag in this flag package with respect to the start of
+    // boolean flag value array in the flag value file
     pub boolean_offset: u32,
 }
 
@@ -94,12 +100,11 @@ where
     }
 
     // calculate package flag value start offset, in flag value file, each boolean
-    // is stored as two bytes, the first byte will be the flag value. the second
-    // byte is flag info byte, which is a bitmask to indicate the status of a flag
+    // is stored as a single byte
     let mut boolean_offset = 0;
     for p in packages.iter_mut() {
         p.boolean_offset = boolean_offset;
-        boolean_offset += 2 * p.boolean_flags.len() as u32;
+        boolean_offset += p.boolean_flags.len() as u32;
     }
 
     packages
@@ -120,13 +125,39 @@ where
     let package_table_file =
         OutputFile { contents: package_table.as_bytes(), path: package_table_file_path };
 
-    Ok(vec![package_table_file])
+    // create and serialize flag map
+    let flag_table = FlagTable::new(container, &packages)?;
+    let flag_table_file_path = PathBuf::from("flag.map");
+    let flag_table_file =
+        OutputFile { contents: flag_table.as_bytes(), path: flag_table_file_path };
+
+    // create and serialize flag value
+    let flag_value = FlagValueList::new(container, &packages)?;
+    let flag_value_file_path = PathBuf::from("flag.val");
+    let flag_value_file =
+        OutputFile { contents: flag_value.as_bytes(), path: flag_value_file_path };
+
+    Ok(vec![package_table_file, flag_table_file, flag_value_file])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::Input;
+
+    /// Read and parse bytes as u8
+    pub fn read_u8_from_bytes(buf: &[u8], head: &mut usize) -> Result<u8> {
+        let val = u8::from_le_bytes(buf[*head..*head + 1].try_into()?);
+        *head += 1;
+        Ok(val)
+    }
+
+    /// Read and parse bytes as u16
+    pub fn read_u16_from_bytes(buf: &[u8], head: &mut usize) -> Result<u16> {
+        let val = u16::from_le_bytes(buf[*head..*head + 2].try_into()?);
+        *head += 2;
+        Ok(val)
+    }
 
     /// Read and parse bytes as u32
     pub fn read_u32_from_bytes(buf: &[u8], head: &mut usize) -> Result<u32> {
@@ -147,13 +178,8 @@ mod tests {
         let aconfig_files = [
             (
                 "com.android.aconfig.storage.test_1",
-                "storage_test_1_part_1.aconfig",
-                include_bytes!("../../tests/storage_test_1_part_1.aconfig").as_slice(),
-            ),
-            (
-                "com.android.aconfig.storage.test_1",
-                "storage_test_1_part_2.aconfig",
-                include_bytes!("../../tests/storage_test_1_part_2.aconfig").as_slice(),
+                "storage_test_1.aconfig",
+                include_bytes!("../../tests/storage_test_1.aconfig").as_slice(),
             ),
             (
                 "com.android.aconfig.storage.test_2",
@@ -204,12 +230,10 @@ mod tests {
 
         assert_eq!(packages[0].package_name, "com.android.aconfig.storage.test_1");
         assert_eq!(packages[0].package_id, 0);
-        assert_eq!(packages[0].flag_names.len(), 5);
+        assert_eq!(packages[0].flag_names.len(), 3);
         assert!(packages[0].flag_names.contains("enabled_rw"));
         assert!(packages[0].flag_names.contains("disabled_rw"));
         assert!(packages[0].flag_names.contains("enabled_ro"));
-        assert!(packages[0].flag_names.contains("disabled_ro"));
-        assert!(packages[0].flag_names.contains("enabled_fixed_ro"));
         assert_eq!(packages[0].boolean_offset, 0);
 
         assert_eq!(packages[1].package_name, "com.android.aconfig.storage.test_2");
@@ -218,13 +242,13 @@ mod tests {
         assert!(packages[1].flag_names.contains("enabled_ro"));
         assert!(packages[1].flag_names.contains("disabled_ro"));
         assert!(packages[1].flag_names.contains("enabled_fixed_ro"));
-        assert_eq!(packages[1].boolean_offset, 10);
+        assert_eq!(packages[1].boolean_offset, 3);
 
         assert_eq!(packages[2].package_name, "com.android.aconfig.storage.test_4");
         assert_eq!(packages[2].package_id, 2);
         assert_eq!(packages[2].flag_names.len(), 2);
         assert!(packages[2].flag_names.contains("enabled_ro"));
         assert!(packages[2].flag_names.contains("enabled_fixed_ro"));
-        assert_eq!(packages[2].boolean_offset, 16);
+        assert_eq!(packages[2].boolean_offset, 6);
     }
 }
