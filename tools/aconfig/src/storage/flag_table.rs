@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,27 @@
  * limitations under the License.
  */
 
+use crate::commands::assign_flag_ids;
 use crate::storage::{self, FlagPackage};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 #[derive(PartialEq, Debug)]
-pub struct PackageTableHeader {
+pub struct FlagTableHeader {
     pub version: u32,
     pub container: String,
     pub file_size: u32,
-    pub num_packages: u32,
+    pub num_flags: u32,
     pub bucket_offset: u32,
     pub node_offset: u32,
 }
 
-impl PackageTableHeader {
-    fn new(container: &str, num_packages: u32) -> Self {
+impl FlagTableHeader {
+    fn new(container: &str, num_flags: u32) -> Self {
         Self {
             version: storage::FILE_VERSION,
             container: String::from(container),
             file_size: 0,
-            num_packages,
+            num_flags,
             bucket_offset: 0,
             node_offset: 0,
         }
@@ -46,32 +47,38 @@ impl PackageTableHeader {
         result.extend_from_slice(&(container_bytes.len() as u32).to_le_bytes());
         result.extend_from_slice(container_bytes);
         result.extend_from_slice(&self.file_size.to_le_bytes());
-        result.extend_from_slice(&self.num_packages.to_le_bytes());
+        result.extend_from_slice(&self.num_flags.to_le_bytes());
         result.extend_from_slice(&self.bucket_offset.to_le_bytes());
         result.extend_from_slice(&self.node_offset.to_le_bytes());
         result
     }
 }
 
-#[derive(PartialEq, Debug)]
-pub struct PackageTableNode {
-    pub package_name: String,
+#[derive(PartialEq, Debug, Clone)]
+pub struct FlagTableNode {
     pub package_id: u32,
-    // offset of the first boolean flag in this flag package with respect to the start of
-    // boolean flag value array in the flag value file
-    pub boolean_offset: u32,
+    pub flag_name: String,
+    pub flag_type: u16,
+    pub flag_id: u16,
     pub next_offset: Option<u32>,
     pub bucket_index: u32,
 }
 
-impl PackageTableNode {
-    fn new(package: &FlagPackage, num_buckets: u32) -> Self {
-        let bucket_index =
-            storage::get_bucket_index(&package.package_name.to_string(), num_buckets);
+impl FlagTableNode {
+    fn new(
+        package_id: u32,
+        flag_name: &str,
+        flag_type: u16,
+        flag_id: u16,
+        num_buckets: u32,
+    ) -> Self {
+        let full_flag_name = package_id.to_string() + "/" + flag_name;
+        let bucket_index = storage::get_bucket_index(&full_flag_name, num_buckets);
         Self {
-            package_name: String::from(package.package_name),
-            package_id: package.package_id,
-            boolean_offset: package.boolean_offset,
+            package_id,
+            flag_name: flag_name.to_string(),
+            flag_type,
+            flag_id,
             next_offset: None,
             bucket_index,
         }
@@ -79,32 +86,57 @@ impl PackageTableNode {
 
     fn as_bytes(&self) -> Vec<u8> {
         let mut result = Vec::new();
-        let name_bytes = self.package_name.as_bytes();
+        result.extend_from_slice(&self.package_id.to_le_bytes());
+        let name_bytes = self.flag_name.as_bytes();
         result.extend_from_slice(&(name_bytes.len() as u32).to_le_bytes());
         result.extend_from_slice(name_bytes);
-        result.extend_from_slice(&self.package_id.to_le_bytes());
-        result.extend_from_slice(&self.boolean_offset.to_le_bytes());
+        result.extend_from_slice(&self.flag_type.to_le_bytes());
+        result.extend_from_slice(&self.flag_id.to_le_bytes());
         result.extend_from_slice(&self.next_offset.unwrap_or(0).to_le_bytes());
         result
     }
 }
 
 #[derive(PartialEq, Debug)]
-pub struct PackageTable {
-    pub header: PackageTableHeader,
+pub struct FlagTable {
+    pub header: FlagTableHeader,
     pub buckets: Vec<Option<u32>>,
-    pub nodes: Vec<PackageTableNode>,
+    pub nodes: Vec<FlagTableNode>,
 }
 
-impl PackageTable {
+impl FlagTable {
+    fn create_nodes(package: &FlagPackage, num_buckets: u32) -> Result<Vec<FlagTableNode>> {
+        let flag_ids =
+            assign_flag_ids(package.package_name, package.boolean_flags.iter().copied())?;
+        package
+            .boolean_flags
+            .iter()
+            .map(|&pf| {
+                let fid = flag_ids
+                    .get(pf.name())
+                    .ok_or(anyhow!(format!("missing flag id for {}", pf.name())))?;
+                // all flags are boolean value at the moment, thus using the last bit. When more
+                // flag value types are supported, flag value type information should come from the
+                // parsed flag, and we will set the flag_type bit mask properly.
+                let flag_type = 1;
+                Ok(FlagTableNode::new(package.package_id, pf.name(), flag_type, *fid, num_buckets))
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+
     pub fn new(container: &str, packages: &[FlagPackage]) -> Result<Self> {
         // create table
-        let num_packages = packages.len() as u32;
-        let num_buckets = storage::get_table_size(num_packages)?;
+        let num_flags = packages.iter().map(|pkg| pkg.boolean_flags.len() as u32).sum();
+        let num_buckets = storage::get_table_size(num_flags)?;
+
         let mut table = Self {
-            header: PackageTableHeader::new(container, num_packages),
+            header: FlagTableHeader::new(container, num_flags),
             buckets: vec![None; num_buckets as usize],
-            nodes: packages.iter().map(|pkg| PackageTableNode::new(pkg, num_buckets)).collect(),
+            nodes: packages
+                .iter()
+                .map(|pkg| FlagTable::create_nodes(pkg, num_buckets))
+                .collect::<Result<Vec<_>>>()?
+                .concat(),
         };
 
         // initialize all header fields
@@ -156,10 +188,10 @@ mod tests {
     use super::*;
     use crate::storage::{
         group_flags_by_package, tests::parse_all_test_flags, tests::read_str_from_bytes,
-        tests::read_u32_from_bytes,
+        tests::read_u16_from_bytes, tests::read_u32_from_bytes,
     };
 
-    impl PackageTableHeader {
+    impl FlagTableHeader {
         // test only method to deserialize back into the header struct
         fn from_bytes(bytes: &[u8]) -> Result<Self> {
             let mut head = 0;
@@ -167,38 +199,59 @@ mod tests {
                 version: read_u32_from_bytes(bytes, &mut head)?,
                 container: read_str_from_bytes(bytes, &mut head)?,
                 file_size: read_u32_from_bytes(bytes, &mut head)?,
-                num_packages: read_u32_from_bytes(bytes, &mut head)?,
+                num_flags: read_u32_from_bytes(bytes, &mut head)?,
                 bucket_offset: read_u32_from_bytes(bytes, &mut head)?,
                 node_offset: read_u32_from_bytes(bytes, &mut head)?,
             })
         }
     }
 
-    impl PackageTableNode {
+    impl FlagTableNode {
         // test only method to deserialize back into the node struct
         fn from_bytes(bytes: &[u8], num_buckets: u32) -> Result<Self> {
             let mut head = 0;
             let mut node = Self {
-                package_name: read_str_from_bytes(bytes, &mut head)?,
                 package_id: read_u32_from_bytes(bytes, &mut head)?,
-                boolean_offset: read_u32_from_bytes(bytes, &mut head)?,
+                flag_name: read_str_from_bytes(bytes, &mut head)?,
+                flag_type: read_u16_from_bytes(bytes, &mut head)?,
+                flag_id: read_u16_from_bytes(bytes, &mut head)?,
                 next_offset: match read_u32_from_bytes(bytes, &mut head)? {
                     0 => None,
                     val => Some(val),
                 },
                 bucket_index: 0,
             };
-            node.bucket_index = storage::get_bucket_index(&node.package_name, num_buckets);
+            let full_flag_name = node.package_id.to_string() + "/" + &node.flag_name;
+            node.bucket_index = storage::get_bucket_index(&full_flag_name, num_buckets);
             Ok(node)
+        }
+
+        // create test baseline, syntactic sugar
+        fn new_expected(
+            package_id: u32,
+            flag_name: &str,
+            flag_type: u16,
+            flag_id: u16,
+            next_offset: Option<u32>,
+            bucket_index: u32,
+        ) -> Self {
+            Self {
+                package_id,
+                flag_name: flag_name.to_string(),
+                flag_type,
+                flag_id,
+                next_offset,
+                bucket_index,
+            }
         }
     }
 
-    impl PackageTable {
+    impl FlagTable {
         // test only method to deserialize back into the table struct
         fn from_bytes(bytes: &[u8]) -> Result<Self> {
-            let header = PackageTableHeader::from_bytes(bytes)?;
-            let num_packages = header.num_packages;
-            let num_buckets = storage::get_table_size(num_packages)?;
+            let header = FlagTableHeader::from_bytes(bytes)?;
+            let num_flags = header.num_flags;
+            let num_buckets = storage::get_table_size(num_flags)?;
             let mut head = header.as_bytes().len();
             let buckets = (0..num_buckets)
                 .map(|_| match read_u32_from_bytes(bytes, &mut head).unwrap() {
@@ -206,9 +259,9 @@ mod tests {
                     val => Some(val),
                 })
                 .collect();
-            let nodes = (0..num_packages)
+            let nodes = (0..num_flags)
                 .map(|_| {
-                    let node = PackageTableNode::from_bytes(&bytes[head..], num_buckets).unwrap();
+                    let node = FlagTableNode::from_bytes(&bytes[head..], num_buckets).unwrap();
                     head += node.as_bytes().len();
                     node
                 })
@@ -219,81 +272,87 @@ mod tests {
         }
     }
 
-    pub fn create_test_package_table() -> Result<PackageTable> {
+    pub fn create_test_flag_table() -> Result<FlagTable> {
         let caches = parse_all_test_flags();
         let packages = group_flags_by_package(caches.iter());
-        PackageTable::new("system", &packages)
+        FlagTable::new("system", &packages)
     }
 
     #[test]
     // this test point locks down the table creation and each field
     fn test_table_contents() {
-        let package_table = create_test_package_table();
-        assert!(package_table.is_ok());
+        let flag_table = create_test_flag_table();
+        assert!(flag_table.is_ok());
 
-        let header: &PackageTableHeader = &package_table.as_ref().unwrap().header;
-        let expected_header = PackageTableHeader {
+        let header: &FlagTableHeader = &flag_table.as_ref().unwrap().header;
+        let expected_header = FlagTableHeader {
             version: storage::FILE_VERSION,
             container: String::from("system"),
-            file_size: 208,
-            num_packages: 3,
+            file_size: 320,
+            num_flags: 8,
             bucket_offset: 30,
-            node_offset: 58,
+            node_offset: 98,
         };
         assert_eq!(header, &expected_header);
 
-        let buckets: &Vec<Option<u32>> = &package_table.as_ref().unwrap().buckets;
-        let expected: Vec<Option<u32>> = vec![Some(58), None, None, Some(108), None, None, None];
-        assert_eq!(buckets, &expected);
+        let buckets: &Vec<Option<u32>> = &flag_table.as_ref().unwrap().buckets;
+        let expected_bucket: Vec<Option<u32>> = vec![
+            Some(98),
+            Some(124),
+            None,
+            None,
+            None,
+            Some(177),
+            None,
+            Some(203),
+            None,
+            Some(261),
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(293),
+            None,
+        ];
+        assert_eq!(buckets, &expected_bucket);
 
-        let nodes: &Vec<PackageTableNode> = &package_table.as_ref().unwrap().nodes;
-        assert_eq!(nodes.len(), 3);
-        let first_node_expected = PackageTableNode {
-            package_name: String::from("com.android.aconfig.storage.test_2"),
-            package_id: 1,
-            boolean_offset: 3,
-            next_offset: None,
-            bucket_index: 0,
-        };
-        assert_eq!(nodes[0], first_node_expected);
-        let second_node_expected = PackageTableNode {
-            package_name: String::from("com.android.aconfig.storage.test_1"),
-            package_id: 0,
-            boolean_offset: 0,
-            next_offset: Some(158),
-            bucket_index: 3,
-        };
-        assert_eq!(nodes[1], second_node_expected);
-        let third_node_expected = PackageTableNode {
-            package_name: String::from("com.android.aconfig.storage.test_4"),
-            package_id: 2,
-            boolean_offset: 6,
-            next_offset: None,
-            bucket_index: 3,
-        };
-        assert_eq!(nodes[2], third_node_expected);
+        let nodes: &Vec<FlagTableNode> = &flag_table.as_ref().unwrap().nodes;
+        assert_eq!(nodes.len(), 8);
+
+        assert_eq!(nodes[0], FlagTableNode::new_expected(0, "enabled_ro", 1, 1, None, 0));
+        assert_eq!(nodes[1], FlagTableNode::new_expected(0, "enabled_rw", 1, 2, Some(150), 1));
+        assert_eq!(nodes[2], FlagTableNode::new_expected(1, "disabled_ro", 1, 0, None, 1));
+        assert_eq!(nodes[3], FlagTableNode::new_expected(2, "enabled_ro", 1, 1, None, 5));
+        assert_eq!(
+            nodes[4],
+            FlagTableNode::new_expected(1, "enabled_fixed_ro", 1, 1, Some(235), 7)
+        );
+        assert_eq!(nodes[5], FlagTableNode::new_expected(1, "enabled_ro", 1, 2, None, 7));
+        assert_eq!(nodes[6], FlagTableNode::new_expected(2, "enabled_fixed_ro", 1, 0, None, 9));
+        assert_eq!(nodes[7], FlagTableNode::new_expected(0, "disabled_rw", 1, 0, None, 15));
     }
 
     #[test]
     // this test point locks down the table serialization
     fn test_serialization() {
-        let package_table = create_test_package_table().unwrap();
+        let flag_table = create_test_flag_table().unwrap();
 
-        let header: &PackageTableHeader = &package_table.header;
-        let reinterpreted_header = PackageTableHeader::from_bytes(&header.as_bytes());
+        let header: &FlagTableHeader = &flag_table.header;
+        let reinterpreted_header = FlagTableHeader::from_bytes(&header.as_bytes());
         assert!(reinterpreted_header.is_ok());
         assert_eq!(header, &reinterpreted_header.unwrap());
 
-        let nodes: &Vec<PackageTableNode> = &package_table.nodes;
-        let num_buckets = storage::get_table_size(header.num_packages).unwrap();
+        let nodes: &Vec<FlagTableNode> = &flag_table.nodes;
+        let num_buckets = storage::get_table_size(header.num_flags).unwrap();
         for node in nodes.iter() {
-            let reinterpreted_node = PackageTableNode::from_bytes(&node.as_bytes(), num_buckets);
+            let reinterpreted_node = FlagTableNode::from_bytes(&node.as_bytes(), num_buckets);
             assert!(reinterpreted_node.is_ok());
             assert_eq!(node, &reinterpreted_node.unwrap());
         }
 
-        let reinterpreted_table = PackageTable::from_bytes(&package_table.as_bytes());
+        let reinterpreted_table = FlagTable::from_bytes(&flag_table.as_bytes());
         assert!(reinterpreted_table.is_ok());
-        assert_eq!(&package_table, &reinterpreted_table.unwrap());
+        assert_eq!(&flag_table, &reinterpreted_table.unwrap());
     }
 }
