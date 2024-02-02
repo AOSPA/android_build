@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+//! `aconfig_protos` is a crate for the protos defined for aconfig
 // When building with the Android tool-chain
 //
 //   - an external crate `aconfig_protos` will be generated
@@ -29,17 +30,17 @@
 // ---- When building with the Android tool-chain ----
 #[cfg(not(feature = "cargo"))]
 mod auto_generated {
-    pub use aconfig_protos::aconfig::flag_metadata::Flag_purpose as ProtoFlagPurpose;
-    pub use aconfig_protos::aconfig::Flag_declaration as ProtoFlagDeclaration;
-    pub use aconfig_protos::aconfig::Flag_declarations as ProtoFlagDeclarations;
-    pub use aconfig_protos::aconfig::Flag_metadata as ProtoFlagMetadata;
-    pub use aconfig_protos::aconfig::Flag_permission as ProtoFlagPermission;
-    pub use aconfig_protos::aconfig::Flag_state as ProtoFlagState;
-    pub use aconfig_protos::aconfig::Flag_value as ProtoFlagValue;
-    pub use aconfig_protos::aconfig::Flag_values as ProtoFlagValues;
-    pub use aconfig_protos::aconfig::Parsed_flag as ProtoParsedFlag;
-    pub use aconfig_protos::aconfig::Parsed_flags as ProtoParsedFlags;
-    pub use aconfig_protos::aconfig::Tracepoint as ProtoTracepoint;
+    pub use aconfig_rust_proto::aconfig::flag_metadata::Flag_purpose as ProtoFlagPurpose;
+    pub use aconfig_rust_proto::aconfig::Flag_declaration as ProtoFlagDeclaration;
+    pub use aconfig_rust_proto::aconfig::Flag_declarations as ProtoFlagDeclarations;
+    pub use aconfig_rust_proto::aconfig::Flag_metadata as ProtoFlagMetadata;
+    pub use aconfig_rust_proto::aconfig::Flag_permission as ProtoFlagPermission;
+    pub use aconfig_rust_proto::aconfig::Flag_state as ProtoFlagState;
+    pub use aconfig_rust_proto::aconfig::Flag_value as ProtoFlagValue;
+    pub use aconfig_rust_proto::aconfig::Flag_values as ProtoFlagValues;
+    pub use aconfig_rust_proto::aconfig::Parsed_flag as ProtoParsedFlag;
+    pub use aconfig_rust_proto::aconfig::Parsed_flags as ProtoParsedFlags;
+    pub use aconfig_rust_proto::aconfig::Tracepoint as ProtoTracepoint;
 }
 
 // ---- When building with cargo ----
@@ -68,6 +69,35 @@ pub use auto_generated::*;
 use anyhow::Result;
 use paste::paste;
 
+/// Check if the name identifier is valid
+pub fn is_valid_name_ident(s: &str) -> bool {
+    // Identifiers must match [a-z][a-z0-9_]*, except consecutive underscores are not allowed
+    if s.contains("__") {
+        return false;
+    }
+    let mut chars = s.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_lowercase() {
+        return false;
+    }
+    chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+}
+
+/// Check if the package identifier is valid
+pub fn is_valid_package_ident(s: &str) -> bool {
+    if !s.contains('.') {
+        return false;
+    }
+    s.split('.').all(is_valid_name_ident)
+}
+
+/// Check if the container identifier is valid
+pub fn is_valid_container_ident(s: &str) -> bool {
+    s.split('.').all(is_valid_name_ident)
+}
+
 fn try_from_text_proto<T>(s: &str) -> Result<T>
 where
     T: protobuf::MessageFull,
@@ -85,16 +115,17 @@ macro_rules! ensure_required_fields {
     };
 }
 
+/// Utility module for flag_declaration proto
 pub mod flag_declaration {
     use super::*;
-    use crate::codegen;
     use anyhow::ensure;
 
+    /// Ensure the proto instance is valid by checking its fields
     pub fn verify_fields(pdf: &ProtoFlagDeclaration) -> Result<()> {
         ensure_required_fields!("flag declaration", pdf, "name", "namespace", "description");
 
-        ensure!(codegen::is_valid_name_ident(pdf.name()), "bad flag declaration: bad name");
-        ensure!(codegen::is_valid_name_ident(pdf.namespace()), "bad flag declaration: bad name");
+        ensure!(is_valid_name_ident(pdf.name()), "bad flag declaration: bad name");
+        ensure!(is_valid_name_ident(pdf.namespace()), "bad flag declaration: bad name");
         ensure!(!pdf.description().is_empty(), "bad flag declaration: empty description");
         ensure!(pdf.bug.len() == 1, "bad flag declaration: exactly one bug required");
 
@@ -102,27 +133,29 @@ pub mod flag_declaration {
     }
 }
 
+/// Utility module for flag_declarations proto
 pub mod flag_declarations {
     use super::*;
-    use crate::codegen;
     use anyhow::ensure;
 
+    /// Construct a proto instance from a textproto string content
     pub fn try_from_text_proto(s: &str) -> Result<ProtoFlagDeclarations> {
         let pdf: ProtoFlagDeclarations = super::try_from_text_proto(s)?;
         verify_fields(&pdf)?;
         Ok(pdf)
     }
 
+    /// Ensure the proto instance is valid by checking its fields
     pub fn verify_fields(pdf: &ProtoFlagDeclarations) -> Result<()> {
         ensure_required_fields!("flag declarations", pdf, "package");
         // TODO(b/312769710): Make the container field required.
 
         ensure!(
-            codegen::is_valid_package_ident(pdf.package()),
+            is_valid_package_ident(pdf.package()),
             "bad flag declarations: bad package"
         );
         ensure!(
-            !pdf.has_container() || codegen::is_valid_container_ident(pdf.container()),
+            !pdf.has_container() || is_valid_container_ident(pdf.container()),
             "bad flag declarations: bad container"
         );
         for flag_declaration in pdf.flag.iter() {
@@ -133,30 +166,34 @@ pub mod flag_declarations {
     }
 }
 
+/// Utility module for flag_value proto
 pub mod flag_value {
     use super::*;
-    use crate::codegen;
     use anyhow::ensure;
 
+    /// Ensure the proto instance is valid by checking its fields
     pub fn verify_fields(fv: &ProtoFlagValue) -> Result<()> {
         ensure_required_fields!("flag value", fv, "package", "name", "state", "permission");
 
-        ensure!(codegen::is_valid_package_ident(fv.package()), "bad flag value: bad package");
-        ensure!(codegen::is_valid_name_ident(fv.name()), "bad flag value: bad name");
+        ensure!(is_valid_package_ident(fv.package()), "bad flag value: bad package");
+        ensure!(is_valid_name_ident(fv.name()), "bad flag value: bad name");
 
         Ok(())
     }
 }
 
+/// Utility module for flag_values proto
 pub mod flag_values {
     use super::*;
 
+    /// Construct a proto instance from a textproto string content
     pub fn try_from_text_proto(s: &str) -> Result<ProtoFlagValues> {
         let pfv: ProtoFlagValues = super::try_from_text_proto(s)?;
         verify_fields(&pfv)?;
         Ok(pfv)
     }
 
+    /// Ensure the proto instance is valid by checking its fields
     pub fn verify_fields(pfv: &ProtoFlagValues) -> Result<()> {
         for flag_value in pfv.flag_value.iter() {
             super::flag_value::verify_fields(flag_value)?;
@@ -165,10 +202,12 @@ pub mod flag_values {
     }
 }
 
+/// Utility module for flag_permission proto enum
 pub mod flag_permission {
     use super::*;
     use anyhow::bail;
 
+    /// Construct a flag permission proto enum from string
     pub fn parse_from_str(permission: &str) -> Result<ProtoFlagPermission> {
         match permission.to_ascii_lowercase().as_str() {
             "read_write" => Ok(ProtoFlagPermission::READ_WRITE),
@@ -177,6 +216,7 @@ pub mod flag_permission {
         }
     }
 
+    /// Serialize flag permission proto enum to string
     pub fn to_string(permission: &ProtoFlagPermission) -> &str {
         match permission {
             ProtoFlagPermission::READ_WRITE => "read_write",
@@ -185,10 +225,12 @@ pub mod flag_permission {
     }
 }
 
+/// Utility module for tracepoint proto
 pub mod tracepoint {
     use super::*;
     use anyhow::ensure;
 
+    /// Ensure the proto instance is valid by checking its fields
     pub fn verify_fields(tp: &ProtoTracepoint) -> Result<()> {
         ensure_required_fields!("tracepoint", tp, "source", "state", "permission");
 
@@ -198,11 +240,12 @@ pub mod tracepoint {
     }
 }
 
+/// Utility module for parsed_flag proto
 pub mod parsed_flag {
     use super::*;
-    use crate::codegen;
     use anyhow::ensure;
 
+    /// Ensure the proto instance is valid by checking its fields
     pub fn verify_fields(pf: &ProtoParsedFlag) -> Result<()> {
         ensure_required_fields!(
             "parsed flag",
@@ -215,13 +258,13 @@ pub mod parsed_flag {
             "permission"
         );
 
-        ensure!(codegen::is_valid_package_ident(pf.package()), "bad parsed flag: bad package");
+        ensure!(is_valid_package_ident(pf.package()), "bad parsed flag: bad package");
         ensure!(
-            !pf.has_container() || codegen::is_valid_container_ident(pf.container()),
+            !pf.has_container() || is_valid_container_ident(pf.container()),
             "bad parsed flag: bad container"
         );
-        ensure!(codegen::is_valid_name_ident(pf.name()), "bad parsed flag: bad name");
-        ensure!(codegen::is_valid_name_ident(pf.namespace()), "bad parsed flag: bad namespace");
+        ensure!(is_valid_name_ident(pf.name()), "bad parsed flag: bad name");
+        ensure!(is_valid_name_ident(pf.namespace()), "bad parsed flag: bad namespace");
         ensure!(!pf.description().is_empty(), "bad parsed flag: empty description");
         ensure!(!pf.trace.is_empty(), "bad parsed flag: empty trace");
         for tp in pf.trace.iter() {
@@ -243,25 +286,29 @@ pub mod parsed_flag {
         Ok(())
     }
 
+    /// Get the file path of the corresponding flag declaration
     pub fn path_to_declaration(pf: &ProtoParsedFlag) -> &str {
         debug_assert!(!pf.trace.is_empty());
         pf.trace[0].source()
     }
 }
 
+/// Utility module for parsed_flags proto
 pub mod parsed_flags {
     use super::*;
     use anyhow::bail;
     use std::cmp::Ordering;
 
+    /// Construct a proto instance from a binary proto bytes
     pub fn try_from_binary_proto(bytes: &[u8]) -> Result<ProtoParsedFlags> {
         let message: ProtoParsedFlags = protobuf::Message::parse_from_bytes(bytes)?;
         verify_fields(&message)?;
         Ok(message)
     }
 
+    /// Ensure the proto instance is valid by checking its fields
     pub fn verify_fields(pf: &ProtoParsedFlags) -> Result<()> {
-        use crate::protos::parsed_flag::path_to_declaration;
+        use crate::parsed_flag::path_to_declaration;
 
         let mut previous: Option<&ProtoParsedFlag> = None;
         for parsed_flag in pf.parsed_flag.iter() {
@@ -287,6 +334,7 @@ pub mod parsed_flags {
         Ok(())
     }
 
+    /// Merge multipe parsed_flags proto
     pub fn merge(parsed_flags: Vec<ProtoParsedFlags>, dedup: bool) -> Result<ProtoParsedFlags> {
         let mut merged = ProtoParsedFlags::new();
         for mut pfs in parsed_flags.into_iter() {
@@ -303,6 +351,7 @@ pub mod parsed_flags {
         Ok(merged)
     }
 
+    /// Sort parsed flags
     pub fn sort_parsed_flags(pf: &mut ProtoParsedFlags) {
         pf.parsed_flag.sort_by_key(create_sorting_key);
     }
@@ -312,7 +361,9 @@ pub mod parsed_flags {
     }
 }
 
+/// ParsedFlagExt trait
 pub trait ParsedFlagExt {
+    /// Return the fully qualified name
     fn fully_qualified_name(&self) -> String;
 }
 
@@ -848,7 +899,7 @@ parsed_flag {
         let parsed_flags = try_from_binary_proto_from_text_proto(text_proto).unwrap();
         let parsed_flag = &parsed_flags.parsed_flag[0];
         assert_eq!(
-            crate::protos::parsed_flag::path_to_declaration(parsed_flag),
+            crate::parsed_flag::path_to_declaration(parsed_flag),
             "flags.declarations"
         );
     }
