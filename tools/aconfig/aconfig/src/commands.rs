@@ -26,11 +26,12 @@ use crate::codegen::java::generate_java_code;
 use crate::codegen::rust::generate_rust_code;
 use crate::codegen::CodegenMode;
 use crate::dump::{DumpFormat, DumpPredicate};
-use crate::protos::{
+use crate::storage::generate_storage_file;
+use aconfig_protos::{
     ParsedFlagExt, ProtoFlagMetadata, ProtoFlagPermission, ProtoFlagState, ProtoParsedFlag,
     ProtoParsedFlags, ProtoTracepoint,
 };
-use crate::storage::generate_storage_files;
+use aconfig_storage_file::StorageFileSelection;
 
 pub struct Input {
     pub source: String,
@@ -43,7 +44,7 @@ impl Input {
         self.reader
             .read_to_end(&mut buffer)
             .with_context(|| format!("failed to read {}", self.source))?;
-        crate::protos::parsed_flags::try_from_binary_proto(&buffer)
+        aconfig_protos::parsed_flags::try_from_binary_proto(&buffer)
             .with_context(|| self.error_context())
     }
 
@@ -76,7 +77,7 @@ pub fn parse_flags(
             .read_to_string(&mut contents)
             .with_context(|| format!("failed to read {}", input.source))?;
 
-        let flag_declarations = crate::protos::flag_declarations::try_from_text_proto(&contents)
+        let flag_declarations = aconfig_protos::flag_declarations::try_from_text_proto(&contents)
             .with_context(|| input.error_context())?;
         ensure!(
             package == flag_declarations.package(),
@@ -95,7 +96,7 @@ pub fn parse_flags(
             );
         }
         for mut flag_declaration in flag_declarations.flag.into_iter() {
-            crate::protos::flag_declaration::verify_fields(&flag_declaration)
+            aconfig_protos::flag_declaration::verify_fields(&flag_declaration)
                 .with_context(|| input.error_context())?;
 
             // create ParsedFlag using FlagDeclaration and default values
@@ -129,7 +130,7 @@ pub fn parse_flags(
             parsed_flag.metadata = Some(metadata).into();
 
             // verify ParsedFlag looks reasonable
-            crate::protos::parsed_flag::verify_fields(&parsed_flag)?;
+            aconfig_protos::parsed_flag::verify_fields(&parsed_flag)?;
 
             // verify ParsedFlag can be added
             ensure!(
@@ -150,10 +151,10 @@ pub fn parse_flags(
             .reader
             .read_to_string(&mut contents)
             .with_context(|| format!("failed to read {}", input.source))?;
-        let flag_values = crate::protos::flag_values::try_from_text_proto(&contents)
+        let flag_values = aconfig_protos::flag_values::try_from_text_proto(&contents)
             .with_context(|| input.error_context())?;
         for flag_value in flag_values.flag_value.into_iter() {
-            crate::protos::flag_value::verify_fields(&flag_value)
+            aconfig_protos::flag_value::verify_fields(&flag_value)
                 .with_context(|| input.error_context())?;
 
             let Some(parsed_flag) = parsed_flags
@@ -183,8 +184,8 @@ pub fn parse_flags(
     }
 
     // Create a sorted parsed_flags
-    crate::protos::parsed_flags::sort_parsed_flags(&mut parsed_flags);
-    crate::protos::parsed_flags::verify_fields(&parsed_flags)?;
+    aconfig_protos::parsed_flags::sort_parsed_flags(&mut parsed_flags);
+    aconfig_protos::parsed_flags::verify_fields(&parsed_flags)?;
     let mut output = Vec::new();
     parsed_flags.write_to_vec(&mut output)?;
     Ok(output)
@@ -223,7 +224,11 @@ pub fn create_rust_lib(mut input: Input, codegen_mode: CodegenMode) -> Result<Ou
     generate_rust_code(&package, modified_parsed_flags.into_iter(), codegen_mode)
 }
 
-pub fn create_storage(caches: Vec<Input>, container: &str) -> Result<Vec<OutputFile>> {
+pub fn create_storage(
+    caches: Vec<Input>,
+    container: &str,
+    file: &StorageFileSelection,
+) -> Result<Vec<u8>> {
     let parsed_flags_vec: Vec<ProtoParsedFlags> = caches
         .into_iter()
         .map(|mut input| input.try_parse_flags())
@@ -231,7 +236,7 @@ pub fn create_storage(caches: Vec<Input>, container: &str) -> Result<Vec<OutputF
         .into_iter()
         .filter(|pfs| find_unique_container(pfs) == Some(container))
         .collect();
-    generate_storage_files(container, parsed_flags_vec.iter())
+    generate_storage_file(container, parsed_flags_vec.iter(), file)
 }
 
 pub fn create_device_config_defaults(mut input: Input) -> Result<Vec<u8>> {
@@ -286,7 +291,7 @@ pub fn dump_parsed_flags(
     let individually_parsed_flags: Result<Vec<ProtoParsedFlags>> =
         input.iter_mut().map(|i| i.try_parse_flags()).collect();
     let parsed_flags: ProtoParsedFlags =
-        crate::protos::parsed_flags::merge(individually_parsed_flags?, dedup)?;
+        aconfig_protos::parsed_flags::merge(individually_parsed_flags?, dedup)?;
     let filters: Vec<Box<DumpPredicate>> = if filters.is_empty() {
         vec![Box::new(|_| true)]
     } else {
@@ -385,16 +390,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protos::ProtoFlagPurpose;
+    use aconfig_protos::ProtoFlagPurpose;
 
     #[test]
     fn test_parse_flags() {
         let parsed_flags = crate::test::parse_test_flags(); // calls parse_flags
-        crate::protos::parsed_flags::verify_fields(&parsed_flags).unwrap();
+        aconfig_protos::parsed_flags::verify_fields(&parsed_flags).unwrap();
 
         let enabled_ro =
             parsed_flags.parsed_flag.iter().find(|pf| pf.name() == "enabled_ro").unwrap();
-        assert!(crate::protos::parsed_flag::verify_fields(enabled_ro).is_ok());
+        assert!(aconfig_protos::parsed_flag::verify_fields(enabled_ro).is_ok());
         assert_eq!("com.android.aconfig.test", enabled_ro.package());
         assert_eq!("enabled_ro", enabled_ro.name());
         assert_eq!("This flag is ENABLED + READ_ONLY", enabled_ro.description());
@@ -461,7 +466,7 @@ mod tests {
         )
         .unwrap();
         let parsed_flags =
-            crate::protos::parsed_flags::try_from_binary_proto(&flags_bytes).unwrap();
+            aconfig_protos::parsed_flags::try_from_binary_proto(&flags_bytes).unwrap();
         assert_eq!(1, parsed_flags.parsed_flag.len());
         let parsed_flag = parsed_flags.parsed_flag.first().unwrap();
         assert_eq!(ProtoFlagState::DISABLED, parsed_flag.state());
@@ -601,7 +606,7 @@ mod tests {
         )
         .unwrap();
         let parsed_flags =
-            crate::protos::parsed_flags::try_from_binary_proto(&flags_bytes).unwrap();
+            aconfig_protos::parsed_flags::try_from_binary_proto(&flags_bytes).unwrap();
         assert_eq!(1, parsed_flags.parsed_flag.len());
         let parsed_flag = parsed_flags.parsed_flag.first().unwrap();
         assert_eq!(ProtoFlagPurpose::PURPOSE_FEATURE, parsed_flag.metadata.purpose());

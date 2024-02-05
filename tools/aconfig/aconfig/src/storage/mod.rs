@@ -18,41 +18,15 @@ pub mod flag_table;
 pub mod flag_value;
 pub mod package_table;
 
-use anyhow::{anyhow, Result};
-use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
-use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
+use anyhow::Result;
+use std::collections::{HashMap, HashSet};
 
-use crate::commands::OutputFile;
-use crate::protos::{ProtoParsedFlag, ProtoParsedFlags};
 use crate::storage::{
-    flag_table::FlagTable, flag_value::FlagValueList, package_table::PackageTable,
+    flag_table::create_flag_table, flag_value::create_flag_value,
+    package_table::create_package_table,
 };
-
-pub const FILE_VERSION: u32 = 1;
-
-pub const HASH_PRIMES: [u32; 29] = [
-    7, 17, 29, 53, 97, 193, 389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241,
-    786433, 1572869, 3145739, 6291469, 12582917, 25165843, 50331653, 100663319, 201326611,
-    402653189, 805306457, 1610612741,
-];
-
-/// Get the right hash table size given number of entries in the table. Use a
-/// load factor of 0.5 for performance.
-pub fn get_table_size(entries: u32) -> Result<u32> {
-    HASH_PRIMES
-        .iter()
-        .find(|&&num| num >= 2 * entries)
-        .copied()
-        .ok_or(anyhow!("Number of packages is too large"))
-}
-
-/// Get the corresponding bucket index given the key and number of buckets
-pub fn get_bucket_index<T: Hash>(val: &T, num_buckets: u32) -> u32 {
-    let mut s = DefaultHasher::new();
-    val.hash(&mut s);
-    (s.finish() % num_buckets as u64) as u32
-}
+use aconfig_protos::{ProtoParsedFlag, ProtoParsedFlags};
+use aconfig_storage_file::StorageFileSelection;
 
 pub struct FlagPackage<'a> {
     pub package_name: &'a str,
@@ -110,69 +84,36 @@ where
     packages
 }
 
-pub fn generate_storage_files<'a, I>(
+pub fn generate_storage_file<'a, I>(
     container: &str,
     parsed_flags_vec_iter: I,
-) -> Result<Vec<OutputFile>>
+    file: &StorageFileSelection,
+) -> Result<Vec<u8>>
 where
     I: Iterator<Item = &'a ProtoParsedFlags>,
 {
     let packages = group_flags_by_package(parsed_flags_vec_iter);
 
-    // create and serialize package map
-    let package_table = PackageTable::new(container, &packages)?;
-    let package_table_file_path = PathBuf::from("package.map");
-    let package_table_file =
-        OutputFile { contents: package_table.as_bytes(), path: package_table_file_path };
-
-    // create and serialize flag map
-    let flag_table = FlagTable::new(container, &packages)?;
-    let flag_table_file_path = PathBuf::from("flag.map");
-    let flag_table_file =
-        OutputFile { contents: flag_table.as_bytes(), path: flag_table_file_path };
-
-    // create and serialize flag value
-    let flag_value = FlagValueList::new(container, &packages)?;
-    let flag_value_file_path = PathBuf::from("flag.val");
-    let flag_value_file =
-        OutputFile { contents: flag_value.as_bytes(), path: flag_value_file_path };
-
-    Ok(vec![package_table_file, flag_table_file, flag_value_file])
+    match file {
+        StorageFileSelection::PackageMap => {
+            let package_table = create_package_table(container, &packages)?;
+            Ok(package_table.as_bytes())
+        }
+        StorageFileSelection::FlagMap => {
+            let flag_table = create_flag_table(container, &packages)?;
+            Ok(flag_table.as_bytes())
+        }
+        StorageFileSelection::FlagVal => {
+            let flag_value = create_flag_value(container, &packages)?;
+            Ok(flag_value.as_bytes())
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::Input;
-
-    /// Read and parse bytes as u8
-    pub fn read_u8_from_bytes(buf: &[u8], head: &mut usize) -> Result<u8> {
-        let val = u8::from_le_bytes(buf[*head..*head + 1].try_into()?);
-        *head += 1;
-        Ok(val)
-    }
-
-    /// Read and parse bytes as u16
-    pub fn read_u16_from_bytes(buf: &[u8], head: &mut usize) -> Result<u16> {
-        let val = u16::from_le_bytes(buf[*head..*head + 2].try_into()?);
-        *head += 2;
-        Ok(val)
-    }
-
-    /// Read and parse bytes as u32
-    pub fn read_u32_from_bytes(buf: &[u8], head: &mut usize) -> Result<u32> {
-        let val = u32::from_le_bytes(buf[*head..*head + 4].try_into()?);
-        *head += 4;
-        Ok(val)
-    }
-
-    /// Read and parse bytes as string
-    pub fn read_str_from_bytes(buf: &[u8], head: &mut usize) -> Result<String> {
-        let num_bytes = read_u32_from_bytes(buf, head)? as usize;
-        let val = String::from_utf8(buf[*head..*head + num_bytes].to_vec())?;
-        *head += num_bytes;
-        Ok(val)
-    }
 
     pub fn parse_all_test_flags() -> Vec<ProtoParsedFlags> {
         let aconfig_files = [
@@ -207,7 +148,7 @@ mod tests {
                     crate::commands::DEFAULT_FLAG_PERMISSION,
                 )
                 .unwrap();
-                crate::protos::parsed_flags::try_from_binary_proto(&bytes).unwrap()
+                aconfig_protos::parsed_flags::try_from_binary_proto(&bytes).unwrap()
             })
             .collect()
     }

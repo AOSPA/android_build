@@ -1035,6 +1035,11 @@ ifdef LOCAL_IS_HOST_MODULE
 my_required_modules += $(LOCAL_REQUIRED_MODULES_$($(my_prefix)OS))
 endif
 
+ifdef LOCAL_ACONFIG_FILES
+  ALL_MODULES.$(my_register_name).ACONFIG_FILES := \
+      $(ALL_MODULES.$(my_register_name).ACONFIG_FILES) $(LOCAL_ACONFIG_FILES)
+endif
+
 ifndef LOCAL_SOONG_MODULE_INFO_JSON
   ALL_MAKE_MODULE_INFO_JSON_MODULES += $(my_register_name)
   ALL_MODULES.$(my_register_name).SHARED_LIBS := \
@@ -1072,9 +1077,6 @@ ifndef LOCAL_SOONG_MODULE_INFO_JSON
   ALL_MODULES.$(my_register_name).SUPPORTED_VARIANTS := \
       $(ALL_MODULES.$(my_register_name).SUPPORTED_VARIANTS) \
       $(filter-out $(ALL_MODULES.$(my_register_name).SUPPORTED_VARIANTS),$(my_supported_variant))
-
-  ALL_MODULES.$(my_register_name).ACONFIG_FILES := \
-      $(ALL_MODULES.$(my_register_name).ACONFIG_FILES) $(LOCAL_ACONFIG_FILES)
 
   ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES := \
       $(ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES) $(LOCAL_COMPATIBILITY_SUITE)
@@ -1205,7 +1207,6 @@ ALL_MODULES.$(my_register_name).FOR_2ND_ARCH := true
 endif
 ALL_MODULES.$(my_register_name).FOR_HOST_CROSS := $(my_host_cross)
 ifndef LOCAL_IS_HOST_MODULE
-ALL_MODULES.$(my_register_name).FILE_CONTEXTS := $(LOCAL_FILE_CONTEXTS)
 ALL_MODULES.$(my_register_name).APEX_KEYS_FILE := $(LOCAL_APEX_KEY_PATH)
 endif
 test_config :=
