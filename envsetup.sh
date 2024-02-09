@@ -62,7 +62,7 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
               invocations of 'm' etc.
 - tapas:      tapas [<App1> <App2> ...] [arm|x86|arm64|x86_64] [eng|userdebug|user]
               Sets up the build environment for building unbundled apps (APKs).
-- banchan:    banchan <module1> [<module2> ...] \
+- banchan:    banchan <module1> [<module2> ...] \\
                       [arm|x86|arm64|riscv64|x86_64|arm64_only|x86_64only] [eng|userdebug|user]
               Sets up the build environment for building unbundled modules (APEXes).
 - croot:      Changes directory to the top of the tree, or a subdirectory thereof.
@@ -775,7 +775,7 @@ function lunch()
         answer=$1
     else
         print_lunch_menu
-        echo "Which would you like? [aosp_arm-trunk_staging-eng]"
+        echo "Which would you like? [aosp_cf_x86_64_phone-trunk_staging-eng]"
         echo -n "Pick from common choices above (e.g. 13) or specify your own (e.g. aosp_barbet-trunk_staging-eng): "
         read answer
         used_lunch_menu=1
@@ -785,10 +785,10 @@ function lunch()
 
     if [ -z "$answer" ]
     then
-        selection=aosp_arm-trunk_staging-eng
+        selection=aosp_cf_x86_64_phone-trunk_staging-eng
     elif (echo -n $answer | grep -q -e "^[0-9][0-9]*$")
     then
-        local choices=($(TARGET_BUILD_APPS= get_build_var COMMON_LUNCH_CHOICES))
+        local choices=($(TARGET_BUILD_APPS= TARGET_PRODUCT= TARGET_RELEASE= TARGET_BUILD_VARIANT= get_build_var COMMON_LUNCH_CHOICES 2>/dev/null))
         if [ $answer -le ${#choices[@]} ]
         then
             # array in zsh starts from 1 instead of 0.
@@ -823,8 +823,8 @@ function lunch()
     fi
 
     if [ ! -n "$release" ]; then
-        echo "Release not specified, defaulting to 'next' build"
-        release=next
+        echo "Release not specified, defaulting to 'trunk_food' build"
+        release=trunk_food
     fi
 
     if [[ -z "$product" ]] || [[ -z "$release" ]] || [[ -z "$variant" ]]

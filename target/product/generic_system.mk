@@ -36,6 +36,11 @@ PRODUCT_PACKAGES += \
     Stk \
     Tag \
 
+ifeq ($(RELEASE_AVATAR_PICKER_APP),true)
+  PRODUCT_PACKAGES += \
+    AvatarPicker
+endif
+
 # OTA support
 PRODUCT_PACKAGES += \
     recovery-refresh \
@@ -136,11 +141,6 @@ ifeq (true,$(TARGET_HW_DISK_ENCRYPTION))
 _base_mk_allowed_list += \
     $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/libcryptfs_hw.so \
     $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.cryptfshw@1.0.so
-endif
-
-ifeq (1,$(USE_CUSTOM_AUDIO_POLICY))
-_base_mk_allowed_list += \
-    $(TARGET_COPY_OUT_SYSTEM_EXT)/lib64/vendor.qti.hardware.audiohalext@1.0.so
 endif
 
 _base_mk_allowed_list += \

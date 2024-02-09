@@ -1,4 +1,4 @@
-package: "com.android.aconfig.storage.test_1"
+package: "com.android.aconfig.storage.test_4"
 container: "system"
 
 flag {
@@ -6,13 +6,6 @@ flag {
     namespace: "aconfig_test"
     description: "This flag is ENABLED + READ_ONLY"
     bug: "abc"
-}
-
-flag {
-    name: "disabled_ro"
-    namespace: "aconfig_test"
-    description: "This flag is DISABLED + READ_ONLY"
-    bug: "123"
 }
 
 flag {

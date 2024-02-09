@@ -36,17 +36,6 @@ impl TryFrom<&str> for DumpFormat {
             // protobuf formats
             "protobuf" => Ok(Self::Protobuf),
             "textproto" => Ok(Self::Textproto),
-
-            // old formats now implemented as aliases to custom format
-            "text" => Ok(Self::Custom(
-                "{fully_qualified_name} [{container}]: {permission} + {state}".to_owned(),
-            )),
-            "verbose" => Ok(Self::Custom(
-                "{fully_qualified_name} [{container}]: {permission} + {state} ({trace:paths})"
-                    .to_owned(),
-            )),
-            "bool" => Ok(Self::Custom("{fully_qualified_name}={state:bool}".to_owned())),
-
             // custom format
             _ => Ok(Self::Custom(value.to_owned())),
         }
@@ -197,6 +186,10 @@ fn create_filter_predicate_single(filter: &str) -> Result<Box<DumpPredicate>> {
             Ok(Box::new(move |flag: &ProtoParsedFlag| flag.container() == expected))
         }
         // metadata: not supported yet
+        "fully_qualified_name" => {
+            let expected = arg.to_owned();
+            Ok(Box::new(move |flag: &ProtoParsedFlag| flag.fully_qualified_name() == expected))
+        }
         _ => Err(anyhow!(error_msg)),
     }
 }
@@ -266,20 +259,6 @@ mod tests {
             "{fully_qualified_name}={permission} + {state}",
             "com.android.aconfig.test.enabled_ro=READ_ONLY + ENABLED"
         );
-
-        // aliases
-        assert_dump_parsed_flags_custom_format_contains!(
-            "text",
-            "com.android.aconfig.test.enabled_ro [system]: READ_ONLY + ENABLED"
-        );
-        assert_dump_parsed_flags_custom_format_contains!(
-            "verbose",
-            "com.android.aconfig.test.enabled_ro [system]: READ_ONLY + ENABLED (tests/test.aconfig, tests/first.values, tests/second.values)"
-        );
-        assert_dump_parsed_flags_custom_format_contains!(
-            "bool",
-            "com.android.aconfig.test.enabled_ro=true"
-        );
     }
 
     #[test]
@@ -341,6 +320,7 @@ mod tests {
                 "com.android.aconfig.test.disabled_rw_exported",
                 "com.android.aconfig.test.disabled_rw_in_other_namespace",
                 "com.android.aconfig.test.enabled_fixed_ro",
+                "com.android.aconfig.test.enabled_fixed_ro_exported",
                 "com.android.aconfig.test.enabled_ro",
                 "com.android.aconfig.test.enabled_ro_exported",
                 "com.android.aconfig.test.enabled_rw",
@@ -360,6 +340,7 @@ mod tests {
             "state:ENABLED",
             &[
                 "com.android.aconfig.test.enabled_fixed_ro",
+                "com.android.aconfig.test.enabled_fixed_ro_exported",
                 "com.android.aconfig.test.enabled_ro",
                 "com.android.aconfig.test.enabled_ro_exported",
                 "com.android.aconfig.test.enabled_rw",
@@ -370,6 +351,7 @@ mod tests {
             &[
                 "com.android.aconfig.test.disabled_ro",
                 "com.android.aconfig.test.enabled_fixed_ro",
+                "com.android.aconfig.test.enabled_fixed_ro_exported",
                 "com.android.aconfig.test.enabled_ro",
                 "com.android.aconfig.test.enabled_ro_exported",
             ]
@@ -377,12 +359,16 @@ mod tests {
         // trace: not supported yet
         assert_create_filter_predicate!(
             "is_fixed_read_only:true",
-            &["com.android.aconfig.test.enabled_fixed_ro"]
+            &[
+                "com.android.aconfig.test.enabled_fixed_ro",
+                "com.android.aconfig.test.enabled_fixed_ro_exported",
+            ]
         );
         assert_create_filter_predicate!(
             "is_exported:true",
             &[
                 "com.android.aconfig.test.disabled_rw_exported",
+                "com.android.aconfig.test.enabled_fixed_ro_exported",
                 "com.android.aconfig.test.enabled_ro_exported",
             ]
         );
@@ -394,6 +380,7 @@ mod tests {
                 "com.android.aconfig.test.disabled_rw_exported",
                 "com.android.aconfig.test.disabled_rw_in_other_namespace",
                 "com.android.aconfig.test.enabled_fixed_ro",
+                "com.android.aconfig.test.enabled_fixed_ro_exported",
                 "com.android.aconfig.test.enabled_ro",
                 "com.android.aconfig.test.enabled_ro_exported",
                 "com.android.aconfig.test.enabled_rw",
@@ -401,11 +388,18 @@ mod tests {
         );
         // metadata: not supported yet
 
+        // synthesized fields
+        assert_create_filter_predicate!(
+            "fully_qualified_name:com.android.aconfig.test.disabled_rw",
+            &["com.android.aconfig.test.disabled_rw"]
+        );
+
         // multiple sub filters
         assert_create_filter_predicate!(
             "permission:READ_ONLY+state:ENABLED",
             &[
                 "com.android.aconfig.test.enabled_fixed_ro",
+                "com.android.aconfig.test.enabled_fixed_ro_exported",
                 "com.android.aconfig.test.enabled_ro",
                 "com.android.aconfig.test.enabled_ro_exported",
             ]

@@ -70,7 +70,7 @@ PRODUCT_PACKAGES += \
     com.android.scheduling \
     com.android.sdkext \
     com.android.tethering \
-    com.android.tzdata \
+    $(RELEASE_PACKAGE_TZDATA_MODULE) \
     com.android.uwb \
     com.android.virt \
     com.android.wifi \
@@ -95,7 +95,6 @@ PRODUCT_PACKAGES += \
     framework-location \
     framework-minus-apex \
     framework-minus-apex-install-dependencies \
-    framework-nfc \
     framework-sysconfig.xml \
     fsck.erofs \
     fsck_msdos \
@@ -304,6 +303,16 @@ ifneq ($(PRODUCT_NO_DYNAMIC_SYSTEM_UPDATE),true)
 
 endif
 
+# Check if the build supports NFC apex or not
+ifeq ($(RELEASE_PACKAGE_NFC_STACK),NfcNci)
+    PRODUCT_PACKAGES += \
+        framework-nfc \
+        NfcNci
+else
+    PRODUCT_PACKAGES += \
+        com.android.nfcservices
+endif
+
 # VINTF data for system image
 PRODUCT_PACKAGES += \
     system_manifest.xml \
@@ -469,3 +478,5 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/runtime_libart.mk)
 
 # Use "image" APEXes always.
 $(call inherit-product,$(SRC_TARGET_DIR)/product/updatable_apex.mk)
+
+$(call soong_config_set, bionic, large_system_property_node, $(RELEASE_LARGE_SYSTEM_PROPERTY_NODE))

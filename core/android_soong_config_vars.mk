@@ -128,10 +128,24 @@ endif
 # are controlled by the MODULE_BUILD_FROM_SOURCE environment variable by
 # default.
 INDIVIDUALLY_TOGGLEABLE_PREBUILT_MODULES := \
+  adservices \
+  appsearch \
   btservices \
+  configinfrastructure \
+  conscrypt \
   devicelock \
+  healthfitness \
+  ipsec \
+  media \
+  mediaprovider \
+  mediaprovider \
+  ondevicepersonalization \
   permission \
   rkpd \
+  scheduling \
+  sdkext \
+  statsd \
+  tethering \
   uwb \
   wifi \
   mediaprovider \
@@ -206,6 +220,9 @@ endif
 
 $(call add_soong_config_var,ANDROID,SYSTEM_OPTIMIZE_JAVA)
 $(call add_soong_config_var,ANDROID,FULL_SYSTEM_OPTIMIZE_JAVA)
+
+# TODO(b/319697968): Remove this build flag support when metalava fully supports flagged api
+$(call soong_config_set,ANDROID,release_hidden_api_exportable_stubs,$(RELEASE_HIDDEN_API_EXPORTABLE_STUBS))
 
 # Check for SupplementalApi module.
 ifeq ($(wildcard packages/modules/SupplementalApi),)
