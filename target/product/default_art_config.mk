@@ -79,6 +79,7 @@ PRODUCT_APEX_BOOT_JARS := \
     com.android.os.statsd:framework-statsd \
     com.android.permission:framework-permission \
     com.android.permission:framework-permission-s \
+    com.android.profiling:framework-profiling \
     com.android.scheduling:framework-scheduling \
     com.android.sdkext:framework-sdkextensions \
     com.android.tethering:framework-connectivity \
@@ -87,6 +88,13 @@ PRODUCT_APEX_BOOT_JARS := \
     com.android.uwb:framework-uwb \
     com.android.virt:framework-virtualization \
     com.android.wifi:framework-wifi \
+
+# When we release crashrecovery module
+ifeq ($(RELEASE_CRASHRECOVERY_MODULE),true)
+  PRODUCT_APEX_BOOT_JARS += \
+        com.android.crashrecovery:framework-crashrecovery \
+
+endif
 
 # Check if the build supports NFC apex or not
 ifeq ($(RELEASE_PACKAGE_NFC_STACK),NfcNci)
@@ -119,6 +127,13 @@ PRODUCT_APEX_SYSTEM_SERVER_JARS := \
     com.android.permission:service-permission \
     com.android.rkpd:service-rkp \
 
+# When we release crashrecovery module
+ifeq ($(RELEASE_CRASHRECOVERY_MODULE),true)
+  PRODUCT_APEX_SYSTEM_SERVER_JARS += \
+        com.android.crashrecovery:service-crashrecovery \
+
+endif
+
 # Use $(wildcard) to avoid referencing the profile in thin manifests that don't have the
 # art project.
 ifneq (,$(wildcard art))
@@ -136,6 +151,7 @@ PRODUCT_APEX_STANDALONE_SYSTEM_SERVER_JARS := \
     com.android.btservices:service-bluetooth \
     com.android.devicelock:service-devicelock \
     com.android.os.statsd:service-statsd \
+    com.android.profiling:service-profiling \
     com.android.scheduling:service-scheduling \
     com.android.tethering:service-connectivity \
     com.android.uwb:service-uwb \
