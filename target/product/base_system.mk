@@ -92,6 +92,7 @@ PRODUCT_PACKAGES += \
     dumpstate \
     dumpsys \
     e2fsck \
+    enhanced-confirmation.xml \
     ExtShared \
     flags_health_check \
     framework-graphics \
@@ -130,6 +131,7 @@ PRODUCT_PACKAGES += \
     ip \
     iptables \
     javax.obex \
+    kcmdlinectrl \
     keystore2 \
     ld.mc \
     libaaudio \
