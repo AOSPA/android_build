@@ -324,10 +324,10 @@ endif
 
 ifneq ($(filter memtag_heap memtag_stack memtag_globals,$(my_sanitize)),)
   ifneq ($(filter memtag_heap,$(my_sanitize_diag)),)
-    my_cflags += -fsanitize-memtag-mode=sync
+    my_ldflags += -fsanitize-memtag-mode=sync
     my_sanitize_diag := $(filter-out memtag_heap,$(my_sanitize_diag))
   else
-    my_cflags += -fsanitize-memtag-mode=async
+    my_ldflags += -fsanitize-memtag-mode=async
   endif
 endif
 
@@ -340,11 +340,13 @@ endif
 
 ifneq ($(filter memtag_heap,$(my_sanitize)),)
   my_cflags += -fsanitize=memtag-heap
+  my_ldflags += -fsanitize=memtag-heap
   my_sanitize := $(filter-out memtag_heap,$(my_sanitize))
 endif
 
 ifneq ($(filter memtag_stack,$(my_sanitize)),)
   my_cflags += -fsanitize=memtag-stack
+  my_ldflags += -fsanitize=memtag-stack
   my_cflags += -march=armv8a+memtag
   my_ldflags += -march=armv8a+memtag
   my_asflags += -march=armv8a+memtag
@@ -353,6 +355,7 @@ endif
 
 ifneq ($(filter memtag_globals,$(my_sanitize)),)
   my_cflags += -fsanitize=memtag-globals
+  my_ldflags += -fsanitize=memtag-globals
   # TODO(mitchp): For now, enable memtag-heap with memtag-globals because the
   # linker isn't new enough
   # (https://reviews.llvm.org/differential/changeset/?ref=4243566).
