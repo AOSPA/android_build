@@ -434,6 +434,8 @@ ifndef is_sdk_build
   # To speedup startup of non-preopted builds, don't verify or compile the boot image.
   ADDITIONAL_SYSTEM_PROPERTIES += dalvik.vm.image-dex2oat-filter=extract
 endif
+# b/323566535
+ADDITIONAL_SYSTEM_PROPERTIES += init.svc_debug.no_fatal.zygote=true
 endif
 
 ## asan ##
@@ -2014,18 +2016,6 @@ tests : host-tests target-tests
 
 .PHONY: findbugs
 findbugs: $(INTERNAL_FINDBUGS_HTML_TARGET) $(INTERNAL_FINDBUGS_XML_TARGET)
-
-LSDUMP_PATHS_FILE := $(PRODUCT_OUT)/lsdump_paths.txt
-
-.PHONY: findlsdumps
-# LSDUMP_PATHS is a list of tag:path.
-findlsdumps: $(LSDUMP_PATHS_FILE) $(foreach p,$(LSDUMP_PATHS),$(call word-colon,2,$(p)))
-
-$(LSDUMP_PATHS_FILE): PRIVATE_LSDUMP_PATHS := $(LSDUMP_PATHS)
-$(LSDUMP_PATHS_FILE):
-	@echo "Generate $@"
-	@rm -rf $@ && echo -e "$(subst :,:$(space),$(subst $(space),\n,$(PRIVATE_LSDUMP_PATHS)))" > $@
-$(call dist-for-goals,droidcore,$(LSDUMP_PATHS_FILE))
 
 .PHONY: check-elf-files
 check-elf-files:
