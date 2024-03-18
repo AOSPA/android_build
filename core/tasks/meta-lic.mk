@@ -1,5 +1,3 @@
-#!/bin/bash -e
-
 # Copyright (C) 2024 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,24 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cd $(dirname $BASH_SOURCE)
-source $(pwd)/../../shell_utils.sh
-require_top
+# Declare license metadata for non-module files released with products.
 
-# Ensure cogsetup (out/ will be symlink outside the repo)
-. ${TOP}/build/make/cogsetup.sh
+# Moved here from frameworks/av/media/Android.mk
+$(eval $(call declare-1p-copy-files,frameworks/av/media/libeffects,audio_effects.conf))
+$(eval $(call declare-1p-copy-files,frameworks/av/media/libeffects,audio_effects.xml))
+$(eval $(call declare-1p-copy-files,frameworks/av/media/libstagefright,))
 
-case $(uname -s) in
-    Linux)
-      export PREBUILTS_CLANG_TOOLS_ROOT="${TOP}/prebuilts/clang-tools/linux-x86/"
-      PREBUILTS_GO_ROOT="${TOP}/prebuilts/go/linux-x86/"
-      ;;
-    *)
-      echo "Only supported for linux hosts" >&2
-      exit 1
-      ;;
-esac
-
-export ANDROID_BUILD_TOP=$TOP
-export OUT_DIR=${OUT_DIR}
-exec "${PREBUILTS_GO_ROOT}/bin/go" "run" "ide_query" "$@"
+# Moved here from frameworks/av/services/Android.mk
+$(eval $(call declare-1p-copy-files,frameworks/av/services/audiopolicy,))
