@@ -21,9 +21,8 @@ function finalize_step_1_main() {
     local top="$(dirname "$0")"/../../../..
     source $top/build/make/tools/finalization/environment.sh
 
-    local m="$top/build/soong/soong_ui.bash --make-mode TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug"
+    local m="$top/build/soong/soong_ui.bash --make-mode TARGET_RELEASE=next TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug"
 
-    source $top/build/make/tools/finalization/finalize-vintf-resources.sh
     source $top/build/make/tools/finalization/finalize-sdk-resources.sh
 
     # move all changes to finalization branch/topic and upload to gerrit

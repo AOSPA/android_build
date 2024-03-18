@@ -18,6 +18,7 @@
 PRODUCT_PACKAGES += \
     abx \
     adbd_system_api \
+    aflags \
     am \
     android.hidl.base-V1.0-java \
     android.hidl.manager-V1.0-java \
@@ -64,6 +65,7 @@ PRODUCT_PACKAGES += \
     com.android.ondevicepersonalization \
     com.android.os.statsd \
     com.android.permission \
+    com.android.profiling \
     com.android.resolv \
     com.android.rkpd \
     com.android.neuralnetworks \
@@ -75,11 +77,13 @@ PRODUCT_PACKAGES += \
     com.android.virt \
     com.android.wifi \
     ContactsProvider \
+    ContactKeysProvider \
     content \
     CtsShimPrebuilt \
     CtsShimPrivPrebuilt \
     debuggerd\
     device_config \
+    DeviceDiagnostics \
     dmctl \
     dnsmasq \
     dmesgd \
@@ -89,6 +93,7 @@ PRODUCT_PACKAGES += \
     dumpstate \
     dumpsys \
     e2fsck \
+    enhanced-confirmation.xml \
     ExtShared \
     flags_health_check \
     framework-graphics \
@@ -127,6 +132,7 @@ PRODUCT_PACKAGES += \
     ip \
     iptables \
     javax.obex \
+    kcmdlinectrl \
     keystore2 \
     ld.mc \
     libaaudio \
@@ -200,6 +206,7 @@ PRODUCT_PACKAGES += \
     libui \
     libusbhost \
     libutils \
+    libvintf_jni \
     libvulkan \
     libwilhelm \
     linker \
@@ -222,6 +229,7 @@ PRODUCT_PACKAGES += \
     mke2fs \
     mkfs.erofs \
     monkey \
+    misctrl \
     mtectrl \
     ndc \
     netd \
@@ -280,6 +288,7 @@ PRODUCT_PACKAGES += \
     uiautomator \
     uinput \
     uncrypt \
+    uprobestats \
     usbd \
     vdc \
     voip-common \
@@ -288,6 +297,13 @@ PRODUCT_PACKAGES += \
     wificond \
     wifi.rc \
     wm \
+
+# When we release crashrecovery module
+ifeq ($(RELEASE_CRASHRECOVERY_MODULE),true)
+  PRODUCT_PACKAGES += \
+        com.android.crashrecovery \
+
+endif
 
 # These packages are not used on Android TV
 ifneq ($(PRODUCT_IS_ATV),true)
@@ -311,6 +327,11 @@ ifeq ($(RELEASE_PACKAGE_NFC_STACK),NfcNci)
 else
     PRODUCT_PACKAGES += \
         com.android.nfcservices
+endif
+
+ifeq ($(RELEASE_USE_WEBVIEW_BOOTSTRAP_MODULE),true)
+    PRODUCT_PACKAGES += \
+        com.android.webview.bootstrap
 endif
 
 # VINTF data for system image
@@ -435,6 +456,7 @@ PRODUCT_PACKAGES_DEBUG := \
     logpersist.start \
     logtagd.rc \
     ot-cli-ftd \
+    ot-ctl \
     procrank \
     profcollectd \
     profcollectctl \

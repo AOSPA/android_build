@@ -120,7 +120,7 @@ non_system_module := $(filter true, \
    $(LOCAL_VENDOR_MODULE) \
    $(LOCAL_PROPRIETARY_MODULE))
 
-include $(BUILD_SYSTEM)/local_vndk.mk
+include $(BUILD_SYSTEM)/local_vendor_product.mk
 
 # local_current_sdk needs to run before local_systemsdk because the former may override
 # LOCAL_SDK_VERSION which is used by the latter.
@@ -806,7 +806,7 @@ else
   ifneq (,$(test_config))
     $(foreach suite, $(LOCAL_COMPATIBILITY_SUITE), \
       $(eval my_compat_dist_config_$(suite) += $(foreach dir, $(call compatibility_suite_dirs,$(suite)), \
-        $(test_config):$(dir)/$(LOCAL_MODULE).config)))
+        $(test_config):$(dir)/$(LOCAL_MODULE).config$(LOCAL_TEST_CONFIG_SUFFIX))))
   endif
 
   ifneq (,$(LOCAL_EXTRA_FULL_TEST_CONFIGS))
@@ -1035,6 +1035,11 @@ ifdef LOCAL_IS_HOST_MODULE
 my_required_modules += $(LOCAL_REQUIRED_MODULES_$($(my_prefix)OS))
 endif
 
+ifdef LOCAL_ACONFIG_FILES
+  ALL_MODULES.$(my_register_name).ACONFIG_FILES := \
+      $(ALL_MODULES.$(my_register_name).ACONFIG_FILES) $(LOCAL_ACONFIG_FILES)
+endif
+
 ifndef LOCAL_SOONG_MODULE_INFO_JSON
   ALL_MAKE_MODULE_INFO_JSON_MODULES += $(my_register_name)
   ALL_MODULES.$(my_register_name).SHARED_LIBS := \
@@ -1073,9 +1078,6 @@ ifndef LOCAL_SOONG_MODULE_INFO_JSON
       $(ALL_MODULES.$(my_register_name).SUPPORTED_VARIANTS) \
       $(filter-out $(ALL_MODULES.$(my_register_name).SUPPORTED_VARIANTS),$(my_supported_variant))
 
-  ALL_MODULES.$(my_register_name).ACONFIG_FILES := \
-      $(ALL_MODULES.$(my_register_name).ACONFIG_FILES) $(LOCAL_ACONFIG_FILES)
-
   ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES := \
       $(ALL_MODULES.$(my_register_name).COMPATIBILITY_SUITES) $(LOCAL_COMPATIBILITY_SUITE)
   ALL_MODULES.$(my_register_name).MODULE_NAME := $(LOCAL_MODULE)
@@ -1111,10 +1113,10 @@ endif
 ## When compiling against API imported module, use API import stub
 ## libraries.
 ##########################################################################
-ifneq ($(LOCAL_USE_VNDK),)
+ifneq ($(call module-in-vendor-or-product),)
   ifneq ($(LOCAL_MODULE_MAKEFILE),$(SOONG_ANDROID_MK))
     apiimport_postfix := .apiimport
-    ifeq ($(LOCAL_USE_VNDK_PRODUCT),true)
+    ifeq ($(LOCAL_IN_PRODUCT),true)
       apiimport_postfix := .apiimport.product
     else
       apiimport_postfix := .apiimport.vendor
@@ -1129,7 +1131,7 @@ endif
 ## When compiling against the VNDK, add the .vendor or .product suffix to
 ## required modules.
 ##########################################################################
-ifneq ($(LOCAL_USE_VNDK),)
+ifneq ($(call module-in-vendor-or-product),)
   #####################################################
   ## Soong modules may be built three times, once for
   ## /system, once for /vendor and once for /product.
@@ -1140,7 +1142,7 @@ ifneq ($(LOCAL_USE_VNDK),)
     # We don't do this renaming for soong-defined modules since they already
     # have correct names (with .vendor or .product suffix when necessary) in
     # their LOCAL_*_LIBRARIES.
-    ifeq ($(LOCAL_USE_VNDK_PRODUCT),true)
+    ifeq ($(LOCAL_IN_PRODUCT),true)
       my_required_modules := $(foreach l,$(my_required_modules),\
         $(if $(SPLIT_PRODUCT.SHARED_LIBRARIES.$(l)),$(l).product,$(l)))
     else
@@ -1205,7 +1207,6 @@ ALL_MODULES.$(my_register_name).FOR_2ND_ARCH := true
 endif
 ALL_MODULES.$(my_register_name).FOR_HOST_CROSS := $(my_host_cross)
 ifndef LOCAL_IS_HOST_MODULE
-ALL_MODULES.$(my_register_name).FILE_CONTEXTS := $(LOCAL_FILE_CONTEXTS)
 ALL_MODULES.$(my_register_name).APEX_KEYS_FILE := $(LOCAL_APEX_KEY_PATH)
 endif
 test_config :=

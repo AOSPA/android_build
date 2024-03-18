@@ -366,7 +366,8 @@ function set_global_paths()
     fi
 
     # And in with the new...
-    ANDROID_GLOBAL_BUILD_PATHS=$T/build/bazel/bin
+    ANDROID_GLOBAL_BUILD_PATHS=$T/build/soong/bin
+    ANDROID_GLOBAL_BUILD_PATHS+=:$T/build/bazel/bin
     ANDROID_GLOBAL_BUILD_PATHS+=:$T/development/scripts
     ANDROID_GLOBAL_BUILD_PATHS+=:$T/prebuilts/devtools/tools
 
@@ -1942,6 +1943,11 @@ function _trigger_build()
       >&2 echo "Couldn't locate the top of the tree. Try setting TOP."
       return 1
     fi
+    local ret=$?
+    if [[ ret -eq 0 &&  -z "${ANDROID_QUIET_BUILD:-}" && -n "${ANDROID_BUILD_BANNER}" ]]; then
+      echo "${ANDROID_BUILD_BANNER}"
+    fi
+    return $ret
 )
 
 function m()

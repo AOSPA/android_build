@@ -2777,6 +2777,10 @@ define module-min-sdk-version
 $(if $(LOCAL_MIN_SDK_VERSION),$(LOCAL_MIN_SDK_VERSION),$(call module-target-sdk-version))
 endef
 
+# Checks if module is in vendor or product
+define module-in-vendor-or-product
+$(if $(filter true,$(LOCAL_IN_VENDOR) $(LOCAL_IN_PRODUCT)),true)
+endef
 
 define transform-classes.jar-to-dex
 @echo "target Dex: $(PRIVATE_MODULE)"
@@ -3309,7 +3313,6 @@ $(3): $(1)
 	@mkdir -p $$(dir $$@)
 	@rm -rf $$@
 	$(hide) ln -sf $(2) $$@
-$(3): .KATI_SYMLINK_OUTPUTS := $(3)
 endef
 
 # Copy an apk to a target location while removing classes*.dex
