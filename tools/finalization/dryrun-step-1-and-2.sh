@@ -1,37 +1,39 @@
 #!/bin/bash
-# Script to perform a 1st step of Android Finalization: API/SDK finalization, create CLs and upload to Gerrit.
+# Script to perform 1st and 2nd step of Android Finalization, create CLs and upload to Gerrit.
 
-set -ex
-
-function commit_step_1_changes() {
-    set +e
+function commit_step_2_changes() {
     repo forall -c '\
         if [[ $(git status --short) ]]; then
-            repo start "$FINAL_PLATFORM_CODENAME-SDK-Finalization" ;
+            repo start "$FINAL_PLATFORM_CODENAME-SDK-Finalization-DryRun-Rel" ;
             git add -A . ;
-            git commit -m "$FINAL_PLATFORM_CODENAME is now $FINAL_PLATFORM_SDK_VERSION and extension version $FINAL_MAINLINE_EXTENSION" \
+            git commit -m "$FINAL_PLATFORM_CODENAME/$FINAL_PLATFORM_SDK_VERSION is now REL" \
                        -m "Ignore-AOSP-First: $FINAL_PLATFORM_CODENAME Finalization
 Bug: $FINAL_BUG_ID
 Test: build";
+
             repo upload --cbr --no-verify -o nokeycheck -t -y . ;
         fi'
 }
 
-function finalize_step_1_main() {
+function finalize_step_2_main() {
     local top="$(dirname "$0")"/../../../..
     source $top/build/make/tools/finalization/environment.sh
 
     source $top/build/make/tools/finalization/finalize-sdk-resources.sh
 
+    source $top/build/make/tools/finalization/localonly-steps.sh
+
+    source $top/build/make/tools/finalization/finalize-sdk-rel.sh
+
     # move all changes to finalization branch/topic and upload to gerrit
-    commit_step_1_changes
+    commit_step_2_changes
 
     # build to confirm everything is OK
     local m_next="$top/build/soong/soong_ui.bash --make-mode TARGET_RELEASE=next TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug"
     AIDL_FROZEN_REL=true $m_next
 
-    local m_fina="$top/build/soong/soong_ui.bash --make-mode TARGET_RELEASE=fina_1 TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug"
+    local m_fina="$top/build/soong/soong_ui.bash --make-mode TARGET_RELEASE=fina_2 TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug"
     AIDL_FROZEN_REL=true $m_fina
 }
 
-finalize_step_1_main
+finalize_step_2_main

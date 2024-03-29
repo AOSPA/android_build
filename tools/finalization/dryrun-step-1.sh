@@ -1,18 +1,16 @@
 #!/bin/bash
-# Script to perform a 1st step of Android Finalization: API/SDK finalization, create CLs and upload to Gerrit.
-
-set -ex
+# Script to perform a dry run of step 1 of Android Finalization, create CLs and upload to Gerrit.
 
 function commit_step_1_changes() {
-    set +e
     repo forall -c '\
         if [[ $(git status --short) ]]; then
-            repo start "$FINAL_PLATFORM_CODENAME-SDK-Finalization" ;
+            repo start "$FINAL_PLATFORM_CODENAME-SDK-Finalization-DryRun" ;
             git add -A . ;
-            git commit -m "$FINAL_PLATFORM_CODENAME is now $FINAL_PLATFORM_SDK_VERSION and extension version $FINAL_MAINLINE_EXTENSION" \
+            git commit -m "$FINAL_PLATFORM_CODENAME is now $FINAL_PLATFORM_SDK_VERSION" \
                        -m "Ignore-AOSP-First: $FINAL_PLATFORM_CODENAME Finalization
 Bug: $FINAL_BUG_ID
 Test: build";
+
             repo upload --cbr --no-verify -o nokeycheck -t -y . ;
         fi'
 }
