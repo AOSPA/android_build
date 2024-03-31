@@ -3448,13 +3448,8 @@ $(eval $(call declare-0p-target,$(INSTALLED_FILES_JSON)))
 .PHONY: installed-file-list
 installed-file-list: $(INSTALLED_FILES_FILE)
 
-systemimage_intermediates :=$= $(call intermediates-dir-for,PACKAGING,systemimage)
+systemimage_intermediates :=$= $(call intermediates-dir-for,PACKAGING,system)
 BUILT_SYSTEMIMAGE :=$= $(systemimage_intermediates)/system.img
-
-
-# Used by the bazel sandwich to request the staging dir be built
-$(systemimage_intermediates)/staging_dir.stamp: $(FULL_SYSTEMIMAGE_DEPS)
-	touch $@
 
 # $(1): output file
 define build-systemimage-target
@@ -3472,6 +3467,9 @@ define build-systemimage-target
 endef
 
 $(eval $(call write-file-lines,$(systemimage_intermediates)/file_list.txt,$(subst $(TARGET_OUT)/,,$(filter $(TARGET_OUT)/%,$(FULL_SYSTEMIMAGE_DEPS)))))
+# Used by soong sandwich to request the staging dir be built
+$(systemimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT)/%,$(FULL_SYSTEMIMAGE_DEPS))
+	touch $@
 
 ifeq ($(BOARD_AVB_ENABLE),true)
 $(BUILT_SYSTEMIMAGE): $(BOARD_AVB_SYSTEM_KEY_PATH)
@@ -3584,6 +3582,9 @@ INSTALLED_USERDATAIMAGE_TARGET_DEPS := \
     $(INTERNAL_USERIMAGES_DEPS) \
     $(INTERNAL_USERDATAIMAGE_FILES)
 
+# Used by soong sandwich to request the staging dir be built
+$(userdataimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_DATA)/%,$(INSTALLED_USERDATAIMAGE_TARGET_DEPS))
+	touch $@
 
 $(INSTALLED_USERDATAIMAGE_TARGET): $(INSTALLED_USERDATAIMAGE_TARGET_DEPS)
 	$(build-userdataimage-target)
@@ -3637,6 +3638,9 @@ define build-cacheimage-target
 endef
 
 $(eval $(call write-file-lines,$(cacheimage_intermediates)/file_list.txt,$(subst $(TARGET_OUT_CACHE)/,,$(filter $(TARGET_OUT_CACHE)/%,$(INTERNAL_CACHEIMAGE_FILES)))))
+# Used by soong sandwich to request the staging dir be built
+$(cacheimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_CACHE)/%,$(INTERNAL_CACHEIMAGE_FILES))
+	touch $@
 
 # We just build this directly to the install location.
 INSTALLED_CACHEIMAGE_TARGET := $(BUILT_CACHEIMAGE_TARGET)
@@ -3721,6 +3725,9 @@ define build-systemotherimage-target
 endef
 
 $(eval $(call write-file-lines,$(systemotherimage_intermediates)/file_list.txt,$(subst $(TARGET_OUT_SYSTEM_OTHER)/,,$(filter $(TARGET_OUT_SYSTEM_OTHER)/%,$(INTERNAL_SYSTEMOTHERIMAGE_FILES)))))
+# Used by soong sandwich to request the staging dir be built
+$(systemotherimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_SYSTEM_OTHER)/%,$(INTERNAL_SYSTEMOTHERIMAGE_FILES))
+	touch $@
 
 # We just build this directly to the install location.
 INSTALLED_SYSTEMOTHERIMAGE_TARGET := $(BUILT_SYSTEMOTHERIMAGE_TARGET)
@@ -3822,6 +3829,10 @@ define build-vendorimage-target
   $(call assert-max-image-size,$(INSTALLED_VENDORIMAGE_TARGET) $(RECOVERY_FROM_BOOT_PATCH),$(BOARD_VENDORIMAGE_PARTITION_SIZE))
 endef
 
+# Used by soong sandwich to request the staging dir be built
+$(vendorimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_VENDOR)/%,$(INTERNAL_VENDORIMAGE_FILES))
+	touch $@
+
 # We just build this directly to the install location.
 INSTALLED_VENDORIMAGE_TARGET := $(BUILT_VENDORIMAGE_TARGET)
 $(INSTALLED_VENDORIMAGE_TARGET): \
@@ -3890,6 +3901,9 @@ define build-productimage-target
 endef
 
 $(eval $(call write-file-lines,$(productimage_intermediates)/file_list.txt,$(subst $(TARGET_OUT_PRODUCT)/,,$(filter $(TARGET_OUT_PRODUCT)/%,$(INTERNAL_PRODUCTIMAGE_FILES)))))
+# Used by soong sandwich to request the staging dir be built
+$(productimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_PRODUCT)/%,$(INTERNAL_PRODUCTIMAGE_FILES))
+	touch $@
 
 # We just build this directly to the install location.
 INSTALLED_PRODUCTIMAGE_TARGET := $(BUILT_PRODUCTIMAGE_TARGET)
@@ -3957,6 +3971,9 @@ define build-system_extimage-target
 endef
 
 $(eval $(call write-file-lines,$(system_extimage_intermediates)/file_list.txt,$(subst $(TARGET_OUT_SYSTEM_EXT)/,,$(filter $(TARGET_OUT_SYSTEM_EXT)/%,$(INTERNAL_SYSTEM_EXTIMAGE_FILES)))))
+# Used by soong sandwich to request the staging dir be built
+$(system_extimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_SYSTEM_EXT)/%,$(INTERNAL_SYSTEM_EXTIMAGE_FILES))
+	touch $@
 
 # We just build this directly to the install location.
 INSTALLED_SYSTEM_EXTIMAGE_TARGET := $(BUILT_SYSTEM_EXTIMAGE_TARGET)
@@ -4041,6 +4058,10 @@ define build-odmimage-target
   $(call assert-max-image-size,$(INSTALLED_ODMIMAGE_TARGET),$(BOARD_ODMIMAGE_PARTITION_SIZE))
 endef
 
+# Used by soong sandwich to request the staging dir be built
+$(odmimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_ODM)/%,$(INTERNAL_ODMIMAGE_FILES))
+	touch $@
+
 # We just build this directly to the install location.
 INSTALLED_ODMIMAGE_TARGET := $(BUILT_ODMIMAGE_TARGET)
 $(INSTALLED_ODMIMAGE_TARGET): \
@@ -4102,6 +4123,10 @@ define build-vendor_dlkmimage-target
           $(INSTALLED_VENDOR_DLKMIMAGE_TARGET) $(TARGET_OUT)
   $(call assert-max-image-size,$(INSTALLED_VENDOR_DLKMIMAGE_TARGET),$(BOARD_VENDOR_DLKMIMAGE_PARTITION_SIZE))
 endef
+
+# Used by soong sandwich to request the staging dir be built
+$(vendor_dlkmimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_VENDOR_DLKM)/%,$(INTERNAL_VENDOR_DLKMIMAGE_FILES))
+	touch $@
 
 # We just build this directly to the install location.
 INSTALLED_VENDOR_DLKMIMAGE_TARGET := $(BUILT_VENDOR_DLKMIMAGE_TARGET)
@@ -4167,6 +4192,9 @@ define build-odm_dlkmimage-target
 endef
 
 $(eval $(call write-file-lines,$(odm_dlkmimage_intermediates)/file_list.txt,$(subst $(TARGET_OUT_ODM_DLKM)/,,$(filter $(TARGET_OUT_ODM_DLKM)/%,$(INTERNAL_ODM_DLKMIMAGE_FILES)))))
+# Used by soong sandwich to request the staging dir be built
+$(odm_dlkmimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_ODM_DLKM)/%,$(INTERNAL_ODM_DLKMIMAGE_FILES))
+	touch $@
 
 # We just build this directly to the install location.
 INSTALLED_ODM_DLKMIMAGE_TARGET := $(BUILT_ODM_DLKMIMAGE_TARGET)
@@ -4232,6 +4260,10 @@ define build-system_dlkmimage-target
           $(INSTALLED_SYSTEM_DLKMIMAGE_TARGET) $(TARGET_OUT)
   $(call assert-max-image-size,$(INSTALLED_SYSTEM_DLKMIMAGE_TARGET),$(BOARD_SYSTEM_DLKMIMAGE_PARTITION_SIZE))
 endef
+
+# Used by soong sandwich to request the staging dir be built
+$(system_dlkmimage_intermediates)/staging_dir.stamp: $(filter $(TARGET_OUT_SYSTEM_DLKM)/%,$(INTERNAL_SYSTEM_DLKMIMAGE_FILES))
+	touch $@
 
 # We just build this directly to the install location.
 INSTALLED_SYSTEM_DLKMIMAGE_TARGET := $(BUILT_SYSTEM_DLKMIMAGE_TARGET)
@@ -7555,6 +7587,24 @@ sdk_atree_files += $(PRODUCT_SDK_ATREE_FILES)
 else
 sdk_atree_files += $(atree_dir)/sdk.atree
 endif
+
+SDK_METADATA_DIR :=$= $(call intermediates-dir-for,PACKAGING,framework-doc-stubs-metadata,,COMMON)
+SDK_METADATA_FILES :=$= $(addprefix $(SDK_METADATA_DIR)/,\
+    activity_actions.txt \
+    broadcast_actions.txt \
+    categories.txt \
+    features.txt \
+    service_actions.txt \
+    widgets.txt)
+SDK_METADATA :=$= $(firstword $(SDK_METADATA_FILES))
+$(SDK_METADATA): .KATI_IMPLICIT_OUTPUTS := $(filter-out $(SDK_METADATA),$(SDK_METADATA_FILES))
+$(SDK_METADATA): $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/framework-doc-stubs-metadata.zip
+	rm -rf $(SDK_METADATA_DIR)
+	mkdir -p $(SDK_METADATA_DIR)
+	unzip -DDqo $< -d $(SDK_METADATA_DIR)
+
+.PHONY: framework-doc-stubs
+framework-doc-stubs: $(SDK_METADATA)
 
 deps := \
 	$(OUT_DOCS)/offline-sdk-timestamp \
