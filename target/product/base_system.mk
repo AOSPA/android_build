@@ -17,6 +17,7 @@
 # Base modules and settings for the system partition.
 PRODUCT_PACKAGES += \
     abx \
+    aconfigd \
     adbd_system_api \
     aflags \
     am \
@@ -65,7 +66,6 @@ PRODUCT_PACKAGES += \
     com.android.ondevicepersonalization \
     com.android.os.statsd \
     com.android.permission \
-    com.android.profiling \
     com.android.resolv \
     com.android.rkpd \
     com.android.neuralnetworks \
@@ -77,13 +77,11 @@ PRODUCT_PACKAGES += \
     com.android.virt \
     com.android.wifi \
     ContactsProvider \
-    ContactKeysProvider \
     content \
     CtsShimPrebuilt \
     CtsShimPrivPrebuilt \
     debuggerd\
     device_config \
-    DeviceDiagnostics \
     dmctl \
     dnsmasq \
     dmesgd \
@@ -92,6 +90,7 @@ PRODUCT_PACKAGES += \
     dump.erofs \
     dumpstate \
     dumpsys \
+    E2eeContactKeysProvider \
     e2fsck \
     enhanced-confirmation.xml \
     ExtShared \
@@ -238,6 +237,7 @@ PRODUCT_PACKAGES += \
     org.apache.http.legacy \
     otacerts \
     PackageInstaller \
+    package-shareduid-allowlist.xml \
     passwd_system \
     perfetto \
     ping \
@@ -329,6 +329,12 @@ else
         com.android.nfcservices
 endif
 
+# Check if the build supports Profiling module
+ifeq ($(RELEASE_PACKAGE_PROFILING_MODULE),true)
+    PRODUCT_PACKAGES += \
+       com.android.profiling
+endif
+
 ifeq ($(RELEASE_USE_WEBVIEW_BOOTSTRAP_MODULE),true)
     PRODUCT_PACKAGES += \
         com.android.webview.bootstrap
@@ -377,14 +383,10 @@ ifeq (,$(DISABLE_WALLPAPER_BACKUP))
     WallpaperBackup
 endif
 
-# Moving angle from vendor to system
-ifeq ($(RELEASE_ANGLE_ON_SYSTEM),true)
 PRODUCT_PACKAGES += \
     libEGL_angle \
     libGLESv1_CM_angle \
     libGLESv2_angle
-$(call soong_config_set,angle,angle_on_system,true)
-endif
 
 # For testing purposes
 ifeq ($(FORCE_AUDIO_SILENT), true)
@@ -427,13 +429,12 @@ PRODUCT_HOST_PACKAGES += \
     tz_version_host \
     tz_version_host_tzdata_apex \
 
+PRODUCT_PACKAGES += init.usb.rc init.usb.configfs.rc
 
 PRODUCT_COPY_FILES += \
-    system/core/rootdir/init.usb.rc:system/etc/init/hw/init.usb.rc \
-    system/core/rootdir/init.usb.configfs.rc:system/etc/init/hw/init.usb.configfs.rc \
     system/core/rootdir/etc/hosts:system/etc/hosts
 
-PRODUCT_COPY_FILES += system/core/rootdir/init.zygote32.rc:system/etc/init/hw/init.zygote32.rc
+PRODUCT_PACKAGES += init.zygote32.rc
 PRODUCT_VENDOR_PROPERTIES += ro.zygote?=zygote32
 
 PRODUCT_SYSTEM_PROPERTIES += debug.atrace.tags.enableflags=0
@@ -497,6 +498,9 @@ PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
     frameworks/base/config/dirty-image-objects:system/etc/dirty-image-objects)
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/runtime_libart.mk)
+
+# Use the configured release of sqlite
+$(call soong_config_set, libsqlite3, release_package_libsqlite3, $(RELEASE_PACKAGE_LIBSQLITE3))
 
 # Use "image" APEXes always.
 $(call inherit-product,$(SRC_TARGET_DIR)/product/updatable_apex.mk)

@@ -307,27 +307,15 @@ endif
 # *for aosp products*.
 # TODO(b/308187268): Remove this denylist mechanism
 # Use PRODUCT_PACKAGES to determine if this is an aosp product. aosp products do not use google signed apexes.
+ignore_apex_contributions :=
 ifeq (,$(findstring com.google.android.conscrypt,$(PRODUCT_PACKAGES)))
-PRODUCT_BUILD_IGNORE_APEX_CONTRIBUTION_CONTENTS += \
-  prebuilt_com.google.android.adservices \
-  prebuilt_com.google.android.appsearch \
-  prebuilt_com.google.android.art \
-  prebuilt_com.google.android.btservices \
-  prebuilt_com.google.android.configinfrastructure \
-  prebuilt_com.google.android.conscrypt \
-  prebuilt_com.google.android.devicelock \
-  prebuilt_com.google.android.healthfitness \
-  prebuilt_com.google.android.ipsec \
-  prebuilt_com.google.android.media \
-  prebuilt_com.google.android.mediaprovider \
-  prebuilt_com.google.android.ondevicepersonalization \
-  prebuilt_com.google.android.os.statsd \
-  prebuilt_com.google.android.rkpd \
-  prebuilt_com.google.android.scheduling \
-  prebuilt_com.google.android.sdkext \
-  prebuilt_com.google.android.tethering \
-  prebuilt_com.google.android.uwb \
-  prebuilt_com.google.android.wifi
+  ignore_apex_contributions := true
+endif
+ifeq (true,$(PRODUCT_MODULE_BUILD_FROM_SOURCE))
+  ignore_apex_contributions := true
+endif
+ifeq (true, $(ignore_apex_contributions))
+PRODUCT_BUILD_IGNORE_APEX_CONTRIBUTION_CONTENTS := true
 endif
 
 #############################################################################
@@ -634,6 +622,15 @@ ifneq ($$(filter-out true false,$$(PRODUCT_BUILD_$(1)_IMAGE)),)
     $$(error Invalid PRODUCT_BUILD_$(1)_IMAGE: $$(PRODUCT_BUILD_$(1)_IMAGE) -- true false and empty are supported)
 endif
 endef
+
+ifndef PRODUCT_VIRTUAL_AB_COW_VERSION
+  PRODUCT_VIRTUAL_AB_COW_VERSION := 2
+  ifdef PRODUCT_SHIPPING_API_LEVEL
+    ifeq (true,$(call math_gt_or_eq,$(PRODUCT_SHIPPING_API_LEVEL),34))
+      PRODUCT_VIRTUAL_AB_COW_VERSION := 3
+    endif
+  endif
+endif
 
 # Copy and check the value of each PRODUCT_BUILD_*_IMAGE variable
 $(foreach image, \
