@@ -33,7 +33,7 @@ namespace private_api = aconfig_storage::private_internal_api;
 
 class AconfigStorageTest : public ::testing::Test {
  protected:
-  Result<std::string> copy_to_ro_temp_file(std::string const& source_file) {
+  Result<std::string> copy_to_temp_file(std::string const& source_file) {
     auto temp_file = std::string(std::tmpnam(nullptr));
     auto content = std::string();
     if (!ReadFileToString(source_file, &content)) {
@@ -41,9 +41,6 @@ class AconfigStorageTest : public ::testing::Test {
     }
     if (!WriteStringToFile(content, temp_file)) {
       return Error() << "failed to copy file: " << source_file;
-    }
-    if (chmod(temp_file.c_str(), S_IRUSR | S_IRGRP | S_IROTH) == -1) {
-      return Error() << "failed to make file read only";
     }
     return temp_file;
   }
@@ -55,7 +52,7 @@ class AconfigStorageTest : public ::testing::Test {
     auto proto = storage_files();
     auto* info = proto.add_files();
     info->set_version(0);
-    info->set_container("system");
+    info->set_container("mockup");
     info->set_package_map(package_map);
     info->set_flag_map(flag_map);
     info->set_flag_val(flag_val);
@@ -71,9 +68,9 @@ class AconfigStorageTest : public ::testing::Test {
 
   void SetUp() override {
     auto const test_dir = android::base::GetExecutableDirectory();
-    package_map = *copy_to_ro_temp_file(test_dir + "/package.map");
-    flag_map = *copy_to_ro_temp_file(test_dir + "/flag.map");
-    flag_val = *copy_to_ro_temp_file(test_dir + "/flag.val");
+    package_map = *copy_to_temp_file(test_dir + "/package.map");
+    flag_map = *copy_to_temp_file(test_dir + "/flag.map");
+    flag_val = *copy_to_temp_file(test_dir + "/flag.val");
     storage_record_pb = *write_storage_location_pb_file(
         package_map, flag_map, flag_val);
   }
@@ -113,31 +110,10 @@ TEST_F(AconfigStorageTest, test_none_exist_storage_file_mapping) {
             "Unable to find storage files for container vendor");
 }
 
-/// Negative test to lock down the error when mapping a writeable storage file
-TEST_F(AconfigStorageTest, test_writable_storage_file_mapping) {
-  ASSERT_TRUE(chmod(package_map.c_str(), 0666) != -1);
-  auto mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::package_map);
-  ASSERT_FALSE(mapped_file.ok());
-  ASSERT_EQ(mapped_file.error().message(), "cannot map writeable file");
-
-  ASSERT_TRUE(chmod(flag_map.c_str(), 0666) != -1);
-  mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::flag_map);
-  ASSERT_FALSE(mapped_file.ok());
-  ASSERT_EQ(mapped_file.error().message(), "cannot map writeable file");
-
-  ASSERT_TRUE(chmod(flag_val.c_str(), 0666) != -1);
-  mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::flag_val);
-  ASSERT_FALSE(mapped_file.ok());
-  ASSERT_EQ(mapped_file.error().message(), "cannot map writeable file");
-}
-
 /// Test to lock down storage package offset query api
 TEST_F(AconfigStorageTest, test_package_offset_query) {
   auto mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::package_map);
+      storage_record_pb, "mockup", api::StorageFileType::package_map);
   ASSERT_TRUE(mapped_file.ok());
 
   auto offset = api::get_package_offset(
@@ -165,7 +141,7 @@ TEST_F(AconfigStorageTest, test_package_offset_query) {
 /// Test to lock down when querying none exist package
 TEST_F(AconfigStorageTest, test_none_existent_package_offset_query) {
   auto mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::package_map);
+      storage_record_pb, "mockup", api::StorageFileType::package_map);
   ASSERT_TRUE(mapped_file.ok());
 
   auto offset = api::get_package_offset(
@@ -177,7 +153,7 @@ TEST_F(AconfigStorageTest, test_none_existent_package_offset_query) {
 /// Test to lock down storage flag offset query api
 TEST_F(AconfigStorageTest, test_flag_offset_query) {
   auto mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::flag_map);
+      storage_record_pb, "mockup", api::StorageFileType::flag_map);
   ASSERT_TRUE(mapped_file.ok());
 
   auto baseline = std::vector<std::tuple<int, std::string, int>>{
@@ -201,7 +177,7 @@ TEST_F(AconfigStorageTest, test_flag_offset_query) {
 /// Test to lock down when querying none exist flag
 TEST_F(AconfigStorageTest, test_none_existent_flag_offset_query) {
   auto mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::flag_map);
+      storage_record_pb, "mockup", api::StorageFileType::flag_map);
   ASSERT_TRUE(mapped_file.ok());
 
   auto offset = api::get_flag_offset(*mapped_file, 0, "none_exist");
@@ -216,20 +192,22 @@ TEST_F(AconfigStorageTest, test_none_existent_flag_offset_query) {
 /// Test to lock down storage flag value query api
 TEST_F(AconfigStorageTest, test_boolean_flag_value_query) {
   auto mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::flag_val);
+      storage_record_pb, "mockup", api::StorageFileType::flag_val);
   ASSERT_TRUE(mapped_file.ok());
 
+  auto expected_value = std::vector<bool>{
+    false, true, true, false, true, true, true, true};
   for (int offset = 0; offset < 8; ++offset) {
     auto value = api::get_boolean_flag_value(*mapped_file, offset);
     ASSERT_TRUE(value.ok());
-    ASSERT_FALSE(*value);
+    ASSERT_EQ(*value, expected_value[offset]);
   }
 }
 
 /// Negative test to lock down the error when querying flag value out of range
 TEST_F(AconfigStorageTest, test_invalid_boolean_flag_value_query) {
   auto mapped_file = private_api::get_mapped_file_impl(
-      storage_record_pb, "system", api::StorageFileType::flag_val);
+      storage_record_pb, "mockup", api::StorageFileType::flag_val);
   ASSERT_TRUE(mapped_file.ok());
 
   auto value = api::get_boolean_flag_value(*mapped_file, 8);

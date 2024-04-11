@@ -33,8 +33,7 @@ _product_single_value_vars += PRODUCT_MODEL_FOR_ATTESTATION
 # 4096, 16384 and 65536.
 _product_single_value_vars += PRODUCT_MAX_PAGE_SIZE_SUPPORTED
 
-# Indicates that AOSP can use a kernel configured with 4k/16k/64k page sizes.
-# The possible values are true or false.
+# Boolean variable determining if AOSP relies on bionic's PAGE_SIZE macro.
 _product_single_value_vars += PRODUCT_NO_BIONIC_PAGE_SIZE_MACRO
 
 # The resource configuration options to use for this product.
@@ -334,6 +333,13 @@ _product_single_value_vars += \
 # Devices that checks the running kernel (instead of the kernel in OTA package) should not
 # set this variable to prevent OTA failures.
 _product_list_vars += PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS
+
+# If set to true, this product forces HIDL to be enabled by declaring android.hidl.manager
+# and android.hidl.token in the framework manifest. The product will also need to add the
+# 'hwservicemanager' service to PRODUCT_PACKAGES if its SHIPPING_API_LEVEL is greater than 34.
+# This should only be used during bringup for devices that are targeting FCM 202404 and still
+# have partner-owned HIDL interfaces that are being converted to AIDL.
+_product_single_value_vars += PRODUCT_HIDL_ENABLED
 
 # If set to true, this product builds a generic OTA package, which installs generic system images
 # onto matching devices. The product may only build a subset of system images (e.g. only

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,12 @@
 # limitations under the License.
 #
 
-# This makefile contains the system_ext partition contents for
-# media-capable devices (non-wearables). Only add something here
-# if it definitely doesn't belong on wearables. Otherwise, choose
-# base_system_ext.mk.
-$(call inherit-product, $(SRC_TARGET_DIR)/product/base_system_ext.mk)
+BERBERIS_DIR := frameworks/libs/binary_translation
 
-# /system_ext packages
-PRODUCT_PACKAGES += \
-    vndk_apex_snapshot_package \
+# Berberis includes some components which may conflict with other packages.
+# Only build it when requested explicitly.
+ifeq ($(BUILD_BERBERIS),true)
 
-# Window Extensions
-$(call inherit-product, $(SRC_TARGET_DIR)/product/window_extensions_base.mk)
+include $(BERBERIS_DIR)/tests/run_host_tests.mk
+
+endif  # BUILD_BERBERIS
