@@ -58,6 +58,7 @@ echo "ro.aospa.device=$AOSPA_DEVICE"
 echo "ro.aospa.version=$AOSPA_DISPLAY_VERSION"
 echo "ro.aospa.version.major=$AOSPA_MAJOR_VERSION"
 echo "ro.aospa.version.minor=$AOSPA_MINOR_VERSION"
+echo "ro.aospa.version.string=$AOSPA_VERSION_STRING"
 echo "ro.aospa.build.variant=$AOSPA_BUILD_VARIANT"
 
 echo "# end build properties"
