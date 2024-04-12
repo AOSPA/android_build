@@ -240,6 +240,7 @@ PRODUCT_PACKAGES += \
     package-shareduid-allowlist.xml \
     passwd_system \
     perfetto \
+    perfetto-extras \
     ping \
     ping6 \
     pintool \
@@ -332,7 +333,8 @@ endif
 # Check if the build supports Profiling module
 ifeq ($(RELEASE_PACKAGE_PROFILING_MODULE),true)
     PRODUCT_PACKAGES += \
-       com.android.profiling
+       com.android.profiling \
+       trace_redactor
 endif
 
 ifeq ($(RELEASE_USE_WEBVIEW_BOOTSTRAP_MODULE),true)
@@ -499,10 +501,11 @@ PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/runtime_libart.mk)
 
-# Use the configured release of sqlite
-$(call soong_config_set, libsqlite3, release_package_libsqlite3, $(RELEASE_PACKAGE_LIBSQLITE3))
+# Ensure all trunk-stable flags are available.
+$(call inherit-product, $(SRC_TARGET_DIR)/product/build_variables.mk)
 
 # Use "image" APEXes always.
 $(call inherit-product,$(SRC_TARGET_DIR)/product/updatable_apex.mk)
 
 $(call soong_config_set, bionic, large_system_property_node, $(RELEASE_LARGE_SYSTEM_PROPERTY_NODE))
+$(call soong_config_set, SettingsLib, legacy_avatar_picker_app_enabled, $(if $(RELEASE_AVATAR_PICKER_APP),,true))
