@@ -958,6 +958,13 @@ def LoadInfoDict(input_file, repacking=False):
   d["build.prop"] = d["system.build.prop"]
 
   if d.get("avb_enable") == "true":
+    build_info = BuildInfo(d, use_legacy_id=True)
+    # Set up the salt for partitions without build.prop
+    if build_info.fingerprint:
+      if "fingerprint" not in d:
+        d["fingerprint"] = build_info.fingerprint
+      if "avb_salt" not in d:
+        d["avb_salt"] = sha256(build_info.fingerprint.encode()).hexdigest()
     # Set the vbmeta digest if exists
     try:
       d["vbmeta_digest"] = read_helper("META/vbmeta_digest.txt").rstrip()
@@ -1316,7 +1323,11 @@ def MergeDynamicPartitionInfoDicts(framework_dict, vendor_dict):
     key = "super_%s_partition_list" % partition_group
     merged_dict[key] = uniq_concat(
         framework_dict.get(key, ""), vendor_dict.get(key, ""))
-
+  # in the case that vendor is on s build, but is taking a v3 -> v3 vabc ota, we want to fallback to v2
+  if "vabc_cow_version" not in vendor_dict or "vabc_cow_version" not in framework_dict:
+    merged_dict["vabc_cow_version"] = '2'
+  else:
+    merged_dict["vabc_cow_version"] = min(vendor_dict["vabc_cow_version"], framework_dict["vabc_cow_version"])
   # Various other flags should be copied from the vendor dict, if defined.
   for key in ("virtual_ab", "virtual_ab_retrofit", "lpmake",
               "super_metadata_device", "super_partition_error_limit",
@@ -1516,7 +1527,7 @@ def GetAvbPartitionsArg(partitions,
       AVB_ARG_NAME_CHAIN_PARTITION: []
   }
 
-  for partition, path in partitions.items():
+  for partition, path in sorted(partitions.items()):
     avb_partition_arg = GetAvbPartitionArg(partition, path, info_dict)
     if not avb_partition_arg:
       continue
@@ -1604,7 +1615,7 @@ def BuildVBMeta(image_path, partitions, name, needed_partitions,
       "avb_custom_vbmeta_images_partition_list", "").strip().split()]
 
   avb_partitions = {}
-  for partition, path in partitions.items():
+  for partition, path in sorted(partitions.items()):
     if partition not in needed_partitions:
       continue
     assert (partition in AVB_PARTITIONS or
@@ -2459,7 +2470,7 @@ def GetMinSdkVersion(apk_name):
     m = re.match(r'(?:minSdkVersion|sdkVersion):\'([^\']*)\'', line)
     if m:
       return m.group(1)
-  raise ExternalError("No minSdkVersion returned by aapt2")
+  raise ExternalError("No minSdkVersion returned by aapt2 for apk: {}".format(apk_name))
 
 
 def GetMinSdkVersionInt(apk_name, codename_to_api_level_map):

@@ -218,7 +218,11 @@ pub fn create_cpp_lib(mut input: Input, codegen_mode: CodegenMode) -> Result<Vec
     generate_cpp_code(&package, modified_parsed_flags.into_iter(), codegen_mode)
 }
 
-pub fn create_rust_lib(mut input: Input, codegen_mode: CodegenMode) -> Result<OutputFile> {
+pub fn create_rust_lib(
+    mut input: Input,
+    codegen_mode: CodegenMode,
+    allow_instrumentation: bool,
+) -> Result<OutputFile> {
     // // TODO(327420679): Enable export mode for native flag library
     ensure!(
         codegen_mode != CodegenMode::Exported,
@@ -230,8 +234,14 @@ pub fn create_rust_lib(mut input: Input, codegen_mode: CodegenMode) -> Result<Ou
         bail!("no parsed flags, or the parsed flags use different packages");
     };
     let package = package.to_string();
-    let _flag_ids = assign_flag_ids(&package, modified_parsed_flags.iter())?;
-    generate_rust_code(&package, modified_parsed_flags.into_iter(), codegen_mode)
+    let flag_ids = assign_flag_ids(&package, modified_parsed_flags.iter())?;
+    generate_rust_code(
+        &package,
+        flag_ids,
+        modified_parsed_flags.into_iter(),
+        codegen_mode,
+        allow_instrumentation,
+    )
 }
 
 pub fn create_storage(
@@ -317,9 +327,7 @@ pub fn dump_parsed_flags(
 }
 
 fn find_unique_package(parsed_flags: &[ProtoParsedFlag]) -> Option<&str> {
-    let Some(package) = parsed_flags.first().map(|pf| pf.package()) else {
-        return None;
-    };
+    let package = parsed_flags.first().map(|pf| pf.package())?;
     if parsed_flags.iter().any(|pf| pf.package() != package) {
         return None;
     }
@@ -327,9 +335,7 @@ fn find_unique_package(parsed_flags: &[ProtoParsedFlag]) -> Option<&str> {
 }
 
 fn find_unique_container(parsed_flags: &ProtoParsedFlags) -> Option<&str> {
-    let Some(container) = parsed_flags.parsed_flag.first().map(|pf| pf.container()) else {
-        return None;
-    };
+    let container = parsed_flags.parsed_flag.first().map(|pf| pf.container())?;
     if parsed_flags.parsed_flag.iter().any(|pf| pf.container() != container) {
         return None;
     }

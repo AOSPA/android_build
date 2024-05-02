@@ -33,8 +33,3 @@ ifneq ($(TARGET_USES_QSPA),true)
       Launcher3QuickStep \
       SystemUI
 endif
-
-# Base modules when shipping api level is less than or equal to 34
-PRODUCT_PACKAGES_SHIPPING_API_LEVEL_34 += \
-    hwservicemanager \
-    android.hidl.allocator@1.0-service \
