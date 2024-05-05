@@ -1119,7 +1119,7 @@ function adb() {
         echo "Command adb not found; try lunch (and building) first?"
         return 1
     fi
-    $ADB "${@}"
+    run_tool_with_logging "ADB" $ADB "${@}"
 }
 
 function run_tool_with_logging() {

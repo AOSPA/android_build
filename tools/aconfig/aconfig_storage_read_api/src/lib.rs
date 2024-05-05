@@ -468,8 +468,8 @@ files {{
         let baseline = vec![
             (0, "enabled_ro", StoredFlagType::ReadOnlyBoolean, 1u16),
             (0, "enabled_rw", StoredFlagType::ReadWriteBoolean, 2u16),
-            (1, "disabled_ro", StoredFlagType::ReadOnlyBoolean, 0u16),
-            (2, "enabled_ro", StoredFlagType::ReadOnlyBoolean, 1u16),
+            (2, "enabled_rw", StoredFlagType::ReadWriteBoolean, 1u16),
+            (1, "disabled_rw", StoredFlagType::ReadWriteBoolean, 0u16),
             (1, "enabled_fixed_ro", StoredFlagType::FixedReadOnlyBoolean, 1u16),
             (1, "enabled_ro", StoredFlagType::ReadOnlyBoolean, 2u16),
             (2, "enabled_fixed_ro", StoredFlagType::FixedReadOnlyBoolean, 0u16),
@@ -508,9 +508,9 @@ files {{
         for (offset, expected_value) in is_rw.into_iter().enumerate() {
             let attribute =
                 get_flag_attribute(&flag_info_file, FlagValueType::Boolean, offset as u32).unwrap();
-            assert!((attribute & FlagInfoBit::IsSticky as u8) == 0u8);
             assert_eq!((attribute & FlagInfoBit::IsReadWrite as u8) != 0u8, expected_value);
-            assert!((attribute & FlagInfoBit::HasOverride as u8) == 0u8);
+            assert!((attribute & FlagInfoBit::HasServerOverride as u8) == 0u8);
+            assert!((attribute & FlagInfoBit::HasLocalOverride as u8) == 0u8);
         }
     }
 
