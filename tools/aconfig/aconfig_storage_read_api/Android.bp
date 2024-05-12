@@ -92,18 +92,28 @@ cc_library {
     static_libs: [
         "libaconfig_storage_protos_cc",
         "libprotobuf-cpp-lite",
-        "libbase",
     ],
     shared_libs: [
         "liblog",
+        "libbase",
     ],
     apex_available: [
         "//apex_available:platform",
         "//apex_available:anyapex",
     ],
     min_sdk_version: "29",
+    target: {
+        linux: {
+            version_script: "libaconfig_storage_read_api_cc.map",
+        },
+    },
     double_loadable: true,
-    cflags: [
-        "-fvisibility=hidden",
+}
+
+cc_defaults {
+    name: "aconfig_lib_cc_static_link.defaults",
+    shared_libs: [
+        "libaconfig_storage_read_api_cc",
+        "liblog",
     ],
 }
