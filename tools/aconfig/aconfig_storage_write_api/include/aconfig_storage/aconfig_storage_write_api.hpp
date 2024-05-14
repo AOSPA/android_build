@@ -16,20 +16,9 @@ struct MutableMappedStorageFile{
   size_t file_size;
 };
 
-/// DO NOT USE APIS IN THE FOLLOWING NAMESPACE DIRECTLY
-namespace private_internal_api {
-
-Result<MutableMappedStorageFile> get_mutable_mapped_file_impl(
-    std::string const& pb_file,
-    std::string const& container,
-    StorageFileType file_type);
-
-} // namespace private_internal_api
-
-/// Get mapped writeable storage file
-Result<MutableMappedStorageFile> get_mutable_mapped_file(
-    std::string const& container,
-    StorageFileType file_type);
+/// Map a storage file
+Result<MutableMappedStorageFile> map_mutable_storage_file(
+    std::string const& file);
 
 /// Set boolean flag value
 Result<void> set_boolean_flag_value(
@@ -37,15 +26,15 @@ Result<void> set_boolean_flag_value(
     uint32_t offset,
     bool value);
 
-/// Set if flag is sticky
-Result<void> set_flag_is_sticky(
+/// Set if flag has server override
+Result<void> set_flag_has_server_override(
     const MutableMappedStorageFile& file,
     FlagValueType value_type,
     uint32_t offset,
     bool value);
 
-/// Set if flag has override
-Result<void> set_flag_has_override(
+/// Set if flag has local override
+Result<void> set_flag_has_local_override(
     const MutableMappedStorageFile& file,
     FlagValueType value_type,
     uint32_t offset,

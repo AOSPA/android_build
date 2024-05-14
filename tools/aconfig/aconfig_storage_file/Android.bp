@@ -27,6 +27,8 @@ rust_library {
         "//apex_available:anyapex",
     ],
     min_sdk_version: "29",
+    vendor_available: true,
+    product_available: true,
 }
 
 rust_binary_host {
@@ -54,9 +56,11 @@ rust_protobuf {
         "//apex_available:anyapex",
     ],
     min_sdk_version: "29",
+    vendor_available: true,
+    product_available: true,
 }
 
-cc_library_static {
+cc_library {
     name: "libaconfig_storage_protos_cc",
     proto: {
         export_proto_headers: true,
@@ -68,4 +72,8 @@ cc_library_static {
         "//apex_available:anyapex",
     ],
     host_supported: true,
+    min_sdk_version: "29",
+    vendor_available: true,
+    product_available: true,
+    double_loadable: true,
 }

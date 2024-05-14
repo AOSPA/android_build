@@ -1128,10 +1128,15 @@ $(foreach \
 
 BOARD_VENDOR_RAMDISK_FRAGMENT.16K.PREBUILT := $(BUILT_RAMDISK_16K_TARGET)
 
+ifndef BOARD_KERNEL_MODULES_LOAD_16K
+  BOARD_KERNEL_MODULES_LOAD_16K := $(BOARD_KERNEL_MODULES_16K)
+endif
+
 $(BUILT_RAMDISK_16K_TARGET): $(DEPMOD) $(MKBOOTFS) $(EXTRACT_KERNEL) $(COMPRESSION_COMMAND_DEPS)
 $(BUILT_RAMDISK_16K_TARGET): $(foreach file,$(BOARD_KERNEL_MODULES_16K),$(RAMDISK_16K_STAGING_DIR)/lib/modules/0.0/$(notdir $(file)))
 	$(DEPMOD) -b $(RAMDISK_16K_STAGING_DIR) 0.0
-	for MODULE in $(BOARD_KERNEL_MODULES_16K); do \
+	rm -f $(RAMDISK_16K_STAGING_DIR)/lib/modules/0.0/modules.load
+	for MODULE in $(BOARD_KERNEL_MODULES_LOAD_16K); do \
 		basename $$MODULE >> $(RAMDISK_16K_STAGING_DIR)/lib/modules/0.0/modules.load ; \
 	done;
 	rm -rf $(TARGET_OUT_RAMDISK_16K)/lib/modules
@@ -6197,6 +6202,8 @@ define dump-dynamic-partitions-info
     echo "virtual_ab_retrofit=true" >> $(1))
   $(if $(PRODUCT_VIRTUAL_AB_COW_VERSION), \
     echo "virtual_ab_cow_version=$(PRODUCT_VIRTUAL_AB_COW_VERSION)" >> $(1))
+  $(if $(PRODUCT_VIRTUAL_AB_COMPRESSION_FACTOR), \
+    echo "virtual_ab_compression_factor=$(PRODUCT_VIRTUAL_AB_COMPRESSION_FACTOR)" >> $(1))
 endef
 
 # Copy an image file to a directory and generate a block list map file from the image,

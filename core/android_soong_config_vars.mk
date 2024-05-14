@@ -26,13 +26,17 @@ $(call add_soong_config_namespace,ANDROID)
 
 # Add variables to the namespace below:
 
-$(call add_soong_config_var,ANDROID,TARGET_DYNAMIC_64_32_MEDIASERVER)
-$(call add_soong_config_var,ANDROID,TARGET_DYNAMIC_64_32_DRMSERVER)
-$(call add_soong_config_var,ANDROID,TARGET_ENABLE_MEDIADRM_64)
 $(call add_soong_config_var,ANDROID,BOARD_USES_ODMIMAGE)
 $(call add_soong_config_var,ANDROID,BOARD_USES_RECOVERY_AS_BOOT)
 $(call add_soong_config_var,ANDROID,CHECK_DEV_TYPE_VIOLATIONS)
+$(call add_soong_config_var,ANDROID,PLATFORM_SEPOLICY_COMPAT_VERSIONS)
 $(call add_soong_config_var,ANDROID,PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT)
+$(call add_soong_config_var,ANDROID,TARGET_DYNAMIC_64_32_DRMSERVER)
+$(call add_soong_config_var,ANDROID,TARGET_ENABLE_MEDIADRM_64)
+$(call add_soong_config_var,ANDROID,TARGET_DYNAMIC_64_32_MEDIASERVER)
+
+# PRODUCT_PRECOMPILED_SEPOLICY defaults to true. Explicitly check if it's "false" or not.
+$(call add_soong_config_var_value,ANDROID,PRODUCT_PRECOMPILED_SEPOLICY,$(if $(filter false,$(PRODUCT_PRECOMPILED_SEPOLICY)),false,true))
 
 # Default behavior for the tree wrt building modules or using prebuilts. This
 # can always be overridden by setting the environment variable
@@ -74,36 +78,6 @@ ifdef TARGET_BOARD_AUTO
   $(call add_soong_config_var_value, ANDROID, target_board_auto, $(TARGET_BOARD_AUTO))
 endif
 
-# Ensure that those mainline modules who have individually toggleable prebuilts
-# are controlled by the MODULE_BUILD_FROM_SOURCE environment variable by
-# default.
-INDIVIDUALLY_TOGGLEABLE_PREBUILT_MODULES := \
-  adservices \
-  appsearch \
-  btservices \
-  configinfrastructure \
-  conscrypt \
-  devicelock \
-  healthfitness \
-  ipsec \
-  media \
-  mediaprovider \
-  mediaprovider \
-  ondevicepersonalization \
-  permission \
-  rkpd \
-  scheduling \
-  sdkext \
-  statsd \
-  tethering \
-  uwb \
-  wifi \
-  mediaprovider \
-
-$(foreach m, $(INDIVIDUALLY_TOGGLEABLE_PREBUILT_MODULES),\
-  $(if $(call soong_config_get,$(m)_module,source_build),,\
-    $(call soong_config_set,$(m)_module,source_build,$(MODULE_BUILD_FROM_SOURCE))))
-
 # Apex build mode variables
 ifdef APEX_BUILD_FOR_PRE_S_DEVICES
 $(call add_soong_config_var_value,ANDROID,library_linking_strategy,prefer_static)
@@ -125,6 +99,18 @@ ifdef PRODUCT_AVF_ENABLED
 $(call add_soong_config_var_value,ANDROID,avf_enabled,$(PRODUCT_AVF_ENABLED))
 endif
 
+ifdef PRODUCT_AVF_MICRODROID_GUEST_GKI_VERSION
+$(call add_soong_config_var_value,ANDROID,avf_microdroid_guest_gki_version,$(PRODUCT_AVF_MICRODROID_GUEST_GKI_VERSION))
+endif
+
+ifdef PRODUCT_MEMCG_V2_FORCE_ENABLED
+$(call add_soong_config_var_value,ANDROID,memcg_v2_force_enabled,$(PRODUCT_MEMCG_V2_FORCE_ENABLED))
+endif
+
+ifdef PRODUCT_CGROUP_V2_SYS_APP_ISOLATION_ENABLED
+$(call add_soong_config_var_value,ANDROID,cgroup_v2_sys_app_isolation,$(PRODUCT_CGROUP_V2_SYS_APP_ISOLATION_ENABLED))
+endif
+
 $(call add_soong_config_var_value,ANDROID,release_avf_allow_preinstalled_apps,$(RELEASE_AVF_ALLOW_PREINSTALLED_APPS))
 $(call add_soong_config_var_value,ANDROID,release_avf_enable_device_assignment,$(RELEASE_AVF_ENABLE_DEVICE_ASSIGNMENT))
 $(call add_soong_config_var_value,ANDROID,release_avf_enable_dice_changes,$(RELEASE_AVF_ENABLE_DICE_CHANGES))
@@ -141,6 +127,8 @@ $(call add_soong_config_var_value,ANDROID,release_binder_death_recipient_weak_fr
 $(call add_soong_config_var_value,ANDROID,release_package_libandroid_runtime_punch_holes,$(RELEASE_PACKAGE_LIBANDROID_RUNTIME_PUNCH_HOLES))
 
 $(call add_soong_config_var_value,ANDROID,release_selinux_data_data_ignore,$(RELEASE_SELINUX_DATA_DATA_IGNORE))
+
+$(call add_soong_config_var_value,ANDROID,release_write_appcompat_override_system_properties,$(RELEASE_WRITE_APPCOMPAT_OVERRIDE_SYSTEM_PROPERTIES))
 
 # Enable system_server optimizations by default unless explicitly set or if
 # there may be dependent runtime jars.
