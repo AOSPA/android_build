@@ -435,6 +435,8 @@ $(call add_json_bool, BoardUseVbmetaDigestInFingerprint, $(filter true,$(BOARD_U
 
 $(call add_json_list, OemProperties, $(PRODUCT_OEM_PROPERTIES))
 
+$(call add_json_bool, DisableSoongConfigTrace, $(filter true,$(DISABLE_SOONG_CONFIG_TRACE)))
+
 $(call json_end)
 
 $(file >$(SOONG_VARIABLES).tmp,$(json_contents))
