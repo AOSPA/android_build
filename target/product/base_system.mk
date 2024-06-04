@@ -292,6 +292,7 @@ PRODUCT_PACKAGES += \
     uprobestats \
     usbd \
     vdc \
+    vintf \
     voip-common \
     vold \
     watchdogd \
@@ -495,6 +496,11 @@ PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
 
 # Enable dirty image object binning to reduce dirty pages in the image.
 PRODUCT_PACKAGES += dirty-image-objects
+
+# Enable go/perfetto-persistent-tracing for eng builds
+ifneq (,$(filter eng, $(TARGET_BUILD_VARIANT)))
+    PRODUCT_PRODUCT_PROPERTIES += persist.debug.perfetto.persistent_sysui_tracing_for_bugreport=1
+endif
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/runtime_libart.mk)
 
