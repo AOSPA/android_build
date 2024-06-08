@@ -14,6 +14,16 @@
 
 
 # -----------------------------------------------------------------
+# Determine which pass this is.
+# -----------------------------------------------------------------
+# On the first pass, we are asked for only PRODUCT_RELEASE_CONFIG_MAPS,
+# on the second pass, we are asked for whatever else is wanted.
+_final_product_config_pass:=
+ifneq (PRODUCT_RELEASE_CONFIG_MAPS,$(DUMP_MANY_VARS))
+    _final_product_config_pass:=true
+endif
+
+# -----------------------------------------------------------------
 # Choose the flag files
 # -----------------------------------------------------------------
 # Release configs are defined in reflease_config_map files, which map
@@ -90,7 +100,7 @@ $(foreach map,$(protobuf_map_files), \
 
 ifneq (,$(_must_protobuf))
     ifeq (,$(_can_protobuf))
-	# We must use protobuf, but we cannot use protobuf.
+        # We must use protobuf, but we cannot use protobuf.
         $(error release config is a mixture of .scl and .textproto)
     endif
 endif
@@ -120,14 +130,40 @@ ifneq (,$(_use_protobuf))
         # Disable the build flag in release-config.
         _args += --guard=false
     endif
-    $(KATI_shell_no_rerun $(OUT_DIR)/release-config $(_args) >$(OUT_DIR)/release-config.out && touch -t 200001010000 $(OUT_DIR)/release-config.out)
+    _flags_dir:=$(OUT_DIR)/soong/release-config
+    _flags_file:=$(_flags_dir)/release_config-$(TARGET_PRODUCT)-$(TARGET_RELEASE).vars
+    # release-config generates $(_flags_varmk)
+    _flags_varmk:=$(_flags_file:.vars=.varmk)
+    $(shell $(OUT_DIR)/release-config $(_args) >$(OUT_DIR)/release-config.out && touch -t 200001010000 $(_flags_varmk))
     $(if $(filter-out 0,$(.SHELLSTATUS)),$(error release-config failed to run))
-    # This will also set _all_release_configs for us.
-    $(eval include $(OUT_DIR)/soong/release-config/release_config-$(TARGET_PRODUCT)-$(TARGET_RELEASE).mk)
-    $(KATI_extra_file_deps $(OUT_DIR)/release-config $(config_map_files))
+    ifneq (,$(_final_product_config_pass))
+        # Save the final version of the config.
+        $(shell if ! cmp --quiet $(_flags_varmk) $(_flags_file); then cp $(_flags_varmk) $(_flags_file); fi)
+        # This will also set _all_release_configs and _used_files for us.
+        $(eval include $(_flags_file))
+        $(KATI_extra_file_deps $(OUT_DIR)/release-config $(protobuf_map_files) $(_flags_file))
+    else
+        # This is the first pass of product config.
+        $(eval include $(_flags_varmk))
+    endif
+    _used_files :=
     ifeq (,$(_must_protobuf)$(RELEASE_BUILD_FLAGS_IN_PROTOBUF))
         _use_protobuf :=
+    else
+        _base_all_release := all_release_configs-$(TARGET_PRODUCT)
+        $(call dist-for-goals,droid,\
+            $(_flags_dir)/$(_base_all_release).pb:build_flags/all_release_configs.pb \
+            $(_flags_dir)/$(_base_all_release).textproto:build_flags/all_release_configs.textproto \
+            $(_flags_dir)/$(_base_all_release).json:build_flags/all_release_configs.json \
+        )
+# These are always created, add an empty rule for them to keep ninja happy.
+$(_flags_dir)/$(_base_all_release).pb $(_flags_dir)/$(_base_all_release).textproto $(_flags_dir)/$(_base_all_release).json:
+	: created by $(OUT_DIR)/release-config
+        _base_all_release :=
     endif
+    _flags_dir:=
+    _flags_file:=
+    _flags_varmk:=
 endif
 ifeq (,$(_use_protobuf))
     # The .mk files are the canonical source of truth.
@@ -237,7 +273,7 @@ endif
 
 # During pass 1 of product config, using a non-existent release config is not an error.
 # We can safely assume that we are doing pass 1 if DUMP_MANY_VARS=="PRODUCT_RELEASE_CONFIG_MAPS".
-ifneq (PRODUCT_RELEASE_CONFIG_MAPS,$(DUMP_MANY_VARS))
+ifneq (,$(_final_product_config_pass))
     ifeq ($(filter $(_all_release_configs), $(TARGET_RELEASE)),)
         $(error No release config found for TARGET_RELEASE: $(TARGET_RELEASE). Available releases are: $(_all_release_configs))
     endif
