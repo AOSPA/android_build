@@ -7553,6 +7553,10 @@ systemimage: $(QEMU_VERIFIED_BOOT_PARAMS)
 droidcore-unbundled: $(QEMU_VERIFIED_BOOT_PARAMS)
 
 endif
+
+# Preprocess files for emulator and sdk.
+-include development/build/tools/sdk-preprocess-files.mk
+
 # -----------------------------------------------------------------
 # The emulator package
 ifeq ($(BUILD_EMULATOR),true)
@@ -7597,7 +7601,6 @@ sdk_name := $(sdk_name)_$(INTERNAL_SDK_HOST_OS_NAME)
 sdk_dep_file := $(sdk_dir)/sdk_deps.mk
 
 ATREE_FILES :=
-include development/build/tools/sdk-preprocess-files.mk
 -include $(sdk_dep_file)
 
 # if we don't have a real list, then use "everything"
