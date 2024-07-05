@@ -121,6 +121,26 @@ class CheckFlaggedApisTest {
   }
 
   @Test
+  fun testParseApiSignatureInterfacesInheritFromJavaLangObject() {
+    val apiSignature =
+        """
+          // Signature format: 2.0
+          package android {
+            @FlaggedApi("android.flag.foo") public interface Interface {
+            }
+          }
+        """
+            .trim()
+    val expected =
+        setOf(
+            Pair(
+                Symbol.createClass("android/Interface", "java/lang/Object", setOf()),
+                Flag("android.flag.foo")))
+    val actual = parseApiSignature("in-memory", apiSignature.byteInputStream())
+    assertEquals(expected, actual)
+  }
+
+  @Test
   fun testParseFlagValues() {
     val expected: Map<Flag, Boolean> =
         mapOf(Flag("android.flag.foo") to true, Flag("android.flag.bar") to true)
@@ -336,6 +356,25 @@ class CheckFlaggedApisTest {
             parseApiSignature("in-memory", API_SIGNATURE.byteInputStream()),
             parseFlagValues(generateFlagsProto(DISABLED, DISABLED)),
             parseApiVersions(API_VERSIONS.byteInputStream()))
+    assertEquals(expected, actual)
+  }
+
+  @Test
+  fun testListFlaggedApis() {
+    val expected =
+        listOf(
+            "android.flag.bar DISABLED android/Clazz/Builder",
+            "android.flag.foo ENABLED android/Clazz",
+            "android.flag.foo ENABLED android/Clazz/Clazz()",
+            "android.flag.foo ENABLED android/Clazz/FOO",
+            "android.flag.foo ENABLED android/Clazz/getErrorCode()",
+            "android.flag.foo ENABLED android/Clazz/innerClassArg(Landroid/Clazz/Builder;)",
+            "android.flag.foo ENABLED android/Clazz/setData(I[[ILandroid/util/Utility;)",
+            "android.flag.foo ENABLED android/Clazz/setVariableData(I[Landroid/util/Atom;)")
+    val actual =
+        listFlaggedApis(
+            parseApiSignature("in-memory", API_SIGNATURE.byteInputStream()),
+            parseFlagValues(generateFlagsProto(ENABLED, DISABLED)))
     assertEquals(expected, actual)
   }
 }

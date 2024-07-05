@@ -45,6 +45,7 @@ PRODUCT_PACKAGES += \
     bu \
     bugreport \
     bugreportz \
+    build_flag_system \
     cgroups.json \
     charger \
     cmd \
@@ -173,7 +174,6 @@ PRODUCT_PACKAGES += \
     libjpeg \
     liblog \
     libm.bootstrap \
-    libmdnssd \
     libmedia \
     libmedia_jni \
     libmediandk \
