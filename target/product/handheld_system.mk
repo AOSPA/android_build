@@ -59,6 +59,7 @@ PRODUCT_PACKAGES += \
     PacProcessor \
     preinstalled-packages-platform-handheld-system.xml \
     PrintRecommendationService \
+    PrintSpooler \
     ProxyHandler \
     screenrecord \
     SharedStorageBackup \
@@ -75,11 +76,6 @@ PRODUCT_PACKAGES += \
   MmsService \
   TeleService
 endif #TARGET_NO_TELEPHONY
-
-ifneq ($(TARGET_USES_QSPA), true)
-PRODUCT_PACKAGES += \
-    PrintSpooler
-endif
 
 ifneq ($(TARGET_HAS_LOW_RAM), true)
 PRODUCT_PACKAGES += \
