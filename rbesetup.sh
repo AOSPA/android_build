@@ -5,7 +5,7 @@ function _source_env_setup_script() {
       \cd ..
     done
     if [[ -f "${ENV_SETUP_SCRIPT}" ]]; then
-      echo "$(PWD= /bin/pwd -P)"
+      echo "$(PWD= /usr/bin/env pwd -P)"
     fi
   )
 
