@@ -20,19 +20,19 @@ function _gettop_once
     local TOPFILE=build/make/core/envsetup.mk
     if [ -n "$TOP" -a -f "$TOP/$TOPFILE" ] ; then
         # The following circumlocution ensures we remove symlinks from TOP.
-        (cd "$TOP"; PWD= /bin/pwd)
+        (cd "$TOP"; PWD= /usr/bin/env pwd)
     else
         if [ -f $TOPFILE ] ; then
             # The following circumlocution (repeated below as well) ensures
             # that we record the true directory name and not one that is
             # faked up with symlink names.
-            PWD= /bin/pwd
+            PWD= /usr/bin/env pwd
         else
             local HERE=$PWD
             local T=
             while [ \( ! \( -f $TOPFILE \) \) -a \( "$PWD" != "/" \) ]; do
                 \cd ..
-                T=`PWD= /bin/pwd -P`
+                T=`PWD= /usr/bin/env pwd -P`
             done
             \cd "$HERE"
             if [ -f "$T/$TOPFILE" ]; then
