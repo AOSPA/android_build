@@ -512,6 +512,13 @@ function lunch()
         return 1
     fi
 
+    check_product $product $release
+
+    local T=$(gettop)
+    $T/prebuilts/build-tools/linux-x86/bin/py3-cmd $T/vendor/aospa/build/tools/barista.py $product
+    source_vendorsetup &>/dev/null
+    check_product $product $release
+
     _lunch_meat $product $release $variant
 }
 
