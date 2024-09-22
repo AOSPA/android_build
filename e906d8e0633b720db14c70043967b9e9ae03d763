@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "477084fe_be01e814",
+        "filename": "tools/releasetools/common.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 3807,
+      "author": {
+        "id": 1000760
+      },
+      "writtenOn": "2024-09-22T07:23:55Z",
+      "side": 1,
+      "message": "diff_program",
+      "revId": "e906d8e0633b720db14c70043967b9e9ae03d763",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
