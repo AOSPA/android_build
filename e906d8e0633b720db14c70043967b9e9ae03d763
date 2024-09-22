@@ -16,6 +16,24 @@
       "message": "diff_program",
       "revId": "e906d8e0633b720db14c70043967b9e9ae03d763",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c2e040b6_e87300ec",
+        "filename": "tools/releasetools/common.py",
+        "patchSetId": 1
+      },
+      "lineNbr": 3807,
+      "author": {
+        "id": 1000895
+      },
+      "writtenOn": "2024-09-22T07:28:41Z",
+      "side": 1,
+      "message": "done",
+      "parentUuid": "477084fe_be01e814",
+      "revId": "e906d8e0633b720db14c70043967b9e9ae03d763",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
