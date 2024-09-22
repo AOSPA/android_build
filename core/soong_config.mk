@@ -32,6 +32,11 @@ $(call add_json_str,  BuildSystemFingerprintFile,        build_system_fingerprin
 $(call add_json_str,  BuildThumbprintFile,               build_thumbprint-$(TARGET_PRODUCT).txt)
 $(call add_json_bool, DisplayBuildNumber,                $(filter true,$(DISPLAY_BUILD_NUMBER)))
 
+$(call add_json_str,  AospaDisplayVersion,               $(AOSPA_DISPLAY_VERSION))
+$(call add_json_str,  AospaMajorVersion,                 $(AOSPA_MAJOR_VERSION))
+$(call add_json_str,  AospaMinorVersion,                 $(AOSPA_MINOR_VERSION))
+$(call add_json_str,  AospaBuildVariant,                 $(AOSPA_BUILD_VARIANT))
+
 $(call add_json_str,  Platform_display_version_name,     $(PLATFORM_DISPLAY_VERSION))
 $(call add_json_str,  Platform_version_name,             $(PLATFORM_VERSION))
 $(call add_json_val,  Platform_sdk_version,              $(PLATFORM_SDK_VERSION))
