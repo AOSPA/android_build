@@ -161,3 +161,6 @@ $(call soong_config_set,bootclasspath,release_crashrecovery_module,$(RELEASE_CRA
 # Enable Profiling module. Also used by platform_bootclasspath.
 $(call soong_config_set,ANDROID,release_package_profiling_module,$(RELEASE_PACKAGE_PROFILING_MODULE))
 $(call soong_config_set,bootclasspath,release_package_profiling_module,$(RELEASE_PACKAGE_PROFILING_MODULE))
+
+# Export target_board_platform to soong for hardware/google/graphics/common/libmemtrack:memtrack.$(TARGET_BOARD_PLATFORM)
+$(call soong_config_set,ANDROID,target_board_platform,$(TARGET_BOARD_PLATFORM))
