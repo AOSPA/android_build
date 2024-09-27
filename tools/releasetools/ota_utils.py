@@ -230,7 +230,10 @@ def UpdateDeviceState(device_state, build_info, boot_variable_values,
             runtime_build_info.GetPartitionFingerprint(partition))
 
       partition_state.device.extend(sorted(partition_devices))
-      partition_state.build.extend(sorted(partition_fingerprints))
+      try:
+        partition_state.build.extend(sorted(partition_fingerprints))
+      except:
+        pass
 
       # TODO(xunchang) set the boot image's version with kmi. Note the boot
       # image doesn't have a file map.
