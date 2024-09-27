@@ -230,7 +230,10 @@ def UpdateDeviceState(device_state, build_info, boot_variable_values,
             runtime_build_info.GetPartitionFingerprint(partition))
 
       partition_state.device.extend(sorted(partition_devices))
-      partition_state.build.extend(sorted(partition_fingerprints))
+      try:
+        partition_state.build.extend(sorted(partition_fingerprints))
+      except:
+        pass
 
       # TODO(xunchang) set the boot image's version with kmi. Note the boot
       # image doesn't have a file map.
@@ -508,7 +511,7 @@ def GetZipEntryOffset(zfp, entry_info):
 class PropertyFiles(object):
   """A class that computes the property-files string for an OTA package.
 
-  A property-files string is a comma-separated string that contains the
+  A property-files string is a comma-separated strxing that contains the
   offset/size info for an OTA package. The entries, which must be ZIP_STORED,
   can be fetched directly with the package URL along with the offset/size info.
   These strings can be used for streaming A/B OTAs, or allowing an updater to
