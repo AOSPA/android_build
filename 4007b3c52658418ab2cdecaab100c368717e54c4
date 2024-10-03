@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "fae26cf7_ff2451c0",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2024-10-03T04:02:15Z",
+      "side": 1,
+      "message": "would rather skip and use kryo785 so we don\u0027t need hacks here",
+      "revId": "4007b3c52658418ab2cdecaab100c368717e54c4",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
