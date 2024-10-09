@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a5011689_fc5d5073",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2024-10-09T12:11:37Z",
+      "side": 1,
+      "message": "but why is partition_fingerprints missing?",
+      "revId": "3acb56cb8ba4b1594fb617b357b3cfda7d1aa22c",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
