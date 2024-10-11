@@ -16,6 +16,23 @@
       "message": "It would be better to add it to vendor/aospa",
       "revId": "4e6dfade6e0958a128f88da4d6d1e2258bd61a81",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "f7f43d1f_1086f046",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2024-10-11T03:05:46Z",
+      "side": 1,
+      "message": "why?\nqcom disabled all new flags from next so and aliased it to ap3a",
+      "revId": "4e6dfade6e0958a128f88da4d6d1e2258bd61a81",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
