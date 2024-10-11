@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a6fcdbf7_cce6b1bf",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000737
+      },
+      "writtenOn": "2024-10-11T01:12:46Z",
+      "side": 1,
+      "message": "It would be better to add it to vendor/aospa",
+      "revId": "4e6dfade6e0958a128f88da4d6d1e2258bd61a81",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
