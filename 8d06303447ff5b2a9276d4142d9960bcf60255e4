@@ -16,6 +16,24 @@
       "message": "Just out of curiosity, where is `pwd` actually located in NixOS?",
       "revId": "8d06303447ff5b2a9276d4142d9960bcf60255e4",
       "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7d36c8f9_a0ca5ae6",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000165
+      },
+      "writtenOn": "2024-10-21T17:26:37Z",
+      "side": 1,
+      "message": "In the Nix Store:\n\n➜ whereis pwd\npwd: /nix/store/6j8r3fldqrgsb3h3vwrn9k1rz2ik8ii1-system-path/bin/pwd\n\nThe path can change at any time.",
+      "parentUuid": "5fd5030f_46b8f212",
+      "revId": "8d06303447ff5b2a9276d4142d9960bcf60255e4",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
     }
   ]
 }
