@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d77d7251_64a60e91",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2024-10-21T15:02:27Z",
+      "side": 1,
+      "message": "Maximizing total CPU usage is a good thing during build, which is partially why I didn\u0027t merge Iff8829f3932e3ceb5eb78151b616991187a27246.\n\nIf this actually improve build times, please elaborate your setup and the time data from the commit message.",
+      "revId": "9e260bc6a6f167a1f91b4a6e590dd68c45db8ed0",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
