@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "5fd5030f_46b8f212",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2024-10-21T15:01:04Z",
+      "side": 1,
+      "message": "Just out of curiosity, where is `pwd` actually located in NixOS?",
+      "revId": "8d06303447ff5b2a9276d4142d9960bcf60255e4",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
