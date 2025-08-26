@@ -19,4 +19,3 @@
 # capitalized by convention.
 
 BUILD_ID=BQ2A.250610.001
-BUILD_ID:=${BUILD_ID}-BP2A.250605.031.A3
