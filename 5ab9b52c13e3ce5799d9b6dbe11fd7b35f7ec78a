@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7f8c4f9c_689791fb",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2025-08-27T02:04:03Z",
+      "side": 1,
+      "message": "Omkar says we don\u0027t need this anymore.",
+      "revId": "5ab9b52c13e3ce5799d9b6dbe11fd7b35f7ec78a",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
