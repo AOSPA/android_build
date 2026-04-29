@@ -150,6 +150,7 @@ com.android.bluetooth.flags.settings_can_control_hap_preset
 com.android.bluetooth.flags.unix_file_socket_creation_failure
 com.android.graphics.flags.icon_load_drawable_return_null_when_uri_decode_fails
 com.android.graphics.hwui.flags.animated_image_drawable_filter_bitmap
+com.android.graphics.surfaceflinger.flags.disable_synthetic_vsync_for_performance
 com.android.hardware.input.manage_key_gestures
 com.android.healthfitness.flags.activity_intensity_db
 com.android.healthfitness.flags.add_missing_access_logs
