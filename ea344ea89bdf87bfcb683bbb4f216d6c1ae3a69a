@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e8e9d145_1a09778b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2026-07-06T06:16:09Z",
+      "side": 1,
+      "message": "44321: gen_build_prop: Set ro.build.fingerprint | https://gerrit.aospa.co/c/AOSPA/android_build_soong/+/44321\n\nThis was the problem",
+      "revId": "ea344ea89bdf87bfcb683bbb4f216d6c1ae3a69a",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
