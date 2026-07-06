@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7c153aa1_5a8a4c5d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000579
+      },
+      "writtenOn": "2026-07-06T06:18:04Z",
+      "side": 1,
+      "message": "we can\u0027t set enforce product packages exist no point",
+      "revId": "eb35b97e6e0d570db34022210ba7c3d4970183a4",
+      "serverId": "3162e3d8-d894-470e-abd9-724f7b0effad"
+    }
+  ]
+}
