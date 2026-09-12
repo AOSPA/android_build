@@ -18,5 +18,7 @@
 # hardware, and install outside the system partition.
 
 # /vendor packages
+ifneq ($(TARGET_NO_TELEPHONY), true)
 PRODUCT_PACKAGES := \
-    rild \
+    rild
+endif
