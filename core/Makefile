@@ -391,9 +391,14 @@ $(foreach vendor_ramdisk_fragment,$(INTERNAL_VENDOR_RAMDISK_FRAGMENTS), \
 # Depmod requires a well-formed kernel version so 0.0 is used as a placeholder.
 DEPMOD_STAGING_SUBDIR :=$= lib/modules/0.0
 
+# Stripping a signed module invalidates its signature.
 define copy-and-strip-kernel-module
 $(2): $(1)
-	$(LLVM_STRIP) -o $(2) --strip-debug $(1)
+	@if tail -c 28 "$(1)" | grep -Fqx '~Module signature appended~'; then \
+	  cp "$(1)" "$(2)"; \
+	else \
+	  $(LLVM_STRIP) -o "$(2)" --strip-debug "$(1)"; \
+	fi
 endef
 
 # $(1): modules list
